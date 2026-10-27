@@ -21,3 +21,19 @@ private fun oneDecimal(v: Double): String {
     val tenths = (v * 10).toLong()
     return if (tenths % 10 == 0L) "${tenths / 10}" else "${tenths / 10}.${tenths % 10}"
 }
+
+/** "3 days ago", "2 hours ago", "just now"; null when the upload time is unknown. */
+fun formatAge(uploadedAt: kotlin.time.Instant?, now: kotlin.time.Instant): String? {
+    uploadedAt ?: return null
+    val seconds = (now - uploadedAt).inWholeSeconds
+    if (seconds < 0) return null
+    fun unit(n: Long, name: String) = "$n $name${if (n == 1L) "" else "s"} ago"
+    return when {
+        seconds < 60 -> "just now"
+        seconds < 3600 -> unit(seconds / 60, "minute")
+        seconds < 86_400 -> unit(seconds / 3600, "hour")
+        seconds < 86_400 * 30 -> unit(seconds / 86_400, "day")
+        seconds < 86_400 * 365 -> unit(seconds / (86_400 * 30), "month")
+        else -> unit(seconds / (86_400 * 365), "year")
+    }
+}

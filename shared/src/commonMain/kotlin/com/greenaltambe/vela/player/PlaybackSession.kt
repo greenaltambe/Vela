@@ -166,6 +166,7 @@ class PlaybackSession(
      */
     fun start(videoId: String, hint: VideoSummary? = null) {
         finishCurrent()
+        clearPreviousVideo()
         if (_sleepTimer.value?.mode == SleepTimerMode.EndOfVideo) setSleepTimer(null)
         this.videoId = videoId
         title = hint?.title.orEmpty()
@@ -190,6 +191,7 @@ class PlaybackSession(
      */
     fun startLocal(videoId: String, plan: PlaybackPlan.Local, title: String, channelId: String) {
         finishCurrent()
+        clearPreviousVideo()
         this.videoId = videoId
         this.title = title
         this.channelId = channelId
@@ -212,6 +214,15 @@ class PlaybackSession(
             controller.setSpeed(settings.resolve(Settings.defaultPlaybackSpeed, channelId.ifEmpty { null }, videoId))
             _state.value = SessionState.Ready(videoId, plan, emptyList(), null, OFFLINE_CLIENT)
         }
+    }
+
+    /**
+     * The player still holds the last video (its frame, position and duration) until something new is loaded, which is
+     * only after the streams are resolved. Unload it now so a new page never shows the previous video's state.
+     */
+    private fun clearPreviousVideo() {
+        if (controller.state.value.status != PlaybackStatus.IDLE) controller.stop()
+        lastStatus = PlaybackStatus.IDLE
     }
 
     fun play() {

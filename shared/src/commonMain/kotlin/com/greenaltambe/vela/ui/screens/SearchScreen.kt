@@ -2,11 +2,20 @@ package com.greenaltambe.vela.ui.screens
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -18,40 +27,57 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import com.greenaltambe.vela.AppServices
 import com.greenaltambe.vela.extractor.ExtractorResult
 import com.greenaltambe.vela.extractor.videoPagedList
 import com.greenaltambe.vela.modules.dearrow.DeArrowSurface
 import com.greenaltambe.vela.ui.components.SectionHeader
-import com.greenaltambe.vela.ui.components.VideoCard
+import com.greenaltambe.vela.ui.components.EmptyState
 import com.greenaltambe.vela.ui.look.Vela
 import com.greenaltambe.vela.ui.nav.Navigator
 import com.greenaltambe.vela.ui.nav.Route
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.ui.unit.dp
 
-/** Paged, de-duplicated results for [query]; with no query, the search history (per account) with a clear button. */
+/**
+ * The full search view: a query field with clear and back, the history list while the field is empty, paged results
+ * below once something is searched. The field always starts from this route's query, never from the last one typed
+ * elsewhere, and a new search replaces this screen rather than stacking another.
+ */
 @Composable
 fun SearchScreen(services: AppServices, navigator: Navigator, query: String, modifier: Modifier = Modifier) {
+    var text by remember(query) { mutableStateOf(query) }
     var results by remember(query) { mutableStateOf(videoPagedList()) }
-    var status by remember(query) { mutableStateOf("") }
+    var state by remember(query) { mutableStateOf<ListState>(if (query.isBlank()) ListState.Ready else ListState.Loading) }
     var loading by remember(query) { mutableStateOf(false) }
     var historyRevision by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
-    val shownResults = rememberFiltered(services, results.items, DeArrowSurface.SEARCH)
+    val focus = remember { FocusRequester() }
     val history = remember(historyRevision, query) { if (query.isBlank()) services.searchHistory.recent() else emptyList() }
+
+    fun submit(q: String) { if (q.isNotBlank()) navigator.replace(Route.Search(q.trim())) }
 
     fun load(more: Boolean) {
         if (loading || query.isBlank()) return
         loading = true
-        status = "Searching..."
+        if (!more) state = ListState.Loading
         scope.launch {
             when (val result = services.extractor.search(query, results.continuation.takeIf { more })) {
                 is ExtractorResult.Success -> {
                     results = if (more) results.append(result.value) else results.replace(result.value)
-                    status = if (results.items.isEmpty()) "No results." else ""
+                    state = if (results.items.isEmpty()) ListState.Empty("No results for \"$query\".") else ListState.Ready
                 }
-                is ExtractorResult.Failure -> status = "Search failed: ${result.error.message}"
+                is ExtractorResult.Failure -> if (results.items.isEmpty()) state = ListState.Error("Search failed: ${result.error.message}") { load(false) }
             }
             loading = false
         }
@@ -60,30 +86,44 @@ fun SearchScreen(services: AppServices, navigator: Navigator, query: String, mod
         if (query.isNotBlank()) {
             services.searchHistory.add(query, services.clock.now())
             load(more = false)
-        }
+        } else runCatching { focus.requestFocus() }
     }
+    val shown = rememberFiltered(services, results.items, DeArrowSurface.SEARCH)
 
-    LazyColumn(modifier.fillMaxSize().testTag("search.list"), verticalArrangement = Arrangement.spacedBy(Vela.sm), contentPadding = Vela.pagePadding) {
+    Column(modifier.fillMaxSize()) {
+        Row(
+            Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)).heightIn(min = 56.dp).padding(horizontal = Vela.xs),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = { navigator.back() }, modifier = Modifier.testTag("nav.back")) { Icon(Vela.icons.back, "Back") }
+            OutlinedTextField(
+                text, { text = it }, modifier = Modifier.weight(1f).focusRequester(focus).testTag("search.field"), singleLine = true,
+                placeholder = { Text("Search videos", maxLines = 1) },
+                trailingIcon = { if (text.isNotEmpty()) IconButton(onClick = { text = "" }, modifier = Modifier.testTag("search.clear")) { Icon(Vela.icons.close, "Clear") } },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { submit(text) }),
+            )
+            IconButton(onClick = { submit(text) }, enabled = text.isNotBlank(), modifier = Modifier.testTag("search.submit")) { Icon(Vela.icons.search, "Search") }
+        }
         if (query.isBlank()) {
-            item {
-                SectionHeader("Recent searches") {
-                    if (history.isNotEmpty()) TextButton(onClick = { services.searchHistory.clear(); historyRevision++ }, modifier = Modifier.testTag("search.clearHistory")) { Text("Clear") }
+            LazyColumn(Modifier.fillMaxSize().testTag("search.list"), contentPadding = Vela.contentPadding) {
+                item {
+                    SectionHeader("Recent searches") {
+                        if (history.isNotEmpty()) TextButton(onClick = { services.searchHistory.clear(); historyRevision++ }, modifier = Modifier.testTag("search.clearHistory")) { Text("Clear", maxLines = 1) }
+                    }
                 }
-            }
-            if (history.isEmpty()) item { Text("Nothing searched yet.") }
-            items(history, key = { it }) { q ->
-                Row(Modifier.fillMaxWidth().clickable { navigator.push(Route.Search(q)) }, verticalAlignment = Alignment.CenterVertically) {
-                    Text(q, Modifier.weight(1f))
-                    TextButton(onClick = { services.searchHistory.remove(q); historyRevision++ }) { Text("✕") }
+                if (history.isEmpty()) item { EmptyState("Nothing searched yet.") }
+                items(history, key = { it }) { q ->
+                    Row(Modifier.fillMaxWidth().heightIn(min = Vela.minTouch).clickable { navigator.replace(Route.Search(q)) }, verticalAlignment = Alignment.CenterVertically) {
+                        Text(q, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge)
+                        IconButton(onClick = { services.searchHistory.remove(q); historyRevision++ }) { Icon(Vela.icons.close, "Remove from history") }
+                    }
                 }
             }
         } else {
-            item { SectionHeader("Results for \"$query\"") }
-            if (status.isNotEmpty()) item { Text(status, Modifier.testTag("search.status")) }
-            items(shownResults, key = { it.id }) { v ->
-                VideoCard(v, badge = rydBadge(services, v.id), onClick = { navigator.push(Route.Video(v)) }, onChannelClick = { navigator.push(Route.Channel(v.channelId, v.channelName)) }, trailing = { VideoMenu(services, v) })
-            }
-            if (results.continuation != null) item { TextButton(onClick = { load(more = true) }, enabled = !loading, modifier = Modifier.testTag("search.more")) { Text("Load more") } }
+            VideoCollection(
+                services, navigator, shown, state, grid = false, testTag = "search.list",
+                footer = if (results.continuation != null) ({ TextButton(onClick = { load(more = true) }, enabled = !loading, modifier = Modifier.testTag("search.more")) { Text("Load more", maxLines = 1) } }) else null,
+            )
         }
     }
 }

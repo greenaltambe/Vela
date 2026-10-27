@@ -1,10 +1,5 @@
 package com.greenaltambe.vela.ui.screens
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -18,33 +13,31 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import com.greenaltambe.vela.AppServices
 import com.greenaltambe.vela.extractor.ExtractorResult
-import com.greenaltambe.vela.modules.dearrow.DeArrowSurface
 import com.greenaltambe.vela.extractor.videoPagedList
+import com.greenaltambe.vela.modules.dearrow.DeArrowSurface
 import com.greenaltambe.vela.ui.components.SectionHeader
-import com.greenaltambe.vela.ui.components.VideoCard
-import com.greenaltambe.vela.ui.look.Vela
 import com.greenaltambe.vela.ui.nav.Navigator
-import com.greenaltambe.vela.ui.nav.Route
 import kotlinx.coroutines.launch
 
 /** Trending, through the same feed pipeline as the subscription feed. */
 @Composable
 fun HomeScreen(services: AppServices, navigator: Navigator, modifier: Modifier = Modifier) {
     var videos by remember { mutableStateOf(videoPagedList()) }
-    var status by remember { mutableStateOf("Loading...") }
+    var state by remember { mutableStateOf<ListState>(ListState.Loading) }
     var loading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     fun load(more: Boolean) {
         if (loading) return
         loading = true
+        if (!more && videos.items.isEmpty()) state = ListState.Loading
         scope.launch {
             when (val result = services.extractor.trending(videos.continuation.takeIf { more })) {
                 is ExtractorResult.Success -> {
                     videos = if (more) videos.append(result.value) else videos.replace(result.value)
-                    status = if (videos.items.isEmpty()) "Nothing trending right now." else ""
+                    state = if (videos.items.isEmpty()) ListState.Empty("Nothing is trending right now.", "Refresh") { load(false) } else ListState.Ready
                 }
-                is ExtractorResult.Failure -> status = "Could not load trending: ${result.error.message}"
+                is ExtractorResult.Failure -> if (videos.items.isEmpty()) state = ListState.Error("Could not load trending: ${result.error.message}") { load(false) }
             }
             loading = false
         }
@@ -52,12 +45,9 @@ fun HomeScreen(services: AppServices, navigator: Navigator, modifier: Modifier =
     LaunchedEffect(Unit) { if (videos.items.isEmpty()) load(more = false) }
 
     val shown = rememberFiltered(services, videos.items, DeArrowSurface.FEED)
-    LazyColumn(modifier.fillMaxSize().testTag("home.list"), verticalArrangement = Arrangement.spacedBy(Vela.sm), contentPadding = Vela.pagePadding) {
-        item { SectionHeader("Trending") { TextButton(onClick = { load(more = false) }) { Text("Refresh") } } }
-        if (status.isNotEmpty()) item { Text(status) }
-        items(shown, key = { it.id }) { v ->
-            VideoCard(v, badge = rydBadge(services, v.id), onClick = { navigator.push(Route.Video(v)) }, onChannelClick = { navigator.push(Route.Channel(v.channelId, v.channelName)) }, trailing = { VideoMenu(services, v) })
-        }
-        if (videos.continuation != null) item { TextButton(onClick = { load(more = true) }, enabled = !loading) { Text("Load more") } }
-    }
+    VideoCollection(
+        services, navigator, shown, state, modifier, testTag = "home.list",
+        header = { SectionHeader("Trending") { TextButton(onClick = { load(more = false) }, enabled = !loading) { Text("Refresh", maxLines = 1) } } },
+        footer = if (videos.continuation != null) ({ TextButton(onClick = { load(more = true) }, enabled = !loading) { Text("Load more", maxLines = 1) } }) else null,
+    )
 }

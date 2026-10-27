@@ -1,8 +1,12 @@
 package com.greenaltambe.vela.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -29,21 +33,22 @@ import com.greenaltambe.vela.modules.sponsorblock.SkipNotice
 import com.greenaltambe.vela.modules.sponsorblock.SubmitOutcome
 import com.greenaltambe.vela.ui.components.SectionHeader
 import com.greenaltambe.vela.ui.look.Vela
+import com.greenaltambe.vela.ui.look.toColor
 import kotlinx.coroutines.launch
 
 /** Under the picture: the Skip button of a "prompt" segment, and the notice of an automatic skip with Undo. */
 @Composable
 fun SponsorBlockOverlay(prompt: Segment?, notice: SkipNotice?, onAccept: () -> Unit, onUndo: (SkipNotice) -> Unit) {
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
+    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
         if (prompt != null) {
             val label = SegmentCategory.fromId(prompt.category)?.label ?: prompt.category
-            OutlinedButton(onClick = onAccept, modifier = Modifier.testTag("sponsorblock.prompt")) {
-                Text(if (prompt.isPoint) "Jump to highlight" else "Skip $label")
+            OutlinedButton(onClick = onAccept, modifier = Modifier.background(Vela.colors.mediaScrim.toColor(), Vela.pillShape).testTag("sponsorblock.prompt")) {
+                Text(if (prompt.isPoint) "Jump to highlight" else "Skip $label", maxLines = 1, color = Vela.colors.onMedia.toColor())
             }
         }
         if (notice != null) {
-            Row(Modifier.fillMaxWidth().testTag("sponsorblock.notice"), verticalAlignment = Alignment.CenterVertically) {
-                Text("Skipped: ${notice.label}", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+            Row(Modifier.background(Vela.colors.mediaScrim.toColor(), Vela.pillShape).padding(start = Vela.md).testTag("sponsorblock.notice"), verticalAlignment = Alignment.CenterVertically) {
+                Text("Skipped: ${notice.label}", style = MaterialTheme.typography.bodyMedium, maxLines = 1, color = Vela.colors.onMedia.toColor())
                 TextButton(onClick = { onUndo(notice) }, modifier = Modifier.testTag("sponsorblock.undo")) { Text("Undo") }
             }
         }
@@ -72,7 +77,7 @@ fun ContributeSection(
     var confirmSegment by remember { mutableStateOf(false) }
     var confirmFrame by remember { mutableStateOf(false) }
 
-    TextButton(onClick = { expanded = !expanded }, modifier = Modifier.testTag("contribute.toggle")) { Text(if (expanded) "Hide contribute" else "Contribute (submit a segment or thumbnail)") }
+    com.greenaltambe.vela.ui.components.LinkButton(if (expanded) "Hide contribute" else "Contribute", { expanded = !expanded }, Modifier.testTag("contribute.toggle"))
     if (!expanded) return
 
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {

@@ -49,6 +49,12 @@ class Navigator(start: Route = Route.Home) {
     var queue: List<VideoSummary> by mutableStateOf(emptyList())
         private set
 
+    /** Swaps the current screen for [route] (a search view re-searching), so Back does not step through every query. */
+    fun replace(route: Route) {
+        if (route is Route.Video) nowPlaying = route.video
+        stack[stack.lastIndex] = route
+    }
+
     fun push(route: Route) {
         if (route == current) return
         if (route is Route.Video) nowPlaying = route.video

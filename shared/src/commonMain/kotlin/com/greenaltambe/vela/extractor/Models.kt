@@ -15,6 +15,8 @@ data class VideoSummary(
     val durationSeconds: Long? = null,
     val viewCount: Long? = null,
     val isShort: Boolean = false,
+    /** A live stream (or a premiere that has not ended). */
+    val isLive: Boolean = false,
     /** When the video was published, if the source says (the RSS feed does; search results mostly don't). */
     val uploadedAt: Instant? = null,
     /** Set when DeArrow replaced [title] / [thumbnailUrl]: what they were, for "show original". */

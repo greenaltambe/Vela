@@ -24,6 +24,21 @@ dependencies {
 apply(from = rootProject.file("gradle/live-test.gradle.kts"))
 
 dependencies {
+    // Offline UI tests: the real screens rendered at phone / tablet / desktop sizes with fake data (screenshots + layout assertions).
+    testImplementation(compose.desktop.currentOs)
+    testImplementation(compose.uiTest)
+    testImplementation(libs.kotlin.test)
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutinesTest)
+    testImplementation(libs.kotlinx.serializationJson)
+}
+
+tasks.withType<Test>().matching { it.name == "test" }.configureEach {
+    // Where the screenshot tests write their PNGs; the report links them.
+    systemProperty("vela.screens.dir", rootProject.file("docs/reports/12-screens").path)
+}
+
+dependencies {
     // Live tests drive the real UI with real libmpv and network; never part of `check`.
     add("liveTestImplementation", compose.desktop.currentOs)
     add("liveTestImplementation", compose.uiTest)

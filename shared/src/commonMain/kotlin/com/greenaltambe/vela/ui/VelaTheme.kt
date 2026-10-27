@@ -1,7 +1,12 @@
 package com.greenaltambe.vela.ui
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -50,8 +55,15 @@ fun VelaTheme(look: LookTokens, performanceMode: Boolean = false, content: @Comp
             headlineMedium = TextStyle(fontFamily = family, fontSize = (t.titleSizeSp + 4).sp),
         )
     }
-    CompositionLocalProvider(LocalLook provides look, LocalPerformanceMode provides performanceMode) {
-        MaterialTheme(colorScheme = scheme, typography = typography, content = content)
+    // Compose Desktop does not enforce Material's 48 dp minimum for touch (Android does): make it the Look's rule on both.
+    CompositionLocalProvider(
+        LocalLook provides look, LocalPerformanceMode provides performanceMode,
+        LocalMinimumInteractiveComponentSize provides look.spacing.minTouchDp.dp,
+    ) {
+        MaterialTheme(colorScheme = scheme, typography = typography) {
+            // Text with no colour of its own takes the content colour, which is black unless a Surface says otherwise.
+            Surface(Modifier.fillMaxSize(), color = scheme.background, contentColor = scheme.onBackground, content = content)
+        }
     }
 }
 

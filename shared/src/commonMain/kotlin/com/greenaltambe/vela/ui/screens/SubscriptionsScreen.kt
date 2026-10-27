@@ -26,13 +26,14 @@ import com.greenaltambe.vela.AppServices
 import com.greenaltambe.vela.feed.FeedContext
 import com.greenaltambe.vela.feed.WatchedLookup
 import com.greenaltambe.vela.feed.shortsFeedPipeline
+import androidx.compose.material3.OutlinedButton as OutlinedButton2
 import com.greenaltambe.vela.feed.standardFeedPipeline
 import com.greenaltambe.vela.library.parseSubscriptionFile
 import com.greenaltambe.vela.modules.dearrow.DeArrowStep
 import com.greenaltambe.vela.modules.dearrow.DeArrowSurface
 import com.greenaltambe.vela.ui.components.ChannelRow
 import com.greenaltambe.vela.ui.components.SectionHeader
-import com.greenaltambe.vela.ui.components.VideoCard
+import com.greenaltambe.vela.ui.components.ErrorRow
 import com.greenaltambe.vela.ui.look.Vela
 import com.greenaltambe.vela.ui.nav.Navigator
 import com.greenaltambe.vela.ui.nav.Route
@@ -49,36 +50,42 @@ fun SubscriptionsScreen(services: AppServices, navigator: Navigator, modifier: M
     val refreshing by services.feed.refreshing.collectAsState()
     val entries by services.feed.entries.collectAsState()
     val failures by services.feed.failures.collectAsState()
+    val branding by services.modules.dearrow.revision.collectAsState()
 
     // The cache is already on screen; this brings it up to date.
     LaunchedEffect(Unit) { services.feed.refresh() }
 
     Column(modifier.fillMaxSize()) {
         TabRow(selectedTabIndex = tab.ordinal) {
-            SubsTab.entries.forEach { t -> Tab(selected = tab == t, onClick = { tab = t }, text = { Text(t.label) }, modifier = Modifier.testTag("subs.tab.${t.name}")) }
+            SubsTab.entries.forEach { t -> Tab(selected = tab == t, onClick = { tab = t }, text = { Text(t.label, maxLines = 1, softWrap = false) }, modifier = Modifier.testTag("subs.tab.${t.name}")) }
         }
         when (tab) {
             SubsTab.FEED, SubsTab.SHORTS -> PullToRefreshBox(isRefreshing = refreshing, onRefresh = { scope.launch { services.feed.refresh() } }, modifier = Modifier.fillMaxSize()) {
                 val watched = WatchedLookup.of(services.history.watchedVideoIds())
                 val pipeline = if (tab == SubsTab.FEED) standardFeedPipeline(watched) else shortsFeedPipeline(watched)
-                val branding by services.modules.dearrow.revision.collectAsState()
                 val shown = remember(entries, tab, failures, branding) {
                     pipeline.with(DeArrowStep(services.modules.dearrow, DeArrowSurface.FEED)).run(entries.map { it.video }, FeedContext(services.settings))
                 }
                 val shownIds = remember(entries) { entries.map { it.video.id } }
                 LaunchedEffect(shownIds) { services.modules.dearrow.prefetch(shownIds) }
-                LazyColumn(Modifier.fillMaxSize().testTag("subs.feed"), verticalArrangement = Arrangement.spacedBy(Vela.sm), contentPadding = Vela.pagePadding) {
-                    item {
-                        SectionHeader(if (tab == SubsTab.FEED) "New from your subscriptions" else "Shorts") {
-                            TextButton(onClick = { scope.launch { services.feed.refresh() } }, enabled = !refreshing, modifier = Modifier.testTag("subs.refresh")) { Text(if (refreshing) "Refreshing..." else "Refresh") }
-                        }
-                    }
-                    if (failures.isNotEmpty()) item { Text("${failures.size} channel(s) could not be refreshed; showing what was cached.", modifier = Modifier.testTag("subs.failures")) }
-                    if (shown.isEmpty() && !refreshing) item { Text(if (services.subscriptions.all().isEmpty()) "No subscriptions yet. Subscribe to a channel or import a file in Channels." else "Nothing new.") }
-                    items(shown, key = { it.id }) { v ->
-                        VideoCard(v, badge = rydBadge(services, v.id), onClick = { navigator.push(Route.Video(v)) }, onChannelClick = { navigator.push(Route.Channel(v.channelId, v.channelName)) }, trailing = { VideoMenu(services, v) })
-                    }
+                val noSubs = services.subscriptions.all().isEmpty()
+                val state: ListState = when {
+                    shown.isEmpty() && refreshing -> ListState.Loading
+                    shown.isEmpty() && noSubs -> ListState.Empty("No subscriptions yet. Subscribe to a channel, or import a file.", "Import or manage") { tab = SubsTab.CHANNELS }
+                    shown.isEmpty() -> ListState.Empty(if (tab == SubsTab.FEED) "Nothing new from your channels." else "No Shorts from your channels.", "Refresh") { scope.launch { services.feed.refresh() } }
+                    else -> ListState.Ready
                 }
+                VideoCollection(
+                    services, navigator, shown, state, testTag = "subs.feed",
+                    header = {
+                        Column {
+                            SectionHeader(if (tab == SubsTab.FEED) "New from your channels" else "Shorts") {
+                                TextButton(onClick = { scope.launch { services.feed.refresh() } }, enabled = !refreshing, modifier = Modifier.testTag("subs.refresh")) { Text(if (refreshing) "Refreshing" else "Refresh", maxLines = 1) }
+                            }
+                            if (failures.isNotEmpty()) ErrorRow("${failures.size} channel(s) could not be refreshed; showing what was cached.", { scope.launch { services.feed.refresh() } }, Modifier.testTag("subs.failures"))
+                        }
+                    },
+                )
             }
             SubsTab.CHANNELS -> ChannelsTab(services, navigator, onChanged = { services.feed.reload() })
         }
@@ -106,17 +113,17 @@ private fun ChannelsTab(services: AppServices, navigator: Navigator, onChanged: 
         }
     }
 
-    LazyColumn(Modifier.fillMaxSize().testTag("subs.channels"), verticalArrangement = Arrangement.spacedBy(Vela.xs), contentPadding = Vela.pagePadding) {
+    LazyColumn(Modifier.fillMaxSize().testTag("subs.channels"), verticalArrangement = Arrangement.spacedBy(Vela.xs), contentPadding = Vela.contentPadding) {
         item {
-            SectionHeader("Subscriptions (${channels.size})") {
-                OutlinedButton(onClick = pick, modifier = Modifier.testTag("subs.import")) { Text("Import file") }
+            SectionHeader("Channels (${channels.size})") {
+                OutlinedButton(onClick = pick, modifier = Modifier.testTag("subs.import")) { Text("Import", maxLines = 1) }
             }
-            Text("Accepts YouTube Takeout subscriptions.csv or a NewPipe subscriptions export.", style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
+            Text("Accepts a YouTube Takeout subscriptions.csv or a NewPipe export.", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, maxLines = 2)
             message?.let { Text(it, Modifier.testTag("subs.importMessage")) }
         }
         items(channels, key = { it.channelId }) { c ->
             ChannelRow(c.name, null, c.avatarUrl, onClick = { navigator.push(Route.Channel(c.channelId, c.name)) }, trailing = {
-                TextButton(onClick = { services.subscriptions.unsubscribe(c.channelId); revision++; onChanged() }) { Text("Unsubscribe") }
+                TextButton(onClick = { services.subscriptions.unsubscribe(c.channelId); revision++; onChanged() }) { Text("Unsubscribe", maxLines = 1) }
             })
         }
     }

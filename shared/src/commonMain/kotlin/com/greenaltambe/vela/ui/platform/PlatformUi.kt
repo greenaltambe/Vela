@@ -22,6 +22,9 @@ interface WindowControls {
 
 val LocalWindowControls = staticCompositionLocalOf<WindowControls?> { null }
 
+/** True where the app has its own volume control (desktop); Android leaves volume to the system buttons and shows only mute. */
+val LocalVolumeSlider = staticCompositionLocalOf { false }
+
 /** True while the app is shown in a Picture-in-Picture window, where only the video should be drawn. */
 val LocalInPictureInPicture = staticCompositionLocalOf { false }
 

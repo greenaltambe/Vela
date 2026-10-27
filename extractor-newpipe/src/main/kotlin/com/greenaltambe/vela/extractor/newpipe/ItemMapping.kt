@@ -20,6 +20,7 @@ internal fun StreamInfoItem.toVideoSummary(): VideoSummary? {
         durationSeconds = duration.takeIf { it >= 0 },
         viewCount = viewCount.takeIf { it >= 0 },
         isShort = isShortFormContent,
+        isLive = streamType == org.schabi.newpipe.extractor.stream.StreamType.LIVE_STREAM || streamType == org.schabi.newpipe.extractor.stream.StreamType.AUDIO_LIVE_STREAM,
         uploadedAt = uploadDate?.instant?.let { kotlin.time.Instant.fromEpochMilliseconds(it.toEpochMilli()) },
     )
 }

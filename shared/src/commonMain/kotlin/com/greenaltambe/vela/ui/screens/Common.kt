@@ -34,7 +34,7 @@ fun VideoMenu(services: AppServices, video: VideoSummary, modifier: Modifier = M
     var download by remember { mutableStateOf(false) }
     if (download) DownloadDialog(services, listOf(video), onDismiss = { download = false })
     Box(modifier) {
-        TextButton(onClick = { open = true }, modifier = Modifier.testTag("video.menu")) { Text("⋮") }
+        androidx.compose.material3.IconButton(onClick = { open = true }, modifier = Modifier.testTag("video.menu")) { androidx.compose.material3.Icon(com.greenaltambe.vela.ui.look.Vela.icons.more, "More options for ${video.title}") }
         DropdownMenu(open, { open = false }) {
             if (services.downloads != null) DropdownMenuItem(
                 text = { Text(if (services.downloads.isDownloaded(video.id)) "✓ Downloaded" else "Download...") },

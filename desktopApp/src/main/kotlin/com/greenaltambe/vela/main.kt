@@ -7,6 +7,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.rememberWindowState
+import com.greenaltambe.vela.ui.platform.LocalVolumeSlider
 import com.greenaltambe.vela.ui.platform.LocalWindowControls
 import com.greenaltambe.vela.ui.platform.WindowControls
 import java.util.TimeZone
@@ -90,7 +91,7 @@ fun main() {
             state = windowState,
             title = "Vela",
         ) {
-            CompositionLocalProvider(LocalWindowControls provides windowControls) { App(services) }
+            CompositionLocalProvider(LocalWindowControls provides windowControls, LocalVolumeSlider provides true) { App(services) }
         }
     }
 }

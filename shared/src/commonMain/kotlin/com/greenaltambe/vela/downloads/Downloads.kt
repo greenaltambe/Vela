@@ -57,4 +57,7 @@ class Downloads(
     }
 
     fun isDownloaded(videoId: String): Boolean = repo.completedFor(videoId) != null
+
+    /** Ids of every finished download, for the card indicators of a whole list at once. */
+    fun completedIds(): Set<String> = repo.all().filter { it.state == com.greenaltambe.vela.data.DownloadState.COMPLETED }.mapTo(HashSet()) { it.videoId }
 }

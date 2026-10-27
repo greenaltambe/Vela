@@ -100,7 +100,7 @@ fun main(args: Array<String>) {
         }
 
         Window(state = windowState, title = "Vela live window", onCloseRequest = { runtime.close(); exitApplication() }) {
-            CompositionLocalProvider(LocalWindowControls provides controls) { App(services, navigator) }
+            CompositionLocalProvider(LocalWindowControls provides controls, com.greenaltambe.vela.ui.platform.LocalVolumeSlider provides true) { App(services, navigator) }
         }
     }
 }

@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
@@ -70,8 +72,7 @@ fun DiagnosticsScreen(extractor: Extractor, log: DiagnosticsLog, moduleLog: Modu
         }
     }
 
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Diagnostics", style = MaterialTheme.typography.titleLarge)
+    Column(modifier.padding(horizontal = com.greenaltambe.vela.ui.look.Vela.gutter), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(query, { query = it }, label = { Text("Search (lists streams on click)") }, singleLine = true)
             Button(onClick = { search() }, enabled = query.isNotBlank()) { Text("Search") }
@@ -80,21 +81,21 @@ fun DiagnosticsScreen(extractor: Extractor, log: DiagnosticsLog, moduleLog: Modu
         Text(status)
         streamSummary?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
         LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
-            items(results.items) { video -> Text("${video.title}  (${video.channelName})", Modifier.clickable { load(video) }.fillMaxWidth()) }
+            items(results.items) { video -> Text("${video.title}  (${video.channelName})", Modifier.clickable { load(video) }.fillMaxWidth().heightIn(min = 48.dp), maxLines = 2, style = MaterialTheme.typography.bodyMedium) }
         }
         if (downloads != null) {
             Text("Downloads", style = MaterialTheme.typography.titleMedium)
-            Text("Merging: ${downloads.merger.description}")
-            downloads.diagnostics().forEach { Text(it) }
+            Text("Merging: ${downloads.merger.description}", maxLines = 3, style = MaterialTheme.typography.bodySmall)
+            downloads.diagnostics().forEach { Text(it, maxLines = 3, style = MaterialTheme.typography.bodySmall) }
         }
         Text("Modules (SponsorBlock, Return YouTube Dislike, DeArrow)", style = MaterialTheme.typography.titleMedium)
         if (moduleEvents.isEmpty()) Text("No module activity yet.")
         LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
-            items(moduleEvents.asReversed()) { Text("${if (it.ok) "ok      " else "INACTIVE"}  ${it.moduleId}  ${it.message}") }
+            items(moduleEvents.asReversed()) { Text("${if (it.ok) "ok" else "INACTIVE"}  ${it.moduleId}  ${it.message}", maxLines = 3, style = MaterialTheme.typography.bodySmall) }
         }
         Text("Tier attempts", style = MaterialTheme.typography.titleMedium)
         LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
-            items(attempts.asReversed()) { Text(it.describe()) }
+            items(attempts.asReversed()) { Text(it.describe(), maxLines = 3, style = MaterialTheme.typography.bodySmall) }
         }
     }
 }

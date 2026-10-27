@@ -3,7 +3,14 @@ package com.greenaltambe.vela.ui.screens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
+import com.greenaltambe.vela.ui.components.EmptyState
+import com.greenaltambe.vela.ui.look.toColor
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
@@ -93,10 +100,11 @@ fun DownloadDialog(services: AppServices, videos: List<VideoSummary>, onDismiss:
     )
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun DownloadsScreen(services: AppServices, navigator: Navigator, modifier: Modifier = Modifier) {
     val downloads = services.downloads
-    if (downloads == null) { Text("Downloads are not available on this platform.", modifier); return }
+    if (downloads == null) { EmptyState("Downloads are not available on this platform.", modifier); return }
     val items by downloads.manager.items.collectAsState()
     val waiting by downloads.manager.waiting.collectAsState()
     val settingsRevision by services.settings.revision.collectAsState()
@@ -108,30 +116,33 @@ fun DownloadsScreen(services: AppServices, navigator: Navigator, modifier: Modif
     val free = remember(items, settingsRevision) { storage.freeBytes() }
     val cap = services.settings.resolve(Settings.downloadsStorageCapGb)
 
-    LazyColumn(modifier.fillMaxSize().testTag("downloads.list"), verticalArrangement = Arrangement.spacedBy(Vela.sm), contentPadding = Vela.pagePadding) {
-        item {
-            SectionHeader("Downloads")
-            Text("Folder: ${storage.description}", style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("downloads.folder"))
-            Row(horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                OutlinedButton(onClick = chooseFolder, modifier = Modifier.testTag("downloads.chooseFolder")) { Text("Change folder") }
-                OutlinedButton(onClick = { services.settings.set(Settings.downloadsFolder, "") }, enabled = services.settings.resolve(Settings.downloadsFolder).isNotEmpty()) { Text("Use default") }
+    Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        LazyColumn(Modifier.widthIn(max = 900.dp).fillMaxSize().testTag("downloads.list"), contentPadding = Vela.contentPadding, verticalArrangement = Arrangement.spacedBy(Vela.md)) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
+                    Text("Folder: ${storage.description}", style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("downloads.folder"))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+                        OutlinedButton(onClick = chooseFolder, modifier = Modifier.testTag("downloads.chooseFolder")) { Text("Change folder", maxLines = 1) }
+                        OutlinedButton(onClick = { services.settings.set(Settings.downloadsFolder, "") }, enabled = services.settings.resolve(Settings.downloadsFolder).isNotEmpty()) { Text("Use default", maxLines = 1) }
+                    }
+                    Text(
+                        "Used: ${formatBytes(used)}" + (free?.let { " · free: ${formatBytes(it)}" } ?: "") +
+                            if (cap > 0) " · cap: ${cap.toInt()} GB" + (if (used > cap * 1024L * 1024 * 1024) " (over)" else "") else "",
+                        style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("downloads.storage"),
+                    )
+                    waiting?.let { Text(it, style = MaterialTheme.typography.bodyMedium, maxLines = 1, modifier = Modifier.testTag("downloads.waiting")) }
+                }
             }
-            Text(
-                "Used by downloads: ${formatBytes(used)}" + (free?.let { " · free: ${formatBytes(it)}" } ?: "") +
-                    if (cap > 0) " · cap: ${cap.toInt()} GB" + (if (used > cap * 1024L * 1024 * 1024) " (over)" else "") else "",
-                style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("downloads.storage"),
-            )
-            waiting?.let { Text(it, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("downloads.waiting")) }
+            if (items.isEmpty()) item { EmptyState("Nothing downloaded yet. Use Download on a video page or in its ⋮ menu.") }
+            items(items, key = { it.id }) { item -> DownloadRow(services, navigator, item, onDelete = { confirmDelete = item }) }
         }
-        if (items.isEmpty()) item { Text("Nothing downloaded yet. Use Download on a video page or the ⋮ menu of any video.") }
-        items(items, key = { it.id }) { item -> DownloadRow(services, navigator, item, onDelete = { confirmDelete = item }) }
     }
 
     confirmDelete?.let { item ->
         AlertDialog(
             onDismissRequest = { confirmDelete = null },
             title = { Text(if (item.state == DownloadState.COMPLETED) "Delete this download?" else "Cancel and remove this download?") },
-            text = { Text(item.title + if (item.state == DownloadState.COMPLETED) "\n\nThe file is deleted from the device." else "\n\nWhat was downloaded so far is deleted.") },
+            text = { Text(item.title + if (item.state == DownloadState.COMPLETED) "\n\nThe file is deleted from the device." else "\n\nWhat was downloaded so far is deleted.", maxLines = 6, overflow = TextOverflow.Ellipsis) },
             confirmButton = { TextButton(onClick = { downloads.manager.remove(item.id); confirmDelete = null }, modifier = Modifier.testTag("downloads.confirmDelete")) { Text("Delete") } },
             dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text("Keep") } },
         )
@@ -141,9 +152,10 @@ fun DownloadsScreen(services: AppServices, navigator: Navigator, modifier: Modif
 @Composable
 private fun DownloadRow(services: AppServices, navigator: Navigator, item: DownloadItem, onDelete: () -> Unit) {
     val manager = services.downloads!!.manager
-    androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().testTag("downloads.row"), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
-        Text(item.title, style = MaterialTheme.typography.bodyLarge, maxLines = 2)
-        Text(statusLine(item), style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("downloads.status"))
+    Column(Modifier.fillMaxWidth().testTag("downloads.row"), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
+        Text(item.title, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        if (item.state == DownloadState.FAILED) Text(statusLine(item), style = MaterialTheme.typography.bodySmall, maxLines = 3, overflow = TextOverflow.Ellipsis, color = Vela.colors.error.toColor(), modifier = Modifier.testTag("downloads.status"))
+        else Text(statusLine(item), style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor(), modifier = Modifier.testTag("downloads.status"))
         if (item.state == DownloadState.DOWNLOADING || item.state == DownloadState.QUEUED || item.state == DownloadState.PAUSED || item.state == DownloadState.MERGING) {
             val p = item.progress
             if (p != null && item.state != DownloadState.MERGING) LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth())
@@ -151,16 +163,13 @@ private fun DownloadRow(services: AppServices, navigator: Navigator, item: Downl
         }
         Row(horizontalArrangement = Arrangement.spacedBy(Vela.xs)) {
             when (item.state) {
-                DownloadState.QUEUED, DownloadState.DOWNLOADING -> TextButton(onClick = { manager.pause(item.id) }, modifier = Modifier.testTag("downloads.pause")) { Text("Pause") }
-                DownloadState.PAUSED -> TextButton(onClick = { manager.resume(item.id) }, modifier = Modifier.testTag("downloads.resume")) { Text("Resume") }
-                DownloadState.FAILED -> TextButton(onClick = { manager.retry(item.id) }, modifier = Modifier.testTag("downloads.retry")) { Text("Retry") }
-                DownloadState.COMPLETED -> TextButton(
-                    onClick = { navigator.push(Route.Video(VideoSummary(item.videoId, item.title, item.channelId, ""))) },
-                    modifier = Modifier.testTag("downloads.play"),
-                ) { Text("Play") }
+                DownloadState.QUEUED, DownloadState.DOWNLOADING -> TextButton(onClick = { manager.pause(item.id) }, modifier = Modifier.testTag("downloads.pause")) { Text("Pause", maxLines = 1) }
+                DownloadState.PAUSED -> TextButton(onClick = { manager.resume(item.id) }, modifier = Modifier.testTag("downloads.resume")) { Text("Resume", maxLines = 1) }
+                DownloadState.FAILED -> TextButton(onClick = { manager.retry(item.id) }, modifier = Modifier.testTag("downloads.retry")) { Text("Retry", maxLines = 1) }
+                DownloadState.COMPLETED -> TextButton(onClick = { navigator.push(Route.Video(VideoSummary(item.videoId, item.title, item.channelId, ""))) }, modifier = Modifier.testTag("downloads.play")) { Text("Play", maxLines = 1) }
                 DownloadState.MERGING -> {}
             }
-            if (item.state != DownloadState.MERGING) TextButton(onClick = onDelete, modifier = Modifier.testTag("downloads.delete")) { Text(if (item.state == DownloadState.COMPLETED) "Delete" else "Cancel") }
+            if (item.state != DownloadState.MERGING) TextButton(onClick = onDelete, modifier = Modifier.testTag("downloads.delete")) { Text(if (item.state == DownloadState.COMPLETED) "Delete" else "Cancel", maxLines = 1) }
         }
     }
 }

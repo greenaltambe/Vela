@@ -701,4 +701,36 @@ class PlaybackSessionTest {
         assertEquals(1, extractor.streamCalls)
         assertNotEquals(PlaybackSession.OFFLINE_CLIENT, ready(s).client)
     }
+
+    // ---- one video's state never shows on the next ----
+
+    @Test fun startingAnotherVideoUnloadsThePreviousOneAtOnce() = runTest {
+        val s = session()
+        s.start("old", hint); runCurrent()
+        controller.playing(1_736_000, 1_785_000); runCurrent() // 28:56 / 29:45, as in the owner's screenshot
+        extractor.availableIn = 5.seconds // the next video's streams are slow to become usable
+        s.start("new", VideoSummary("new", "New", "UC2", "C")); runCurrent()
+        assertIs<SessionState.Resolving>(s.state.value)
+        assertEquals(PlayerState(), controller.state.value, "no old position, duration or frame while the new streams resolve")
+        assertEquals("new", (s.state.value as SessionState.Resolving).videoId)
+    }
+
+    @Test fun aFailedResolveOfTheNewVideoDoesNotLeaveTheOldOneOnScreen() = runTest {
+        val s = session()
+        s.start("old", hint); runCurrent()
+        controller.playing(500_000, 900_000); runCurrent()
+        extractor.results += ExtractorResult.Failure(ExtractorError.Network("down"))
+        s.start("new", VideoSummary("new", "New", "UC2", "C")); runCurrent()
+        assertIs<SessionState.Failed>(s.state.value)
+        assertEquals(PlaybackStatus.IDLE, controller.state.value.status)
+        assertEquals(0, controller.state.value.positionMs)
+    }
+
+    @Test fun rapidlySwitchingVideosEndsOnTheLastOneOnly() = runTest {
+        val s = session()
+        for (id in listOf("a", "b", "c")) s.start(id, VideoSummary(id, id, "UC", "C"))
+        runCurrent()
+        assertEquals("c", ready(s).videoId)
+        assertEquals(1, controller.loads.size, "only the last video was loaded")
+    }
 }

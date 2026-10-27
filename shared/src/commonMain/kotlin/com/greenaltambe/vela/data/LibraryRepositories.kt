@@ -55,6 +55,11 @@ class HistoryLibrary(private val db: VelaDatabase, private val accountId: String
     fun clear() { q.clearForAccount(accountId) }
 
     fun watchedVideoIds(): Set<String> = q.watchedVideoIds(accountId).executeAsList().toSet()
+
+    /** How far through each recently watched video the viewer got, 0..1 (the latest watch of each). */
+    fun progress(limit: Long = 500): Map<String, Float> = buildMap {
+        for (r in recent(limit)) if (r.durationMs > 0 && r.videoId !in this) put(r.videoId, (r.positionMs.toFloat() / r.durationMs).coerceIn(0f, 1f))
+    }
 }
 
 class SearchHistoryRepository(private val db: VelaDatabase, private val accountId: String = LOCAL_ACCOUNT) {

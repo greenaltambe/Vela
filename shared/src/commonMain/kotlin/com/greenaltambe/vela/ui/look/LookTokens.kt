@@ -38,6 +38,10 @@ data class ColorTokens(
     /** Seek-bar markers by SponsorBlock category and the chapter tick; keys are category ids. */
     val markers: Map<String, Long> = emptyMap(),
     val chapterMarker: Long = 0xFFFFFFFF,
+    /** Drawn over video: icons and text on the picture, the dimming behind them, and the letterbox. */
+    val onMedia: Long = 0xFFFFFFFF,
+    val mediaScrim: Long = 0x99000000,
+    val mediaBackground: Long = 0xFF000000,
 )
 
 @Serializable
@@ -65,8 +69,20 @@ data class SpacingTokens(
     val smDp: Float = 8f,
     val mdDp: Float = 16f,
     val lgDp: Float = 24f,
-    /** Below this window width the app uses the bottom bar, above it the side rail. */
+    /** Window width where COMPACT ends (phones) and MEDIUM (small tablets, phones in landscape) begins. */
+    val mediumMinWidthDp: Float = 600f,
+    /** Window width where EXPANDED (large tablets, desktop) begins. */
     val wideLayoutMinWidthDp: Float = 840f,
+    /** The standard content margin per window class: one gutter for every screen, so left edges line up. */
+    val gutterCompactDp: Float = 16f,
+    val gutterMediumDp: Float = 24f,
+    val gutterExpandedDp: Float = 32f,
+    /** Nothing tappable is smaller than this in either direction. */
+    val minTouchDp: Float = 48f,
+    /** Nothing readable is smaller than this. */
+    val minTextSp: Float = 12f,
+    /** Where the grid layouts start a new column: cards are never narrower than this. */
+    val gridMinCardDp: Float = 280f,
 )
 
 @Serializable

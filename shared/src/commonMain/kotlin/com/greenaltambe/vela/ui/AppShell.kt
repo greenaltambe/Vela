@@ -3,6 +3,19 @@ package com.greenaltambe.vela.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.runtime.CompositionLocalProvider
+import com.greenaltambe.vela.ui.components.MenuAction
+import com.greenaltambe.vela.ui.components.VelaTopBar
+import com.greenaltambe.vela.ui.layout.LocalWindowSize
+import com.greenaltambe.vela.ui.layout.LocalWindowWidthDp
+import com.greenaltambe.vela.ui.layout.WindowSizeClass
+import com.greenaltambe.vela.ui.layout.windowSizeClassFor
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -59,13 +72,16 @@ import com.greenaltambe.vela.ui.screens.SubscriptionsScreen
 import com.greenaltambe.vela.ui.screens.VideoScreen
 
 /**
- * Bottom navigation on narrow windows, a side rail on wide ones, search always in reach, Back on both platforms, and
- * the mini player docked above the nav while something plays and its page is closed.
+ * The frame around every screen. The window's real width picks the size class (provided to everything below): a bottom
+ * bar on COMPACT, a side rail on MEDIUM and EXPANDED. Each screen gets a top bar with its title, search and an overflow
+ * menu (the video page and the search view draw their own), the mini player docks above the nav while something plays
+ * and its page is closed, and Back works on both platforms. System bars and cutouts are respected by the bars
+ * themselves, so no screen below needs to think about insets.
  */
 @Composable
 fun AppShell(services: AppServices, navigator: Navigator = remember { Navigator() }) {
     val route = navigator.current
-    val wideAt = LocalLook.current.spacing.wideLayoutMinWidthDp
+    val spacing = LocalLook.current.spacing
     val window = LocalWindowControls.current
     val inPip = LocalInPictureInPicture.current
     val focus = remember { FocusRequester() }
@@ -87,7 +103,7 @@ fun AppShell(services: AppServices, navigator: Navigator = remember { Navigator(
         }
     }
     // Shortcuts need the page to hold focus; a text field the user used earlier must not keep it after navigating.
-    LaunchedEffect(route) { runCatching { focus.requestFocus() } }
+    LaunchedEffect(route) { if (route !is Route.Search) runCatching { focus.requestFocus() } }
 
     BoxWithConstraints(
         Modifier
@@ -108,38 +124,54 @@ fun AppShell(services: AppServices, navigator: Navigator = remember { Navigator(
                 true
             },
     ) {
-        val wide = maxWidth.value >= wideAt
-        val fullscreenVideo = window?.isFullscreen == true || inPip
-        val body: @Composable (Modifier) -> Unit = { m -> Destination(services, navigator, route, m) }
-
-        // One structure for every layout: only the rail, top bar and bottom bar come and go. If the page itself moved
-        // between branches, crossing the wide/narrow breakpoint (or entering fullscreen) would rebuild it, losing its
-        // state and tearing down the video surface.
-        val chrome = !(fullscreenVideo && route is Route.Video)
-        Row(Modifier.fillMaxSize().then(if (chrome) Modifier.safeContentPadding() else Modifier)) {
-            if (chrome && wide) SideRail(route.topLevel(), onSelect = navigator::selectTab, onSearch = { navigator.push(Route.Search()) })
-            Column(Modifier.weight(1f)) {
-                if (chrome) TopBar(navigator)
-                body(Modifier.weight(1f))
-                if (chrome) DockedMiniPlayer(services, navigator)
-                if (chrome && !wide) BottomNav(route.topLevel(), onSelect = navigator::selectTab)
+        val sizeClass = windowSizeClassFor(maxWidth.value, spacing)
+        val rail = sizeClass != WindowSizeClass.COMPACT
+        val fullscreenVideo = (window?.isFullscreen == true || inPip) && route is Route.Video
+        val chrome = !fullscreenVideo
+        CompositionLocalProvider(LocalWindowSize provides sizeClass, LocalWindowWidthDp provides maxWidth.value) {
+            // One structure for every layout: only the rail, top bar and bottom bar come and go. If the page itself moved
+            // between branches, crossing a size-class boundary (rotating, resizing) would rebuild it, losing its state
+            // and tearing down the video surface.
+            Row(Modifier.fillMaxSize().then(if (chrome) Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)) else Modifier)) {
+                if (chrome && rail) SideRail(route.topLevel(), onSelect = navigator::selectTab, onSearch = { navigator.push(Route.Search()) })
+                Column(Modifier.weight(1f)) {
+                    if (chrome && route !is Route.Video && route !is Route.Search && route != Route.Settings) {
+                        VelaTopBar(
+                            routeTitle(route), onBack = if (navigator.canGoBack) ({ navigator.back() }) else null,
+                            onSearch = if (rail) null else ({ navigator.push(Route.Search()) }),
+                            menu = overflowMenu(services, navigator),
+                        )
+                    }
+                    Destination(services, navigator, route, Modifier.weight(1f))
+                    if (chrome) DockedMiniPlayer(services, navigator)
+                    if (chrome && !rail) BottomNav(route.topLevel(), onSelect = navigator::selectTab)
+                    else if (chrome) Spacer(Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)))
+                }
             }
         }
     }
 }
 
-@Composable
-private fun TopBar(navigator: Navigator) {
-    var query by remember { mutableStateOf("") }
-    Row(Modifier.fillMaxWidth().padding(horizontal = Vela.md, vertical = Vela.xs), verticalAlignment = Alignment.CenterVertically) {
-        if (navigator.canGoBack) Button(onClick = { navigator.back() }, modifier = Modifier.testTag("nav.back")) { Text("Back") }
-        OutlinedTextField(
-            query, { query = it },
-            modifier = Modifier.weight(1f).padding(horizontal = Vela.sm).testTag("nav.searchField"),
-            singleLine = true, placeholder = { Text("Search") },
-        )
-        Button(onClick = { if (query.isNotBlank()) { navigator.push(Route.Search(query.trim())) } }, enabled = query.isNotBlank(), modifier = Modifier.testTag("nav.searchButton")) { Text("Search") }
-    }
+private fun routeTitle(route: Route): String = when (route) {
+    Route.Home -> "Vela"
+    Route.Subscriptions -> "Subscriptions"
+    Route.Library -> "Library"
+    Route.Settings -> "Settings"
+    is Route.Channel -> route.name.ifBlank { "Channel" }
+    is Route.Playlist -> "Playlist"
+    Route.History -> "History"
+    Route.ManageSubscriptions -> "Subscriptions"
+    Route.Diagnostics -> "Diagnostics"
+    Route.Downloads -> "Downloads"
+    is Route.Search -> "Search"
+    is Route.Video -> ""
+}
+
+private fun overflowMenu(services: AppServices, navigator: Navigator): List<MenuAction> = buildList {
+    if (services.downloads != null) add(MenuAction("Downloads") { navigator.push(Route.Downloads) })
+    add(MenuAction("History") { navigator.push(Route.History) })
+    add(MenuAction("Settings") { navigator.selectTab(Route.Settings) })
+    add(MenuAction("Diagnostics") { navigator.push(Route.Diagnostics) })
 }
 
 @Composable
@@ -150,7 +182,9 @@ private fun DockedMiniPlayer(services: AppServices, navigator: Navigator) {
     val state by host.controllerState.collectAsState()
     MiniPlayer(
         title = playing.title,
+        thumbnailUrl = playing.thumbnailUrl,
         playing = state.status == PlaybackStatus.PLAYING,
+        progress = if (state.durationMs > 0) state.positionMs.toFloat() / state.durationMs else 0f,
         onToggle = { if (state.status == PlaybackStatus.PLAYING) host.session.pause() else host.session.play() },
         onExpand = navigator::expandNowPlaying,
         onClose = { host.session.stop(); navigator.clearNowPlaying() },

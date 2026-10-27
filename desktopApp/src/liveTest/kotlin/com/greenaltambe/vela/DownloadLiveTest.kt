@@ -177,7 +177,7 @@ class DownloadLiveTest {
     }
 
     @Test
-    fun downloadFromTheUiThenFindItInLibraryPlayItOfflineAndDeleteIt() = runDesktopComposeUiTest(width = 640, height = 900) {
+    fun downloadFromTheUiThenFindItInLibraryPlayItOfflineAndDeleteIt() = runDesktopComposeUiTest(width = 500, height = 900) {
         assumeTrue("SKIPPED: no network", networkUp())
         val merger = FfmpegMediaMerger()
         assumeTrue("SKIPPED: ffmpeg missing", merger.available)
@@ -215,7 +215,8 @@ class DownloadLiveTest {
             assertEquals(1, manager.items.value.size)
 
             // Library > Downloads shows it, with progress, until it is downloaded.
-            onNodeWithTag("nav.back").performClick()
+            if (onAllNodesWithTag("player.back").fetchSemanticsNodes().isEmpty()) onNodeWithTag("player.surface").performClick()
+            onNodeWithTag("player.back").performClick()
             onNodeWithText("Library").performClick()
             onNodeWithTag("library.downloads").performClick()
             waitUntil(timeoutMillis = 10_000) { onAllNodesWithTag("downloads.row").fetchSemanticsNodes().isNotEmpty() }
@@ -237,7 +238,8 @@ class DownloadLiveTest {
             // Delete it with the confirmation.
             val file = File(manager.items.value.single().uri!!)
             assertTrue(file.exists())
-            onNodeWithTag("nav.back").performClick() // back to the Downloads list it was opened from
+            if (onAllNodesWithTag("player.back").fetchSemanticsNodes().isEmpty()) onNodeWithTag("player.surface").performClick()
+            onNodeWithTag("player.back").performClick() // back to the Downloads list it was opened from
             waitUntil(timeoutMillis = 10_000) { onAllNodesWithTag("downloads.delete").fetchSemanticsNodes().isNotEmpty() }
             onNodeWithTag("downloads.delete").performClick()
             onNodeWithTag("downloads.confirmDelete").performClick()
@@ -275,7 +277,7 @@ class DownloadLiveTest {
     }
 
     @Test
-    fun aDownloadedVideoPlaysAndShowsItsWholePageWithEveryNetworkCallForbidden() = runDesktopComposeUiTest(width = 640, height = 900) {
+    fun aDownloadedVideoPlaysAndShowsItsWholePageWithEveryNetworkCallForbidden() = runDesktopComposeUiTest(width = 500, height = 900) {
         val merger = FfmpegMediaMerger()
         assumeTrue("SKIPPED: ffmpeg missing", merger.available)
         val dir = Files.createTempDirectory("vela-offline").toFile()

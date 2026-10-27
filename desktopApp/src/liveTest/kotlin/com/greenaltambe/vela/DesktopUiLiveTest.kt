@@ -52,7 +52,7 @@ import kotlin.test.assertTrue
  */
 class DesktopUiLiveTest {
     @Test
-    fun searchOpenScrollSubscribeFeedAndPlayerControls() = runDesktopComposeUiTest(width = 640, height = 900) {
+    fun searchOpenScrollSubscribeFeedAndPlayerControls() = runDesktopComposeUiTest(width = 500, height = 900) {
         val reachable = runCatching { Socket().use { it.connect(InetSocketAddress("www.youtube.com", 443), 5_000) } }.isSuccess
         assumeTrue("SKIPPED: no network", reachable)
         val settings = SettingsResolver(InMemorySettingsStore())
@@ -69,8 +69,9 @@ class DesktopUiLiveTest {
         try {
             setContent { App(services) }
 
-            onNodeWithTag("nav.searchField").performTextInput("big buck bunny 60fps 4k")
-            onNodeWithTag("nav.searchButton").performClick()
+            onNodeWithTag("nav.search").performClick()
+            onNodeWithTag("search.field").performTextInput("big buck bunny 60fps 4k")
+            onNodeWithTag("search.submit").performClick()
             waitUntil(timeoutMillis = 30_000) { onAllNodesWithTag(ComponentIds.VIDEO_CARD).fetchSemanticsNodes().isNotEmpty() }
             println("search results shown: ${onAllNodesWithTag(ComponentIds.VIDEO_CARD).fetchSemanticsNodes().size} cards on screen")
 
@@ -128,33 +129,39 @@ class DesktopUiLiveTest {
             println("position ${c.state.value.positionMs} ms after ${"%.1f".format(secs)} s; mpv rendered %.1f fps; host drew %d".format(fps, host.framesDrawn))
             assertTrue(c.framesRendered - f0 > 20 * secs, "too few frames: $fps fps")
 
-            // Player controls (scroll back to the top first).
-            onNodeWithTag("video.list").performScrollToIndex(0) // speed and quality are the first rows of the scrolling part
+            // Player controls: they hide themselves while playing, a tap on the picture brings them back; speed and quality are menus.
+            fun showControls() { if (onAllNodesWithTag("player.playPause").fetchSemanticsNodes().isEmpty()) onNodeWithTag("player.surface").performClick() }
+            showControls()
             onNodeWithTag("player.playPause").performClick()
             waitUntil(timeoutMillis = 10_000) { c.state.value.status == PlaybackStatus.PAUSED }
             onNodeWithTag("player.playPause").performClick()
             waitUntil(timeoutMillis = 10_000) { c.state.value.status == PlaybackStatus.PLAYING }
+            showControls()
+            onNodeWithTag("player.speed").performClick()
             onNodeWithText("2.0x").performClick()
             waitUntil(timeoutMillis = 10_000) { c.state.value.speed == 2f }
             val before = c.stats.value.videoResolution
+            showControls()
+            onNodeWithTag("player.quality").performClick()
             onNodeWithText("360p").performClick()
             waitUntil(timeoutMillis = 30_000) { c.stats.value.videoResolution?.contains("x360") == true && c.state.value.status == PlaybackStatus.PLAYING }
             println("quality: $before -> ${c.stats.value.videoResolution}")
 
             // Leave the page: the mini player takes over and the video keeps playing.
-            onNodeWithTag("nav.back").performClick()
+            showControls()
+            onNodeWithTag("player.back").performClick()
             waitUntil(timeoutMillis = 10_000) { onAllNodesWithTag(ComponentIds.MINI_PLAYER).fetchSemanticsNodes().isNotEmpty() }
             assertTrue(c.state.value.status == PlaybackStatus.PLAYING, "playback must survive navigation")
 
             // The feed: the subscribed channel's uploads arrive from the real RSS feed.
-            onNodeWithText("Subscriptions").performClick()
+            onNodeWithText("Subs").performClick()
             waitUntil(timeoutMillis = 45_000) { services.feed.entries.value.isNotEmpty() }
             waitUntil(timeoutMillis = 15_000) { onAllNodesWithTag(ComponentIds.VIDEO_CARD).fetchSemanticsNodes().isNotEmpty() }
             println("feed: ${services.feed.entries.value.size} cached entries from $channelId; ${onAllNodesWithTag(ComponentIds.VIDEO_CARD).fetchSemanticsNodes().size} cards shown")
             assertTrue(services.feed.entries.value.all { it.video.channelId == channelId })
 
             // Close from the mini player.
-            onNodeWithText("Close").performClick()
+            onNodeWithTag("mini.close").performClick()
             waitUntil(timeoutMillis = 10_000) { c.state.value.status == PlaybackStatus.IDLE }
         } finally {
             runtime.close()
@@ -162,7 +169,7 @@ class DesktopUiLiveTest {
     }
 
     @Test
-    fun sponsorBlockRydAndDeArrowOnARealSponsoredVideo() = runDesktopComposeUiTest(width = 640, height = 900) {
+    fun sponsorBlockRydAndDeArrowOnARealSponsoredVideo() = runDesktopComposeUiTest(width = 500, height = 900) {
         val reachable = runCatching { Socket().use { it.connect(InetSocketAddress("sponsor.ajay.app", 443), 5_000) } }.isSuccess
         assumeTrue("SKIPPED: no network", reachable)
         val settings = SettingsResolver(InMemorySettingsStore())
@@ -189,7 +196,7 @@ class DesktopUiLiveTest {
             println("dearrow title replaced on the page: $toggle (cached title: ${modules.dearrow.title("DN953UW8iJ8", "ORIGINAL", DeArrowSurface.VIDEO_PAGE)})")
             if (toggle) {
                 onNodeWithTag("video.toggleOriginal").performClick()
-                waitUntil(timeoutMillis = 5_000) { onAllNodesWithText("Showing the original title", substring = true).fetchSemanticsNodes().isNotEmpty() }
+                waitUntil(timeoutMillis = 5_000) { onAllNodesWithText("Original title", substring = true).fetchSemanticsNodes().isNotEmpty() }
                 onNodeWithTag("video.toggleOriginal").performClick()
             }
 

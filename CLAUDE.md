@@ -19,6 +19,6 @@
 ## Build notes
 
 - Modules: `:shared` (KMP), `:androidApp`, `:desktopApp`, `:extractor-newpipe`, `:extractor-ytdlp`.
-- Offline tests: `./gradlew test`. Live tests (real network / real binaries) live in each module's `liveTest` source
+- Offline tests: `./gradlew allTests` (plain `test` skips :shared). Live tests (real network / real binaries) live in each module's `liveTest` source
   set and are never part of `check`: `./gradlew :extractor-newpipe:liveTest :extractor-ytdlp:liveTest`.
 - The agent cannot run the Android app; anything Android-runtime is "compile-only" in reports.

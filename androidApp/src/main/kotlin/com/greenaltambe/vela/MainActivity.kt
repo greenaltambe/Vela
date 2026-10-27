@@ -9,6 +9,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.drawable.Icon
@@ -24,6 +25,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import com.greenaltambe.vela.ui.platform.LocalWindowControls
+import com.greenaltambe.vela.ui.platform.WindowControls
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
@@ -58,6 +64,13 @@ class MainActivity : ComponentActivity() {
     private var mediaController: ListenableFuture<MediaController>? = null
     private var askedForNotifications = false
     private var inPip by mutableStateOf(false)
+    private var fullscreen by mutableStateOf(false)
+
+    /** Immersive fullscreen with the same overlay controls: system bars hidden, the screen turned to landscape. */
+    private val windowControls = object : WindowControls {
+        override val isFullscreen: Boolean get() = fullscreen
+        override fun toggleFullscreen() = applyFullscreen(!fullscreen)
+    }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* playback works either way */ }
@@ -82,7 +95,7 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            CompositionLocalProvider(LocalInPictureInPicture provides inPip) { App(services) }
+            CompositionLocalProvider(LocalInPictureInPicture provides inPip, LocalWindowControls provides windowControls) { App(services) }
         }
     }
 
@@ -110,6 +123,27 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S && videoIsPlaying()) {
             runCatching { enterPictureInPictureMode(pipParams(playing = true, hasVideo = true)) }
         }
+    }
+
+    private fun applyFullscreen(on: Boolean) {
+        if (fullscreen == on) return
+        fullscreen = on
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        if (on) {
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        } else {
+            controller.show(WindowInsetsCompat.Type.systemBars())
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
+    }
+
+    /** Turning the phone sideways while a video plays enters fullscreen; turning it upright leaves it. */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE && videoIsPlaying()) applyFullscreen(true)
+        else if (newConfig.orientation == Configuration.ORIENTATION_PORTRAIT && fullscreen) applyFullscreen(false)
     }
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
