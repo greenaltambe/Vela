@@ -11,6 +11,9 @@ fun interface FeedStep {
 }
 
 class FeedPipeline(private val steps: List<FeedStep>) {
+    /** This pipeline followed by [step]. */
+    fun with(step: FeedStep) = FeedPipeline(steps + step)
+
     fun run(items: List<VideoSummary>, context: FeedContext): List<VideoSummary> =
         steps.fold(items) { acc, step -> step.apply(acc, context) }
 }

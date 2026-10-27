@@ -16,7 +16,7 @@ class DatabaseTest {
         val q = db.downloadQueries
         q.insert("a1", "vid", "ch", "Title", DownloadState.QUEUED, DownloadKind.VIDEO, "1080p", 1, 1)
         val id = q.lastInsertId().executeAsOne()
-        q.upsertOfflineData(id, "a1", "[]", null, null, "[{\"title\":\"x\",\"startSeconds\":0}]")
+        q.upsertOfflineData(id, "a1", "[]", null, null, "[{\"title\":\"x\",\"startSeconds\":0}]", null, null, null)
         q.updateState(DownloadState.PAUSED, null, 2, id)
 
         assertEquals(DownloadState.PAUSED, q.selectById(id).executeAsOne().state)
@@ -39,7 +39,7 @@ class DatabaseTest {
         val q = db.downloadQueries
         q.insert("a1", "vid", "ch", "Title", DownloadState.QUEUED, DownloadKind.VIDEO, "1080p", 1, 1)
         val id = q.lastInsertId().executeAsOne()
-        q.upsertOfflineData(id, "a1", "[]", null, null, null)
+        q.upsertOfflineData(id, "a1", "[]", null, null, null, null, null, null)
         assertEquals(1, q.selectOfflineData(id).executeAsList().size)
 
         q.delete(id)
@@ -48,7 +48,7 @@ class DatabaseTest {
 
     @Test
     fun orphanOfflineDataIsRejected() {
-        assertFailsWith<Exception> { db.downloadQueries.upsertOfflineData(999, "a1", null, null, null, null) }
+        assertFailsWith<Exception> { db.downloadQueries.upsertOfflineData(999, "a1", null, null, null, null, null, null, null) }
     }
 
     @Test

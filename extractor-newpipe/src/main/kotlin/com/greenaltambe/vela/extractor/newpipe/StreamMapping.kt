@@ -5,8 +5,11 @@ import com.greenaltambe.vela.extractor.Chapter
 import com.greenaltambe.vela.extractor.StreamSet
 import com.greenaltambe.vela.extractor.VideoInfo
 import com.greenaltambe.vela.extractor.VideoStream
+import com.greenaltambe.vela.extractor.audioBestFirst
+import com.greenaltambe.vela.extractor.videoBestFirst
 import org.schabi.newpipe.extractor.Image
 import org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper
+import org.schabi.newpipe.extractor.stream.AudioTrackType
 import org.schabi.newpipe.extractor.stream.DeliveryMethod
 import org.schabi.newpipe.extractor.stream.Stream
 import org.schabi.newpipe.extractor.stream.StreamExtractor
@@ -63,15 +66,17 @@ internal fun NpAudioStream.toAudioStream() = AudioStream(
     itag = itag.takeIf { it >= 0 },
     contentLength = contentLengthOrNull(itagItem?.contentLength),
     isDrc = itagItem?.isDrc() == true,
+    isOriginalTrack = audioTrackType == AudioTrackType.ORIGINAL,
     headers = streamHeaders(content),
 )
 
 internal fun StreamInfo.toStreamSet(): StreamSet {
     val video = videoStreams.filter { it.isPlainUrl() }.map { it.toVideoStream() } +
         videoOnlyStreams.filter { it.isPlainUrl() }.map { it.toVideoStream() }
-    val audio = audioStreams.filter { it.isPlainUrl() }.map { it.toAudioStream() }
+    val sortedVideo = video.videoBestFirst()
+    val audio = audioStreams.filter { it.isPlainUrl() }.map { it.toAudioStream() }.audioBestFirst()
     return StreamSet(
-        videoStreams = video,
+        videoStreams = sortedVideo,
         audioStreams = audio,
         hlsUrl = hlsUrl?.takeIf { it.isNotEmpty() },
         // The soonest-expiring URL decides when the whole set needs re-resolving.

@@ -29,8 +29,11 @@ object SettingCodecs {
 
 /** Groups settings on the settings screen; declared in display order. */
 enum class SettingSection(val title: String) {
+    APPEARANCE("Appearance"),
     PLAYBACK("Playback"),
     FEED("Feed"),
+    LIBRARY("Library and history"),
+    DOWNLOADS("Downloads"),
     MODULES("Modules"),
     ADVANCED("Advanced"),
 }

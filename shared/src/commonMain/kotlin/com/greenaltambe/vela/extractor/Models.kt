@@ -15,6 +15,11 @@ data class VideoSummary(
     val durationSeconds: Long? = null,
     val viewCount: Long? = null,
     val isShort: Boolean = false,
+    /** When the video was published, if the source says (the RSS feed does; search results mostly don't). */
+    val uploadedAt: Instant? = null,
+    /** Set when DeArrow replaced [title] / [thumbnailUrl]: what they were, for "show original". */
+    val originalTitle: String? = null,
+    val originalThumbnailUrl: String? = null,
 )
 
 @Serializable
@@ -65,15 +70,36 @@ data class AudioStream(
     val itag: Int? = null,
     val contentLength: Long? = null,
     val isDrc: Boolean = false,
+    /** The video's original / default-language track (as opposed to a dub); false for everything on single-language videos. */
+    val isOriginalTrack: Boolean = false,
     val headers: Map<String, String> = emptyMap(),
 )
 
+/** Highest resolution first, then highest bitrate. The order every tier must hand [StreamSet.videoStreams] in. */
+fun List<VideoStream>.videoBestFirst(): List<VideoStream> =
+    sortedWith(compareByDescending<VideoStream> { it.height }.thenByDescending { it.bitrate })
+
+/** Original / default track first, then highest bitrate. The order every tier must hand [StreamSet.audioStreams] in. */
+fun List<AudioStream>.audioBestFirst(): List<AudioStream> =
+    sortedWith(compareByDescending<AudioStream> { it.isOriginalTrack }.thenByDescending { it.bitrate })
+
+/**
+ * Every tier must build this with both stream lists already in best-first order ([videoBestFirst] / [audioBestFirst]); consumers may rely
+ * on `videoStreams.first()` / `audioStreams.first()` being the best choice absent any preference.
+ */
 data class StreamSet(
+    /** Muxed and video-only streams together, best first: height descending, then bitrate descending. */
     val videoStreams: List<VideoStream>,
+    /** Best first: the original / default-language track(s), then bitrate descending. */
     val audioStreams: List<AudioStream>,
     val hlsUrl: String? = null,
     /** When the stream URLs stop working; null if unknown. */
     val expiresAt: Instant? = null,
+    /**
+     * Not before this instant do the URLs work: some clients' URLs (yt-dlp's TV client) answer 403 for the first few
+     * seconds after they were issued. Null when there is no such delay. Callers wait for it before the first request.
+     */
+    val availableAt: Instant? = null,
     /** Request headers (User-Agent, Cookie, Referer...) the player and downloader must send with every stream request. */
     val headers: Map<String, String> = emptyMap(),
     /** Which client type produced this set (e.g. "web", "android", "tv", "yt-dlp"); null if not applicable. */

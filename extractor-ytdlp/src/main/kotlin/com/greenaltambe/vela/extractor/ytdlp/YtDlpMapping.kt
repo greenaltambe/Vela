@@ -8,6 +8,8 @@ import com.greenaltambe.vela.extractor.StreamUrls
 import com.greenaltambe.vela.extractor.VideoInfo
 import com.greenaltambe.vela.extractor.VideoStream
 import com.greenaltambe.vela.extractor.VideoSummary
+import com.greenaltambe.vela.extractor.audioBestFirst
+import com.greenaltambe.vela.extractor.videoBestFirst
 import kotlinx.serialization.json.JsonObject
 import kotlin.math.roundToInt
 import kotlin.time.Instant
@@ -78,6 +80,8 @@ private fun JsonObject.toAudioStream(setHeaders: Map<String, String>) = AudioStr
     itag = itagOf(str("format_id")),
     contentLength = contentLength(),
     isDrc = isDrc(),
+    // language_preference > 0 is yt-dlp's "default" marker (10 on the original track, -1 on dubs).
+    isOriginalTrack = (long("language_preference") ?: 0) > 0,
     headers = extraHeaders(setHeaders),
 )
 
@@ -96,11 +100,9 @@ internal fun JsonObject.toStreamSet(): StreamSet {
     val formats = objects("formats")
     val plain = formats.filter { it.isPlainMedia() }
     val setHeaders = commonHeaders(plain)
-    val video = plain.filter { it.str("vcodec").isCodec() }.map { it.toVideoStream(setHeaders) }
-    // Multi-language videos list every dub; yt-dlp marks the original/default track with the highest language_preference.
+    val video = plain.filter { it.str("vcodec").isCodec() }.map { it.toVideoStream(setHeaders) }.videoBestFirst()
     val audio = plain.filter { !it.str("vcodec").isCodec() && it.str("acodec").isCodec() }
-        .sortedByDescending { it.long("language_preference") ?: 0 }
-        .map { it.toAudioStream(setHeaders) }
+        .map { it.toAudioStream(setHeaders) }.audioBestFirst()
     return StreamSet(
         videoStreams = video,
         audioStreams = audio,
@@ -108,6 +110,8 @@ internal fun JsonObject.toStreamSet(): StreamSet {
             ?.str("manifest_url"),
         // The soonest-expiring URL decides when the whole set needs re-resolving.
         expiresAt = (video.map { it.url } + audio.map { it.url }).mapNotNull(StreamUrls::expiryOf).minOrNull(),
+        // yt-dlp's own downloader sleeps until this ("Sleeping 4.00 seconds as required by the site"): requests sooner get a 403.
+        availableAt = plain.mapNotNull { it.long("available_at") }.maxOrNull()?.let(Instant::fromEpochSeconds),
         headers = setHeaders,
         client = CLIENT_LABEL,
     )

@@ -16,8 +16,8 @@ class YtDlpMappingTest {
 
     @Test fun keepsOnlyPlainHttpsMediaAndSkipsStoryboardsAndHls() {
         // The capture also holds sb0 (mhtml), 233 (HLS audio, acodec null) and 270 (HLS video).
-        assertEquals(listOf(137, 248, 401), set.videoStreams.map { it.itag })
-        assertEquals(listOf(139, 249, 140, 251), set.audioStreams.map { it.itag })
+        assertEquals(listOf(401, 137, 248), set.videoStreams.map { it.itag }, "best first: height, then bitrate (137 avc 3038k > 248 vp9 1158k)")
+        assertEquals(listOf(140, 251, 139, 249), set.audioStreams.map { it.itag }, "bitrate descending")
     }
 
     @Test fun realVideoOnlyFormatsAreNotMuxed() {
@@ -94,7 +94,25 @@ class YtDlpMappingTest {
         assertEquals(Instant.fromEpochSeconds(1000), s.expiresAt)
     }
 
+    @Test fun availableAtIsTheLatestAvailableAtOfTheFormatsWeKeep() {
+        // Real capture: the TV client's formats carry fetch time + 4 s ("Sleeping 4.00 seconds as required by the site").
+        val latest = fixture("video.json").objects("formats").filter { it.str("protocol") == "https" }.mapNotNull { it.long("available_at") }.max()
+        assertEquals(Instant.fromEpochSeconds(latest), set.availableAt)
+        assertNull(json("""{"formats":[{"format_id":"1","protocol":"https","vcodec":"vp9","url":"https://x/a"}]}""").toStreamSet().availableAt)
+    }
+
     @Test fun clientLabel() { assertEquals("yt-dlp", set.client) }
+
+    @Test fun everyRealFixtureComesOutBestFirst() {
+        listOf("video.json", "short.json", "audio_drc.json", "audio_multilang.json").forEach { name ->
+            val s = fixture(name).toStreamSet()
+            assertEquals(s.videoStreams.sortedWith(compareByDescending<com.greenaltambe.vela.extractor.VideoStream> { it.height }.thenByDescending { it.bitrate }), s.videoStreams, name)
+            assertEquals(
+                s.audioStreams.sortedWith(compareByDescending<com.greenaltambe.vela.extractor.AudioStream> { it.isOriginalTrack }.thenByDescending { it.bitrate }),
+                s.audioStreams, name,
+            )
+        }
+    }
 
     // Real capture of a video with `-drc` variants (jNQXAC9IVRw): same itag, flagged, listed next to the plain one.
     @Test fun drcVariantsAreFlaggedAndKeepTheirItag() {

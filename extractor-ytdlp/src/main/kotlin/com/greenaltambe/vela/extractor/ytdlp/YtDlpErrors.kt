@@ -10,7 +10,9 @@ fun mapYtDlpFailure(exitCode: Int, stderr: String): ExtractorError {
     val message = stderr.lines().lastOrNull { it.contains("ERROR", ignoreCase = true) }?.trim()
         ?: stderr.lines().lastOrNull { it.isNotBlank() }?.trim()
         ?: "yt-dlp exited with code $exitCode"
-    fun has(vararg needles: String) = needles.any { stderr.contains(it, ignoreCase = true) }
+    // yt-dlp writes both ' and ’ in "you're not a bot"; normalised so a needle only has to be written once.
+    val text = stderr.replace('\u2019', '\'').replace('\u2018', '\'')
+    fun has(vararg needles: String) = needles.any { text.contains(it, ignoreCase = true) }
 
     return when {
         has("confirm your age", "age-restricted", "age restricted", "inappropriate for some users") ->
@@ -21,7 +23,7 @@ fun mapYtDlpFailure(exitCode: Int, stderr: String): ExtractorError {
             "blocked it in your country", "is not a valid url", "incomplete youtube id", "premieres in",
             "this channel does not exist", "this video is unavailable",
             "live event will begin") -> ExtractorError.Unplayable(message)
-        has("sign in to confirm", "confirm you’re not a bot", "confirm you're not a bot") -> ExtractorError.SignInRequired(message)
+        has("sign in to confirm") -> ExtractorError.SignInRequired(message)
         has("http error 429", "too many requests") -> ExtractorError.RateLimited(message)
         has("http error 403") -> ExtractorError.Blocked(message)
         has("temporary failure in name resolution", "name or service not known", "getaddrinfo failed",

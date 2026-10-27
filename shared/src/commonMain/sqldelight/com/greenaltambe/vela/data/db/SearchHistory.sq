@@ -1,0 +1,18 @@
+CREATE TABLE SearchHistory (
+    accountId TEXT NOT NULL,
+    query TEXT NOT NULL,
+    searchedAt INTEGER NOT NULL,
+    PRIMARY KEY (accountId, query)
+);
+
+selectRecent:
+SELECT query FROM SearchHistory WHERE accountId = ? ORDER BY searchedAt DESC LIMIT ?;
+
+upsert:
+INSERT OR REPLACE INTO SearchHistory(accountId, query, searchedAt) VALUES (?, ?, ?);
+
+delete:
+DELETE FROM SearchHistory WHERE accountId = ? AND query = ?;
+
+clearForAccount:
+DELETE FROM SearchHistory WHERE accountId = ?;

@@ -5,6 +5,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
 import org.schabi.newpipe.extractor.InfoItem
+import org.schabi.newpipe.extractor.NewPipe
 import org.schabi.newpipe.extractor.ListExtractor
 import org.schabi.newpipe.extractor.ServiceList
 import org.schabi.newpipe.extractor.channel.ChannelInfo
@@ -94,6 +95,40 @@ class NewPipeExtractor(downloader: () -> Downloader = { OkHttpDownloader() }) : 
                 CommentsInfo.getMoreItems(youtube, videoUrl(videoId), first).let { it.items to it.nextPage }
             }
         }.map { (items, next) -> CommentsPage(items.map { it.toComment() }, next.toTokenOrNull()) }
+
+    override suspend fun trending(continuation: String?): ExtractorResult<Page<VideoSummary>> =
+        withPage(continuation) { page ->
+            val extractor = youtube.kioskList.getDefaultKioskExtractor(page)
+            val result: ListExtractor.InfoItemsPage<out InfoItem> =
+                if (page == null) extractor.also { it.fetchPage() }.initialPage else extractor.getPage(page)
+            result.items.toVideoSummaries() to result.nextPage
+        }.map { (items, next) -> Page(items, next.toTokenOrNull()) }
+
+    override suspend fun related(videoId: String): ExtractorResult<List<VideoSummary>> = guarded {
+        StreamInfo.getInfo(youtube, videoUrl(videoId)).relatedItems.orEmpty().toVideoSummaries()
+    }
+
+    override suspend fun channelShorts(channelId: String, continuation: String?): ExtractorResult<Page<VideoSummary>> =
+        withPage(continuation) { page ->
+            val tab = youtube.getChannelTabExtractorFromId(channelId, ChannelTabs.SHORTS)
+            val result: ListExtractor.InfoItemsPage<InfoItem> =
+                if (page == null) tab.also { it.fetchPage() }.initialPage else tab.getPage(page)
+            result.items.toVideoSummaries() to result.nextPage
+        }.map { (items, next) -> Page(items, next.toTokenOrNull()) }
+
+    /**
+     * The public Atom feed first (one small request, carries publish times), the channel's Videos tab if that is refused.
+     * Shorts are not told apart by the feed, so they are not flagged here.
+     */
+    override suspend fun recentUploads(channelId: String): ExtractorResult<List<VideoSummary>> {
+        val rss = guarded {
+            val response = NewPipe.getDownloader().get("https://www.youtube.com/feeds/videos.xml?channel_id=$channelId")
+            check(response.responseCode() == 200) { "feed answered HTTP ${response.responseCode()}" }
+            parseChannelFeed(response.responseBody(), channelId)
+        }
+        if (rss is ExtractorResult.Success && rss.value.isNotEmpty()) return rss
+        return channelVideos(channelId).map { it.items }
+    }
 
     private class CommentNotFound(message: String) : Exception(message)
 

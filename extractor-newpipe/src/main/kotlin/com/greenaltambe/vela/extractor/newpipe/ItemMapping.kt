@@ -20,6 +20,7 @@ internal fun StreamInfoItem.toVideoSummary(): VideoSummary? {
         durationSeconds = duration.takeIf { it >= 0 },
         viewCount = viewCount.takeIf { it >= 0 },
         isShort = isShortFormContent,
+        uploadedAt = uploadDate?.instant?.let { kotlin.time.Instant.fromEpochMilliseconds(it.toEpochMilli()) },
     )
 }
 

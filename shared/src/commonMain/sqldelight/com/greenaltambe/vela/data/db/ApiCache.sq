@@ -1,0 +1,33 @@
+CREATE TABLE ApiCache (
+    cacheKey TEXT NOT NULL PRIMARY KEY,
+    status INTEGER NOT NULL,
+    body TEXT NOT NULL,
+    fetchedAt INTEGER NOT NULL
+);
+
+CREATE TABLE SegmentCache (
+    videoId TEXT NOT NULL PRIMARY KEY,
+    segmentsJson TEXT NOT NULL,
+    fetchedAt INTEGER NOT NULL
+);
+
+selectEntry:
+SELECT * FROM ApiCache WHERE cacheKey = ?;
+
+upsertEntry:
+INSERT OR REPLACE INTO ApiCache(cacheKey, status, body, fetchedAt) VALUES (?, ?, ?, ?);
+
+deleteOlderThan:
+DELETE FROM ApiCache WHERE fetchedAt < ?;
+
+clearEntries:
+DELETE FROM ApiCache;
+
+selectSegments:
+SELECT * FROM SegmentCache WHERE videoId = ?;
+
+upsertSegments:
+INSERT OR REPLACE INTO SegmentCache(videoId, segmentsJson, fetchedAt) VALUES (?, ?, ?);
+
+deleteSegments:
+DELETE FROM SegmentCache WHERE videoId = ?;

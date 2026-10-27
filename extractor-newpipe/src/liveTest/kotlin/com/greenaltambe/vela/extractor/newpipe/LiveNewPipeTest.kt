@@ -11,6 +11,7 @@ import java.net.InetSocketAddress
 import java.net.Socket
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.test.fail
@@ -97,6 +98,18 @@ class LiveNewPipeTest {
         assertTrue(info.durationSeconds in 200..230, "duration ${info.durationSeconds}")
         assertNotNull(info.uploadDate, "uploadDate")
         assertTrue(!info.ageRestricted && !info.isLive && !info.isShort)
+    }
+
+
+    @Test
+    fun realStreamsAreBestFirstAndPlanAsSeparateNonDrc() = runBlocking {
+        val set = extractor.streams(videoId).value()
+        assertEquals(set.videoStreams.map { it.height }, set.videoStreams.map { it.height }.sortedDescending(), "video best-first by height")
+        val plan = com.greenaltambe.vela.player.StreamSelector.plan(set, com.greenaltambe.vela.player.PlaybackPrefs())
+        println("plan: $plan".take(300))
+        val separate = assertIs<com.greenaltambe.vela.player.PlaybackPlan.Separate>(plan)
+        assertTrue(!separate.audio.isDrc, "DRC avoided")
+        assertTrue(separate.video.height >= set.videoStreams.filter { !it.hasAudio }.maxOf { it.height } / 2)
     }
 
     @Test

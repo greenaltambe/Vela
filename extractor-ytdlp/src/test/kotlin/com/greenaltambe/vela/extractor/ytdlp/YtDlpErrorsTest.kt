@@ -21,6 +21,16 @@ class YtDlpErrorsTest {
         assertMaps<ExtractorError.SignInRequired>("ERROR: [youtube] abc: Sign in to confirm you're not a bot")
     }
 
+    @Test fun signInMatchIsCaseInsensitiveAndApostropheAgnosticOnThePrefix() {
+        listOf(
+            "ERROR: [youtube] abc: Sign in to confirm you're not a bot",
+            "ERROR: [youtube] abc: Sign in to confirm you\u2019re not a bot",
+            "ERROR: [youtube] abc: SIGN IN TO CONFIRM you\u2018re not a bot. Use --cookies-from-browser",
+            "ERROR: [youtube] abc: sign in to confirm that you are not a bot",
+            "ERROR: [youtube] abc: Sign in to confirm",
+        ).forEach { assertMaps<ExtractorError.SignInRequired>(it) }
+    }
+
     @Test fun rateLimited() {
         assertMaps<ExtractorError.RateLimited>("ERROR: unable to download video data: HTTP Error 429: Too Many Requests")
         assertMaps<ExtractorError.RateLimited>("ERROR: Too Many Requests")

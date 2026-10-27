@@ -25,8 +25,27 @@ insert:
 INSERT INTO WatchHistory(accountId, videoId, channelId, title, watchedAt, positionMs, durationMs, watchedMs, syncedToYoutube)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 
+-- A session's row is written once and then kept current while the video plays.
+updateSession:
+UPDATE WatchHistory SET watchedAt = ?, positionMs = ?, durationMs = ?, watchedMs = ? WHERE id = ?;
+
+lastInsertRowId:
+SELECT last_insert_rowid();
+
 totalWatchedMs:
 SELECT COALESCE(SUM(watchedMs), 0) FROM WatchHistory WHERE accountId = ? AND watchedAt >= ? AND watchedAt < ?;
 
 clearForAccount:
 DELETE FROM WatchHistory WHERE accountId = ?;
+
+selectAll:
+SELECT * FROM WatchHistory WHERE accountId = ? ORDER BY watchedAt DESC LIMIT ?;
+
+deleteById:
+DELETE FROM WatchHistory WHERE id = ?;
+
+deleteForVideo:
+DELETE FROM WatchHistory WHERE accountId = ? AND videoId = ?;
+
+watchedVideoIds:
+SELECT DISTINCT videoId FROM WatchHistory WHERE accountId = ?;

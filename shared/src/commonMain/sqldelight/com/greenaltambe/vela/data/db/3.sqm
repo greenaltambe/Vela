@@ -1,0 +1,13 @@
+-- 3 -> 4: cache for the third-party APIs (SponsorBlock, Return YouTube Dislike, DeArrow) and the per-video segment store.
+CREATE TABLE ApiCache (
+    cacheKey TEXT NOT NULL PRIMARY KEY,
+    status INTEGER NOT NULL,
+    body TEXT NOT NULL,
+    fetchedAt INTEGER NOT NULL
+);
+
+CREATE TABLE SegmentCache (
+    videoId TEXT NOT NULL PRIMARY KEY,
+    segmentsJson TEXT NOT NULL,
+    fetchedAt INTEGER NOT NULL
+);

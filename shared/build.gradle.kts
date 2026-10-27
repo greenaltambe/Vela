@@ -38,9 +38,12 @@ kotlin {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.compose.uiTooling)
             implementation(libs.sqldelight.androidDriver)
+            implementation(libs.androidx.activity.compose)
+            implementation(libs.coil.networkOkhttp)
         }
         jvmMain.dependencies {
             implementation(libs.sqldelight.sqliteDriver)
+            implementation(libs.coil.networkOkhttp)
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)
@@ -54,6 +57,7 @@ kotlin {
             implementation(libs.kotlinx.coroutinesCore)
             implementation(libs.kotlinx.serializationJson)
             implementation(libs.sqldelight.runtime)
+            implementation(libs.coil.compose)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

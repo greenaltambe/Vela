@@ -54,6 +54,18 @@ class LiveYtDlpTest {
         assertNotNull(info.uploadDate)
     }
 
+
+    @Test
+    fun realStreamsAreBestFirstAndPlanAsSeparateNonDrc() = runBlocking<Unit> {
+        val set = extractor.streams(videoId).value()
+        assertEquals(set.videoStreams.map { it.height }, set.videoStreams.map { it.height }.sortedDescending(), "video best-first by height")
+        val plan = com.greenaltambe.vela.player.StreamSelector.plan(set, com.greenaltambe.vela.player.PlaybackPrefs())
+        println("plan: $plan".take(300))
+        val separate = assertIs<com.greenaltambe.vela.player.PlaybackPlan.Separate>(plan)
+        assertTrue(!separate.audio.isDrc, "DRC avoided")
+        assertTrue(separate.video.height >= set.videoStreams.filter { !it.hasAudio }.maxOf { it.height } / 2)
+    }
+
     @Test
     fun streams() = runBlocking<Unit> {
         val set = extractor.streams(videoId).value()
@@ -68,6 +80,8 @@ class LiveYtDlpTest {
     fun aResolvedAudioStreamIsActuallyFetchable() = runBlocking<Unit> {
         val set = extractor.streams(videoId).value()
         val audio = set.audioStreams.first()
+        // TV-client URLs answer 403 until ~4 s after they were issued; the session waits for this too.
+        set.availableAt?.let { val wait = (it - Clock.System.now()).inWholeMilliseconds; println("waiting ${wait} ms for availableAt"); if (wait > 0) Thread.sleep(wait) }
         val request = HttpRequest.newBuilder(URI(audio.url)).header("Range", "bytes=0-1023").apply {
             (set.headers + audio.headers).filterKeys { it !in restrictedHeaders }.forEach { (k, v) -> header(k, v) }
         }.GET().build()

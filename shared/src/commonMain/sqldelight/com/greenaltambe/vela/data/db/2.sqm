@@ -1,0 +1,50 @@
+-- 2 -> 3: search history, local playlists (incl. Watch Later) and the cached subscription feed.
+CREATE TABLE SearchHistory (
+    accountId TEXT NOT NULL,
+    query TEXT NOT NULL,
+    searchedAt INTEGER NOT NULL,
+    PRIMARY KEY (accountId, query)
+);
+
+CREATE TABLE Playlist (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    accountId TEXT NOT NULL,
+    name TEXT NOT NULL,
+    -- Set for built-in playlists ("watch_later"); null for ones the user made.
+    systemKey TEXT,
+    createdAt INTEGER NOT NULL,
+    updatedAt INTEGER NOT NULL,
+    UNIQUE (accountId, systemKey)
+);
+
+CREATE TABLE PlaylistItem (
+    playlistId INTEGER NOT NULL REFERENCES Playlist(id) ON DELETE CASCADE,
+    videoId TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    channelId TEXT NOT NULL,
+    channelName TEXT NOT NULL,
+    thumbnailUrl TEXT,
+    durationSeconds INTEGER,
+    addedAt INTEGER NOT NULL,
+    PRIMARY KEY (playlistId, videoId)
+);
+
+CREATE INDEX PlaylistItem_order ON PlaylistItem(playlistId, position);
+
+CREATE TABLE FeedItem (
+    accountId TEXT NOT NULL,
+    videoId TEXT NOT NULL,
+    channelId TEXT NOT NULL,
+    channelName TEXT NOT NULL,
+    title TEXT NOT NULL,
+    thumbnailUrl TEXT,
+    durationSeconds INTEGER,
+    viewCount INTEGER,
+    isShort INTEGER NOT NULL DEFAULT 0,
+    publishedAt INTEGER,
+    fetchedAt INTEGER NOT NULL,
+    PRIMARY KEY (accountId, videoId)
+);
+
+CREATE INDEX FeedItem_account_time ON FeedItem(accountId, publishedAt DESC);

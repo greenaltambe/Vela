@@ -16,3 +16,9 @@ VALUES (?, ?, ?, ?, ?);
 
 delete:
 DELETE FROM Subscription WHERE accountId = ? AND channelId = ?;
+
+isSubscribed:
+SELECT COUNT(*) FROM Subscription WHERE accountId = ? AND channelId = ?;
+
+count:
+SELECT COUNT(*) FROM Subscription WHERE accountId = ?;

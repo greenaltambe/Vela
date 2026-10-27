@@ -1,0 +1,5 @@
+-- 4 -> 5: what a download needs to resume (the chosen streams) and the offline copy of its page (description, info, thumbnail).
+ALTER TABLE Download ADD COLUMN planJson TEXT;
+ALTER TABLE DownloadOfflineData ADD COLUMN descriptionText TEXT;
+ALTER TABLE DownloadOfflineData ADD COLUMN infoJson TEXT;
+ALTER TABLE DownloadOfflineData ADD COLUMN thumbnailPath TEXT;

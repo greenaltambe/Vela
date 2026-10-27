@@ -25,4 +25,26 @@ interface Extractor {
 
     /** Replies to [commentId]. Without a [continuation] (see [Comment.repliesContinuation]) the tier has to find the comment first. */
     suspend fun replies(videoId: String, commentId: String, continuation: String? = null): ExtractorResult<CommentsPage>
+
+    // The four below are optional per tier: a tier that cannot do one answers Unplayable("not supported"), which the
+    // chain treats as a failure and moves on from.
+
+    /** What YouTube currently trends, for Home. */
+    suspend fun trending(continuation: String? = null): ExtractorResult<Page<VideoSummary>> = notSupported()
+
+    /** Videos YouTube suggests next to [videoId]. */
+    suspend fun related(videoId: String): ExtractorResult<List<VideoSummary>> = notSupported()
+
+    /** The channel's Shorts tab. */
+    suspend fun channelShorts(channelId: String, continuation: String? = null): ExtractorResult<Page<VideoSummary>> = notSupported()
+
+    /**
+     * The channel's newest uploads (about the last 15), newest first, for the subscription feed. Each item carries
+     * [VideoSummary.uploadedAt] when the source knows it. Durations are often unknown here (see [VideoSummary.durationSeconds]).
+     */
+    suspend fun recentUploads(channelId: String): ExtractorResult<List<VideoSummary>> = notSupported()
 }
+
+const val NOT_SUPPORTED = "not supported"
+
+fun <T> notSupported(): ExtractorResult<T> = ExtractorResult.Failure(ExtractorError.Unplayable(NOT_SUPPORTED))

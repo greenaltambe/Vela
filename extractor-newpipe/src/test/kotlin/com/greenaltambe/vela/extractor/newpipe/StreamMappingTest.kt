@@ -61,6 +61,26 @@ class StreamMappingTest {
     }
 
     @Test
+    fun streamsComeOutBestFirstWithTheOriginalAudioTrackAhead() {
+        fun v(itag: Int, res: String, videoOnly: Boolean) = NpVideo.Builder().setId("$itag").setContent(url(itag, null), true)
+            .setMediaFormat(MediaFormat.MPEG_4).setDeliveryMethod(DeliveryMethod.PROGRESSIVE_HTTP)
+            .setIsVideoOnly(videoOnly).setResolution(res)
+            .setItagItem(ItagItem.getItag(itag).also { it.height = res.removeSuffix("p").toInt() }).build()
+        fun a(itag: Int, kbps: Int, type: AudioTrackType?) = NpAudio.Builder().setId("$itag-$kbps").setContent(url(itag, null), true)
+            .setMediaFormat(MediaFormat.M4A).setDeliveryMethod(DeliveryMethod.PROGRESSIVE_HTTP)
+            .setAverageBitrate(kbps).setItagItem(ItagItem.getItag(itag)).apply { type?.let { setAudioTrackType(it) } }.build()
+        val info = info().apply {
+            videoStreams = listOf(v(18, "360p", false))
+            videoOnlyStreams = listOf(v(135, "480p", true), v(137, "1080p", true), v(133, "240p", true))
+            audioStreams = listOf(a(139, 48, AudioTrackType.DUBBED), a(140, 128, AudioTrackType.DUBBED), a(140, 64, AudioTrackType.ORIGINAL))
+        }
+        val set = info.toStreamSet()
+        assertEquals(listOf(1080, 480, 360, 240), set.videoStreams.map { it.height })
+        assertEquals(listOf(true, false, false), set.audioStreams.map { it.isOriginalTrack })
+        assertTrue(set.audioStreams.drop(1).map { it.bitrate } == set.audioStreams.drop(1).map { it.bitrate }.sortedDescending(), "dubs by bitrate descending")
+    }
+
+    @Test
     fun skipsStreamsThatAreNotPlainUrls() {
         val info = info().apply {
             videoStreams = listOf(

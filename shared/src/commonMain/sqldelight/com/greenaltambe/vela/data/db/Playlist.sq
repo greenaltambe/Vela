@@ -1,0 +1,71 @@
+CREATE TABLE Playlist (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    accountId TEXT NOT NULL,
+    name TEXT NOT NULL,
+    systemKey TEXT,
+    createdAt INTEGER NOT NULL,
+    updatedAt INTEGER NOT NULL,
+    UNIQUE (accountId, systemKey)
+);
+
+CREATE TABLE PlaylistItem (
+    playlistId INTEGER NOT NULL REFERENCES Playlist(id) ON DELETE CASCADE,
+    videoId TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    channelId TEXT NOT NULL,
+    channelName TEXT NOT NULL,
+    thumbnailUrl TEXT,
+    durationSeconds INTEGER,
+    addedAt INTEGER NOT NULL,
+    PRIMARY KEY (playlistId, videoId)
+);
+
+CREATE INDEX PlaylistItem_order ON PlaylistItem(playlistId, position);
+
+selectForAccount:
+SELECT p.*, (SELECT COUNT(*) FROM PlaylistItem i WHERE i.playlistId = p.id) AS itemCount
+FROM Playlist p WHERE p.accountId = ? ORDER BY p.systemKey IS NULL, p.createdAt;
+
+selectById:
+SELECT * FROM Playlist WHERE id = ?;
+
+selectBySystemKey:
+SELECT * FROM Playlist WHERE accountId = ? AND systemKey = ?;
+
+insert:
+INSERT INTO Playlist(accountId, name, systemKey, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?);
+
+lastInsertRowId:
+SELECT last_insert_rowid();
+
+rename:
+UPDATE Playlist SET name = ?, updatedAt = ? WHERE id = ? AND systemKey IS NULL;
+
+touch:
+UPDATE Playlist SET updatedAt = ? WHERE id = ?;
+
+delete:
+DELETE FROM Playlist WHERE id = ? AND systemKey IS NULL;
+
+selectItems:
+SELECT * FROM PlaylistItem WHERE playlistId = ? ORDER BY position;
+
+selectItemVideoIds:
+SELECT videoId FROM PlaylistItem WHERE playlistId = ?;
+
+maxPosition:
+SELECT COALESCE(MAX(position), -1) FROM PlaylistItem WHERE playlistId = ?;
+
+insertItem:
+INSERT OR IGNORE INTO PlaylistItem(playlistId, videoId, position, title, channelId, channelName, thumbnailUrl, durationSeconds, addedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+deleteItem:
+DELETE FROM PlaylistItem WHERE playlistId = ? AND videoId = ?;
+
+setItemPosition:
+UPDATE PlaylistItem SET position = ? WHERE playlistId = ? AND videoId = ?;
+
+clearItems:
+DELETE FROM PlaylistItem WHERE playlistId = ?;

@@ -1,0 +1,35 @@
+CREATE TABLE FeedItem (
+    accountId TEXT NOT NULL,
+    videoId TEXT NOT NULL,
+    channelId TEXT NOT NULL,
+    channelName TEXT NOT NULL,
+    title TEXT NOT NULL,
+    thumbnailUrl TEXT,
+    durationSeconds INTEGER,
+    viewCount INTEGER,
+    isShort INTEGER NOT NULL DEFAULT 0,
+    publishedAt INTEGER,
+    fetchedAt INTEGER NOT NULL,
+    PRIMARY KEY (accountId, videoId)
+);
+
+CREATE INDEX FeedItem_account_time ON FeedItem(accountId, publishedAt DESC);
+
+selectForAccount:
+SELECT * FROM FeedItem WHERE accountId = ? ORDER BY publishedAt IS NULL, publishedAt DESC, fetchedAt DESC LIMIT ?;
+
+upsert:
+INSERT OR REPLACE INTO FeedItem(accountId, videoId, channelId, channelName, title, thumbnailUrl, durationSeconds, viewCount, isShort, publishedAt, fetchedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+deleteForChannel:
+DELETE FROM FeedItem WHERE accountId = ? AND channelId = ?;
+
+-- Keeps the table bounded: everything older than the newest N rows goes.
+trim:
+DELETE FROM FeedItem WHERE accountId = ? AND videoId NOT IN (
+    SELECT videoId FROM FeedItem WHERE accountId = ? ORDER BY publishedAt IS NULL, publishedAt DESC, fetchedAt DESC LIMIT ?
+);
+
+clearForAccount:
+DELETE FROM FeedItem WHERE accountId = ?;

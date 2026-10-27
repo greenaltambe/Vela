@@ -8,7 +8,9 @@ import kotlin.test.assertTrue
 class SettingsSearchTest {
     @Test
     fun matchesLabelAndKeywordsCaseInsensitively() {
-        assertEquals(listOf(Settings.sponsorBlockEnabled), Settings.search("SPONSOR"))
+        val sponsor = Settings.search("SPONSOR")
+        assertTrue(Settings.sponsorBlockEnabled in sponsor)
+        assertTrue(sponsor.all { "sponsorblock" in it.key || "sponsorblock" in it.keywords }, "only SponsorBlock settings match")
         assertEquals(listOf(Settings.defaultPlaybackSpeed), Settings.search("faster"))
     }
 
