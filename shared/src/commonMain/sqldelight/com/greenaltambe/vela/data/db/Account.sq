@@ -1,0 +1,11 @@
+CREATE TABLE Account (
+    id TEXT NOT NULL PRIMARY KEY,
+    displayName TEXT NOT NULL,
+    createdAt INTEGER NOT NULL
+);
+
+selectAll:
+SELECT * FROM Account ORDER BY createdAt;
+
+upsert:
+INSERT OR REPLACE INTO Account(id, displayName, createdAt) VALUES (?, ?, ?);

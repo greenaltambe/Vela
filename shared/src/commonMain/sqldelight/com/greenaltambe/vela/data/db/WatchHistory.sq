@@ -1,0 +1,32 @@
+-- One row per watch session, kept locally regardless of whether history is synced back to YouTube.
+CREATE TABLE WatchHistory (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    accountId TEXT NOT NULL,
+    videoId TEXT NOT NULL,
+    channelId TEXT NOT NULL,
+    title TEXT NOT NULL,
+    watchedAt INTEGER NOT NULL,
+    positionMs INTEGER NOT NULL,
+    durationMs INTEGER NOT NULL,
+    watchedMs INTEGER NOT NULL,
+    syncedToYoutube INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX WatchHistory_account_time ON WatchHistory(accountId, watchedAt DESC);
+CREATE INDEX WatchHistory_account_video_time ON WatchHistory(accountId, videoId, watchedAt DESC);
+
+selectRecent:
+SELECT * FROM WatchHistory WHERE accountId = ? ORDER BY watchedAt DESC LIMIT ?;
+
+selectLastForVideo:
+SELECT * FROM WatchHistory WHERE accountId = ? AND videoId = ? ORDER BY watchedAt DESC LIMIT 1;
+
+insert:
+INSERT INTO WatchHistory(accountId, videoId, channelId, title, watchedAt, positionMs, durationMs, watchedMs, syncedToYoutube)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+totalWatchedMs:
+SELECT COALESCE(SUM(watchedMs), 0) FROM WatchHistory WHERE accountId = ? AND watchedAt >= ? AND watchedAt < ?;
+
+clearForAccount:
+DELETE FROM WatchHistory WHERE accountId = ?;

@@ -1,0 +1,17 @@
+-- One raw override per (key, layer). The global layer stores layerId = '' so the primary key stays unique.
+CREATE TABLE Setting (
+    `key` TEXT NOT NULL,
+    layerScope TEXT NOT NULL,
+    layerId TEXT NOT NULL DEFAULT '',
+    value TEXT NOT NULL,
+    PRIMARY KEY (`key`, layerScope, layerId)
+);
+
+selectValue:
+SELECT value FROM Setting WHERE `key` = ? AND layerScope = ? AND layerId = ?;
+
+upsert:
+INSERT OR REPLACE INTO Setting(`key`, layerScope, layerId, value) VALUES (?, ?, ?, ?);
+
+delete:
+DELETE FROM Setting WHERE `key` = ? AND layerScope = ? AND layerId = ?;

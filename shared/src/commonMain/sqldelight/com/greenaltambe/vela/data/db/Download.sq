@@ -1,0 +1,71 @@
+import com.greenaltambe.vela.data.DownloadKind;
+import com.greenaltambe.vela.data.DownloadState;
+
+CREATE TABLE Download (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    accountId TEXT NOT NULL,
+    videoId TEXT NOT NULL,
+    channelId TEXT NOT NULL,
+    title TEXT NOT NULL,
+    state TEXT AS DownloadState NOT NULL,
+    kind TEXT AS DownloadKind NOT NULL,
+    qualityLabel TEXT NOT NULL,
+    videoPath TEXT,
+    audioPath TEXT,
+    mergedPath TEXT,
+    bytesDone INTEGER NOT NULL DEFAULT 0,
+    bytesTotal INTEGER,
+    -- Resolved stream URL and when it stops working; resume re-resolves a fresh one once expired.
+    resolvedUrl TEXT,
+    urlExpiresAt INTEGER,
+    retryCount INTEGER NOT NULL DEFAULT 0,
+    errorMessage TEXT,
+    createdAt INTEGER NOT NULL,
+    updatedAt INTEGER NOT NULL,
+    UNIQUE (accountId, videoId, kind)
+);
+
+-- Offline blobs live apart so list queries don't load them. Each column holds JSON.
+CREATE TABLE DownloadOfflineData (
+    downloadId INTEGER NOT NULL PRIMARY KEY REFERENCES Download(id) ON DELETE CASCADE,
+    accountId TEXT NOT NULL,
+    sponsorBlockJson TEXT,
+    deArrowJson TEXT,
+    commentsJson TEXT,
+    chaptersJson TEXT
+);
+
+selectForAccount:
+SELECT * FROM Download WHERE accountId = ? ORDER BY createdAt DESC;
+
+selectByState:
+SELECT * FROM Download WHERE accountId = ? AND state = ? ORDER BY createdAt;
+
+selectById:
+SELECT * FROM Download WHERE id = ?;
+
+insert:
+INSERT INTO Download(accountId, videoId, channelId, title, state, kind, qualityLabel, createdAt, updatedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+lastInsertId:
+SELECT last_insert_rowid();
+
+updateState:
+UPDATE Download SET state = ?, errorMessage = ?, updatedAt = ? WHERE id = ?;
+
+updateProgress:
+UPDATE Download SET bytesDone = ?, bytesTotal = ?, updatedAt = ? WHERE id = ?;
+
+updateResolvedUrl:
+UPDATE Download SET resolvedUrl = ?, urlExpiresAt = ?, updatedAt = ? WHERE id = ?;
+
+delete:
+DELETE FROM Download WHERE id = ?;
+
+selectOfflineData:
+SELECT * FROM DownloadOfflineData WHERE downloadId = ?;
+
+upsertOfflineData:
+INSERT OR REPLACE INTO DownloadOfflineData(downloadId, accountId, sponsorBlockJson, deArrowJson, commentsJson, chaptersJson)
+VALUES (?, ?, ?, ?, ?, ?);

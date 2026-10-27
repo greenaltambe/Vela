@@ -1,0 +1,10 @@
+-- 1 -> 2: per-layer settings storage and the "last position for a video" lookup.
+CREATE TABLE Setting (
+    `key` TEXT NOT NULL,
+    layerScope TEXT NOT NULL,
+    layerId TEXT NOT NULL DEFAULT '',
+    value TEXT NOT NULL,
+    PRIMARY KEY (`key`, layerScope, layerId)
+);
+
+CREATE INDEX WatchHistory_account_video_time ON WatchHistory(accountId, videoId, watchedAt DESC);

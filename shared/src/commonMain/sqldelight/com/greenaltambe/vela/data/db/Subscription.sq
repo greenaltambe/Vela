@@ -1,0 +1,18 @@
+CREATE TABLE Subscription (
+    accountId TEXT NOT NULL,
+    channelId TEXT NOT NULL,
+    channelName TEXT NOT NULL,
+    avatarUrl TEXT,
+    subscribedAt INTEGER NOT NULL,
+    PRIMARY KEY (accountId, channelId)
+);
+
+selectForAccount:
+SELECT * FROM Subscription WHERE accountId = ? ORDER BY channelName COLLATE NOCASE;
+
+upsert:
+INSERT OR REPLACE INTO Subscription(accountId, channelId, channelName, avatarUrl, subscribedAt)
+VALUES (?, ?, ?, ?, ?);
+
+delete:
+DELETE FROM Subscription WHERE accountId = ? AND channelId = ?;
