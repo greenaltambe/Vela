@@ -59,6 +59,23 @@ class JvmDatabaseFactoryTest {
     }
 
     @Test
+    fun failedMigrationRollsBackCompletely() {
+        // Version 1 plus a clashing index: the migration creates Setting, then fails on the index.
+        val v1 = JvmDatabaseDriverFactory(file).create()
+        v1.execute(null, "DROP TABLE Setting", 0)
+        v1.execute(null, "PRAGMA user_version = 1", 0)
+        v1.close()
+
+        assertFailsWith<Exception> { JvmDatabaseDriverFactory(file).create() }
+
+        val after = java.sql.DriverManager.getConnection("jdbc:sqlite:$file").use { c ->
+            fun scalar(sql: String) = c.createStatement().use { st -> st.executeQuery(sql).use { it.next(); it.getLong(1) } }
+            scalar("SELECT COUNT(*) FROM sqlite_master WHERE name = 'Setting'") to scalar("PRAGMA user_version")
+        }
+        assertEquals(0L to 1L, after, "Setting table must not survive and the version must stay 1")
+    }
+
+    @Test
     fun databaseFromTheFutureIsRefused() {
         val driver = JvmDatabaseDriverFactory(file).create()
         driver.execute(null, "PRAGMA user_version = ${VelaDatabase.Schema.version + 1}", 0)

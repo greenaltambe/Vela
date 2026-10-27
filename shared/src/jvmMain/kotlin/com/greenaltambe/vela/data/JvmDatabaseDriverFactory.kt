@@ -1,5 +1,6 @@
 package com.greenaltambe.vela.data
 
+import app.cash.sqldelight.TransacterImpl
 import app.cash.sqldelight.db.QueryResult
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
@@ -18,8 +19,11 @@ class JvmDatabaseDriverFactory(private val path: String? = null) : DatabaseDrive
         }, 0).value
         check(stored <= schema.version) { "Database is version $stored but this build only knows ${schema.version}" }
         if (stored != schema.version) {
-            if (stored == 0L) schema.create(driver).value else schema.migrate(driver, stored, schema.version).value
-            driver.execute(null, "PRAGMA user_version = ${schema.version}", 0)
+            // One transaction (user_version is transactional too), so a failed migration leaves the file untouched.
+            object : TransacterImpl(driver) {}.transaction {
+                if (stored == 0L) schema.create(driver).value else schema.migrate(driver, stored, schema.version).value
+                driver.execute(null, "PRAGMA user_version = ${schema.version}", 0)
+            }
         }
         return driver
     }

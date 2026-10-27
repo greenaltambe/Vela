@@ -10,7 +10,7 @@ class StubExtractor(private val error: ExtractorError? = null) : Extractor {
         return error?.let { ExtractorResult.Failure(it) } ?: ExtractorResult.Success(value())
     }
 
-    override suspend fun search(query: String) = respond { emptyList<VideoSummary>() }
+    override suspend fun search(query: String, continuation: String?) = respond { Page<VideoSummary>(emptyList()) }
 
     override suspend fun videoInfo(videoId: String) = respond {
         VideoInfo(videoId, "Stub video", "", "stub-channel", "Stub channel", durationSeconds = 0)
@@ -20,5 +20,11 @@ class StubExtractor(private val error: ExtractorError? = null) : Extractor {
 
     override suspend fun channel(channelId: String) = respond { ChannelPage(channelId, "Stub channel") }
 
-    override suspend fun comments(videoId: String, sort: CommentSort) = respond { CommentsPage(emptyList()) }
+    override suspend fun channelVideos(channelId: String, continuation: String?) = respond { Page<VideoSummary>(emptyList()) }
+
+    override suspend fun comments(videoId: String, sort: CommentSort, continuation: String?) =
+        respond { CommentsPage(emptyList()) }
+
+    override suspend fun replies(videoId: String, commentId: String, continuation: String?) =
+        respond { CommentsPage(emptyList()) }
 }

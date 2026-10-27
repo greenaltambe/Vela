@@ -11,6 +11,11 @@ object SettingCodecs {
         override fun decode(raw: String) = raw.toBooleanStrictOrNull()
     }
 
+    val string = object : SettingCodec<String> {
+        override fun encode(value: String) = value
+        override fun decode(raw: String) = raw
+    }
+
     val float = object : SettingCodec<Float> {
         override fun encode(value: Float) = value.toString()
         override fun decode(raw: String) = raw.toFloatOrNull()
@@ -27,6 +32,7 @@ enum class SettingSection(val title: String) {
     PLAYBACK("Playback"),
     FEED("Feed"),
     MODULES("Modules"),
+    ADVANCED("Advanced"),
 }
 
 /** One selectable value of an enumerated setting; [raw] is what the codec stores. */

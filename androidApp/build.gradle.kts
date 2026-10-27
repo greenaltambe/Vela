@@ -12,6 +12,9 @@ kotlin {
 }
 dependencies {
     implementation(project(":shared"))
+    implementation(project(":extractor-newpipe"))
+    // NewPipeExtractor uses java.time, which needs desugaring below API 26 (minSdk is 24).
+    coreLibraryDesugaring(libs.desugar.jdkLibs)
 
     implementation(libs.androidx.activity.compose)
 
@@ -47,6 +50,7 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+        isCoreLibraryDesugaringEnabled = true
     }
     buildFeatures {
         compose = true

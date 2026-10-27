@@ -3,6 +3,9 @@ package com.greenaltambe.vela.extractor
 import kotlinx.serialization.Serializable
 import kotlin.time.Instant
 
+/** One page of a paged listing. [continuation] is an opaque, tier-specific token for the next page; null when there is none. */
+data class Page<T>(val items: List<T>, val continuation: String? = null)
+
 data class VideoSummary(
     val id: String,
     val title: String,
@@ -96,8 +99,21 @@ data class Comment(
     val publishedText: String = "",
     val replyCount: Int = 0,
     val isPinned: Boolean = false,
+    /** Pass to [Extractor.replies] to load this comment's replies; null when it has none (or the tier can't list them). */
+    val repliesContinuation: String? = null,
 )
 
 data class CommentsPage(val comments: List<Comment>, val continuation: String? = null)
 
+/**
+ * Order of a comments listing. [NEWEST] is currently ignored by the NewPipe tier (NewPipeExtractor v0.26.5 has no
+ * sort option for YouTube comments), which always returns "top". Check [ExtractorCapabilities.supportsCommentSort]
+ * before offering the choice.
+ */
 enum class CommentSort { TOP, NEWEST }
+
+/** What an extractor can actually do, so the UI can hide controls that would silently do nothing. */
+data class ExtractorCapabilities(
+    /** True only if [CommentSort.NEWEST] is honoured rather than ignored. */
+    val supportsCommentSort: Boolean = false,
+)

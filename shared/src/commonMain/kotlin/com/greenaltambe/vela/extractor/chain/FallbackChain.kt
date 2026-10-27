@@ -20,12 +20,24 @@ class FallbackChain(
 ) : Extractor {
     private val memory = TierMemory(clock, memoryTtl)
 
-    override suspend fun search(query: String) = run("search($query)") { it.search(query) }
+    /** Only true if every tier honours it, so the UI never offers a choice some tier would silently ignore. */
+    override val capabilities = ExtractorCapabilities(
+        supportsCommentSort = tiers.isNotEmpty() && tiers.all { it.capabilities.supportsCommentSort },
+    )
+
+    override suspend fun search(query: String, continuation: String?) =
+        run("search($query${page(continuation)})") { it.search(query, continuation) }
     override suspend fun videoInfo(videoId: String) = run("videoInfo($videoId)") { it.videoInfo(videoId) }
     override suspend fun streams(videoId: String) = run("streams($videoId)") { it.streams(videoId) }
     override suspend fun channel(channelId: String) = run("channel($channelId)") { it.channel(channelId) }
-    override suspend fun comments(videoId: String, sort: CommentSort) =
-        run("comments($videoId)") { it.comments(videoId, sort) }
+    override suspend fun channelVideos(channelId: String, continuation: String?) =
+        run("channelVideos($channelId${page(continuation)})") { it.channelVideos(channelId, continuation) }
+    override suspend fun comments(videoId: String, sort: CommentSort, continuation: String?) =
+        run("comments($videoId${page(continuation)})") { it.comments(videoId, sort, continuation) }
+    override suspend fun replies(videoId: String, commentId: String, continuation: String?) =
+        run("replies($videoId/$commentId${page(continuation)})") { it.replies(videoId, commentId, continuation) }
+
+    private fun page(continuation: String?) = if (continuation == null) "" else ", more"
 
     private suspend fun <T> run(
         subject: String,

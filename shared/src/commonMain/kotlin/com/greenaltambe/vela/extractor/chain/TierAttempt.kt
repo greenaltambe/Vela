@@ -10,9 +10,12 @@ import kotlin.time.Instant
 
 enum class TierId { ANONYMOUS, AUTHENTICATED, ALT_CLIENT, YT_DLP }
 
-class ExtractorTier(val id: TierId, val extractor: Extractor)
+class ExtractorTier(val id: TierId, val extractor: Extractor) {
+    val capabilities get() = extractor.capabilities
+}
 
-enum class AttemptOutcome { SUCCESS, FAILED, SKIPPED }
+/** [NOTE] is an informational line (e.g. a setup warning) rather than an attempt at a request. */
+enum class AttemptOutcome { SUCCESS, FAILED, SKIPPED, NOTE }
 
 /** One line of the diagnostics screen. [reason] is set for failures; [detail] explains skips and failures. */
 data class TierAttempt(

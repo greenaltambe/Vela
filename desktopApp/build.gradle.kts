@@ -8,6 +8,8 @@ plugins {
 
 dependencies {
     implementation(project(":shared"))
+    implementation(project(":extractor-newpipe"))
+    implementation(project(":extractor-ytdlp"))
 
     implementation(compose.desktop.currentOs)
     implementation(libs.kotlinx.coroutinesSwing)

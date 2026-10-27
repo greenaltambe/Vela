@@ -47,12 +47,23 @@ object Settings {
         range = SettingRange(min = 0.25, max = 4.0, step = 0.25),
     )
 
+    /** Resolved from PATH when it is a bare name. Desktop only; Android has no yt-dlp tier. */
+    val ytDlpPath = Setting(
+        key = "ytdlp.path",
+        default = "yt-dlp",
+        scope = SettingScope.GLOBAL,
+        label = "yt-dlp location",
+        keywords = listOf("yt-dlp", "youtube-dl", "binary", "path", "extractor", "fallback"),
+        codec = SettingCodecs.string,
+        section = SettingSection.ADVANCED,
+    )
+
     val sponsorBlockEnabled = moduleToggle("sponsorblock", "SponsorBlock", "sponsor", "skip", "segments")
     val returnYouTubeDislikeEnabled = moduleToggle("ryd", "Return YouTube Dislike", "dislike", "ryd", "likes")
     val deArrowEnabled = moduleToggle("dearrow", "DeArrow", "titles", "thumbnails", "clickbait")
 
     val all: List<Setting<*>> = listOf(
-        accountFallbackMode, shortsMode, defaultPlaybackSpeed,
+        accountFallbackMode, shortsMode, defaultPlaybackSpeed, ytDlpPath,
         sponsorBlockEnabled, returnYouTubeDislikeEnabled, deArrowEnabled,
     )
 

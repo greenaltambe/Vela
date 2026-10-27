@@ -24,6 +24,10 @@ dependencyResolutionManagement {
             }
         }
         mavenCentral()
+        // NewPipeExtractor and its nanojson fork only; JitPack must not be able to shadow anything else.
+        maven("https://jitpack.io") {
+            content { includeGroup("com.github.TeamNewPipe") }
+        }
     }
 }
 
@@ -33,4 +37,6 @@ plugins {
 
 include(":androidApp")
 include(":desktopApp")
+include(":extractor-newpipe")
+include(":extractor-ytdlp")
 include(":shared")
