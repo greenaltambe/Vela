@@ -36,6 +36,8 @@ class TierMemory(private val clock: Clock, private val ttl: Duration) {
         return routes.value.values.firstOrNull { it.failedTier == tier && it.expiresAt > now && it.workedTier in available }
     }
 
+    fun clear() { routes.value = emptyMap() }
+
     /** Called when a tier fails, so routes pointing at it stop hiding the earlier tiers. */
     fun forgetWorked(tier: TierId) = routes.update { current -> current.filterValues { it.workedTier != tier } }
 }

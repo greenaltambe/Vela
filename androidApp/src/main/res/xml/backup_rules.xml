@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11 and below: credentials never leave the device in a backup. -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="vela_secrets.xml" />
+</full-backup-content>

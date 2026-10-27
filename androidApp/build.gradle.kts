@@ -14,6 +14,7 @@ dependencies {
     implementation(project(":shared"))
     implementation(project(":extractor-newpipe"))
     implementation(project(":net-okhttp"))
+    implementation(project(":innertube-auth"))
     // NewPipeExtractor uses java.time, which needs desugaring below API 26 (minSdk is 24).
     coreLibraryDesugaring(libs.desugar.jdkLibs)
 

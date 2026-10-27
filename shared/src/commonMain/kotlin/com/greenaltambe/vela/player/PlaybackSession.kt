@@ -77,7 +77,7 @@ class PlaybackSession(
     private val history: WatchHistoryRepository,
     scope: CoroutineScope,
     private val clock: Clock = Clock.System,
-    private val accountId: String = LOCAL_ACCOUNT,
+    private val accountId: () -> String = { LOCAL_ACCOUNT },
     private val network: NetworkMonitor = FixedNetworkMonitor(),
     private val constraints: () -> PlaybackConstraints = { PlaybackConstraints() },
     private val maxReResolves: Int = 2,
@@ -363,7 +363,7 @@ class PlaybackSession(
     private fun needsRefresh(): Boolean = leases.isExpired(streams)
 
     private fun resumePosition(id: String): Long {
-        val last = history.lastForVideo(accountId, id) ?: return 0
+        val last = history.lastForVideo(accountId(), id) ?: return 0
         val nearEnd = last.durationMs > 0 && last.positionMs >= last.durationMs - RESUME_END_SLACK_MS
         return if (last.positionMs < RESUME_MIN_MS || nearEnd) 0 else last.positionMs
     }
@@ -431,7 +431,7 @@ class PlaybackSession(
         val now = clock.now()
         val existing = recordId
         if (existing == null) {
-            recordId = history.begin(accountId, id, channelId, title, now, st.positionMs, st.durationMs, watchedMs)
+            recordId = history.begin(accountId(), id, channelId, title, now, st.positionMs, st.durationMs, watchedMs)
         } else {
             history.update(existing, now, st.positionMs, st.durationMs, watchedMs)
         }

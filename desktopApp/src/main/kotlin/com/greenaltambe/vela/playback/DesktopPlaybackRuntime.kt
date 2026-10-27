@@ -25,6 +25,7 @@ class DesktopPlaybackRuntime private constructor(
     settings: SettingsResolver,
     history: WatchHistoryRepository,
     addons: List<PlaybackAddon>,
+    accountId: () -> String,
 ) : AutoCloseable {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
@@ -33,7 +34,7 @@ class DesktopPlaybackRuntime private constructor(
 
     val session = PlaybackSession(
         extractor, controller, settings, history, scope,
-        network = FixedNetworkMonitor(), constraints = { constraints }, addons = addons,
+        network = FixedNetworkMonitor(), constraints = { constraints }, addons = addons, accountId = accountId,
     )
 
     override fun close() {
@@ -43,9 +44,9 @@ class DesktopPlaybackRuntime private constructor(
     }
 
     companion object {
-        fun create(extractor: Extractor, settings: SettingsResolver, history: WatchHistoryRepository, addons: List<PlaybackAddon> = emptyList()): Result<DesktopPlaybackRuntime> =
+        fun create(extractor: Extractor, settings: SettingsResolver, history: WatchHistoryRepository, addons: List<PlaybackAddon> = emptyList(), accountId: () -> String = { com.greenaltambe.vela.data.LOCAL_ACCOUNT }): Result<DesktopPlaybackRuntime> =
             MpvLibrary.load().mapCatching { backend ->
-                DesktopPlaybackRuntime(MpvPlayerController(backend, MpvConfig()), extractor, settings, history, addons)
+                DesktopPlaybackRuntime(MpvPlayerController(backend, MpvConfig()), extractor, settings, history, addons, accountId)
             }
     }
 }

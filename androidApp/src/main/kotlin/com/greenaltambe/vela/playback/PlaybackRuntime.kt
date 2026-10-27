@@ -13,7 +13,17 @@ import com.greenaltambe.vela.data.SqlDelightWatchHistoryRepository
 import com.greenaltambe.vela.data.createDatabase
 import com.greenaltambe.vela.extractor.chain.DiagnosticsLog
 import com.greenaltambe.vela.extractor.chain.FallbackChain
-import com.greenaltambe.vela.extractor.chain.stubTiers
+import com.greenaltambe.vela.auth.AccountManager
+import com.greenaltambe.vela.auth.AndroidKeystoreSecretStore
+import com.greenaltambe.vela.auth.CredentialStore
+import com.greenaltambe.vela.extractor.chain.AttemptOutcome
+import com.greenaltambe.vela.extractor.chain.ExtractorTier
+import com.greenaltambe.vela.extractor.chain.TierAttempt
+import com.greenaltambe.vela.extractor.chain.TierId
+import com.greenaltambe.vela.innertube.AltClientExtractor
+import com.greenaltambe.vela.innertube.InnertubeAccountLogin
+import kotlin.time.Clock
+import kotlin.time.Duration
 import com.greenaltambe.vela.extractor.newpipe.NewPipeExtractor
 import com.greenaltambe.vela.downloads.createAndroidDownloads
 import com.greenaltambe.vela.modules.createModules
@@ -38,9 +48,23 @@ class PlaybackRuntime private constructor(context: Context) {
     val network = AndroidNetworkMonitor(appContext)
     val log = DiagnosticsLog()
     val modules by lazy { createModules(OkHttpTransport(), database, settings) }
-    private val tiers by lazy { stubTiers(anonymous = NewPipeExtractor()) }
+    /** Accounts and their credentials (Keystore-encrypted, excluded from backup). */
+    val accounts by lazy { AccountManager(database, CredentialStore(AndroidKeystoreSecretStore(appContext))) }
+    val login by lazy { InnertubeAccountLogin(accounts) }
+
+    // No account tier on Android: yt-dlp does not run here, and neither NewPipe with account headers nor an own player call
+    // with cookies gave playable streams (docs/reports/13-accounts.md). Anonymous -> alt client; the chain skips the account tier.
+    private val tiers by lazy {
+        listOf(
+            ExtractorTier(TierId.ANONYMOUS, NewPipeExtractor()),
+            ExtractorTier(TierId.ALT_CLIENT, AltClientExtractor(onProfile = { line ->
+                log.record(TierAttempt("alt client", TierId.ALT_CLIENT, AttemptOutcome.NOTE, null, line, Duration.ZERO, Clock.System.now()))
+            })),
+        )
+    }
     val chain by lazy {
-        FallbackChain(tiers, accountMode = { settings.resolve(Settings.accountFallbackMode) }, log = log)
+        FallbackChain(tiers, accountMode = { settings.resolve(Settings.accountFallbackMode) }, log = log,
+            signedInAccount = { accounts.active.value.takeIf { it.isSignedIn }?.label })
     }
 
     /** Downloads and the offline library; the queue is recovered when this is first used. */
@@ -69,6 +93,7 @@ class PlaybackRuntime private constructor(context: Context) {
         PlaybackSession(
             chain, controller, settings, SqlDelightWatchHistoryRepository(database), scope,
             network = network, constraints = { deviceConstraints(appContext) }, addons = listOf(modules.sponsorBlock),
+            accountId = { accounts.active.value.id },
         )
     }
 

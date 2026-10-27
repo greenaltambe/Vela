@@ -1,0 +1,15 @@
+{
+  "_comment": "Alternate player clients, tried in order. 'enabled' reflects docs/reports/13-accounts.md (measured 2026-10-27, no PO token). Override with a file of the same shape.",
+  "profiles": [
+    {"name": "IOS", "clientNameId": 5, "enabled": true, "userAgent": "com.google.ios.youtube/20.10.4 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X;)",
+     "client": {"clientName": "IOS", "clientVersion": "20.10.4", "deviceMake": "Apple", "deviceModel": "iPhone16,2", "osName": "iPhone", "osVersion": "18.3.2.22D82"}},
+    {"name": "ANDROID", "clientNameId": 3, "enabled": true, "userAgent": "com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip",
+     "client": {"clientName": "ANDROID", "clientVersion": "20.10.38", "androidSdkVersion": 30, "osName": "Android", "osVersion": "11"}},
+    {"name": "ANDROID_VR", "clientNameId": 28, "enabled": false, "userAgent": "com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip",
+     "client": {"clientName": "ANDROID_VR", "clientVersion": "1.65.10", "deviceMake": "Oculus", "deviceModel": "Quest 3", "androidSdkVersion": 32, "osName": "Android", "osVersion": "12L"}},
+    {"name": "TVHTML5", "clientNameId": 7, "enabled": false, "userAgent": "Mozilla/5.0 (ChromiumStylePlatform) Cobalt/Version",
+     "client": {"clientName": "TVHTML5", "clientVersion": "7.20250801.16.00"}},
+    {"name": "MWEB", "clientNameId": 2, "enabled": false, "userAgent": "Mozilla/5.0 (iPad; CPU OS 16_7_10 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1",
+     "client": {"clientName": "MWEB", "clientVersion": "2.20250101.01.00"}}
+  ]
+}

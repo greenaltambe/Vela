@@ -42,8 +42,14 @@ class JvmDatabaseFactoryTest {
         assertEquals(1, JvmDatabaseDriverFactory(file).create().scalar("PRAGMA foreign_keys"))
     }
 
-    /** Takes a current database back to what version 4 looked like: no resume plan or offline page columns. */
+    /** Takes a current database back to what version 5 looked like: an Account row with no kind, e-mail or auth state. */
+    private fun SqlDriver.dropVersion6Columns() {
+        listOf("kind", "email", "avatarUrl", "channelId", "authState").forEach { execute(null, "ALTER TABLE Account DROP COLUMN $it", 0) }
+    }
+
+    /** ...back to version 4: no resume plan or offline page columns. */
     private fun SqlDriver.dropVersion5Columns() {
+        dropVersion6Columns()
         execute(null, "ALTER TABLE Download DROP COLUMN planJson", 0)
         listOf("descriptionText", "infoJson", "thumbnailPath").forEach { execute(null, "ALTER TABLE DownloadOfflineData DROP COLUMN $it", 0) }
     }
@@ -130,7 +136,23 @@ class JvmDatabaseFactoryTest {
         assertEquals("{}", db.downloadQueries.selectById(1).executeAsOne().planJson)
         db.downloadQueries.upsertOfflineData(1, "a1", "[]", null, null, null, "desc", "{}", "/t.jpg")
         assertEquals("/t.jpg", db.downloadQueries.selectOfflineData(1).executeAsOne().thumbnailPath)
-        assertEquals(5L, JvmDatabaseDriverFactory(file).create().scalar("PRAGMA user_version"))
+        assertEquals(VelaDatabase.Schema.version, JvmDatabaseDriverFactory(file).create().scalar("PRAGMA user_version"))
+    }
+
+    @Test
+    fun versionFiveDatabaseGainsTheAccountColumnsAndKeepsItsAccounts() {
+        val v5 = JvmDatabaseDriverFactory(file).create()
+        v5.dropVersion6Columns()
+        v5.execute(null, "PRAGMA user_version = 5", 0)
+        v5.execute(null, "INSERT INTO Account(id, displayName, createdAt) VALUES ('local','This device',1)", 0)
+        v5.close()
+
+        val db = createDatabase(JvmDatabaseDriverFactory(file))
+        val row = db.accountQueries.selectById("local").executeAsOne()
+        assertEquals("This device", row.displayName)
+        assertEquals("LOCAL", row.kind)
+        assertEquals("OK", row.authState)
+        assertEquals(null, row.email)
     }
 
     @Test

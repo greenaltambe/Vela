@@ -57,6 +57,10 @@ class MainActivity : ComponentActivity() {
             utcOffsetMinutes = { TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 60_000 },
             modules = runtime.modules,
             downloads = runtime.downloads,
+            accounts = runtime.accounts,
+            login = runtime.login,
+            sync = com.greenaltambe.vela.innertube.InnertubeAccountSync(runtime.accounts, runtime.database),
+            webLogin = { startActivity(android.content.Intent(this, com.greenaltambe.vela.auth.WebLoginActivity::class.java)) },
         )
     }
 

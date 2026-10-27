@@ -21,7 +21,20 @@ import com.greenaltambe.vela.data.XdgPaths
 import com.greenaltambe.vela.data.createDatabase
 import com.greenaltambe.vela.extractor.chain.DiagnosticsLog
 import com.greenaltambe.vela.extractor.chain.FallbackChain
-import com.greenaltambe.vela.extractor.chain.stubTiers
+import com.greenaltambe.vela.auth.AccountManager
+import com.greenaltambe.vela.auth.CredentialStore
+import com.greenaltambe.vela.auth.linuxSecretStore
+import com.greenaltambe.vela.extractor.chain.AttemptOutcome
+import com.greenaltambe.vela.extractor.chain.ExtractorTier
+import com.greenaltambe.vela.extractor.chain.TierAttempt
+import com.greenaltambe.vela.extractor.chain.TierId
+import com.greenaltambe.vela.extractor.ytdlp.AccountCookies
+import com.greenaltambe.vela.extractor.ytdlp.AuthenticatedYtDlpExtractor
+import com.greenaltambe.vela.innertube.AltClientExtractor
+import com.greenaltambe.vela.innertube.InnertubeAccountLogin
+import com.greenaltambe.vela.innertube.InnertubeAccountSync
+import kotlin.time.Clock
+import kotlin.time.Duration
 import com.greenaltambe.vela.extractor.newpipe.NewPipeExtractor
 import com.greenaltambe.vela.extractor.ytdlp.SystemProcessRunner
 import com.greenaltambe.vela.extractor.ytdlp.createYtDlpTier
@@ -45,12 +58,32 @@ fun main() {
     val log = DiagnosticsLog()
     val modules = createModules(OkHttpTransport(), database, settings)
     // yt-dlp is probed once at startup (`yt-dlp --version`); if it isn't there the tier is simply not registered.
+    var ytDlpArgs = emptyList<String>()
     val ytDlp = runBlocking {
-        createYtDlpTier(SystemProcessRunner(), binary = { settings.resolve(Settings.ytDlpPath) }, log = log)
+        createYtDlpTier(SystemProcessRunner(), binary = { settings.resolve(Settings.ytDlpPath) }, log = log, onReady = { ytDlpArgs = it })
     }
-    // Chain order: ANONYMOUS (NewPipe), AUTHENTICATED (stub), ALT_CLIENT (stub), YT_DLP (real, or absent).
-    val tiers = stubTiers(anonymous = NewPipeExtractor(), ytDlp = ytDlp?.extractor)
-    val chain = FallbackChain(tiers, accountMode = { settings.resolve(Settings.accountFallbackMode) }, log = log)
+    // Credentials: libsecret when a keyring answers, else an encrypted file (Diagnostics shows which).
+    val secrets = linuxSecretStore(XdgPaths.dataDir())
+    log.record(TierAttempt("credential store", TierId.AUTHENTICATED, AttemptOutcome.NOTE, null, secrets.description, Duration.ZERO, Clock.System.now()))
+    val accounts = AccountManager(database, CredentialStore(secrets))
+    val signedIn = { accounts.active.value.takeIf { it.isSignedIn } }
+    // Chain order: ANONYMOUS (NewPipe), AUTHENTICATED (yt-dlp --cookies as the active account), ALT_CLIENT (iOS/Android player), YT_DLP.
+    val accountTier = ytDlp?.let {
+        AuthenticatedYtDlpExtractor(
+            account = { signedIn()?.let { a -> accounts.cookies(a.id)?.let { jar -> AccountCookies(a.id, a.label, jar) } } },
+            onCookiesUpdated = { id, jar -> accounts.saveCookies(id, jar) },
+            binary = { settings.resolve(Settings.ytDlpPath) }, extraArgs = { ytDlpArgs },
+        )
+    }
+    val tiers = listOfNotNull(
+        ExtractorTier(TierId.ANONYMOUS, NewPipeExtractor()),
+        accountTier?.let { ExtractorTier(TierId.AUTHENTICATED, it) },
+        ExtractorTier(TierId.ALT_CLIENT, AltClientExtractor(onProfile = { line ->
+            log.record(TierAttempt("alt client", TierId.ALT_CLIENT, AttemptOutcome.NOTE, null, line, Duration.ZERO, Clock.System.now()))
+        })),
+        ytDlp,
+    )
+    val chain = FallbackChain(tiers, accountMode = { settings.resolve(Settings.accountFallbackMode) }, log = log, signedInAccount = { signedIn()?.label })
     // Downloads run in the app process; whatever was mid-way when it last exited is picked up again here.
     val downloads = createDesktopDownloads(database, chain, modules, settings)
 
@@ -58,7 +91,7 @@ fun main() {
         // Created inside the application so the Swing main dispatcher the session scope uses is up. Without libmpv
         // the app still runs and the debug screen says there is no player.
         val runtime = remember {
-            DesktopPlaybackRuntime.create(chain, settings, SqlDelightWatchHistoryRepository(database), listOf(modules.sponsorBlock))
+            DesktopPlaybackRuntime.create(chain, settings, SqlDelightWatchHistoryRepository(database), listOf(modules.sponsorBlock), accountId = { accounts.active.value.id })
                 .onFailure { System.err.println("Vela: no video playback: ${it.message}") }
                 .getOrNull()
         }
@@ -80,7 +113,7 @@ fun main() {
             }
         }
         val services = remember(host) {
-            AppServices(chain, settings, log, database, host, utcOffsetMinutes = { TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 60_000 }, modules = modules, downloads = downloads)
+            AppServices(chain, settings, log, database, host, utcOffsetMinutes = { TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 60_000 }, modules = modules, downloads = downloads, accounts = accounts, login = InnertubeAccountLogin(accounts), sync = InnertubeAccountSync(accounts, database))
         }
 
         Window(

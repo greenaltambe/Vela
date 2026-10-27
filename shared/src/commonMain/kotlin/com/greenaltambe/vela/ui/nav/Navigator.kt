@@ -20,6 +20,7 @@ sealed interface Route {
     data object History : Route
     data object ManageSubscriptions : Route
     data object Diagnostics : Route
+    data object Accounts : Route
     data object Downloads : Route
 }
 
@@ -30,7 +31,7 @@ fun Route.topLevel(): Route = when (this) {
     Route.Home, is Route.Video, is Route.Search, is Route.Channel -> Route.Home
     Route.Subscriptions, Route.ManageSubscriptions -> Route.Subscriptions
     Route.Library, is Route.Playlist, Route.History, Route.Downloads -> Route.Library
-    Route.Settings, Route.Diagnostics -> Route.Settings
+    Route.Settings, Route.Diagnostics, Route.Accounts -> Route.Settings
 }
 
 /** A back stack plus the "what is playing" state the docked mini player needs. */

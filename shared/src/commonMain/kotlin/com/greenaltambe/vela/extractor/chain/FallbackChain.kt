@@ -1,6 +1,7 @@
 package com.greenaltambe.vela.extractor.chain
 
 import com.greenaltambe.vela.core.settings.AccountFallbackMode
+import com.greenaltambe.vela.auth.Redaction
 import com.greenaltambe.vela.extractor.*
 import kotlinx.coroutines.CancellationException
 import kotlin.time.Clock
@@ -17,8 +18,15 @@ class FallbackChain(
     private val log: DiagnosticsLog,
     private val clock: Clock = Clock.System,
     memoryTtl: Duration = 15.minutes,
+    /**
+     * The active account as the chain may name it (a label such as `google:ab12cd`, never a name or e-mail), or null when
+     * nobody is signed in. Left at its default (null provider) the chain is not account-aware and tries every tier.
+     * When it is set, a change of label clears the tier memory (what worked for one account says nothing about another).
+     */
+    private val signedInAccount: (() -> String?)? = null,
 ) : Extractor {
     private val memory = TierMemory(clock, memoryTtl)
+    private var memoryOwner: String? = signedInAccount?.invoke()
 
     /** Only true if every tier honours it, so the UI never offers a choice some tier would silently ignore. */
     override val capabilities = ExtractorCapabilities(
@@ -49,7 +57,9 @@ class FallbackChain(
         subject: String,
         call: suspend (Extractor) -> ExtractorResult<T>,
     ): ExtractorResult<T> {
-        val candidates = candidateTiers(subject)
+        val account = signedInAccount?.invoke()
+        if (signedInAccount != null && account != memoryOwner) { memory.clear(); memoryOwner = account }
+        val candidates = candidateTiers(subject, account)
         if (candidates.isEmpty()) {
             return ExtractorResult.Failure(ExtractorError.Unplayable("No extractor tier available"))
         }
@@ -76,13 +86,13 @@ class FallbackChain(
             val took = clock.now() - start
             when (result) {
                 is ExtractorResult.Success -> {
-                    record(subject, tier.id, AttemptOutcome.SUCCESS, null, null, took)
+                    record(subject, tier.id, AttemptOutcome.SUCCESS, null, account?.takeIf { tier.id == TierId.AUTHENTICATED }?.let { "account $it" }, took)
                     failures.filter { (_, e) -> e.reason.isTierHealthIssue }
                         .forEach { (failed, e) -> memory.remember(failed, e.reason, tier.id) }
                     return result
                 }
                 is ExtractorResult.Failure -> {
-                    record(subject, tier.id, AttemptOutcome.FAILED, result.error.reason, result.error.message, took)
+                    record(subject, tier.id, AttemptOutcome.FAILED, result.error.reason, account?.takeIf { tier.id == TierId.AUTHENTICATED }?.let { "account $it: " }.orEmpty() + result.error.message, took)
                     memory.forgetWorked(tier.id)
                     failures += tier.id to result.error
                 }
@@ -92,13 +102,22 @@ class FallbackChain(
     }
 
     /** Applies the account fallback setting: drops or promotes the authenticated tier. */
-    private fun candidateTiers(subject: String): List<ExtractorTier> = when (accountMode()) {
-        AccountFallbackMode.ONLY_ON_FAILURE -> tiers
-        AccountFallbackMode.ALWAYS ->
-            tiers.sortedBy { if (it.id == TierId.AUTHENTICATED) 0 else 1 } // stable: rest keep their order
-        AccountFallbackMode.NEVER -> tiers.filter { tier ->
-            (tier.id != TierId.AUTHENTICATED).also { keep ->
-                if (!keep) record(subject, tier.id, AttemptOutcome.SKIPPED, null, "Account fallback is set to never", Duration.ZERO)
+    private fun candidateTiers(subject: String, account: String?): List<ExtractorTier> {
+        val usable = if (signedInAccount != null && account == null) {
+            tiers.filter { tier ->
+                (tier.id != TierId.AUTHENTICATED).also { keep ->
+                    if (!keep) record(subject, tier.id, AttemptOutcome.SKIPPED, null, "No signed-in account", Duration.ZERO)
+                }
+            }
+        } else tiers
+        return when (accountMode()) {
+            AccountFallbackMode.ONLY_ON_FAILURE -> usable
+            AccountFallbackMode.ALWAYS ->
+                usable.sortedBy { if (it.id == TierId.AUTHENTICATED) 0 else 1 } // stable: rest keep their order
+            AccountFallbackMode.NEVER -> usable.filter { tier ->
+                (tier.id != TierId.AUTHENTICATED).also { keep ->
+                    if (!keep) record(subject, tier.id, AttemptOutcome.SKIPPED, null, "Account fallback is set to never", Duration.ZERO)
+                }
             }
         }
     }
@@ -110,5 +129,5 @@ class FallbackChain(
         reason: FailureReason?,
         detail: String?,
         duration: Duration,
-    ) = log.record(TierAttempt(subject, tier, outcome, reason, detail, duration, clock.now()))
+    ) = log.record(TierAttempt(subject, tier, outcome, reason, detail?.let(Redaction::redact), duration, clock.now()))
 }

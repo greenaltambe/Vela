@@ -14,6 +14,7 @@ dependencies {
     implementation(project(":net-okhttp"))
     implementation(project(":extractor-ytdlp"))
     implementation(project(":player-mpv"))
+    implementation(project(":innertube-auth"))
 
     implementation(compose.desktop.currentOs)
     implementation(libs.kotlinx.coroutinesSwing)

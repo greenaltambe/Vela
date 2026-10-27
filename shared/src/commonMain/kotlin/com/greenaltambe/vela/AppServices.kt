@@ -1,5 +1,9 @@
 package com.greenaltambe.vela
 
+import com.greenaltambe.vela.auth.AccountLogin
+import com.greenaltambe.vela.auth.AccountManager
+import com.greenaltambe.vela.auth.CredentialStore
+import com.greenaltambe.vela.auth.InMemorySecretStore
 import com.greenaltambe.vela.core.settings.SettingsResolver
 import com.greenaltambe.vela.data.FeedRepository
 import com.greenaltambe.vela.data.HistoryLibrary
@@ -33,10 +37,26 @@ class AppServices(
     val modules: Modules,
     /** Downloads and the offline library; null where the platform has none yet. */
     val downloads: Downloads? = null,
+    /** The accounts and which is active; defaults to a local-only manager whose credentials live in memory. */
+    val accounts: AccountManager = AccountManager(database, CredentialStore(InMemorySecretStore())),
+    /** Validates and adds Google accounts; null where the platform has no login yet. */
+    val login: AccountLogin? = null,
+    /** Starts a web sign-in on platforms that have one (Android's WebView); null elsewhere. */
+    val webLogin: (() -> Unit)? = null,
+    /** Pulls account data (subscriptions) into the local tables; null where there is no login. */
+    val sync: com.greenaltambe.vela.auth.AccountSync? = null,
 ) {
-    val subscriptions = SubscriptionRepository(database)
-    val history = HistoryLibrary(database)
-    val searchHistory = SearchHistoryRepository(database)
-    val playlists = PlaylistRepository(database)
-    val feed = FeedService(extractor, subscriptions, FeedRepository(database), clock)
+    private val db = database
+    private val feeds = HashMap<String, FeedService>()
+
+    /** The repositories below follow the active account: each read builds one for the id that is active right now. */
+    val activeId: String get() = accounts.active.value.id
+    val subscriptions get() = SubscriptionRepository(db, activeId)
+    val history get() = HistoryLibrary(db, activeId)
+    val searchHistory get() = SearchHistoryRepository(db, activeId)
+    val playlists get() = PlaylistRepository(db, activeId)
+
+    /** One feed service per account, so each keeps its own entries and refresh state. */
+    val feed: FeedService
+        get() = activeId.let { id -> feeds.getOrPut(id) { FeedService(extractor, SubscriptionRepository(db, id), FeedRepository(db, id), clock) } }
 }

@@ -33,7 +33,7 @@ fun SettingsHost(services: AppServices, navigator: Navigator, modifier: Modifier
     var query by remember { mutableStateOf("") }
     Column(modifier.fillMaxSize()) {
         // The shell leaves Settings' bar to this screen: its search is the settings search, not the video search.
-        VelaTopBar("Settings", menu = listOf(MenuAction("Diagnostics") { navigator.push(Route.Diagnostics) }))
+        VelaTopBar("Settings", menu = listOf(MenuAction("Accounts") { navigator.push(Route.Accounts) }, MenuAction("Diagnostics") { navigator.push(Route.Diagnostics) }))
         // Same width and left edge as the list below it.
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
             OutlinedTextField(

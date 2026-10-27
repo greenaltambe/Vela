@@ -1,11 +1,39 @@
 CREATE TABLE Account (
     id TEXT NOT NULL PRIMARY KEY,
     displayName TEXT NOT NULL,
-    createdAt INTEGER NOT NULL
+    createdAt INTEGER NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'LOCAL',
+    -- Shown masked (a***@gmail.com), never logged.
+    email TEXT,
+    avatarUrl TEXT,
+    channelId TEXT,
+    authState TEXT NOT NULL DEFAULT 'OK'
 );
 
 selectAll:
 SELECT * FROM Account ORDER BY createdAt;
 
+selectById:
+SELECT * FROM Account WHERE id = ?;
+
 upsert:
-INSERT OR REPLACE INTO Account(id, displayName, createdAt) VALUES (?, ?, ?);
+INSERT OR REPLACE INTO Account(id, displayName, createdAt, kind, email, avatarUrl, channelId, authState) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+setAuthState:
+UPDATE Account SET authState = ? WHERE id = ?;
+
+rename:
+UPDATE Account SET displayName = ? WHERE id = ?;
+
+delete:
+DELETE FROM Account WHERE id = ?;
+
+-- Everything an account owns, for removing it.
+deleteSubscriptions:
+DELETE FROM Subscription WHERE accountId = ?;
+
+deletePlaylistItems:
+DELETE FROM PlaylistItem WHERE playlistId IN (SELECT id FROM Playlist WHERE accountId = ?);
+
+deletePlaylists:
+DELETE FROM Playlist WHERE accountId = ?;

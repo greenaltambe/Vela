@@ -1,0 +1,6 @@
+-- 5 -> 6: what an account is (this device, or a Google account), who it is (display only) and whether its sign-in still works.
+ALTER TABLE Account ADD COLUMN kind TEXT NOT NULL DEFAULT 'LOCAL';
+ALTER TABLE Account ADD COLUMN email TEXT;
+ALTER TABLE Account ADD COLUMN avatarUrl TEXT;
+ALTER TABLE Account ADD COLUMN channelId TEXT;
+ALTER TABLE Account ADD COLUMN authState TEXT NOT NULL DEFAULT 'OK';

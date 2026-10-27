@@ -60,6 +60,7 @@ import com.greenaltambe.vela.ui.platform.LocalWindowControls
 import com.greenaltambe.vela.ui.platform.PlatformBackHandler
 import com.greenaltambe.vela.ui.player.applyShortcut
 import com.greenaltambe.vela.ui.player.shortcutFor
+import com.greenaltambe.vela.ui.screens.AccountsScreen
 import com.greenaltambe.vela.ui.screens.ChannelScreen
 import com.greenaltambe.vela.ui.screens.DownloadsScreen
 import com.greenaltambe.vela.ui.screens.HistoryScreen
@@ -135,14 +136,16 @@ fun AppShell(services: AppServices, navigator: Navigator = remember { Navigator(
             Row(Modifier.fillMaxSize().then(if (chrome) Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)) else Modifier)) {
                 if (chrome && rail) SideRail(route.topLevel(), onSelect = navigator::selectTab, onSearch = { navigator.push(Route.Search()) })
                 Column(Modifier.weight(1f)) {
-                    if (chrome && route !is Route.Video && route !is Route.Search && route != Route.Settings) {
+                    if (chrome && route !is Route.Video && route !is Route.Search && route != Route.Settings && route != Route.Accounts) {
                         VelaTopBar(
                             routeTitle(route), onBack = if (navigator.canGoBack) ({ navigator.back() }) else null,
                             onSearch = if (rail) null else ({ navigator.push(Route.Search()) }),
                             menu = overflowMenu(services, navigator),
                         )
                     }
-                    Destination(services, navigator, route, Modifier.weight(1f))
+                    // Keyed by the active account, so switching rebuilds every screen on the new account's data.
+                    val activeAccount by services.accounts.active.collectAsState()
+                    androidx.compose.runtime.key(activeAccount.id) { Destination(services, navigator, route, Modifier.weight(1f)) }
                     if (chrome) DockedMiniPlayer(services, navigator)
                     if (chrome && !rail) BottomNav(route.topLevel(), onSelect = navigator::selectTab)
                     else if (chrome) Spacer(Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)))
@@ -162,6 +165,7 @@ private fun routeTitle(route: Route): String = when (route) {
     Route.History -> "History"
     Route.ManageSubscriptions -> "Subscriptions"
     Route.Diagnostics -> "Diagnostics"
+    Route.Accounts -> "Accounts"
     Route.Downloads -> "Downloads"
     is Route.Search -> "Search"
     is Route.Video -> ""
@@ -206,5 +210,6 @@ private fun Destination(services: AppServices, navigator: Navigator, route: Rout
         Route.ManageSubscriptions -> SubscriptionsScreen(services, navigator, modifier)
         Route.Diagnostics -> DiagnosticsScreen(services.extractor, services.log, services.modules.log, services.downloads, modifier)
         Route.Downloads -> DownloadsScreen(services, navigator, modifier)
+        Route.Accounts -> AccountsScreen(services, navigator, modifier)
     }
 }

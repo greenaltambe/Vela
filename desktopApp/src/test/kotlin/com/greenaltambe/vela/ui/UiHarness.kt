@@ -5,6 +5,9 @@ package com.greenaltambe.vela.ui
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import com.greenaltambe.vela.auth.AccountManager
+import com.greenaltambe.vela.auth.CredentialStore
+import com.greenaltambe.vela.auth.InMemorySecretStore
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -145,7 +148,7 @@ class FakeHost(override val session: PlaybackSession, val controller: FakeContro
 
 class Fixture(val services: AppServices, val navigator: Navigator, val settings: SettingsResolver, val controller: FakeController, val dir: File)
 
-fun buildFixture(pureBlack: Boolean = false, withDownloads: Boolean = true): Fixture {
+fun buildFixture(pureBlack: Boolean = false, withDownloads: Boolean = true, login: ((AccountManager) -> com.greenaltambe.vela.auth.AccountLogin)? = null): Fixture {
     val settings = SettingsResolver(InMemorySettingsStore())
     if (pureBlack) settings.set(Settings.look, LookChoice.PURE_BLACK)
     val database = createDatabase(JvmDatabaseDriverFactory())
@@ -190,7 +193,8 @@ fun buildFixture(pureBlack: Boolean = false, withDownloads: Boolean = true): Fix
         manager.start()
         downloads = Downloads(manager, repo, { storage }, merger)
     }
-    val services = AppServices(extractor, settings, log, database, host, modules = modules, downloads = downloads)
+    val accounts = AccountManager(database, CredentialStore(InMemorySecretStore()))
+    val services = AppServices(extractor, settings, log, database, host, modules = modules, downloads = downloads, accounts = accounts, login = login?.invoke(accounts))
     return Fixture(services, Navigator(), settings, controller, dir)
 }
 

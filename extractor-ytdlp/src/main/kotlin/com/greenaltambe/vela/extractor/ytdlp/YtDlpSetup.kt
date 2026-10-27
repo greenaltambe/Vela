@@ -111,6 +111,8 @@ suspend fun createYtDlpTier(
     binary: () -> String,
     log: DiagnosticsLog,
     clock: Clock = Clock.System,
+    /** Called with the JS-runtime arguments yt-dlp needs here, so the account tier can run the same way. */
+    onReady: (jsRuntimeArgs: List<String>) -> Unit = {},
 ): ExtractorTier? {
     fun record(outcome: AttemptOutcome, detail: String) =
         log.record(TierAttempt("yt-dlp setup", TierId.YT_DLP, outcome, null, detail, Duration.ZERO, clock.now()))
@@ -122,6 +124,7 @@ suspend fun createYtDlpTier(
         }
         is YtDlpProbe.Ready -> {
             probe.note?.let { record(AttemptOutcome.NOTE, it) }
+            onReady(probe.jsRuntimeArgs)
             ExtractorTier(TierId.YT_DLP, YtDlpExtractor(runner, binary, extraArgs = { probe.jsRuntimeArgs }))
         }
     }
