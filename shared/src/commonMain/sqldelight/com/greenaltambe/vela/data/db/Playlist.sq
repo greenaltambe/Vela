@@ -42,11 +42,17 @@ SELECT last_insert_rowid();
 rename:
 UPDATE Playlist SET name = ?, updatedAt = ? WHERE id = ? AND systemKey IS NULL;
 
+renameMirror:
+UPDATE Playlist SET name = ?, updatedAt = ? WHERE id = ? AND systemKey LIKE 'yt:%';
+
 touch:
 UPDATE Playlist SET updatedAt = ? WHERE id = ?;
 
 delete:
 DELETE FROM Playlist WHERE id = ? AND systemKey IS NULL;
+
+deleteMirror:
+DELETE FROM Playlist WHERE id = ? AND systemKey LIKE 'yt:%';
 
 selectItems:
 SELECT * FROM PlaylistItem WHERE playlistId = ? ORDER BY position;

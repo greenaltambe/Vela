@@ -53,6 +53,7 @@ class NotifySendNotifier : DownloadNotifier {
     /** The health alert pop-up (once per failure streak; the caller decides when). */
     fun healthAlert(message: String) = send("Playback may be broken", message, "dialog-warning")
 
+    override fun summary(text: String) = send("Automatic downloads", text)
     override fun completed(title: String) = send("Download complete", title)
     override fun failed(title: String, reason: String) = send("Download failed", "$title\n$reason")
 }
@@ -64,8 +65,10 @@ fun createDesktopDownloads(
     settings: SettingsResolver,
     scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
     ffmpeg: String = "ffmpeg",
+    /** The active account's id; downloads are listed and scheduled per account. */
+    accountId: () -> String = { com.greenaltambe.vela.data.LOCAL_ACCOUNT },
 ): Downloads {
-    val repo = DownloadRepository(database)
+    val repo = DownloadRepository(database, accountId)
     val provider = DesktopStorageProvider(settings)
     val fetcher = OkHttpRangeFetcher()
     val merger = FfmpegMediaMerger(ffmpeg)

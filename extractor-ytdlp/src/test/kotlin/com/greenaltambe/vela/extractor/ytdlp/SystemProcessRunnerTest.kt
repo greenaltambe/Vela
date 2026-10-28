@@ -90,3 +90,19 @@ class SystemProcessRunnerTest {
         assertTrue(ours().isEmpty(), "sleep must be gone after cancellation")
     }
 }
+
+class ChildProcessShutdownTest {
+    @org.junit.Test fun destroyAllStopsARunningHelperProcessThatTheJvmShutdownWouldOtherwiseLeaveBehind() = kotlinx.coroutines.runBlocking<Unit> {
+        val job = kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) { runCatching { SystemProcessRunner().run(listOf("sleep", "30"), kotlin.time.Duration.parse("60s"), 1024) } }
+        val start = System.currentTimeMillis()
+        while (com.greenaltambe.vela.platform.ChildProcesses.count == 0 && System.currentTimeMillis() - start < 5000) kotlinx.coroutines.delay(50)
+        assertTrue(com.greenaltambe.vela.platform.ChildProcesses.count >= 1, "the process is tracked while it runs")
+        val pidsBefore = ProcessHandle.current().children().filter { it.info().command().orElse("").endsWith("sleep") }.count()
+        assertTrue(pidsBefore >= 1)
+        assertTrue(com.greenaltambe.vela.platform.ChildProcesses.destroyAll() >= 1)
+        job.join()
+        Thread.sleep(300)
+        assertEquals(0L, ProcessHandle.current().children().filter { it.info().command().orElse("").endsWith("sleep") }.count(), "no sleep left behind")
+        assertEquals(0, com.greenaltambe.vela.platform.ChildProcesses.count)
+    }
+}

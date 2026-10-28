@@ -15,6 +15,9 @@ enum class MaxQuality(val height: Int?) {
 /** In order of how modern the codec is; the selector falls back down this list from the preferred one. */
 enum class PreferredCodec { AV1, VP9, AVC }
 
+/** What Home shows. RECOMMENDED only applies while a Google account is signed in; signed out (or when the account's feed fails) it is Trending. */
+enum class HomeSource { RECOMMENDED, TRENDING }
+
 /** The saved appearance to use; both follow nothing but their own palette except [DEFAULT], which follows system light/dark. */
 enum class LookChoice { DEFAULT, PURE_BLACK }
 
@@ -397,10 +400,18 @@ object Settings {
     /** Display only for now: the storage screen shows usage against it; nothing is deleted when it is exceeded. */
     val downloadsStorageCapGb = Setting(
         key = "downloads.storageCapGb", default = 0f, scope = SettingScope.GLOBAL,
-        label = "Storage cap in GB (0 = none; shown only, not enforced)",
+        label = "Storage cap in GB for automatic downloads (0 = none; automatic downloads clean up oldest-watched first to stay under it, manual downloads are never removed)",
         keywords = listOf("download", "storage", "cap", "limit", "gb", "space"),
         codec = SettingCodecs.float, section = SettingSection.DOWNLOADS,
         range = SettingRange(min = 0.0, max = 500.0, step = 5.0),
+    )
+
+    val autoDownloadDeleteDays = Setting(
+        key = "downloads.auto.deleteAfterDays", default = 3f, scope = SettingScope.GLOBAL,
+        label = "Delete automatic downloads this many days after you watched them (0 = keep)",
+        keywords = listOf("auto", "download", "delete", "watched", "cleanup", "days"),
+        codec = SettingCodecs.float, section = SettingSection.DOWNLOADS,
+        range = SettingRange(min = 0.0, max = 30.0, step = 1.0),
     )
 
     val downloadsCommentPages = Setting(
@@ -429,6 +440,13 @@ object Settings {
     val restoreNowPlaying = Setting(
         key = "session.nowPlaying", default = "", scope = SettingScope.GLOBAL, label = "Last playing video",
         keywords = emptyList(), codec = SettingCodecs.string, section = SettingSection.ADVANCED,
+    )
+
+    val homeSource = Setting(
+        key = "home.source", default = HomeSource.RECOMMENDED, scope = SettingScope.GLOBAL,
+        label = "Home shows (Recommended needs a signed-in account; otherwise Trending)",
+        keywords = listOf("home", "recommended", "trending", "feed"),
+        codec = SettingCodecs.enum(HomeSource.entries), section = SettingSection.FEED,
     )
 
     val allowAgeRestricted = Setting(
@@ -514,13 +532,13 @@ object Settings {
 
     val all: List<Setting<*>> = listOf(
         look, performanceMode, localOnlyHistory, hideWatched, minLengthSeconds, blockKeywords, allowKeywords, keywordsAreRegex,
-        allowAgeRestricted, allowControversial, slowStreamFailover, accountFallbackMode, accountReportActivity, accountUseForChannels, accountUseForDetails, accountDownloadsMayUse, accountKillSwitch, accountTierOrder, remoteConfigUrl, ytDlpAutoUpdate,
+        homeSource, allowAgeRestricted, allowControversial, slowStreamFailover, accountFallbackMode, accountReportActivity, accountUseForChannels, accountUseForDetails, accountDownloadsMayUse, accountKillSwitch, accountTierOrder, remoteConfigUrl, ytDlpAutoUpdate,
         accountPlaybackPerHour, accountBrowsePerMinute, accountWritesPerHour, shortsMode, defaultPlaybackSpeed, maxQualityUnmetered, maxQualityMetered, preferredCodec, audioOnly, ytDlpPath,
         sponsorBlockEnabled, returnYouTubeDislikeEnabled, deArrowEnabled,
         sponsorBlockMinSegmentSeconds, sponsorBlockNotifications, sponsorBlockServer, sponsorBlockUserId, rydInFeed, rydServer,
         deArrowFeed, deArrowSearch, deArrowVideoPage, deArrowPlayerTitle, deArrowTitleCasing, deArrowMinVotes, deArrowGeneratedThumbnails, deArrowThumbnailServer,
         downloadsFolder, downloadsDefaultQuality, downloadsAudioOnlyDefault, downloadsPreferAvc, downloadsKeepOriginalAudio,
-        downloadsWifiOnly, downloadsConcurrent, downloadsDeleteAfterWatch, downloadsStorageCapGb, downloadsCommentPages,
+        downloadsWifiOnly, downloadsConcurrent, downloadsDeleteAfterWatch, downloadsStorageCapGb, autoDownloadDeleteDays, downloadsCommentPages,
     ) + sponsorBlockActions.values
 
     /**

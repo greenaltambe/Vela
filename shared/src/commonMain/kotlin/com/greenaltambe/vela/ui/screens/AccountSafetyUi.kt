@@ -161,3 +161,18 @@ fun HealthBanner(services: AppServices, navigator: Navigator) {
         }
     }
 }
+
+/** "YouTube wants to check you are human": shown while a request waits on a captcha; Solve opens the platform's solver, Not now gives up. */
+@Composable
+fun CaptchaBanner(services: AppServices) {
+    val coordinator = services.captcha ?: return
+    val url by coordinator.pending.collectAsState()
+    val challenge = url ?: return
+    Column(Modifier.fillMaxWidth().padding(8.dp).testTag("captcha.banner"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("YouTube wants to check that you are not a robot before it answers.", style = MaterialTheme.typography.bodyMedium)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (services.solveCaptcha != null) androidx.compose.material3.Button(onClick = { services.solveCaptcha(challenge) }, modifier = Modifier.testTag("captcha.solve")) { Text("Solve it", maxLines = 1) }
+            androidx.compose.material3.OutlinedButton(onClick = { coordinator.dismiss() }, modifier = Modifier.testTag("captcha.dismiss")) { Text("Not now", maxLines = 1) }
+        }
+    }
+}

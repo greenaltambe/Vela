@@ -105,6 +105,7 @@ object FakeData {
 class FakeExtractor : Extractor by StubExtractor() {
     override suspend fun trending(continuation: String?) = ExtractorResult.Success(Page(FakeData.videos, "next"))
     override suspend fun search(query: String, continuation: String?) = ExtractorResult.Success(Page(FakeData.videos.shuffled(java.util.Random(query.hashCode().toLong())), "next"))
+    override suspend fun suggestions(query: String) = ExtractorResult.Success(listOf("$query music", "$query live"))
     override suspend fun related(videoId: String) = ExtractorResult.Success(FakeData.videos.take(6))
     override suspend fun comments(videoId: String, sort: CommentSort, continuation: String?) = ExtractorResult.Success(CommentsPage(FakeData.comments, "more"))
     override suspend fun videoInfo(videoId: String) = ExtractorResult.Success(
@@ -148,11 +149,11 @@ class FakeHost(override val session: PlaybackSession, val controller: FakeContro
 
 class Fixture(val services: AppServices, val navigator: Navigator, val settings: SettingsResolver, val controller: FakeController, val dir: File)
 
-fun buildFixture(pureBlack: Boolean = false, withDownloads: Boolean = true, login: ((AccountManager) -> com.greenaltambe.vela.auth.AccountLogin)? = null): Fixture {
+fun buildFixture(pureBlack: Boolean = false, withDownloads: Boolean = true, login: ((AccountManager) -> com.greenaltambe.vela.auth.AccountLogin)? = null, actions: com.greenaltambe.vela.auth.AccountActions? = null, reads: com.greenaltambe.vela.auth.AccountReads? = null, extractorOverride: Extractor? = null, backupFiles: com.greenaltambe.vela.backup.BackupFiles? = null, liveChat: com.greenaltambe.vela.extractor.LiveChatSource? = null): Fixture {
     val settings = SettingsResolver(InMemorySettingsStore())
     if (pureBlack) settings.set(Settings.look, LookChoice.PURE_BLACK)
     val database = createDatabase(JvmDatabaseDriverFactory())
-    val extractor = FakeExtractor()
+    val extractor = extractorOverride ?: FakeExtractor()
     val log = DiagnosticsLog()
     val modules = createModules(object : HttpTransport { override suspend fun execute(request: HttpRequest) = HttpResponse(404, "") }, database, settings)
     val controller = FakeController()
@@ -194,7 +195,7 @@ fun buildFixture(pureBlack: Boolean = false, withDownloads: Boolean = true, logi
         downloads = Downloads(manager, repo, { storage }, merger)
     }
     val accounts = AccountManager(database, CredentialStore(InMemorySecretStore()))
-    val services = AppServices(extractor, settings, log, database, host, modules = modules, downloads = downloads, accounts = accounts, login = login?.invoke(accounts))
+    val services = AppServices(extractor, settings, log, database, host, modules = modules, downloads = downloads, accounts = accounts, login = login?.invoke(accounts), actions = actions, reads = reads, backupFiles = backupFiles, liveChat = liveChat)
     return Fixture(services, Navigator(), settings, controller, dir)
 }
 

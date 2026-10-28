@@ -84,6 +84,17 @@ fun ChannelScreen(services: AppServices, navigator: Navigator, channelId: String
                 }
                 if (subscribed) OutlinedButton(onClick = { services.subscriptions.unsubscribe(channelId); services.feed.reload(); subscribed = false }, modifier = Modifier.testTag("channel.subscribe")) { Text("Subscribed", maxLines = 1) }
                 else PrimaryButton("Subscribe", onClick = { services.subscriptions.subscribe(channelId, name, page?.avatarUrl, services.clock.now()); subscribed = true }, modifier = Modifier.testTag("channel.subscribe"))
+                if (services.downloads != null) {
+                    var auto by remember(channelId) { mutableStateOf(services.autoDownloadRules.ruleFor(channelId)?.enabled == true) }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+                        androidx.compose.material3.Switch(auto, {
+                            auto = it
+                            if (it) services.autoDownloadRules.upsert(com.greenaltambe.vela.downloads.AutoDownloadRule(channelId, name, sinceMs = services.clock.now().toEpochMilliseconds()))
+                            else services.autoDownloadRules.ruleFor(channelId)?.let { r -> services.autoDownloadRules.upsert(r.copy(enabled = false)) }
+                        }, modifier = Modifier.testTag("channel.autoDownload"))
+                        Text("Download new videos automatically", style = MaterialTheme.typography.bodyMedium, maxLines = 2)
+                    }
+                }
                 page?.description?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall, maxLines = 3, overflow = TextOverflow.Ellipsis) }
                 SectionHeader("Videos")
             }

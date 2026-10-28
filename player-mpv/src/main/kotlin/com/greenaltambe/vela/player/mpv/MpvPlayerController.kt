@@ -114,6 +114,7 @@ class MpvPlayerController(
     // ---- PlayerController ----------------------------------------------------------------------------------------
 
     override fun load(plan: PlaybackPlan, startPositionMs: Long, playWhenReady: Boolean, metadata: PlaybackMetadata) {
+        lastPlan = plan; lastMetadata = metadata
         val generation = synchronized(lock) {
             loadGeneration += 1
             errorEmitted = false
@@ -165,10 +166,22 @@ class MpvPlayerController(
     override fun seekTo(positionMs: Long) {
         synchronized(lock) {
             snapshot = snapshot.copy(positionOverrideMs = positionMs, eofReached = false)
+            overrideSetAtMs = System.currentTimeMillis()
             publishLocked(force = true)
         }
         submit { client.command("seek", "%.3f".format(java.util.Locale.ROOT, positionMs / 1000.0), "absolute") }
     }
+
+    /**
+     * mpv ignores a seek towards the end of a live HLS stream (measured: a seek to the cached end did nothing), so going live loads the stream
+     * again, which starts at the live edge. Only for live HLS; anything else is left alone.
+     */
+    override fun goLive() {
+        val plan = lastPlan as? PlaybackPlan.Hls ?: return
+        load(plan, 0, true, lastMetadata ?: PlaybackMetadata())
+    }
+    @Volatile private var lastPlan: PlaybackPlan? = null
+    @Volatile private var lastMetadata: PlaybackMetadata? = null
 
     override fun setSpeed(speed: Float) {
         synchronized(lock) { snapshot = snapshot.copy(speed = speed.toDouble()); publishLocked(force = true) }
@@ -296,8 +309,20 @@ class MpvPlayerController(
 
     // ---- stats ---------------------------------------------------------------------------------------------------
 
+    @Volatile private var overrideSetAtMs = 0L
+
     fun refreshStats() {
         if (released.get() || !synchronized(lock) { snapshot.loadRequested }) return
+        // A seek past what is cached (live streams) is ignored by mpv and never sends playback-restart: without this the shown position would stay at the target for ever (measured: 630 s shown, 20 s real).
+        synchronized(lock) {
+            val o = snapshot.positionOverrideMs
+            if (o != null && System.currentTimeMillis() - overrideSetAtMs > 3_000 && snapshot.timePosSeconds != null) { snapshot = snapshot.copy(positionOverrideMs = null); publishLocked(force = true) }
+        }
+        run {
+            val cached = client.getProperty("demuxer-cache-time")?.toDoubleOrNull(); val pos = client.getProperty("time-pos")?.toDoubleOrNull()
+            val ahead = if (cached != null && pos != null) ((cached - pos) * 1000).toLong().coerceAtLeast(0) else null
+            synchronized(lock) { if (snapshot.cacheAheadMs != ahead) { snapshot = snapshot.copy(cacheAheadMs = ahead); publishLocked() } }
+        }
         fun str(name: String) = client.getProperty(name)
         fun num(name: String) = str(name)?.toDoubleOrNull()
         val w = num("video-params/w")?.toInt()

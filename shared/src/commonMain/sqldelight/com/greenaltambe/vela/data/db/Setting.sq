@@ -15,3 +15,9 @@ INSERT OR REPLACE INTO Setting(`key`, layerScope, layerId, value) VALUES (?, ?, 
 
 delete:
 DELETE FROM Setting WHERE `key` = ? AND layerScope = ? AND layerId = ?;
+
+deleteByPrefix:
+DELETE FROM Setting WHERE `key` LIKE ? || '%';
+
+selectAll:
+SELECT * FROM Setting;

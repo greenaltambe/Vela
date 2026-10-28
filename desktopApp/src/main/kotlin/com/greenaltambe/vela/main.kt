@@ -60,20 +60,30 @@ import kotlinx.coroutines.runBlocking
 fun main() {
     // Settings and history live in $XDG_DATA_HOME/vela/vela.db; if that cannot be opened, run with an in-memory
     // database rather than not at all.
+    fun openDatabase(): com.greenaltambe.vela.data.db.VelaDatabase = createDatabase(JvmDatabaseDriverFactory(XdgPaths.databaseFile().path))
     val database = try {
-        createDatabase(JvmDatabaseDriverFactory(XdgPaths.databaseFile().path))
+        openDatabase()
     } catch (e: Exception) {
         System.err.println("Vela: cannot open the database (${e.message}); settings and history will not be saved")
         // Say it on screen too: a silent in-memory session would look like all history and downloads had vanished. The file on disk was left alone.
+        var recovered: com.greenaltambe.vela.data.db.VelaDatabase? = null
         if (e is com.greenaltambe.vela.data.DatabaseStartupException) runCatching {
-            javax.swing.JOptionPane.showMessageDialog(null, "${e.message}\n\nVela will run without saving anything this time.", "Vela: database problem", javax.swing.JOptionPane.ERROR_MESSAGE)
+            val choice = javax.swing.JOptionPane.showConfirmDialog(null, "${e.message}\n\nTry to recover? The damaged file is kept next to the new one; accounts, downloads, playlists, history, subscriptions and settings are copied over table by table, caches are rebuilt.",
+                "Vela: database problem", javax.swing.JOptionPane.YES_NO_OPTION, javax.swing.JOptionPane.ERROR_MESSAGE)
+            if (choice == javax.swing.JOptionPane.YES_OPTION) {
+                val r = com.greenaltambe.vela.data.DatabaseRecovery.salvage(XdgPaths.databaseFile().path)
+                recovered = openDatabase()
+                javax.swing.JOptionPane.showMessageDialog(null, r.describe(), "Vela: recovery", javax.swing.JOptionPane.INFORMATION_MESSAGE)
+            }
         }
-        createDatabase(JvmDatabaseDriverFactory(null))
+        recovered ?: createDatabase(JvmDatabaseDriverFactory(null))
     }
     val settings = SettingsResolver(SqlDelightSettingsStore(database))
     val logFile = com.greenaltambe.vela.net.FileLogSink(java.io.File(XdgPaths.dataDir(), "vela.log"))
     val log = DiagnosticsLog(sink = logFile)
-    val modules = createModules(OkHttpTransport(), database, settings)
+    // The account manager is built a few lines below (inside the wiring); the modules only need its active id when a segment is submitted.
+    val activeAccountId = java.util.concurrent.atomic.AtomicReference<() -> String>({ com.greenaltambe.vela.data.LOCAL_ACCOUNT })
+    val modules = createModules(OkHttpTransport(), database, settings, accountId = { activeAccountId.get()() })
     // Credentials: libsecret when a keyring answers, else an encrypted file (Diagnostics shows which).
     // Simulated failures exist only when started with VELA_DEBUG=1 (e.g. `VELA_DEBUG=1 ./gradlew :desktopApp:run`).
     val faults = if (System.getenv("VELA_DEBUG") == "1") com.greenaltambe.vela.extractor.chain.FaultInjector() else null
@@ -86,6 +96,7 @@ fun main() {
     }
     val chain = wiring.chain
     val accounts = wiring.accounts
+    activeAccountId.set { accounts.active.value.id }
     val audit = wiring.audit
     val governors = wiring.governors
     val health = wiring.health
@@ -98,7 +109,21 @@ fun main() {
         wiring.ytDlpVersion?.let { v -> com.greenaltambe.vela.health.ReleaseWatch(com.greenaltambe.vela.health.ReleaseCheck("yt-dlp", v, "yt-dlp/yt-dlp", releaseClient, releaseStore), wiring.ytDlpCopies) },
     )
     // Downloads run in the app process; whatever was mid-way when it last exited is picked up again here.
-    val downloads = createDesktopDownloads(database, downloadChain, modules, settings, ffmpeg = wiring.ffmpeg.path ?: "ffmpeg")
+    val downloads = createDesktopDownloads(database, downloadChain, modules, settings, ffmpeg = wiring.ffmpeg.path ?: "ffmpeg", accountId = { wiring.accounts.active.value.id })
+
+    // Automatic downloads: a timer while the app runs (first check two minutes after start, then every 30 minutes), always through the anonymous downloads chain.
+    val autoDownloader = com.greenaltambe.vela.downloads.AutoDownloader(
+        com.greenaltambe.vela.downloads.AutoDownloadStore(com.greenaltambe.vela.data.SqlDelightSettingsStore(database)), downloadChain, downloads.manager, downloads.repo,
+        { com.greenaltambe.vela.data.PlaylistRepository(database, wiring.accounts.active.value.id) }, { com.greenaltambe.vela.data.HistoryLibrary(database, wiring.accounts.active.value.id) },
+        com.greenaltambe.vela.core.network.FixedNetworkMonitor(), settings, notifier = com.greenaltambe.vela.downloads.NotifySendNotifier(),
+    )
+    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO).launch {
+        kotlinx.coroutines.delay(120_000)
+        while (true) { runCatching { autoDownloader.run() }; kotlinx.coroutines.delay(30 * 60_000L) }
+    }
+
+    // SIGTERM / logout: Java leaves child processes running, so yt-dlp and ffmpeg are stopped here.
+    Runtime.getRuntime().addShutdownHook(Thread({ com.greenaltambe.vela.platform.ChildProcesses.destroyAll() }, "vela-children"))
 
     application {
         // Created inside the application so the Swing main dispatcher the session scope uses is up. Without libmpv
@@ -126,8 +151,25 @@ fun main() {
             }
         }
         val services = remember(host) {
-            AppServices(chain, settings, log, database, host, utcOffsetMinutes = { TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 60_000 }, modules = modules, downloads = downloads, accounts = accounts, login = InnertubeAccountLogin(accounts, governors), sync = InnertubeAccountSync(accounts, governors, database), audit = audit, governors = governors, health = health, releases = releases, managedYtDlp = wiring.ytDlpUpdater, faults = faults,
+            AppServices(chain, settings, log, database, host, utcOffsetMinutes = { TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 60_000 }, modules = modules, downloads = downloads, accounts = accounts, login = InnertubeAccountLogin(accounts, governors), sync = InnertubeAccountSync(accounts, governors, database), actions = com.greenaltambe.vela.innertube.InnertubeAccountActions(accounts, governors), reads = com.greenaltambe.vela.innertube.InnertubeAccountReads(accounts, governors), audit = audit, governors = governors, health = health, releases = releases, managedYtDlp = wiring.ytDlpUpdater, faults = faults,
+                backupFiles = AwtBackupFiles(), liveChat = com.greenaltambe.vela.innertube.LiveChatClient(), autoDownloader = autoDownloader,
                 exportLog = { val dir = java.io.File(System.getProperty("user.home"), "Downloads").takeIf { it.isDirectory } ?: java.io.File(System.getProperty("user.home")); val out = java.io.File(dir, "vela-log-${System.currentTimeMillis() / 1000}.txt"); out.writeText(logFile.readAll()); out.path })
+        }
+
+        val navigator = remember { com.greenaltambe.vela.ui.nav.Navigator() }
+        // Media keys and the desktop's media widgets (GNOME/KDE) through MPRIS on the session bus; absent without a bus or without a player.
+        androidx.compose.runtime.DisposableEffect(host) {
+            val mpris = host?.let { h ->
+                val sess = h.session
+                com.greenaltambe.vela.mpris.MprisService.start(h.controllerState, sess.media, com.greenaltambe.vela.mpris.MprisCommands(
+                    play = { sess.play() }, pause = { sess.pause() },
+                    toggle = { if (h.controllerState.value.status == com.greenaltambe.vela.player.PlaybackStatus.PLAYING) sess.pause() else sess.play() },
+                    stop = { sess.stop(); navigator.clearNowPlaying() }, seekTo = { sess.seekTo(it) },
+                    next = { navigator.playNext() }, previous = { sess.seekTo(0) },
+                    raise = { java.awt.Frame.getFrames().firstOrNull { it.isVisible }?.toFront() }, quit = { exitApplication() },
+                ))
+            }
+            onDispose { mpris?.close() }
         }
 
         Window(
@@ -138,7 +180,7 @@ fun main() {
             state = windowState,
             title = "Vela",
         ) {
-            CompositionLocalProvider(LocalWindowControls provides windowControls, LocalVolumeSlider provides true) { App(services) }
+            CompositionLocalProvider(LocalWindowControls provides windowControls, LocalVolumeSlider provides true) { App(services, navigator) }
         }
     }
 }

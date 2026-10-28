@@ -26,9 +26,11 @@ fun createAndroidDownloads(
     modules: Modules,
     settings: SettingsResolver,
     network: NetworkMonitor,
+    /** The active account's id; downloads are listed and scheduled per account. */
+    accountId: () -> String = { com.greenaltambe.vela.data.LOCAL_ACCOUNT },
 ): Downloads {
     val app = context.applicationContext
-    val repo = DownloadRepository(database)
+    val repo = DownloadRepository(database, accountId)
     val provider = AndroidStorageProvider(app, settings)
     val fetcher = OkHttpRangeFetcher()
     val merger = AndroidMediaMerger()

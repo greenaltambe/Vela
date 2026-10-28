@@ -183,3 +183,42 @@ interface AccountSync {
      */
     suspend fun pullSubscriptions(): SyncResult
 }
+
+/** The viewer's rating of a video. */
+enum class VideoRating { LIKE, DISLIKE, NONE }
+
+/** The outcome of a write to the account. [LocalOnly] means no Google account is signed in, so only the local copy changed. */
+sealed interface ActionResult {
+    data object Ok : ActionResult
+    data object LocalOnly : ActionResult
+    data class Failed(val message: String) : ActionResult
+}
+
+/**
+ * Writes to the active Google account, each one a governor-owned call (write budget, spacing, breaker, audit). The UI updates the
+ * local copy first and calls these; a [ActionResult.Failed] rolls the local change back and shows the message. Implemented in `:innertube-auth`.
+ */
+interface AccountActions {
+    suspend fun subscribe(channelId: String): ActionResult
+    suspend fun unsubscribe(channelId: String): ActionResult
+    suspend fun rate(videoId: String, rating: VideoRating): ActionResult
+    /** [playlistId] "WL" is Watch Later. */
+    suspend fun addToPlaylist(playlistId: String, videoId: String): ActionResult
+    suspend fun removeFromPlaylist(playlistId: String, videoId: String): ActionResult
+    suspend fun createPlaylist(title: String): Pair<ActionResult, String?>
+    suspend fun renamePlaylist(playlistId: String, title: String): ActionResult
+    suspend fun deletePlaylist(playlistId: String): ActionResult
+}
+
+/** An account playlist as the library lists it. [id] "WL" is Watch Later, "LL" Liked videos. */
+data class AccountPlaylist(val id: String, val title: String, val videoCount: Int?)
+
+/** Reads from the signed-in account (governor-owned BROWSE calls). Each returns null when nobody is signed in or the call failed, so callers fall back to local data. */
+interface AccountReads {
+    /** The account's Home feed (FEwhat_to_watch). Empty list is a real answer (a new account has no recommendations). */
+    suspend fun recommended(): List<com.greenaltambe.vela.extractor.VideoSummary>?
+    suspend fun playlists(): List<AccountPlaylist>?
+    suspend fun playlistVideos(playlistId: String): List<com.greenaltambe.vela.extractor.VideoSummary>?
+    /** The account's watch history (newest first); entries carry no time, only the order YouTube lists them in. */
+    suspend fun history(): List<com.greenaltambe.vela.extractor.VideoSummary>? = null
+}

@@ -28,6 +28,12 @@ import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
+/** The viewer's own choices for the video being played; null means "not chosen, follow the settings". */
+/** What the OS media controls show for the current video (MPRIS on Linux). */
+data class MediaInfo(val videoId: String, val title: String, val channelName: String, val artworkUrl: String?)
+
+data class PlaybackOverrides(val speed: Float? = null, val maxHeight: Int? = null)
+
 sealed interface SessionState {
     data object Idle : SessionState
 
@@ -147,11 +153,24 @@ class PlaybackSession(
     // ---- per-video state, reset by start() ----
     private var videoId: String? = null
     private var title = ""
+    private var channelNameShown = ""
+    private var artworkUrl: String? = null
+    private val _media = MutableStateFlow<MediaInfo?>(null)
+    /** Title, channel and artwork of what is loaded, for the OS media controls; null when nothing is. */
+    val media: StateFlow<MediaInfo?> = _media
+    private fun publishMedia() { _media.value = videoId?.let { MediaInfo(it, title, channelNameShown, artworkUrl) } }
     private var channelId = ""
     private var streams: StreamSet? = null
     private var localPlan: PlaybackPlan.Local? = null
     private var maxHeightOverride: Int? = null
     private var speedOverride: Float? = null
+    private val _overrides = MutableStateFlow(PlaybackOverrides())
+    /** The viewer's own picks for the current video (speed from the speed menu, a quality cap from the quality menu), so they can be kept across a restart. */
+    val overrides: StateFlow<PlaybackOverrides> = _overrides
+    private var pendingRestore: Pair<String, PlaybackOverrides>? = null
+    /** After a restart: the next start of [videoId] (from the restored mini player or its page) begins with these picks. */
+    fun restoreOverrides(videoId: String, overrides: PlaybackOverrides) { pendingRestore = videoId to overrides }
+    private fun publishOverrides() { _overrides.value = PlaybackOverrides(speedOverride, maxHeightOverride) }
     private var reResolves = 0
     private var networkRecoveries = 0
     /** The last position/duration the player reported while it was really playing, buffering or paused. */
@@ -177,23 +196,30 @@ class PlaybackSession(
      * Starts [videoId], replacing whatever played before. [hint] (from the search result being opened) provides the
      * title and channel without another request; without it they are looked up.
      */
-    fun start(videoId: String, hint: VideoSummary? = null) {
+    /** [restored] re-applies the picks saved before the process died (speed, quality cap); a normal start passes none. */
+    fun start(videoId: String, hint: VideoSummary? = null, restored: PlaybackOverrides? = null) {
         finishCurrent()
         clearPreviousVideo()
         if (_sleepTimer.value?.mode == SleepTimerMode.EndOfVideo) setSleepTimer(null)
         this.videoId = videoId
         title = hint?.title.orEmpty()
         channelId = hint?.channelId.orEmpty()
+        channelNameShown = hint?.channelName.orEmpty(); artworkUrl = hint?.thumbnailUrl
         streams = null
         localPlan = null
         maxHeightOverride = null
         speedOverride = null
+        publishOverrides()
+        val pick = restored ?: pendingRestore?.takeIf { it.first == videoId }?.second
+        pendingRestore = null
+        if (pick != null) { speedOverride = pick.speed; maxHeightOverride = pick.maxHeight; publishOverrides() }
         lastGood = PlayerState()
         reResolves = 0; networkRecoveries = 0; slowFailovers = 0
         recordId = null
         watchedMs = 0
         playingSince = null
         settled = false
+        publishMedia()
         forAddons { it.onVideo(videoId, channelId, offline = false) } // before the observers, so an add-on knows the video before any state of it arrives
         ensureObservers()
         work = sessionScope.launch { resolveAndLoad(videoId, resume = true, needsInfo = hint == null) }
@@ -207,12 +233,13 @@ class PlaybackSession(
         finishCurrent()
         clearPreviousVideo()
         this.videoId = videoId
-        this.title = title
+        this.title = title; channelNameShown = ""; artworkUrl = null
         this.channelId = channelId
         streams = null
         localPlan = plan
         maxHeightOverride = null
         speedOverride = null
+        publishOverrides()
         reResolves = 0; networkRecoveries = 0
         recordId = null
         watchedMs = 0
@@ -278,8 +305,11 @@ class PlaybackSession(
     }
 
     /** Applies [speed] now and for the rest of this session, over what settings say. */
+    fun goLive() = controller.goLive()
+
     fun setSpeed(speed: Float) {
         speedOverride = speed
+        publishOverrides()
         controller.setSpeed(speed)
     }
 
@@ -288,6 +318,7 @@ class PlaybackSession(
         if (localPlan != null) return // one file, one quality
         val id = videoId ?: return
         maxHeightOverride = maxHeight
+        publishOverrides()
         val wasPlaying = controller.state.value.status != PlaybackStatus.PAUSED
         val position = controller.state.value.positionMs
         work?.cancel()
@@ -308,6 +339,7 @@ class PlaybackSession(
         controller.stop()
         videoId = null
         _state.value = SessionState.Idle
+        publishMedia()
     }
 
     /** Stops everything this session launched; call when it will not be used again. */
@@ -328,7 +360,8 @@ class PlaybackSession(
             val i = if (needsInfo) async { extractor.videoInfo(id) } else null
             s.await() to i?.await()
         }
-        (info as? ExtractorResult.Success)?.value?.let { title = it.title; channelId = it.channelId }
+        (info as? ExtractorResult.Success)?.value?.let { title = it.title; channelId = it.channelId; channelNameShown = it.channelName; artworkUrl = it.thumbnailUrl ?: artworkUrl }
+        publishMedia()
         val set = when (result) {
             is ExtractorResult.Success -> result.value
             is ExtractorResult.Failure -> return fail(id, result.error)

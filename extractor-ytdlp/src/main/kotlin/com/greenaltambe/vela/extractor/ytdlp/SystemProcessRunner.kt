@@ -21,7 +21,7 @@ interface RunningProcess {
     fun destroyForcibly()
 }
 
-private class JavaRunningProcess(private val process: Process) : RunningProcess {
+private class JavaRunningProcess(val process: Process) : RunningProcess {
     override val stdout: InputStream get() = process.inputStream
     override val stderr: InputStream get() = process.errorStream
     override fun waitFor() = process.waitFor()
@@ -31,7 +31,7 @@ private class JavaRunningProcess(private val process: Process) : RunningProcess 
 
 fun startJavaProcess(command: List<String>): RunningProcess {
     val process = try {
-        ProcessBuilder(command).start()
+        com.greenaltambe.vela.platform.ChildProcesses.track(ProcessBuilder(command).start())
     } catch (e: java.io.IOException) {
         throw ProcessStartException("Cannot start ${command.firstOrNull()}: ${e.message}", e)
     }
@@ -69,6 +69,7 @@ class SystemProcessRunner(
             } ?: throw ProcessTimeoutException(timeout)
         } finally {
             if (process.isAlive()) process.destroyForcibly()
+            (process as? JavaRunningProcess)?.let { com.greenaltambe.vela.platform.ChildProcesses.untrack(it.process) }
         }
     }
 }

@@ -42,6 +42,11 @@
             android:exported="false"
             android:theme="@android:style/Theme.Material.Light.NoActionBar" />
 
+        <activity
+            android:name=".auth.CaptchaActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar" />
+
         <service
             android:name=".playback.VelaPlaybackService"
             android:exported="true"

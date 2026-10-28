@@ -806,5 +806,18 @@ class PlaybackSessionTest {
         assertEquals(30_000, row.positionMs, "the last real position is kept")
         assertTrue(row.watchedMs > 0)
     }
+
+    @Test fun savedSpeedAndQualityPicksAreAppliedToTheNextStartOfThatVideoOnly() = runTest {
+        val s = session()
+        s.restoreOverrides("vid", PlaybackOverrides(1.75f, 480))
+        s.start("other", hint); runCurrent()
+        assertNull(s.overrides.value.speed, "another video does not inherit them")
+        s.restoreOverrides("vid", PlaybackOverrides(1.75f, 480))
+        s.start("vid", hint); runCurrent()
+        assertEquals(1.75f, s.overrides.value.speed); assertEquals(480, s.overrides.value.maxHeight)
+        assertTrue(controller.speeds.contains(1.75f))
+        s.start("vid", hint); runCurrent()
+        assertNull(s.overrides.value.speed, "used once")
+    }
 }
 

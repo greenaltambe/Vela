@@ -4,6 +4,7 @@ import com.greenaltambe.vela.core.http.ApiResult
 import com.greenaltambe.vela.core.http.ModuleEvent
 import com.greenaltambe.vela.core.http.ModuleLog
 import com.greenaltambe.vela.core.settings.SegmentActionSetting
+import com.greenaltambe.vela.core.settings.Setting
 import com.greenaltambe.vela.core.settings.Settings
 import com.greenaltambe.vela.core.settings.SettingsResolver
 import com.greenaltambe.vela.modules.FeatureModule
@@ -42,6 +43,8 @@ class SponsorBlockAddon(
     private val settings: SettingsResolver,
     private val log: ModuleLog,
     private val clock: Clock = Clock.System,
+    /** The active account: each account submits under its own private id, so two accounts can never be linked through SponsorBlock. */
+    private val accountId: () -> String = { com.greenaltambe.vela.data.LOCAL_ACCOUNT },
 ) : PlaybackAddon, FeatureModule {
     override val id = "sponsorblock"
     override val enabledSetting = Settings.sponsorBlockEnabled
@@ -135,9 +138,15 @@ class SponsorBlockAddon(
 
     /** The private id this install submits under: generated once and kept in settings. */
     fun userId(): String {
-        settings.resolve(Settings.sponsorBlockUserId).takeIf { it.length >= 30 }?.let { return it }
+        val acct = accountId()
+        // The local account keeps the original setting (existing installs keep their id); every other account has its own.
+        val setting = if (acct == com.greenaltambe.vela.data.LOCAL_ACCOUNT) Settings.sponsorBlockUserId else Setting(
+            key = "sponsorblock.userId.$acct", default = "", scope = com.greenaltambe.vela.core.settings.SettingScope.GLOBAL, label = "SponsorBlock user id for $acct (private)",
+            keywords = emptyList(), codec = com.greenaltambe.vela.core.settings.SettingCodecs.string, section = com.greenaltambe.vela.core.settings.SettingSection.ADVANCED,
+        )
+        settings.resolve(setting).takeIf { it.length >= 30 }?.let { return it }
         val fresh = buildString { repeat(36) { append("0123456789abcdef"[Random.nextInt(16)]) } }
-        settings.set(Settings.sponsorBlockUserId, fresh)
+        settings.set(setting, fresh)
         return fresh
     }
 

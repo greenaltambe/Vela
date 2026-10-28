@@ -48,6 +48,8 @@ class NewPipeExtractor(downloader: () -> Downloader = { OkHttpDownloader() }) : 
             }
         }.map { (items, next) -> Page(items, next.toTokenOrNull()) }
 
+    override suspend fun suggestions(query: String): ExtractorResult<List<String>> = guarded { youtube.suggestionExtractor.suggestionList(query).take(8) }
+
     override suspend fun videoInfo(videoId: String): ExtractorResult<VideoInfo> = guarded {
         StreamInfo.getInfo(youtube, videoUrl(videoId)).toVideoInfo()
     }

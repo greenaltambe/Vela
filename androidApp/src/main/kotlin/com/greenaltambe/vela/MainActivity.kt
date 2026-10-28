@@ -49,9 +49,29 @@ import kotlinx.coroutines.launch
 import java.util.TimeZone
 
 class MainActivity : ComponentActivity() {
+    // The system document picker for backups. The launchers must exist before the activity is started, hence fields.
+    private var pendingSave: kotlinx.coroutines.CompletableDeferred<android.net.Uri?>? = null
+    private var pendingOpen: kotlinx.coroutines.CompletableDeferred<android.net.Uri?>? = null
+    private val createDoc = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { pendingSave?.complete(it) }
+    private val openDoc = registerForActivityResult(ActivityResultContracts.OpenDocument()) { pendingOpen?.complete(it) }
+    private val backupFiles = object : com.greenaltambe.vela.backup.BackupFiles {
+        override suspend fun save(suggestedName: String, text: String): String? {
+            val d = kotlinx.coroutines.CompletableDeferred<android.net.Uri?>().also { pendingSave = it }
+            createDoc.launch(suggestedName)
+            val uri = d.await() ?: return null
+            kotlinx.coroutines.withContext(Dispatchers.IO) { contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray()) } }
+            return uri.lastPathSegment ?: uri.toString()
+        }
+        override suspend fun pick(): String? {
+            val d = kotlinx.coroutines.CompletableDeferred<android.net.Uri?>().also { pendingOpen = it }
+            openDoc.launch(arrayOf("application/json", "text/plain", "*/*"))
+            val uri = d.await() ?: return null
+            return kotlinx.coroutines.withContext(Dispatchers.IO) { contentResolver.openInputStream(uri)?.use { String(it.readBytes()) } }
+        }
+    }
     private val runtime by lazy { PlaybackRuntime.get(this) }
     private val host by lazy { AndroidPlayerHost(runtime, ::ensureNotificationPermission) }
-    private val healthSchedule by lazy { com.greenaltambe.vela.playback.HealthWorker.schedule(applicationContext) }
+    private val healthSchedule by lazy { com.greenaltambe.vela.playback.HealthWorker.schedule(applicationContext); com.greenaltambe.vela.playback.AutoDownloadWorker.schedule(applicationContext) }
     private val remoteConfigJob by lazy {
         // Fetched once per start in the background; a failure only changes the Diagnostics line and keeps the last good config.
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
@@ -63,17 +83,24 @@ class MainActivity : ComponentActivity() {
     private val services by lazy {
         remoteConfigJob; healthSchedule
         AppServices(
-            runtime.chain, runtime.settings, runtime.log, runtime.database, host,
+            com.greenaltambe.vela.extractor.CaptchaAwareExtractor(com.greenaltambe.vela.extractor.TimeoutExtractor(runtime.chain), runtime.captcha), runtime.settings, runtime.log, runtime.database, host,
             utcOffsetMinutes = { TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 60_000 },
             modules = runtime.modules,
             downloads = runtime.downloads,
             accounts = runtime.accounts,
             login = runtime.login,
             sync = runtime.sync,
+            actions = runtime.actions,
+            reads = runtime.reads,
             audit = runtime.audit,
             health = runtime.health,
             governors = runtime.governors,
             faults = runtime.faults,
+            backupFiles = backupFiles,
+            liveChat = com.greenaltambe.vela.innertube.LiveChatClient(),
+            captcha = runtime.captcha,
+            solveCaptcha = { url -> startActivity(Intent(this, com.greenaltambe.vela.auth.CaptchaActivity::class.java).putExtra(com.greenaltambe.vela.auth.CaptchaActivity.EXTRA_URL, url)) },
+            autoDownloader = runtime.autoDownloader,
             exportLog = { val out = java.io.File(getExternalFilesDir(null) ?: filesDir, "vela-log-${System.currentTimeMillis() / 1000}.txt"); out.writeText(runtime.logFile.readAll()); out.path },
             releases = listOf(com.greenaltambe.vela.health.ReleaseWatch(com.greenaltambe.vela.health.ReleaseCheck(
                 "NewPipeExtractor", com.greenaltambe.vela.health.NewPipeVersion.VERSION, "TeamNewPipe/NewPipeExtractor",

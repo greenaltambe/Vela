@@ -14,4 +14,12 @@ class NowPlayingSnapshotTest {
         val n = Navigator(); n.restore(VideoSummary("a", "A", "c", "C")); n.restore(VideoSummary("b", "B", "c", "C"))
         assertEquals("a", n.nowPlaying?.id)
     }
+
+    @Test fun speedAndQualityPicksSurviveTheSnapshotAndOldSnapshotsStillDecode() {
+        val v = VideoSummary("abc", "T", "UC1", "Chan", null)
+        val (back, picks) = assertNotNull(NowPlayingSnapshot.decodeAll(NowPlayingSnapshot.encode(v, com.greenaltambe.vela.player.PlaybackOverrides(1.5f, 720))))
+        assertEquals("abc", back.id); assertEquals(1.5f, picks.speed); assertEquals(720, picks.maxHeight)
+        val (_, none) = assertNotNull(NowPlayingSnapshot.decodeAll("abc\tT\tUC1\tChan\t"))
+        assertNull(none.speed); assertNull(none.maxHeight)
+    }
 }

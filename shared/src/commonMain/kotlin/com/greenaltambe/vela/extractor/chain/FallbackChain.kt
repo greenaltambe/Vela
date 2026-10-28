@@ -64,6 +64,7 @@ class FallbackChain(
     override suspend fun replies(videoId: String, commentId: String, continuation: String?) =
         run("replies($videoId/$commentId${page(continuation)})", AccountOp.NEVER) { it.replies(videoId, commentId, continuation) }
 
+    override suspend fun suggestions(query: String) = run("suggestions", AccountOp.NEVER) { it.suggestions(query) }
     override suspend fun trending(continuation: String?) = run("trending(${page(continuation)})", AccountOp.NEVER) { it.trending(continuation) }
     override suspend fun related(videoId: String) = run("related($videoId)", AccountOp.NEVER) { it.related(videoId) }
     override suspend fun channelShorts(channelId: String, continuation: String?) =

@@ -19,6 +19,12 @@ class SqlDelightSettingsStore(private val queries: SettingQueries) : SettingsSto
         queries.delete(key, layer.scope.name, layer.rowId())
     }
 
+    /** Every stored override, for backup. */
+    fun entries(): List<StoredSetting> = queries.selectAll().executeAsList().map { StoredSetting(it.key, it.layerScope, it.layerId, it.value_) }
+
     /** The global layer has no id; the table stores it as '' to keep the primary key unique. */
     private fun SettingLayer.rowId() = id.orEmpty()
 }
+
+/** One raw row of the Setting table. */
+data class StoredSetting(val key: String, val scope: String, val id: String, val value: String)

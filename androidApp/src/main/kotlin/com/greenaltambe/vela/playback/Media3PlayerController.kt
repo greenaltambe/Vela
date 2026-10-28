@@ -98,7 +98,14 @@ class Media3PlayerController(
 
     override fun pause() = player.pause()
 
-    override fun seekTo(positionMs: Long) { player.seekTo(positionMs); publish() }
+    override fun seekTo(positionMs: Long) {
+        // A live window slides and its end is the live edge: a seek at or past the end goes to the edge instead of into nothing (measured: BUFFERING at a position beyond the window).
+        val d = player.duration
+        if (player.isCurrentMediaItemLive && d != C.TIME_UNSET && positionMs >= d - 2_000) player.seekToDefaultPosition() else player.seekTo(positionMs)
+        publish()
+    }
+
+    override fun goLive() { if (player.isCurrentMediaItemLive) { player.seekToDefaultPosition(); publish() } }
 
     override fun setSpeed(speed: Float) { player.setPlaybackSpeed(speed); publish() }
 
@@ -134,6 +141,7 @@ class Media3PlayerController(
             positionMs = player.currentPosition.coerceAtLeast(0),
             durationMs = player.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: 0,
             speed = player.playbackParameters.speed,
+            liveOffsetMs = if (player.isCurrentMediaItemLive) player.currentLiveOffset.takeIf { it != C.TIME_UNSET } else null,
         )
         _stats.value = stats()
     }

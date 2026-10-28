@@ -31,3 +31,6 @@ INSERT OR REPLACE INTO SegmentCache(videoId, segmentsJson, fetchedAt) VALUES (?,
 
 deleteSegments:
 DELETE FROM SegmentCache WHERE videoId = ?;
+
+clearSegments:
+DELETE FROM SegmentCache;

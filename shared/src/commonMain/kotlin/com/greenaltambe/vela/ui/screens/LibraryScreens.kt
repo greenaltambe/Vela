@@ -25,6 +25,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.material3.Checkbox
+import com.greenaltambe.vela.auth.ActionResult
+import com.greenaltambe.vela.auth.AccountLibrarySync
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,17 +71,26 @@ fun LibraryScreen(services: AppServices, navigator: Navigator, modifier: Modifie
     var creating by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf<PlaylistSummary?>(null) }
     var deleting by remember { mutableStateOf<PlaylistSummary?>(null) }
+    var syncNote by remember { mutableStateOf<String?>(null) }
+    var libraryError by remember { mutableStateOf<String?>(null) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
 
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         LazyColumn(Modifier.widthIn(max = 900.dp).fillMaxSize().testTag("library.list"), contentPadding = Vela.contentPadding) {
             item { ListRow("History", subtitle = "What you watched on this device", onClick = { navigator.push(Route.History) }, modifier = Modifier.testTag("library.history")) }
             if (services.downloads != null) item { ListRow("Downloads", subtitle = "Saved for offline", onClick = { navigator.push(Route.Downloads) }, modifier = Modifier.testTag("library.downloads")) }
+            if (services.reads != null && services.accounts.active.value.isSignedIn) item {
+                ListRow("Sync account playlists", subtitle = syncNote ?: "Copy Watch later, Liked videos and playlists from your YouTube account (adds only, never deletes)", onClick = {
+                    syncNote = "Syncing…"
+                    scope.launch { val r = AccountLibrarySync(services.reads, { services.playlists }, services.clock).sync(); syncNote = r.failure ?: "Added ${r.added}, already had ${r.alreadyHad}"; revision++ }
+                }, modifier = Modifier.testTag("library.syncAccount"))
+            }
             item { SectionHeader("Playlists") { TextButton(onClick = { creating = true }, modifier = Modifier.testTag("library.newPlaylist")) { Text("New playlist", maxLines = 1) } } }
             items(playlists, key = { it.id }) { p ->
                 ListRow(
-                    p.name, subtitle = "${p.itemCount} video${if (p.itemCount == 1) "" else "s"}", onClick = { navigator.push(Route.Playlist(p.id)) },
+                    p.name, subtitle = (if (p.isMirror) "YouTube account · " else "") + "${p.itemCount} video${if (p.itemCount == 1) "" else "s"}", onClick = { navigator.push(Route.Playlist(p.id)) },
                     modifier = Modifier.testTag(ComponentIds.PLAYLIST_ROW),
-                    trailing = if (!p.isWatchLater) ({
+                    trailing = if (!p.isWatchLater && (!p.isMirror || (p.remoteId != null && p.remoteId != "WL" && p.remoteId != "LL" && services.actions != null))) ({
                         var menu by remember { mutableStateOf(false) }
                         Box {
                             IconButton(onClick = { menu = true }) { Icon(Vela.icons.more, "Playlist options") }
@@ -92,26 +105,49 @@ fun LibraryScreen(services: AppServices, navigator: Navigator, modifier: Modifie
         }
     }
 
-    if (creating) NameDialog("New playlist", "", onDismiss = { creating = false }) { name -> services.playlists.create(name, services.clock.now()); revision++; creating = false }
-    renaming?.let { p -> NameDialog("Rename playlist", p.name, onDismiss = { renaming = null }) { name -> services.playlists.rename(p.id, name, services.clock.now()); revision++; renaming = null } }
+    val canUseAccount = services.actions != null && services.accounts.active.value.isSignedIn
+    libraryError?.let { Text(it, color = Vela.colors.error.toColor(), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = Vela.gutter).testTag("library.error")) }
+    if (creating) NameDialog("New playlist", "", onDismiss = { creating = false }, offerAccount = canUseAccount) { name, onAccount ->
+        creating = false
+        if (onAccount) scope.launch {
+            val (r, id) = services.actions!!.createPlaylist(name)
+            if (r is ActionResult.Failed || id == null) libraryError = "Could not create it on your account: ${(r as? ActionResult.Failed)?.message ?: "no id"}"
+            else { libraryError = null; services.playlists.mirror(id, name, services.clock.now()); revision++ }
+        } else { services.playlists.create(name, services.clock.now()); revision++ }
+    }
+    renaming?.let { p -> NameDialog("Rename playlist", p.name, onDismiss = { renaming = null }) { name, _ ->
+        renaming = null
+        if (p.isMirror) scope.launch {
+            val r = services.actions!!.renamePlaylist(p.remoteId!!, name)
+            if (r is ActionResult.Failed) libraryError = "Could not rename it on your account: ${r.message}" else { libraryError = null; services.playlists.mirror(p.remoteId, name, services.clock.now()); revision++ }
+        } else { services.playlists.rename(p.id, name, services.clock.now()); revision++ }
+    } }
     deleting?.let { p ->
         AlertDialog(
             onDismissRequest = { deleting = null },
             title = { Text("Delete \"${p.name}\"?", maxLines = 2) },
-            confirmButton = { TextButton(onClick = { services.playlists.delete(p.id); revision++; deleting = null }) { Text("Delete") } },
+            confirmButton = { TextButton(onClick = {
+                deleting = null
+                if (p.isMirror) scope.launch {
+                    val r = services.actions!!.deletePlaylist(p.remoteId!!)
+                    if (r is ActionResult.Failed) libraryError = "Could not delete it on your account: ${r.message}" else { libraryError = null; services.playlists.deleteMirror(p.id); revision++ }
+                } else { services.playlists.delete(p.id); revision++ }
+            }, modifier = Modifier.testTag("library.deleteConfirm")) { Text("Delete") } },
             dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel") } },
         )
     }
 }
 
 @Composable
-private fun NameDialog(title: String, initial: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+private fun NameDialog(title: String, initial: String, onDismiss: () -> Unit, offerAccount: Boolean = false, onConfirm: (String, Boolean) -> Unit) {
     var name by remember { mutableStateOf(initial) }
+    var onAccount by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
-        text = { OutlinedTextField(name, { name = it }, singleLine = true, label = { Text("Name") }) },
-        confirmButton = { TextButton(onClick = { onConfirm(name) }, enabled = name.isNotBlank()) { Text("OK") } },
+        text = { Column { OutlinedTextField(name, { name = it }, singleLine = true, label = { Text("Name") })
+            if (offerAccount) Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(onAccount, { onAccount = it }, modifier = Modifier.testTag("library.onAccount")); Text("Also create it on my YouTube account (private)") } } },
+        confirmButton = { TextButton(onClick = { onConfirm(name, onAccount) }, enabled = name.isNotBlank(), modifier = Modifier.testTag("library.nameOk")) { Text("OK") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }
@@ -161,6 +197,10 @@ fun HistoryScreen(services: AppServices, navigator: Navigator, modifier: Modifie
     val records: List<WatchRecord> = remember(revision) { services.history.recent() }
     val days = remember(records) { groupHistoryByDay(records, services.clock.now(), services.utcOffsetMinutes()) }
     val progress = remember(records) { services.history.progress() }
+    // The account's own history, shown below this device's: loaded on request (it costs browse budget), de-duplicated by video (entries from the account carry no time), labelled by source.
+    var accountItems by remember { mutableStateOf<List<VideoSummary>?>(null) }
+    var accountNote by remember { mutableStateOf<String?>(null) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
 
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         LazyColumn(Modifier.widthIn(max = 900.dp).fillMaxSize().testTag("history.list"), contentPadding = Vela.contentPadding, verticalArrangement = Arrangement.spacedBy(Vela.md)) {
@@ -170,6 +210,21 @@ fun HistoryScreen(services: AppServices, navigator: Navigator, modifier: Modifie
                 }
             }
             if (records.isEmpty()) item { EmptyState("Nothing watched yet.") }
+            if (services.reads != null && services.accounts.active.value.isSignedIn) item {
+                TextButton(onClick = {
+                    accountNote = "Loading…"
+                    scope.launch {
+                        val remote = services.reads.history()
+                        if (remote == null) accountNote = "Could not read your YouTube history right now."
+                        else { val here = records.map { it.videoId }.toSet(); accountItems = remote.filter { it.id !in here }; accountNote = "${remote.size} on your account, ${remote.count { it.id in here }} also watched here." }
+                    }
+                }, modifier = Modifier.testTag("history.loadAccount")) { Text("Also show my YouTube account history", maxLines = 1) }
+                accountNote?.let { Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("history.accountNote")) }
+            }
+            accountItems?.takeIf { it.isNotEmpty() }?.let { list ->
+                item(key = "account-header") { Text("From your YouTube account (not on this device)", style = MaterialTheme.typography.titleMedium, maxLines = 1, modifier = Modifier.testTag("history.accountHeader")) }
+                items(list, key = { "a-${it.id}" }) { v -> VideoCard(v, onClick = { navigator.push(Route.Video(v)) }, style = VideoCardStyle.HORIZONTAL, extras = CardExtras()) }
+            }
             days.forEach { day ->
                 item(key = "day-${day.label}") { Text(day.label, style = MaterialTheme.typography.titleMedium, maxLines = 1) }
                 items(day.records, key = { "h-${it.id}" }) { r ->

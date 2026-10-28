@@ -18,6 +18,10 @@ dependencies {
 
     implementation(compose.desktop.currentOs)
     implementation(libs.kotlinx.coroutinesSwing)
+    // MPRIS (media keys, GNOME/KDE media controls) over the session D-Bus.
+    implementation("com.github.hypfvieh:dbus-java-core:5.1.1")
+    implementation("com.github.hypfvieh:dbus-java-transport-native-unixsocket:5.1.1")
+    runtimeOnly("org.slf4j:slf4j-nop:2.0.16")
 
     implementation(libs.compose.uiToolingPreview)
 }

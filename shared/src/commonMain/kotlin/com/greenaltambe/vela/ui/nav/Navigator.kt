@@ -23,6 +23,8 @@ sealed interface Route {
     data object Accounts : Route
     data object AccountActivity : Route
     data object Health : Route
+    data object Backup : Route
+    data object DownloadRules : Route
     data object Downloads : Route
 }
 
@@ -32,8 +34,8 @@ val TopLevelRoutes: List<Route> = listOf(Route.Home, Route.Subscriptions, Route.
 fun Route.topLevel(): Route = when (this) {
     Route.Home, is Route.Video, is Route.Search, is Route.Channel -> Route.Home
     Route.Subscriptions, Route.ManageSubscriptions -> Route.Subscriptions
-    Route.Library, is Route.Playlist, Route.History, Route.Downloads -> Route.Library
-    Route.Settings, Route.Diagnostics, Route.Accounts, Route.AccountActivity, Route.Health -> Route.Settings
+    Route.Library, is Route.Playlist, Route.History, Route.Downloads, Route.DownloadRules -> Route.Library
+    Route.Settings, Route.Diagnostics, Route.Accounts, Route.AccountActivity, Route.Health, Route.Backup -> Route.Settings
 }
 
 /** A back stack plus the "what is playing" state the docked mini player needs. */
@@ -116,9 +118,13 @@ class Navigator(start: Route = Route.Home) {
 /** The mini player's video as one settings value (tab-separated), so it survives the process being killed. */
 object NowPlayingSnapshot {
     private fun clean(s: String?) = s.orEmpty().replace('\t', ' ').replace('\n', ' ')
-    fun encode(v: VideoSummary?): String = if (v == null) "" else listOf(v.id, v.title, v.channelId, v.channelName, v.thumbnailUrl).joinToString("\t") { clean(it) }
-    fun decode(raw: String): VideoSummary? {
+    /** [overrides]: the viewer's speed / quality picks, kept as two more fields so they survive the process being killed. */
+    fun encode(v: VideoSummary?, overrides: com.greenaltambe.vela.player.PlaybackOverrides? = null): String =
+        if (v == null) "" else listOf(v.id, v.title, v.channelId, v.channelName, v.thumbnailUrl, overrides?.speed?.toString(), overrides?.maxHeight?.toString()).joinToString("\t") { clean(it) }
+    fun decode(raw: String): VideoSummary? = decodeAll(raw)?.first
+    fun decodeAll(raw: String): Pair<VideoSummary, com.greenaltambe.vela.player.PlaybackOverrides>? {
         val p = raw.split('\t'); if (p.size < 5 || p[0].isBlank()) return null
-        return VideoSummary(p[0], p[1], p[2], p[3], p[4].ifBlank { null })
+        return VideoSummary(p[0], p[1], p[2], p[3], p[4].ifBlank { null }) to
+            com.greenaltambe.vela.player.PlaybackOverrides(p.getOrNull(5)?.toFloatOrNull(), p.getOrNull(6)?.toIntOrNull())
     }
 }

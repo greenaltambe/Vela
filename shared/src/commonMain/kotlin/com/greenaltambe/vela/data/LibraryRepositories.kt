@@ -77,7 +77,7 @@ class SearchHistoryRepository(private val db: VelaDatabase, private val accountI
     fun clear() { q.clearForAccount(accountId) }
 }
 
-data class PlaylistSummary(val id: Long, val name: String, val isWatchLater: Boolean, val itemCount: Int)
+data class PlaylistSummary(val id: Long, val name: String, val isWatchLater: Boolean, val itemCount: Int, val isMirror: Boolean = false, val remoteId: String? = null)
 
 data class PlaylistVideo(
     val videoId: String,
@@ -100,7 +100,19 @@ class PlaylistRepository(private val db: VelaDatabase, private val accountId: St
 
     fun all(): List<PlaylistSummary> {
         watchLaterId()
-        return q.selectForAccount(accountId).executeAsList().map { PlaylistSummary(it.id, it.name, it.systemKey == WATCH_LATER, it.itemCount.toInt()) }
+        return q.selectForAccount(accountId).executeAsList().map { PlaylistSummary(it.id, it.name, it.systemKey == WATCH_LATER, it.itemCount.toInt(), it.systemKey?.startsWith(MIRROR_PREFIX) == true, it.systemKey?.takeIf { k -> k.startsWith(MIRROR_PREFIX) }?.removePrefix(MIRROR_PREFIX)) }
+    }
+
+    /**
+     * The local copy of an account playlist ([remoteId] "WL", "LL" or a playlist id), created on first use and renamed when the account renames it.
+     * Keyed by `systemKey = "yt:<remoteId>"`, so no schema change; the rows are the account's, and sync only ever adds to them.
+     */
+    fun mirror(remoteId: String, title: String, at: Instant): Long {
+        val key = MIRROR_PREFIX + remoteId
+        val existing = q.selectBySystemKey(accountId, key).executeAsOneOrNull()
+        if (existing == null) return create(title, at, key)
+        if (existing.name != title.trim() && title.isNotBlank()) q.renameMirror(title.trim(), at.toEpochMilliseconds(), existing.id)
+        return existing.id
     }
 
     /** The id of Watch Later, created on first use. */
@@ -119,6 +131,9 @@ class PlaylistRepository(private val db: VelaDatabase, private val accountId: St
 
     /** Built-in playlists cannot be deleted. */
     fun delete(id: Long) { q.delete(id) }
+
+    /** Removes the local copy of an account playlist (after the account deleted it). */
+    fun deleteMirror(id: Long) { q.deleteMirror(id) }
 
     fun items(id: Long): List<PlaylistVideo> = q.selectItems(id).executeAsList().map {
         PlaylistVideo(it.videoId, it.title, it.channelId, it.channelName, it.thumbnailUrl, it.durationSeconds)
@@ -185,3 +200,6 @@ class FeedRepository(private val db: VelaDatabase, private val accountId: String
     fun removeChannel(channelId: String) { q.deleteForChannel(accountId, channelId) }
     fun clear() { q.clearForAccount(accountId) }
 }
+
+/** Playlists copied from the signed-in account carry this prefix in their system key. */
+const val MIRROR_PREFIX = "yt:"

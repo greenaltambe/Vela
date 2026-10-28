@@ -33,6 +33,8 @@ class AuthSession(
     private val transport: AuthTransport = OkHttpAuthTransport(),
     private val clock: Clock = Clock.System,
     private val onCookiesChanged: (CookieJar) -> Unit = {},
+    /** The chosen brand profile's page id, or null for the main one: sent as `X-Goog-PageId` so history and recommendations are that profile's. Nothing sets it yet. */
+    private val pageId: () -> String? = { null },
 ) {
     @Volatile var jar: CookieJar = initial
         private set
@@ -47,6 +49,7 @@ class AuthSession(
         jar.headerFor(host, now)?.let { h["Cookie"] = it }
         jar.sapisid?.let { h["Authorization"] = SapisidHash.authorization(it, origin, now.epochSeconds) }
         h["X-Goog-AuthUser"] = "0"
+        pageId()?.let { h["X-Goog-PageId"] = it }
         h["Origin"] = origin
         h["X-Origin"] = origin
         h["Referer"] = "$origin/"
@@ -55,8 +58,8 @@ class AuthSession(
     }
 
     /** Sends one signed request through the governor. Throws `GovernorDenied` without sending when it refuses. */
-    fun send(kind: CallKind, method: String, url: String, body: String? = null, origin: String = YOUTUBE_ORIGIN, extra: Map<String, String> = emptyMap()): RawResponse = runBlocking(Dispatchers.IO) { // the request itself never runs on the caller's thread
-        governor.call(kind, hostOf(url)) {
+    fun send(kind: CallKind, method: String, url: String, body: String? = null, origin: String = YOUTUBE_ORIGIN, extra: Map<String, String> = emptyMap(), patience: kotlin.time.Duration = kotlin.time.Duration.ZERO): RawResponse = runBlocking(Dispatchers.IO) { // the request itself never runs on the caller's thread
+        governor.call(kind, hostOf(url), patience = patience) {
             val response = transport.execute(method, url, headersFor(url, origin, extra), body)
             absorb(response, hostOf(url))
             when {

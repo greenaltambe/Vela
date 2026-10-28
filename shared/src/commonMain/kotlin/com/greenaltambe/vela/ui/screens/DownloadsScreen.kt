@@ -122,6 +122,7 @@ fun DownloadsScreen(services: AppServices, navigator: Navigator, modifier: Modif
                 Column(verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
                     Text("Folder: ${storage.description}", style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("downloads.folder"))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+                        OutlinedButton(onClick = { navigator.push(com.greenaltambe.vela.ui.nav.Route.DownloadRules) }, modifier = Modifier.testTag("downloads.rules")) { Text("Automatic downloads", maxLines = 1) }
                         OutlinedButton(onClick = chooseFolder, modifier = Modifier.testTag("downloads.chooseFolder")) { Text("Change folder", maxLines = 1) }
                         OutlinedButton(onClick = { services.settings.set(Settings.downloadsFolder, "") }, enabled = services.settings.resolve(Settings.downloadsFolder).isNotEmpty()) { Text("Use default", maxLines = 1) }
                     }

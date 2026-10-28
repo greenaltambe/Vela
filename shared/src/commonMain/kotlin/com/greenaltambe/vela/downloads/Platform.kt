@@ -96,4 +96,6 @@ interface MediaMerger {
 interface DownloadNotifier {
     fun completed(title: String)
     fun failed(title: String, reason: String)
+    /** One line after an automatic run that queued something (never one notification per video). */
+    fun summary(text: String) {}
 }

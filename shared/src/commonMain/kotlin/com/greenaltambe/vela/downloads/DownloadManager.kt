@@ -463,6 +463,9 @@ class DownloadManager(
         }
     }
 
+    /** The active account changed: show (and schedule) that account's downloads. Running transfers of the previous account carry on to their end. */
+    fun reload() { refresh(); kick() }
+
     private fun refresh() {
         val rows = repo.all()
         val snapshot = synchronized(lock) { live.mapValues { (it.value.base + it.value.bytes) to it.value.speedBps } }

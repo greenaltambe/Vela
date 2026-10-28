@@ -41,6 +41,7 @@ class SelfTestActivity : Activity() {
             if (which == "all" || which == "play") play(rt, video)
             if (which == "all" || which == "download") download(rt)
             if (which == "handoff") handoff(rt, video)
+            if (which == "live") live(rt, video)
             if (which == "all" || which == "strict") strictControl()
             if (which == "alert") alert()
             if (which == "focus") focus(rt, video)
@@ -84,6 +85,27 @@ class SelfTestActivity : Activity() {
         add("pause", ps.status == PlaybackStatus.PAUSED, "status=${ps.status}")
         rt.session.play(); delay(3_000)
         add("resume", rt.controller.state.value.status == PlaybackStatus.PLAYING, "status=${rt.controller.state.value.status}")
+        rt.session.stop()
+    }
+
+    /** Live stream measurement: telemetry every 2 s for 40 s, then 60 s back (DVR), then back to the live edge. Records the numbers; passes when playing at the end. */
+    private suspend fun live(rt: PlaybackRuntime, video: String) {
+        rt.session.start(video)
+        withTimeoutOrNull(40_000) { while (rt.controller.state.value.status != PlaybackStatus.PLAYING) delay(250) }
+        val sb = StringBuilder(); var last = rt.controller.state.value.positionMs; var stalls = 0
+        repeat(20) { i ->
+            delay(2_000); val st = rt.controller.state.value
+            if (st.status != PlaybackStatus.PLAYING) stalls++
+            sb.append("${i * 2}s ${st.status.name.take(4)} +${st.positionMs - last}; "); last = st.positionMs
+        }
+        add("live: 40 s telemetry (status, ms advanced per 2 s)", stalls <= 3, "stalls=$stalls $sb")
+        val edge = rt.controller.state.value.positionMs
+        rt.session.seekTo(edge - 60_000); delay(6_000)
+        val back = rt.controller.state.value
+        add("live: DVR seek 60 s back", back.status == PlaybackStatus.PLAYING && back.positionMs < edge - 40_000, "edge=$edge now=${back.positionMs} ${back.status}")
+        rt.session.seekTo(edge + 600_000); delay(6_000)
+        val again = rt.controller.state.value
+        add("live: seek past the end lands at the live edge", again.status == PlaybackStatus.PLAYING, "pos=${again.positionMs} ${again.status} dur=${again.durationMs}")
         rt.session.stop()
     }
 

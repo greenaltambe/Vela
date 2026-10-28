@@ -32,6 +32,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.verticalScroll
+import com.greenaltambe.vela.auth.ActionResult
+import com.greenaltambe.vela.auth.VideoRating
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -129,6 +133,9 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
     var descriptionExpanded by remember(video.id) { mutableStateOf(false) }
     var downloadDialog by remember(video.id) { mutableStateOf(false) }
     var subscribed by remember(video.id, video.channelId) { mutableStateOf(services.subscriptions.isSubscribed(video.channelId)) }
+    var liked by remember(video.id) { mutableStateOf(false) }
+    var actionError by remember(video.id) { mutableStateOf<String?>(null) }
+    var actionNote by remember(video.id) { mutableStateOf<String?>(null) }
     // Created before any early return so the scroll positions survive fullscreen and Picture-in-Picture.
     val detailsState = rememberLazyListState()
     val sideState = rememberLazyListState()
@@ -220,6 +227,7 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
         Box(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)).testTag("video.player")) {
             if (host != null) PlayerView(
                 host, video, chapters, markers, Modifier.fillMaxWidth(), onBack = { navigator.back() },
+                isLive = info?.isLive == true,
                 openAgeSetting = { navigator.selectTab(com.greenaltambe.vela.ui.nav.Route.Settings) },
                 tryAccountNow = services.accounts.active.value.takeIf { it.isSignedIn }?.let { a -> { services.governors.forAccount(a.id).tryNow() } }, showChapterTitle = size != WindowSizeClass.COMPACT,
                 overlay = { SponsorBlockOverlay(prompt, notice, onAccept = modules.sponsorBlock::acceptPrompt, onUndo = { n -> modules.sponsorBlock.undo(n); notice = null }) },
@@ -245,15 +253,34 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
                 val channelName = info?.channelName?.takeIf { it.isNotBlank() } ?: video.channelName
                 Avatar(channelName)
                 Text(channelName, Modifier.weight(1f).testTag("video.channel"), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (subscribed) OutlinedButton(onClick = { services.subscriptions.unsubscribe(video.channelId); subscribed = false }, modifier = Modifier.testTag("video.subscribe")) { Text("Subscribed", maxLines = 1) }
-                else PrimaryButton("Subscribe", onClick = { services.subscriptions.subscribe(video.channelId, video.channelName, null, services.clock.now()); subscribed = true }, modifier = Modifier.testTag("video.subscribe"))
+                // Optimistic: the local table and the button change at once; the account call follows, and a failure puts both back and says why.
+                if (subscribed) OutlinedButton(onClick = {
+                    services.subscriptions.unsubscribe(video.channelId); subscribed = false
+                    scope.launch { (services.actions?.unsubscribe(video.channelId) as? ActionResult.Failed)?.let { services.subscriptions.subscribe(video.channelId, video.channelName, null, services.clock.now()); subscribed = true; actionError = "Could not unsubscribe on the account: ${it.message}" } }
+                }, modifier = Modifier.testTag("video.subscribe")) { Text("Subscribed", maxLines = 1) }
+                else PrimaryButton("Subscribe", onClick = {
+                    services.subscriptions.subscribe(video.channelId, video.channelName, null, services.clock.now()); subscribed = true
+                    scope.launch { (services.actions?.subscribe(video.channelId) as? ActionResult.Failed)?.let { services.subscriptions.unsubscribe(video.channelId); subscribed = false; actionError = "Could not subscribe on the account: ${it.message}" } }
+                }, modifier = Modifier.testTag("video.subscribe"))
             }
+        }
+        if (services.liveChat != null && (video.isLive || info?.isLive == true)) item { LiveChatPanel(services.liveChat, video.id) }
+        if (actionError != null || actionNote != null) item {
+            Text(actionError ?: actionNote.orEmpty(), color = if (actionError != null) Vela.colors.error.toColor() else androidx.compose.ui.graphics.Color.Unspecified,
+                style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag(if (actionError != null) "video.actionError" else "video.actionNote"))
         }
         item {
             var saveMenu by remember { mutableStateOf(false) }
             val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
             Row(Modifier.fillMaxWidth().testTag("video.actions"), horizontalArrangement = Arrangement.SpaceEvenly) {
-                votes?.let { ActionChip(Vela.icons.like, compact(it.likes), {}, Modifier.weight(1f).testTag("video.votes")) }
+                if (services.actions != null && services.accounts.active.value.isSignedIn) {
+                    // The viewer's own like (account only); the count next to it stays Return YouTube Dislike's.
+                    ActionChip(Vela.icons.like, votes?.let { compact(it.likes) } ?: "Like", {
+                        val target = if (liked) VideoRating.NONE else VideoRating.LIKE
+                        liked = !liked
+                        scope.launch { (services.actions.rate(video.id, target) as? ActionResult.Failed)?.let { liked = !liked; actionError = "Could not rate on the account: ${it.message}" } }
+                    }, Modifier.weight(1f).testTag("video.votes"), selected = liked)
+                } else votes?.let { ActionChip(Vela.icons.like, compact(it.likes), {}, Modifier.weight(1f).testTag("video.votes")) }
                 if (services.downloads != null) {
                     if (offline != null) ActionChip(Vela.icons.downloaded, "Saved", {}, Modifier.weight(1f).testTag("video.downloaded"), selected = true)
                     else ActionChip(Vela.icons.download, "Download", { downloadDialog = true }, Modifier.weight(1f).testTag("video.download"))
@@ -261,6 +288,11 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
                 Box(Modifier.weight(1f)) {
                     ActionChip(Vela.icons.save, "Save", { saveMenu = true }, Modifier.fillMaxWidth().testTag("video.save"))
                     DropdownMenu(saveMenu, { saveMenu = false }) {
+                        if (services.actions != null && services.accounts.active.value.isSignedIn) DropdownMenuItem(
+                            text = { Text("Watch later (YouTube)", maxLines = 1) },
+                            onClick = { saveMenu = false; scope.launch { when (val r = services.actions.addToPlaylist("WL", video.id)) { is ActionResult.Failed -> actionError = "Could not add to Watch later: ${r.message}"; else -> actionNote = "Added to Watch later" } } },
+                            modifier = Modifier.testTag("video.saveWatchLater"),
+                        )
                         services.playlists.all().forEach { list ->
                             val has = services.playlists.contains(list.id, video.id)
                             DropdownMenuItem(
@@ -375,3 +407,45 @@ private fun storedVideoInfo(o: OfflineVideo): VideoInfo = VideoInfo(
     likeCount = o.info?.likeCount,
     chapters = o.chapters,
 )
+
+/**
+ * Read-only chat under a live video: polled anonymously every few seconds only while the panel is open, stopped when it closes or the page
+ * is left, at most the last 100 lines kept. If the video has no chat (or it cannot be reached) it says so and stays quiet. Replay chat of an
+ * ended stream is read in order, NOT synchronised to the playback position.
+ */
+@Composable
+private fun LiveChatPanel(source: com.greenaltambe.vela.extractor.LiveChatSource, videoId: String) {
+    var open by remember(videoId) { mutableStateOf(false) }
+    var lines by remember(videoId) { mutableStateOf<List<com.greenaltambe.vela.extractor.ChatMessage>>(emptyList()) }
+    var status by remember(videoId) { mutableStateOf<String?>(null) }
+    androidx.compose.runtime.LaunchedEffect(videoId, open) {
+        if (!open) return@LaunchedEffect
+        status = "Connecting to chat…"
+        val chat = source.open(videoId)
+        if (chat == null) { status = "This video has no live chat."; return@LaunchedEffect }
+        status = if (chat.isReplay) "Chat replay (not synchronised with the video)" else null
+        var failures = 0
+        while (true) {
+            val batch = try { chat.poll().also { failures = 0 } } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
+                if (++failures >= 3) { status = "Chat stopped: ${e.message?.take(80) ?: "unreachable"}"; return@LaunchedEffect }
+                kotlinx.coroutines.delay(5_000L * failures); continue
+            }
+            if (batch.messages.isNotEmpty()) lines = (lines + batch.messages).takeLast(100)
+            if (batch.ended) { status = "Chat ended."; return@LaunchedEffect }
+            kotlinx.coroutines.delay(batch.nextPollMs)
+        }
+    }
+    Column(Modifier.fillMaxWidth().testTag("video.chat")) {
+        OutlinedButton(onClick = { open = !open }, modifier = Modifier.testTag("video.chat.toggle")) { Text(if (open) "Hide chat" else "Show live chat", maxLines = 1) }
+        if (open) {
+            status?.let { Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("video.chat.status")) }
+            Column(Modifier.heightIn(max = 280.dp).verticalScroll(androidx.compose.foundation.rememberScrollState(), reverseScrolling = true).testTag("video.chat.lines")) {
+                lines.forEach { m ->
+                    val paid = m.kind != com.greenaltambe.vela.extractor.ChatKind.TEXT
+                    Text(buildString { append(m.author); if (m.amount != null) append(" (${m.amount})"); append(": "); append(m.text) },
+                        style = MaterialTheme.typography.bodySmall, fontWeight = if (paid) androidx.compose.ui.text.font.FontWeight.Bold else null, modifier = Modifier.padding(vertical = 1.dp))
+                }
+            }
+        }
+    }
+}

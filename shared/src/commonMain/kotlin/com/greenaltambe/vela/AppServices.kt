@@ -28,7 +28,7 @@ import kotlin.time.Clock
  * parameters, so a new feature adds a field here instead of a parameter to every composable above it.
  */
 class AppServices(
-    val extractor: Extractor,
+    extractor: Extractor,
     val settings: SettingsResolver,
     val log: DiagnosticsLog,
     database: VelaDatabase,
@@ -47,6 +47,10 @@ class AppServices(
     val login: AccountLogin? = null,
     /** Starts a web sign-in on platforms that have one (Android's WebView); null elsewhere. */
     val webLogin: (() -> Unit)? = null,
+    /** Writes to the signed-in account (subscribe, like, Watch Later, playlists); null where there is no login. */
+    val actions: com.greenaltambe.vela.auth.AccountActions? = null,
+    /** Reads from the signed-in account (Recommended Home, playlists); null where there is no login. */
+    val reads: com.greenaltambe.vela.auth.AccountReads? = null,
     /** Pulls account data (subscriptions) into the local tables; null where there is no login. */
     val sync: com.greenaltambe.vela.auth.AccountSync? = null,
     /** Every request that carries account credentials passes through these; the audit log is what Diagnostics shows. */
@@ -60,9 +64,27 @@ class AppServices(
     val faults: com.greenaltambe.vela.extractor.chain.FaultInjector? = null,
     /** Writes the redacted log file somewhere the viewer can reach and returns where; null when the platform has no log file. */
     val exportLog: (() -> String)? = null,
+    /** Runs the automatic downloads now (the scheduled runs use the same object); null where there are no downloads. */
+    val autoDownloader: com.greenaltambe.vela.downloads.AutoDownloader? = null,
+    /** Read-only live chat and chat replay (anonymous polling); null where unavailable. */
+    val liveChat: com.greenaltambe.vela.extractor.LiveChatSource? = null,
+    /** The pending captcha challenge (Android shows a banner and a WebView); null where captchas cannot be solved in the app. */
+    val captcha: com.greenaltambe.vela.extractor.CaptchaCoordinator? = null,
+    /** Opens the platform's captcha solver for a challenge page. */
+    val solveCaptcha: ((String) -> Unit)? = null,
+    /** Where backups are saved and read from (a file dialog on Linux, the document picker on Android); null hides the screen's buttons. */
+    val backupFiles: com.greenaltambe.vela.backup.BackupFiles? = null,
+    /** Empties the caches only (see CacheMaintenance) and returns what was cleared. */
+    val rebuildCaches: (() -> String)? = { com.greenaltambe.vela.data.CacheMaintenance.rebuild(database) },
     val audit: DbAuditLog = DbAuditLog(database),
     val governors: GovernorRegistry = GovernorRegistry(clock, { governorLimits(settings) }, DbBreakerStore(database), audit),
 ) {
+    /** Every screen's data source: bounded in time, so no screen can spin forever (a failure shows the message and Retry). */
+    val extractor: Extractor = if (extractor is com.greenaltambe.vela.extractor.TimeoutExtractor || extractor is com.greenaltambe.vela.extractor.CaptchaAwareExtractor) extractor else com.greenaltambe.vela.extractor.TimeoutExtractor(extractor)
+    /** The app database, for screens that need it directly (backup). */
+    val database: com.greenaltambe.vela.data.db.VelaDatabase = database
+    /** The automatic-download rules (stored as settings JSON). */
+    val autoDownloadRules = com.greenaltambe.vela.downloads.AutoDownloadStore(com.greenaltambe.vela.data.SqlDelightSettingsStore(database))
     private val db = database
     private val feeds = HashMap<String, FeedService>()
 

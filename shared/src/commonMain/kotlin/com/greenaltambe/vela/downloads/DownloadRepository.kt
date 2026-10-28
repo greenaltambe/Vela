@@ -34,20 +34,21 @@ data class StoredInfo(
 )
 
 /** The `Download` table with the JSON in `planJson` decoded. All writes are single statements; the manager is the only writer. */
-class DownloadRepository(private val db: VelaDatabase, private val accountId: String = LOCAL_ACCOUNT, private val clock: kotlin.time.Clock = kotlin.time.Clock.System) {
+/** [accountId] is read on every call, so the same repository follows the active account; rows of other accounts are never returned. */
+class DownloadRepository(private val db: VelaDatabase, private val accountId: () -> String = { LOCAL_ACCOUNT }, private val clock: kotlin.time.Clock = kotlin.time.Clock.System) {
     private val q get() = db.downloadQueries
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     fun get(id: Long): Download? = q.selectById(id).executeAsOneOrNull()
-    fun all(): List<Download> = q.selectForAccount(accountId).executeAsList()
-    fun notCompleted(): List<Download> = q.selectAllNotCompleted(accountId).executeAsList()
-    fun find(videoId: String, kind: DownloadKind): Download? = q.selectByVideoAndKind(accountId, videoId, kind).executeAsOneOrNull()
-    fun completedFor(videoId: String): Download? = q.selectByVideo(accountId, videoId).executeAsOneOrNull()
-    fun completedBytes(): Long = q.totalCompletedBytes(accountId).executeAsOne().toLong()
+    fun all(): List<Download> = q.selectForAccount(accountId()).executeAsList()
+    fun notCompleted(): List<Download> = q.selectAllNotCompleted(accountId()).executeAsList()
+    fun find(videoId: String, kind: DownloadKind): Download? = q.selectByVideoAndKind(accountId(), videoId, kind).executeAsOneOrNull()
+    fun completedFor(videoId: String): Download? = q.selectByVideo(accountId(), videoId).executeAsOneOrNull()
+    fun completedBytes(): Long = q.totalCompletedBytes(accountId()).executeAsOne().toLong()
 
     fun insert(request: DownloadRequest, plan: StoredPlan, label: String): Long = q.transactionWithResult {
         val now = clock.now().toEpochMilliseconds()
-        q.insert(accountId, request.video.id, request.video.channelId, request.video.title, DownloadState.QUEUED,
+        q.insert(accountId(), request.video.id, request.video.channelId, request.video.title, DownloadState.QUEUED,
             if (request.audioOnly) DownloadKind.AUDIO_ONLY else DownloadKind.VIDEO, label, now, now)
         val id = q.lastInsertId().executeAsOne()
         q.updatePlan(json.encodeToString(StoredPlan.serializer(), plan), label, null, now, id)
@@ -73,7 +74,7 @@ class DownloadRepository(private val db: VelaDatabase, private val accountId: St
     }
 
     fun saveOfflineData(d: OfflineData) {
-        q.upsertOfflineData(d.downloadId, accountId, d.sponsorBlockJson, d.deArrowJson, d.commentsJson, d.chaptersJson, d.description, d.infoJson, d.thumbnailPath)
+        q.upsertOfflineData(d.downloadId, accountId(), d.sponsorBlockJson, d.deArrowJson, d.commentsJson, d.chaptersJson, d.description, d.infoJson, d.thumbnailPath)
     }
 
     fun toItem(row: Download, speedBps: Long? = null, liveBytes: Long? = null): DownloadItem = DownloadItem(

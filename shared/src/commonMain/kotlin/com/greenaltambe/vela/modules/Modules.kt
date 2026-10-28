@@ -26,14 +26,14 @@ class Modules(
     val all: List<FeatureModule> get() = listOf(sponsorBlock, ryd, dearrow)
 }
 
-fun createModules(transport: HttpTransport, database: VelaDatabase, settings: SettingsResolver, clock: Clock = Clock.System): Modules {
+fun createModules(transport: HttpTransport, database: VelaDatabase, settings: SettingsResolver, clock: Clock = Clock.System, accountId: () -> String = { com.greenaltambe.vela.data.LOCAL_ACCOUNT }): Modules {
     val log = ModuleLog()
     val client = ApiClient(transport, LayeredApiCache(InMemoryApiCache(), database), clock)
     val api = SponsorBlockApi(client, server = { settings.resolve(Settings.sponsorBlockServer) })
     val segments = SegmentRepository(api, database, clock)
     return Modules(
         log = log,
-        sponsorBlock = SponsorBlockAddon(segments, api, settings, log, clock),
+        sponsorBlock = SponsorBlockAddon(segments, api, settings, log, clock, accountId),
         segments = segments,
         ryd = ReturnYouTubeDislike(client, settings, log, clock),
         dearrow = DeArrow(client, settings, log, clock),

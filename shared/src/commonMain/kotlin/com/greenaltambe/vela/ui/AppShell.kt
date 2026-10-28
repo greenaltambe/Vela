@@ -100,13 +100,19 @@ fun AppShell(services: AppServices, navigator: Navigator = remember { Navigator(
     // The mini player survives the process being killed: remember what it shows, and bring it back (idle) on the next start.
     var restored by remember { androidx.compose.runtime.mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        com.greenaltambe.vela.ui.nav.NowPlayingSnapshot.decode(services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.restoreNowPlaying))?.let(navigator::restore)
+        com.greenaltambe.vela.ui.nav.NowPlayingSnapshot.decodeAll(services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.restoreNowPlaying))?.let { (video, picks) ->
+            navigator.restore(video); host?.session?.restoreOverrides(video.id, picks)
+        }
         restored = true
     }
-    LaunchedEffect(navigator.nowPlaying, restored) {
+    val picks = host?.session?.overrides?.collectAsState()?.value
+    LaunchedEffect(navigator.nowPlaying, restored, picks) {
         if (!restored) return@LaunchedEffect
-        runCatching { services.settings.set(com.greenaltambe.vela.core.settings.Settings.restoreNowPlaying, com.greenaltambe.vela.ui.nav.NowPlayingSnapshot.encode(navigator.nowPlaying)) }
+        runCatching { services.settings.set(com.greenaltambe.vela.core.settings.Settings.restoreNowPlaying, com.greenaltambe.vela.ui.nav.NowPlayingSnapshot.encode(navigator.nowPlaying, picks)) }
     }
+
+    // Switching accounts: every observer that is not a plain read of the active repositories is told here (downloads list and schedule).
+    LaunchedEffect(services.accounts.active.collectAsState().value.id) { services.downloads?.manager?.reload() }
 
     // Queue: when a video ends and others are queued, play the next one.
     LaunchedEffect(playerState?.status) {
@@ -153,7 +159,7 @@ fun AppShell(services: AppServices, navigator: Navigator = remember { Navigator(
             Row(Modifier.fillMaxSize().then(if (chrome) Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)) else Modifier)) {
                 if (chrome && rail) SideRail(route.topLevel(), onSelect = navigator::selectTab, onSearch = { navigator.push(Route.Search()) })
                 Column(Modifier.weight(1f)) {
-                    if (chrome && route !is Route.Video && route !is Route.Search && route != Route.Settings && route != Route.Accounts && route != Route.AccountActivity && route != Route.Health) {
+                    if (chrome && route !is Route.Video && route !is Route.Search && route != Route.Settings && route != Route.Accounts && route != Route.AccountActivity && route != Route.Health && route != Route.Backup) {
                         VelaTopBar(
                             routeTitle(route), onBack = if (navigator.canGoBack) ({ navigator.back() }) else null,
                             onSearch = if (rail) null else ({ navigator.push(Route.Search()) }),
@@ -162,6 +168,7 @@ fun AppShell(services: AppServices, navigator: Navigator = remember { Navigator(
                     }
                     if (chrome) AccountBanner(services, navigator)
                     if (chrome) com.greenaltambe.vela.ui.screens.HealthBanner(services, navigator)
+                    if (chrome) com.greenaltambe.vela.ui.screens.CaptchaBanner(services)
                     SessionCheckEffect(services)
                     HealthStartEffect(services)
                     // Keyed by the active account, so switching rebuilds every screen on the new account's data.
@@ -189,12 +196,23 @@ private fun routeTitle(route: Route): String = when (route) {
     Route.Accounts -> "Accounts"
     Route.AccountActivity -> "Account activity"
     Route.Health -> "Health"
+    Route.Backup -> "Backup and restore"
     Route.Downloads -> "Downloads"
+    Route.DownloadRules -> "Automatic downloads"
     is Route.Search -> "Search"
     is Route.Video -> ""
 }
 
+/** The accounts, active one ticked: choosing another switches to it (every repository follows the active id, the downloads list is reloaded by [AppShell]). Only shown when there is more than one. */
+private fun accountEntries(services: AppServices): List<MenuAction> {
+    val all = services.accounts.all.value
+    if (all.size < 2) return emptyList()
+    val active = services.accounts.active.value.id
+    return all.map { a -> MenuAction((if (a.id == active) "✓ " else "Switch to ") + a.displayName) { if (a.id != active) services.accounts.switchTo(a.id) } }
+}
+
 private fun overflowMenu(services: AppServices, navigator: Navigator): List<MenuAction> = buildList {
+    addAll(accountEntries(services))
     if (services.downloads != null) add(MenuAction("Downloads") { navigator.push(Route.Downloads) })
     add(MenuAction("History") { navigator.push(Route.History) })
     add(MenuAction("Settings") { navigator.selectTab(Route.Settings) })
@@ -238,10 +256,12 @@ private fun Destination(services: AppServices, navigator: Navigator, route: Rout
         is Route.Playlist -> PlaylistScreen(services, navigator, route.id, modifier)
         Route.History -> HistoryScreen(services, navigator, modifier)
         Route.ManageSubscriptions -> SubscriptionsScreen(services, navigator, modifier)
-        Route.Diagnostics -> DiagnosticsScreen(services.extractor, services.log, services.modules.log, services.downloads, modifier, faults = services.faults, exportLog = services.exportLog)
+        Route.Diagnostics -> DiagnosticsScreen(services.extractor, services.log, services.modules.log, services.downloads, modifier, faults = services.faults, exportLog = services.exportLog, rebuildCaches = services.rebuildCaches)
         Route.Downloads -> DownloadsScreen(services, navigator, modifier)
+        Route.DownloadRules -> com.greenaltambe.vela.ui.screens.DownloadRulesScreen(services, navigator, modifier)
         Route.Accounts -> AccountsScreen(services, navigator, modifier)
         Route.AccountActivity -> AccountActivityScreen(services, navigator, modifier)
         Route.Health -> HealthScreen(services, navigator, modifier)
+        Route.Backup -> com.greenaltambe.vela.ui.screens.BackupScreen(services, navigator, modifier)
     }
 }

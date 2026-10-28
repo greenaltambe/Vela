@@ -22,8 +22,9 @@ class LiveAccountTest {
 
     @Test fun subscriptionsAreListedWithoutDuplicates() {
         val subs = client.subscriptions()
+        // The throwaway account has at most one real subscription; ~120 here would mean suggestions leaked in.
         println("subscriptions: ${subs.size}")
-        assertTrue(subs.isNotEmpty())
+        assertTrue(subs.size < 20, "suggested channels must not be listed as subscriptions: ${subs.size}")
         assertEquals(subs.size, subs.map { it.channelId }.toSet().size)
         assertTrue(subs.all { it.channelId.startsWith("UC") && it.title.isNotBlank() })
     }

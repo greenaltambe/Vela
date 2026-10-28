@@ -23,6 +23,8 @@ class OkHttpDownloader(
     private val userAgent: String = DEFAULT_USER_AGENT,
     /** Hosts where a 403 means "we are blocked" rather than "this one resource is forbidden". */
     private val isBlockableHost: (String) -> Boolean = ::isYoutubeApiHost,
+    /** The captcha-exemption `Cookie` header for a request to this host, or null. Only ever asked for YouTube API hosts. */
+    private val exemptionCookie: (String) -> String? = { null },
 ) : Downloader() {
     override fun execute(request: Request): Response {
         val body = request.dataToSend()?.toRequestBody()
@@ -38,6 +40,8 @@ class OkHttpDownloader(
             values.forEach { builder.addHeader(name, it) }
         }
         if (!hasUserAgent) builder.header("User-Agent", userAgent)
+        // A solved captcha's exemption cookie goes only to YouTube's own hosts, never to stream hosts or third parties.
+        if (isYoutubeApiHost(request.url().toHttpUrlOrNullHost())) exemptionCookie(request.url().toHttpUrlOrNullHost())?.let { builder.addHeader("Cookie", it) }
 
         client.newCall(builder.build()).execute().use { response ->
             if (response.code == 429) throw HttpStatusException(429, request.url())
@@ -72,3 +76,5 @@ class OkHttpDownloader(
             .build()
     }
 }
+
+private fun String.toHttpUrlOrNullHost(): String = runCatching { java.net.URI(this).host }.getOrNull().orEmpty()

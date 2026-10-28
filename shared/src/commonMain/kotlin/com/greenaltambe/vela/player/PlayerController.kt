@@ -11,6 +11,8 @@ data class PlayerState(
     val positionMs: Long = 0,
     val durationMs: Long = 0,
     val speed: Float = 1f,
+    /** Live streams only: how far behind the live edge playback is (null when not live or unknown). Position on a sliding live window is not stable, so the UI shows this instead. */
+    val liveOffsetMs: Long? = null,
 )
 
 enum class PlaybackErrorKind {
@@ -53,6 +55,9 @@ interface PlayerController {
     fun play()
     fun pause()
     fun seekTo(positionMs: Long)
+
+    /** Jump to the live edge of a live stream (no-op for normal videos). */
+    fun goLive() {}
     fun setSpeed(speed: Float)
 
     /** Output volume, 0 (silent) to 1 (full). Backends without a volume of their own ignore it. */

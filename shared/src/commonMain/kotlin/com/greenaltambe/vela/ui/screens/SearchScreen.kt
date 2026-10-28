@@ -48,6 +48,12 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
 
 /**
  * The full search view: a query field with clear and back, the history list while the field is empty, paged results
@@ -88,7 +94,18 @@ fun SearchScreen(services: AppServices, navigator: Navigator, query: String, mod
             load(more = false)
         } else runCatching { focus.requestFocus() }
     }
-    val shown = rememberFiltered(services, results.items, DeArrowSurface.SEARCH)
+    // Filters are applied to the loaded results (see SearchFilters): the source's order is "relevance".
+    var filters by remember(query) { mutableStateOf(com.greenaltambe.vela.extractor.SearchFilters()) }
+    val shownAll = rememberFiltered(services, results.items, DeArrowSurface.SEARCH)
+    val shown = remember(shownAll, filters) { filters.apply(shownAll) }
+    // Search-as-you-type: asked 250 ms after the last keystroke, only while the field differs from the searched query.
+    var suggestions by remember { mutableStateOf<List<String>>(emptyList()) }
+    LaunchedEffect(text) {
+        suggestions = emptyList()
+        if (text.trim().length < 2 || text.trim() == query) return@LaunchedEffect
+        kotlinx.coroutines.delay(250)
+        (services.extractor.suggestions(text.trim()) as? ExtractorResult.Success)?.let { suggestions = it.value }
+    }
 
     Column(modifier.fillMaxSize()) {
         Row(
@@ -104,7 +121,15 @@ fun SearchScreen(services: AppServices, navigator: Navigator, query: String, mod
             )
             IconButton(onClick = { submit(text) }, enabled = text.isNotBlank(), modifier = Modifier.testTag("search.submit")) { Icon(Vela.icons.search, "Search") }
         }
-        if (query.isBlank()) {
+        if (suggestions.isNotEmpty() && text.trim() != query) {
+            LazyColumn(Modifier.fillMaxSize().testTag("search.suggestions"), contentPadding = Vela.contentPadding) {
+                items(suggestions, key = { it }) { q ->
+                    Row(Modifier.fillMaxWidth().heightIn(min = Vela.minTouch).clickable { submit(q) }, verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Vela.icons.search, null); Spacer(Modifier.width(Vela.sm)); Text(q, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+            }
+        } else if (query.isBlank()) {
             LazyColumn(Modifier.fillMaxSize().testTag("search.list"), contentPadding = Vela.contentPadding) {
                 item {
                     SectionHeader("Recent searches") {
@@ -120,10 +145,32 @@ fun SearchScreen(services: AppServices, navigator: Navigator, query: String, mod
                 }
             }
         } else {
+            SearchFilterRow(filters) { filters = it }
+            if (!filters.isDefault && shown.isEmpty() && shownAll.isNotEmpty()) Text("Nothing in the ${shownAll.size} loaded results matches. Filters apply to loaded results; load more or relax them.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = Vela.gutter).testTag("search.filterEmpty"))
             VideoCollection(
                 services, navigator, shown, state, grid = false, testTag = "search.list",
                 footer = if (results.continuation != null) ({ TextButton(onClick = { load(more = true) }, enabled = !loading, modifier = Modifier.testTag("search.more")) { Text("Load more", maxLines = 1) } }) else null,
             )
+        }
+    }
+}
+
+@Composable
+private fun SearchFilterRow(filters: com.greenaltambe.vela.extractor.SearchFilters, onChange: (com.greenaltambe.vela.extractor.SearchFilters) -> Unit) {
+    var durationMenu by remember { mutableStateOf(false) }
+    var sortMenu by remember { mutableStateOf(false) }
+    Row(Modifier.fillMaxWidth().padding(horizontal = Vela.gutter), horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+        Box {
+            FilterChip(selected = filters.duration != com.greenaltambe.vela.extractor.DurationFilter.ANY, onClick = { durationMenu = true }, label = { Text(filters.duration.label, maxLines = 1) }, modifier = Modifier.testTag("search.filter.duration"))
+            DropdownMenu(durationMenu, { durationMenu = false }) {
+                com.greenaltambe.vela.extractor.DurationFilter.entries.forEach { d -> DropdownMenuItem(text = { Text(d.label) }, onClick = { durationMenu = false; onChange(filters.copy(duration = d)) }) }
+            }
+        }
+        Box {
+            FilterChip(selected = filters.sort != com.greenaltambe.vela.extractor.SearchSort.RELEVANCE, onClick = { sortMenu = true }, label = { Text(filters.sort.label, maxLines = 1) }, modifier = Modifier.testTag("search.filter.sort"))
+            DropdownMenu(sortMenu, { sortMenu = false }) {
+                com.greenaltambe.vela.extractor.SearchSort.entries.forEach { o -> DropdownMenuItem(text = { Text(o.label) }, onClick = { sortMenu = false; onChange(filters.copy(sort = o)) }) }
+            }
         }
     }
 }

@@ -45,6 +45,9 @@ interface Extractor {
      * The channel's newest uploads (about the last 15), newest first, for the subscription feed. Each item carries
      * [VideoSummary.uploadedAt] when the source knows it. Durations are often unknown here (see [VideoSummary.durationSeconds]).
      */
+    /** Search-as-you-type completions for [query]; tiers that cannot do it answer not-supported and the chain moves on. */
+    suspend fun suggestions(query: String): ExtractorResult<List<String>> = notSupported()
+
     suspend fun recentUploads(channelId: String): ExtractorResult<List<VideoSummary>> = notSupported()
 }
 

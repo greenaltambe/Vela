@@ -33,7 +33,7 @@ class DesktopPlaybackRuntime private constructor(
     private val constraints = constraintsFromDecoderList(controller.property("decoder-list"))
 
     val session = PlaybackSession(
-        extractor, controller, settings, history, scope,
+        com.greenaltambe.vela.extractor.TimeoutExtractor(extractor), controller, settings, history, scope,
         network = FixedNetworkMonitor(), constraints = { constraints }, addons = addons, accountId = accountId,
     )
 

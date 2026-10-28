@@ -9,6 +9,7 @@ import kotlin.random.Random
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 
@@ -127,9 +128,30 @@ class AccountGovernor(
         if (everSucceeded && softLoginRequired >= 2) { softLoginRequired = 0; trip(BlockSignal.REPEATED_LOGIN_REQUIRED) }
     }
 
-    suspend fun <T> call(kind: CallKind, host: String, inspect: (T) -> BlockSignal? = { null }, op: suspend () -> T): T = mutex.withLock {
+    /**
+     * One governed call. [patience] > 0 is for read-only listings (sync pages): when the only obstacle is a budget window that
+     * reopens within [patience], it waits (through the injected sleeper) and tries again instead of failing the whole listing.
+     * A kill switch, a cooling-down breaker, or a window further away than [patience] still refuses at once; only the final
+     * refusal is audited, not the waits.
+     */
+    suspend fun <T> call(kind: CallKind, host: String, inspect: (T) -> BlockSignal? = { null }, patience: Duration = Duration.ZERO, op: suspend () -> T): T {
+        var waited = Duration.ZERO
+        while (true) {
+            try {
+                return callOnce(kind, host, inspect, op, logRefusal = patience <= Duration.ZERO)
+            } catch (d: GovernorDenied) {
+                val until = d.until
+                if (d.reason != DenyReason.BUDGET || until == null || patience <= Duration.ZERO) throw d
+                val wait = (until - clock.now()).coerceAtLeast(Duration.ZERO) + 250.milliseconds
+                if (waited + wait > patience) { log(kind, host, "refused", d.reason.name); throw d }
+                sleeper(wait.inWholeMilliseconds); waited += wait
+            }
+        }
+    }
+
+    private suspend fun <T> callOnce(kind: CallKind, host: String, inspect: (T) -> BlockSignal?, op: suspend () -> T, logRefusal: Boolean): T = mutex.withLock {
         val now0 = clock.now()
-        try { admit(kind, now0) } catch (d: GovernorDenied) { log(kind, host, "refused", d.reason.name); throw d }
+        try { admit(kind, now0) } catch (d: GovernorDenied) { if (logRefusal) log(kind, host, "refused", d.reason.name); throw d }
         val wait = spacing()
         if (wait > 0) sleeper(wait)
         stamps.addLast(kind to clock.now().toEpochMilliseconds()); lastCallAt = clock.now().toEpochMilliseconds()

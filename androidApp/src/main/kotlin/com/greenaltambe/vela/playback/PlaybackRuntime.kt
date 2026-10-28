@@ -65,13 +65,18 @@ class PlaybackRuntime private constructor(context: Context) {
     /** Bounded rotating redacted log (tier attempts and governor decisions) in the app's own files folder. */
     val logFile = com.greenaltambe.vela.net.FileLogSink(java.io.File(appContext.filesDir, "vela.log"))
     val log = DiagnosticsLog(sink = logFile)
-    val modules by lazy { createModules(OkHttpTransport(), database, settings) }
+    /** Captcha challenges from anonymous requests (see CaptchaActivity) and the exemption cookie they yield. */
+    val captcha = com.greenaltambe.vela.extractor.CaptchaCoordinator()
+    val exemption by lazy { com.greenaltambe.vela.extractor.SettingsExemptionCookie(SqlDelightSettingsStore(database)) }
+    val modules by lazy { createModules(OkHttpTransport(), database, settings, accountId = { accounts.active.value.id }) }
     /** Accounts and their credentials (Keystore-encrypted, excluded from backup). */
     val accounts by lazy { AccountManager(database, CredentialStore(AndroidKeystoreSecretStore(appContext))) }
     val audit by lazy { DbAuditLog(database, sink = logFile) }
     val governors by lazy { GovernorRegistry(Clock.System, { governorLimits(settings) }, DbBreakerStore(database), audit) }
     val login by lazy { InnertubeAccountLogin(accounts, governors) }
     val sync by lazy { InnertubeAccountSync(accounts, governors, database) }
+    val reads by lazy { com.greenaltambe.vela.innertube.InnertubeAccountReads(accounts, governors) }
+    val actions by lazy { com.greenaltambe.vela.innertube.InnertubeAccountActions(accounts, governors) }
     private fun pausedReason(): String? = accounts.active.value.takeIf { it.isSignedIn }
         ?.let { governors.forAccount(it.id).cooldownUntil() }?.let { "account cooling down until ${it.toString().substring(11, 16)} UTC" }
 
@@ -85,7 +90,7 @@ class PlaybackRuntime private constructor(context: Context) {
         if (appContext.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) com.greenaltambe.vela.extractor.chain.FaultInjector() else null
     private val tiers by lazy {
         listOf(
-            ExtractorTier(TierId.ANONYMOUS, PacedExtractor(NewPipeExtractor()), "NewPipeExtractor ${com.greenaltambe.vela.health.NewPipeVersion.VERSION}"),
+            ExtractorTier(TierId.ANONYMOUS, PacedExtractor(NewPipeExtractor({ com.greenaltambe.vela.extractor.newpipe.OkHttpDownloader(exemptionCookie = exemption::headerFor) })), "NewPipeExtractor ${com.greenaltambe.vela.health.NewPipeVersion.VERSION}"),
             ExtractorTier(TierId.ALT_CLIENT, AltClientExtractor(profiles = { remote.profiles(com.greenaltambe.vela.innertube.ClientProfile.load()) }, onProfile = { line ->
                 log.record(TierAttempt("alt client", TierId.ALT_CLIENT, AttemptOutcome.NOTE, null, line, Duration.ZERO, Clock.System.now()))
             }, contentChecks = { settings.resolve(Settings.allowControversial) }), "innertube-profiles.json"),
@@ -117,7 +122,16 @@ class PlaybackRuntime private constructor(context: Context) {
     }
 
     /** Downloads and the offline library; the queue is recovered when this is first used. */
-    val downloads by lazy { createAndroidDownloads(appContext, database, downloadChain, modules, settings, network) }
+    val downloads by lazy { createAndroidDownloads(appContext, database, downloadChain, modules, settings, network) { accounts.active.value.id } }
+
+    /** Automatic downloads (scheduled by [AutoDownloadWorker], also runnable from the Rules screen); anonymous tiers only unless the viewer allowed the account for downloads. */
+    val autoDownloader by lazy {
+        com.greenaltambe.vela.downloads.AutoDownloader(
+            com.greenaltambe.vela.downloads.AutoDownloadStore(SqlDelightSettingsStore(database)), downloadChain, downloads.manager, downloads.repo,
+            { com.greenaltambe.vela.data.PlaylistRepository(database, accounts.active.value.id) }, { com.greenaltambe.vela.data.HistoryLibrary(database, accounts.active.value.id) },
+            network, settings, notifier = com.greenaltambe.vela.downloads.AndroidDownloadNotifier(appContext),
+        )
+    }
 
     private val bandwidthMeter by lazy { DefaultBandwidthMeter.Builder(appContext).build() }
 
@@ -154,7 +168,7 @@ class PlaybackRuntime private constructor(context: Context) {
 
     val session: PlaybackSession by lazy {
         PlaybackSession(
-            chain, controller, settings, SqlDelightWatchHistoryRepository(database), scope,
+            com.greenaltambe.vela.extractor.CaptchaAwareExtractor(com.greenaltambe.vela.extractor.TimeoutExtractor(chain), captcha), controller, settings, SqlDelightWatchHistoryRepository(database), scope,
             network = network, constraints = { deviceConstraints(appContext) }, addons = listOf(modules.sponsorBlock),
             accountId = { accounts.active.value.id },
         )

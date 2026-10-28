@@ -74,6 +74,7 @@ class AndroidDownloadNotifier(private val context: Context) : DownloadNotifier {
         runCatching { NotificationManagerCompat.from(context).notify(NOTIFICATION_RESULT_BASE + (next++ % 50), n) }
     }
 
+    override fun summary(text: String) = post("Automatic downloads", text, android.R.drawable.stat_sys_download_done)
     override fun completed(title: String) = post("Download complete", title, android.R.drawable.stat_sys_download_done)
     override fun failed(title: String, reason: String) = post("Download failed: $title", reason, android.R.drawable.stat_notify_error)
 }

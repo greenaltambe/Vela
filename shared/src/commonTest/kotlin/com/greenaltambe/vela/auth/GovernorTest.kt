@@ -8,6 +8,7 @@ import kotlinx.coroutines.yield
 import kotlin.test.*
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 
 class GovernorTest {
     private val clock = FakeClock()
@@ -158,5 +159,46 @@ class GovernorTest {
         val g = gov(); g.ok(); g.fail(BlockSignal.HTTP_429)
         assertTrue(audit.none { Redaction.looksSecret("${it.kind} ${it.host} ${it.result} ${it.decision}") })
         assertTrue(audit.all { !it.host.contains('/') && !it.host.contains('?') })
+    }
+
+    // ---- patience: listings wait for the budget window instead of failing halfway ----
+
+    @Test fun aPatientListingWaitsForTheBudgetWindowAndSucceedsWithoutAuditedRefusals() = runTest {
+        limits = limits.copy(browsePerMinute = 2)
+        val g = gov()
+        val results = (1..5).map { g.call(CallKind.BROWSE, "www.youtube.com", patience = 70.seconds) { "page$it" } }
+        assertEquals(listOf("page1", "page2", "page3", "page4", "page5"), results)
+        assertTrue(sleeps.any { it >= 50_000 }, "it waited for the minute window to reopen: $sleeps")
+        assertTrue(audit.none { it.result == "refused" }, "waits are not refusals")
+        assertEquals(5, audit.count { it.result == "ok" })
+    }
+
+    @Test fun withoutPatienceOrWithTooLittleOrForOtherDenialsTheRefusalIsImmediateAndAudited() = runTest {
+        limits = limits.copy(browsePerMinute = 1)
+        val g = gov(); g.ok()
+        assertFailsWith<GovernorDenied> { g.call(CallKind.BROWSE, "h") { "x" } }
+        assertFailsWith<GovernorDenied> { g.call(CallKind.BROWSE, "h", patience = 5.seconds) { "x" } }
+        assertEquals(2, audit.count { it.result == "refused" })
+        limits = limits.copy(killSwitch = true)
+        val before = sleeps.size
+        assertFailsWith<GovernorDenied> { g.call(CallKind.BROWSE, "h", patience = 70.seconds) { "x" } }
+        assertEquals(before, sleeps.size, "a kill switch is never waited out")
+    }
+}
+
+
+class MultiAccountGuardTest {
+    private val clock = FakeClock()
+    private val registry = GovernorRegistry(clock, { GovernorLimits(minSpacingMs = 0, writesPerHour = 2) })
+
+    @Test fun switchingAccountsNeverRefillsAnAccountsBudgetAndBudgetsAreIndependent() = runTest {
+        suspend fun write(id: String) = registry.forAccount(id).call(CallKind.WRITE, "www.youtube.com") { "ok" }
+        write("a"); write("a")
+        assertFailsWith<GovernorDenied> { write("a") }
+        // Switching to B and back, as fast as possible: B has its own budget, A stays exhausted (same governor object per account).
+        write("b"); write("b")
+        assertFailsWith<GovernorDenied> { write("b") }
+        assertFailsWith<GovernorDenied> { write("a") }
+        assertSame(registry.forAccount("a"), registry.forAccount("a"))
     }
 }

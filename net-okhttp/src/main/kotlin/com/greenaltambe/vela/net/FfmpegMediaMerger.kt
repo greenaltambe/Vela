@@ -34,7 +34,7 @@ class FfmpegMediaMerger(private val binary: String = "ffmpeg", private val timeo
     private suspend fun run(command: List<String>) = withContext(Dispatchers.IO) {
         if (!available) throw MergeException(description)
         val process = try {
-            ProcessBuilder(command).redirectErrorStream(true).start()
+            com.greenaltambe.vela.platform.ChildProcesses.track(ProcessBuilder(command).redirectErrorStream(true).start())
         } catch (e: java.io.IOException) {
             throw MergeException("could not start ffmpeg: ${e.message}", e)
         }
@@ -45,6 +45,8 @@ class FfmpegMediaMerger(private val binary: String = "ffmpeg", private val timeo
         } catch (e: CancellationException) {
             process.destroyForcibly()
             throw e
+        } finally {
+            com.greenaltambe.vela.platform.ChildProcesses.untrack(process)
         }
     }
 

@@ -98,6 +98,8 @@ fun PlayerView(
     tryAccountNow: (() -> Unit)? = null,
     /** Opens Settings (the age-restricted switch lives there); null hides the button. */
     openAgeSetting: (() -> Unit)? = null,
+    /** The page knows the video is live even when the summary did not say so. */
+    isLive: Boolean = false,
     /** Drawn over the picture, above the controls' bottom edge: SponsorBlock's skip prompt and "skipped, Undo" notice. */
     overlay: @Composable () -> Unit = {},
 ) {
@@ -116,6 +118,9 @@ fun PlayerView(
     val failed = (sessionState as? SessionState.Failed)?.takeIf { mine }
     val resolving = !mine || sessionState is SessionState.Resolving || sessionState is SessionState.Idle
     val active = ready != null
+    /** A live stream shows how far behind live it is instead of a position (the live window slides, so the position is not stable). */
+    val live = active && (video.isLive || isLive)
+    val behind = if (live) player.liveOffsetMs else null
     val position = if (active) player.positionMs else 0L
     val duration = if (active) player.durationMs else 0L
     val playing = active && player.status == PlaybackStatus.PLAYING
@@ -216,11 +221,12 @@ fun PlayerView(
                 Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = Vela.xs)) {
                     val shown = preview?.let { (it * duration).toLong() } ?: position
                     Row(Modifier.fillMaxWidth().padding(horizontal = Vela.sm), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                        Text("${formatTimestamp(shown / 1000)} / ${formatTimestamp(duration / 1000)}", color = onMedia, style = MaterialTheme.typography.bodySmall, maxLines = 1, softWrap = false, modifier = Modifier.testTag("player.time"))
+                        Text(if (live) (if (behind == null || behind < LIVE_EDGE_MS) "LIVE" else "-${formatTimestamp(behind / 1000)} behind live") else "${formatTimestamp(shown / 1000)} / ${formatTimestamp(duration / 1000)}", color = onMedia, style = MaterialTheme.typography.bodySmall, maxLines = 1, softWrap = false, modifier = Modifier.testTag("player.time"))
+                        if (live && behind != null && behind >= LIVE_EDGE_MS) TextButton(onClick = { touch(); session.goLive() }, modifier = Modifier.testTag("player.goLive")) { Text("Go live", color = onMedia, maxLines = 1) }
                         if (showChapterTitle) currentChapter(chapters, shown)?.let { Text(it.title, Modifier.weight(1f).testTag("player.chapterTitle"), color = onMedia, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                     }
                     Scrubber(
-                        value = if (duration > 0) position.toFloat() / duration else 0f,
+                        value = if (live && behind != null && duration > 0) (1f - behind.toFloat() / duration).coerceIn(0f, 1f) else if (duration > 0) position.toFloat() / duration else 0f,
                         onPreview = { preview = it; touches++ },
                         onCommit = { f -> touch(); session.seekTo((f * duration).toLong()) },
                         enabled = duration > 0,
@@ -303,3 +309,6 @@ private fun statsText(stats: PlaybackStats, state: SessionState): String = build
 }
 
 private fun Long?.kbps() = this?.let { "${it / 1000} kbit/s" } ?: "-"
+
+/** Within this of the live edge a live stream counts as "live": ExoPlayer's normal offset on YouTube HLS measured 22 s on the phone, mpv starts 13-16 s behind. */
+private const val LIVE_EDGE_MS = 40_000L

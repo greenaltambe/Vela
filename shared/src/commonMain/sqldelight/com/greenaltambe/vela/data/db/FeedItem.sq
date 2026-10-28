@@ -33,3 +33,6 @@ DELETE FROM FeedItem WHERE accountId = ? AND videoId NOT IN (
 
 clearForAccount:
 DELETE FROM FeedItem WHERE accountId = ?;
+
+clearAllFeeds:
+DELETE FROM FeedItem;

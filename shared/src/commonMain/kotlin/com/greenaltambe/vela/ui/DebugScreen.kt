@@ -34,7 +34,7 @@ import kotlinx.coroutines.launch
 
 /** Settings > Diagnostics: exercise the extractor chain by hand (search, list a result's streams) and see which tier served what and why others failed. */
 @Composable
-fun DiagnosticsScreen(extractor: Extractor, log: DiagnosticsLog, moduleLog: ModuleLog, downloads: com.greenaltambe.vela.downloads.Downloads?, modifier: Modifier = Modifier, faults: com.greenaltambe.vela.extractor.chain.FaultInjector? = null, exportLog: (() -> String)? = null) {
+fun DiagnosticsScreen(extractor: Extractor, log: DiagnosticsLog, moduleLog: ModuleLog, downloads: com.greenaltambe.vela.downloads.Downloads?, modifier: Modifier = Modifier, faults: com.greenaltambe.vela.extractor.chain.FaultInjector? = null, exportLog: (() -> String)? = null, rebuildCaches: (() -> String)? = null) {
     val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("") }
@@ -77,6 +77,13 @@ fun DiagnosticsScreen(extractor: Extractor, log: DiagnosticsLog, moduleLog: Modu
     }
 
     Column(modifier.padding(horizontal = com.greenaltambe.vela.ui.look.Vela.gutter), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (rebuildCaches != null) {
+            var rebuilt by remember { mutableStateOf<String?>(null) }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                androidx.compose.material3.OutlinedButton(onClick = { rebuilt = runCatching { rebuildCaches() }.getOrElse { "Rebuild failed: ${it.message}" } }, modifier = Modifier.testTag("diagnostics.rebuildCaches")) { Text("Rebuild caches") }
+                rebuilt?.let { Text(it, style = androidx.compose.material3.MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("diagnostics.rebuildResult")) }
+            }
+        }
         if (exportLog != null) {
             var exported by remember { mutableStateOf<String?>(null) }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
