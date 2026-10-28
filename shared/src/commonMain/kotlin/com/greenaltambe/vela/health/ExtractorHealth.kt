@@ -83,6 +83,8 @@ class ExtractorHealth(
     private val keep: Int = 400,
     /** Called once when a failure streak reaches [ALERT_AFTER] (not again while the streak goes on, and again only after a working run): the OS notification. */
     private val onAlert: (HealthAlert) -> Unit = {},
+    /** Tiers that take seconds per call (yt-dlp on a phone, about 16 s): they get one canary video and only the stream resolve plus the GET, not search and videoInfo. */
+    private val slowTiers: Set<TierId> = emptySet(),
 ) {
     private val _results = MutableStateFlow(store.load())
     val results: StateFlow<List<CanaryResult>> = _results
@@ -113,14 +115,15 @@ class ExtractorHealth(
             val runId = clock.now().toEpochMilliseconds()
             for (tier in tiers.filter { it.id != TierId.AUTHENTICATED }) {
                 // A tier that does not do search at all (the alt client) is not failing it, so there is nothing to record.
+                val slow = tier.id in slowTiers
                 val searchStart = clock.now()
-                val search = try { tier.extractor.search("music") } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { ExtractorResult.Failure(com.greenaltambe.vela.extractor.ExtractorError.Network(e.message ?: e.toString())) }
+                val search = if (slow) ExtractorResult.Failure(com.greenaltambe.vela.extractor.ExtractorError.Unplayable(NOT_SUPPORTED)) else try { tier.extractor.search("music") } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { ExtractorResult.Failure(com.greenaltambe.vela.extractor.ExtractorError.Network(e.message ?: e.toString())) }
                 if (!(search is ExtractorResult.Failure && search.error.message == NOT_SUPPORTED)) {
                     val problem = when (search) { is ExtractorResult.Success -> if (search.value.items.isEmpty()) "no results" else null; is ExtractorResult.Failure -> search.error.message }
                     fresh += CanaryResult(tier.id, "search", problem == null, problem, searchStart, (clock.now() - searchStart).inWholeMilliseconds)
                 }
-                for (c in canaries()) {
-                    fresh += timed(tier.id, "videoInfo(${c.label})") { when (val r = tier.extractor.videoInfo(c.videoId)) { is ExtractorResult.Success -> null; is ExtractorResult.Failure -> r.error.message } }
+                for (c in canaries().let { if (slow) it.take(1) else it }) {
+                    if (!slow) fresh += timed(tier.id, "videoInfo(${c.label})") { when (val r = tier.extractor.videoInfo(c.videoId)) { is ExtractorResult.Success -> null; is ExtractorResult.Failure -> r.error.message } }
                     var url: String? = null; var headers = emptyMap<String, String>(); var availableAt: Instant? = null
                     fresh += timed(tier.id, "streams(${c.label})") {
                         when (val r = tier.extractor.streams(c.videoId)) {

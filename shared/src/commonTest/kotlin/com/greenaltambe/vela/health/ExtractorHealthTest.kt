@@ -27,6 +27,19 @@ class ExtractorHealthTest {
         assertFalse(alt.healthy); assertEquals("HTTP 403 page", alt.lastFailureReason)
     }
 
+    @Test fun aSlowTierGetsOneVideoAndOnlyTheStreamChecks() = runTest {
+        val calls = mutableListOf<String>()
+        val slow = object : Extractor by good() {
+            override suspend fun search(query: String, continuation: String?): ExtractorResult<Page<VideoSummary>> { calls += "search"; return good().search(query, continuation) }
+            override suspend fun videoInfo(videoId: String): ExtractorResult<VideoInfo> { calls += "videoInfo"; return StubExtractor().videoInfo(videoId) }
+            override suspend fun streams(videoId: String): ExtractorResult<StreamSet> { calls += "streams:$videoId"; return good().streams(videoId) }
+        }
+        val h = ExtractorHealth(listOf(ExtractorTier(TierId.YT_DLP, slow)), { _, _ -> 206 }, clock = clock, slowTiers = setOf(TierId.YT_DLP))
+        h.run()
+        assertEquals(listOf("streams:${ExtractorHealth.DefaultCanaries.first().videoId}"), calls)
+        assertEquals(listOf("streams(normal)", "GET(normal)"), h.results.value.map { it.check }); assertTrue(h.summary().single().healthy)
+    }
+
     @Test fun theAccountTierIsNeverProbed() = runTest {
         val auth = ChaosExtractor(OK)
         ExtractorHealth(listOf(ExtractorTier(TierId.ANONYMOUS, good()), ExtractorTier(TierId.AUTHENTICATED, auth)), { _, _ -> 206 }, clock = clock).run()

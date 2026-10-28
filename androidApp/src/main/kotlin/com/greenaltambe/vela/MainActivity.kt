@@ -1,5 +1,6 @@
 package com.greenaltambe.vela
 
+import com.greenaltambe.vela.ytdlp.installedVersion
 import android.Manifest
 import android.app.PendingIntent
 import android.app.PictureInPictureParams
@@ -103,10 +104,15 @@ class MainActivity : ComponentActivity() {
             solveCaptcha = { url -> startActivity(Intent(this, com.greenaltambe.vela.auth.CaptchaActivity::class.java).putExtra(com.greenaltambe.vela.auth.CaptchaActivity.EXTRA_URL, url)) },
             autoDownloader = runtime.autoDownloader,
             exportLog = { val out = java.io.File(getExternalFilesDir(null) ?: filesDir, "vela-log-${System.currentTimeMillis() / 1000}.txt"); out.writeText(runtime.logFile.readAll()); out.path },
-            releases = listOf(com.greenaltambe.vela.health.ReleaseWatch(com.greenaltambe.vela.health.ReleaseCheck(
+            releases = listOf<com.greenaltambe.vela.health.ReleaseWatch?>(com.greenaltambe.vela.health.ReleaseWatch(com.greenaltambe.vela.health.ReleaseCheck(
                 "NewPipeExtractor", com.greenaltambe.vela.health.NewPipeVersion.VERSION, "TeamNewPipe/NewPipeExtractor",
                 com.greenaltambe.vela.core.http.ApiClient(com.greenaltambe.vela.net.OkHttpTransport(), com.greenaltambe.vela.core.http.InMemoryApiCache()),
-                com.greenaltambe.vela.data.SqlDelightSettingsStore(runtime.database)))),
+                com.greenaltambe.vela.data.SqlDelightSettingsStore(runtime.database))),
+                runtime.embeddedYtDlp.installedVersion(applicationContext)?.let { v -> com.greenaltambe.vela.health.ReleaseWatch(com.greenaltambe.vela.health.ReleaseCheck(
+                    "yt-dlp", v, "yt-dlp/yt-dlp", com.greenaltambe.vela.core.http.ApiClient(com.greenaltambe.vela.net.OkHttpTransport(), com.greenaltambe.vela.core.http.InMemoryApiCache()),
+                    com.greenaltambe.vela.data.SqlDelightSettingsStore(runtime.database)),
+                    copies = listOf(com.greenaltambe.vela.health.ToolCopy("embedded in the app (Python 3.12 + QuickJS, no root, no PATH)", v, used = true, updateHint = "Health > Install, or the Settings option for automatic yt-dlp updates"))) }).filterNotNull(),
+            managedYtDlp = runtime.ytDlpUpdater,
             webLogin = { startActivity(android.content.Intent(this, com.greenaltambe.vela.auth.WebLoginActivity::class.java)) },
         )
     }

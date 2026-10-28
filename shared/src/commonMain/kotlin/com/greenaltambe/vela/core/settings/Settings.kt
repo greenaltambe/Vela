@@ -458,7 +458,7 @@ object Settings {
 
     val allowAgeRestricted = Setting(
         key = "playback.allowAgeRestricted", default = false, scope = SettingScope.GLOBAL,
-        label = "Allow age-restricted videos (off by default; when on, Linux plays them through yt-dlp and Android shows a notice with Open in browser)",
+        label = "Allow age-restricted videos (off by default; when on, they play through yt-dlp, which can take about 20 s to start; if that fails and your account may be used, through the account)",
         keywords = listOf("age", "restricted", "adult", "18", "mature", "sign in"),
         codec = SettingCodecs.boolean, section = SettingSection.PLAYBACK,
     )

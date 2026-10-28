@@ -6,6 +6,7 @@ import androidx.media3.common.C
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import com.greenaltambe.vela.core.settings.Settings
+import com.greenaltambe.vela.ytdlp.installedVersion
 import com.greenaltambe.vela.core.settings.SettingsResolver
 import com.greenaltambe.vela.data.AndroidDatabaseDriverFactory
 import com.greenaltambe.vela.data.SqlDelightSettingsStore
@@ -85,20 +86,45 @@ class PlaybackRuntime private constructor(context: Context) {
     /** Signed remote configuration (profiles, kill switches, canary videos). Android 13+ verifies Ed25519 natively; older devices keep the bundled data. */
     val remote by lazy { com.greenaltambe.vela.config.createRemoteConfig({ settings.resolve(Settings.remoteConfigUrl) }, SqlDelightSettingsStore(database)) }
 
-    // No account tier on Android: yt-dlp does not run here, and neither NewPipe with account headers nor an own player call
-    // with cookies gave playable streams (docs/reports/13-accounts.md). Anonymous -> alt client; the chain skips the account tier.
+    // Tiers on Android: NewPipe (anonymous), the alt client, embedded yt-dlp (Python + QuickJS inside the APK, see docs/reports/22) and,
+    // last by default order, yt-dlp with the active account's cookies. Account use goes through the AccountGovernor like everywhere else.
+    val embeddedYtDlp by lazy { com.greenaltambe.vela.ytdlp.EmbeddedYtDlp(appContext) }
+    private val ytDlpRunner by lazy { com.greenaltambe.vela.ytdlp.EmbeddedProcessRunner(embeddedYtDlp) }
+    private fun note(subject: String, tier: TierId, detail: String, outcome: AttemptOutcome = AttemptOutcome.NOTE) =
+        log.record(TierAttempt(subject, tier, outcome, null, detail, Duration.ZERO, Clock.System.now()))
+    /** Updates the app's own yt-dlp (checksum, version check, canary, rollback). The Health screen offers it when the release check finds a newer tag. */
+    val ytDlpUpdater by lazy {
+        com.greenaltambe.vela.ytdlp.EmbeddedYtDlpUpdater(embeddedYtDlp.ytDlpFile, embeddedYtDlp::ensureInit, healthCheck = {
+            val r = com.greenaltambe.vela.extractor.ytdlp.YtDlpExtractor(ytDlpRunner).streams("dQw4w9WgXcQ")
+            r is com.greenaltambe.vela.extractor.ExtractorResult.Success && (r.value.videoStreams.isNotEmpty() || r.value.audioStreams.isNotEmpty())
+        }, onResult = { m, ok ->
+            note("yt-dlp updater", TierId.YT_DLP, m, if (ok) AttemptOutcome.NOTE else AttemptOutcome.FAILED)
+            // "health." keys are not part of a backup.
+            SqlDelightSettingsStore(database).put(UPDATE_KEY, com.greenaltambe.vela.core.settings.SettingLayer.Global, "${Clock.System.now().toString().substring(0, 16).replace('T', ' ')} UTC: $m")
+        }, initialStatus = SqlDelightSettingsStore(database).get(UPDATE_KEY, com.greenaltambe.vela.core.settings.SettingLayer.Global).orEmpty())
+    }
+    // Cookie files of a call that was killed mid-flight are deleted as soon as the process starts again (not when the tier is first used).
+    init { Thread { runCatching { embeddedYtDlp.cookieDir } }.start() }
+    private val ytDlpLabel by lazy { "yt-dlp ${embeddedYtDlp.installedVersion(appContext) ?: "?"} (embedded Python 3.12 + QuickJS; client picked by yt-dlp itself)" }
     /** Simulated failures (Diagnostics) exist only in debuggable builds. */
     val faults: com.greenaltambe.vela.extractor.chain.FaultInjector? =
         if (appContext.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) com.greenaltambe.vela.extractor.chain.FaultInjector() else null
     private val tiers by lazy {
-        listOf(
+        listOfNotNull(
             ExtractorTier(TierId.ANONYMOUS, PacedExtractor(NewPipeExtractor({ com.greenaltambe.vela.extractor.newpipe.OkHttpDownloader(exemptionCookie = exemption::headerFor) })), "NewPipeExtractor ${com.greenaltambe.vela.health.NewPipeVersion.VERSION}"),
             ExtractorTier(TierId.ALT_CLIENT, AltClientExtractor(profiles = { remote.profiles(com.greenaltambe.vela.innertube.ClientProfile.load()) }, onProfile = { line ->
                 log.record(TierAttempt("alt client", TierId.ALT_CLIENT, AttemptOutcome.NOTE, null, line, Duration.ZERO, Clock.System.now()))
             }, contentChecks = { settings.resolve(Settings.allowControversial) }), "innertube-profiles.json"),
+            ExtractorTier(TierId.AUTHENTICATED, com.greenaltambe.vela.extractor.ytdlp.AuthenticatedYtDlpExtractor(
+                governors = governors,
+                account = { accounts.active.value.takeIf { it.isSignedIn }?.let { a -> accounts.cookies(a.id)?.let { jar -> com.greenaltambe.vela.extractor.ytdlp.AccountCookies(a.id, a.label, jar) } } },
+                onCookiesUpdated = { id, jar -> accounts.saveCookies(id, jar) },
+                tempDir = embeddedYtDlp.cookieDir, runner = ytDlpRunner,
+            ), ytDlpLabel),
+            ExtractorTier(TierId.YT_DLP, PacedExtractor(com.greenaltambe.vela.extractor.ytdlp.YtDlpExtractor(ytDlpRunner, timeout = kotlin.time.Duration.parse("90s"))), ytDlpLabel),
         ).withFaults(faults)
     }
-    val health by lazy { ExtractorHealth(tiers, OkHttpStreamProbe(), DbHealthStore(database), onAlert = { HealthNotifier.show(appContext, it) }, canaries = { ExtractorHealth.DefaultCanaries + remote.canaryVideoIds().map { com.greenaltambe.vela.health.Canary(it, "remote") } }) }
+    val health by lazy { ExtractorHealth(tiers, OkHttpStreamProbe(), DbHealthStore(database), onAlert = { HealthNotifier.show(appContext, it) }, slowTiers = setOf(TierId.YT_DLP), canaries = { ExtractorHealth.DefaultCanaries + remote.canaryVideoIds().map { com.greenaltambe.vela.health.Canary(it, "remote") } }) }
     val chain by lazy {
         FallbackChain(tiers, accountMode = { settings.resolve(Settings.accountFallbackMode) }, log = log, allowAgeRestricted = { settings.resolve(Settings.allowAgeRestricted) },
             signedInAccount = { accounts.active.value.takeIf { it.isSignedIn }?.label },
@@ -177,6 +203,7 @@ class PlaybackRuntime private constructor(context: Context) {
     }
 
     companion object {
+        private const val UPDATE_KEY = "health.ytdlp.lastUpdate"
         @Volatile private var instance: PlaybackRuntime? = null
 
         fun get(context: Context): PlaybackRuntime =

@@ -10,6 +10,7 @@ import com.greenaltambe.vela.player.SessionState
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONArray
 import org.json.JSONObject
@@ -43,11 +44,28 @@ class SelfTestActivity : Activity() {
             if (which == "all" || which == "download") download(rt)
             if (which == "handoff") handoff(rt, video)
             if (which == "live") live(rt, video)
+            if (which == "all") { ytdlp(rt, listOf("dQw4w9WgXcQ", "HtVdAasjOgU")); playAge(rt, "HtVdAasjOgU"); ytdlpDownload(rt) }
             if (which == "all" || which == "strict") strictControl()
             if (which == "alert") alert()
             if (which == "captcha") captcha(rt)
             if (which == "chat") chat(video, intent.getStringExtra("liveVideo") ?: "4xDzrJKXOOY")
             if (which == "focus") focus(rt, video)
+            if (which == "playage") playAge(rt, video)
+            if (which == "ageoff") ageOff(rt, video)
+            if (which == "ytdlpauth") {
+                if (intent.getBooleanExtra("throwaway", false)) ytdlpAccount(rt, video)
+                else add("account tier", false, "refused: pass --ez throwaway true only when the signed-in account (see run whoami) is the throwaway account")
+            }
+            if (which == "ytdlpdl") ytdlpDownload(rt)
+            if (which == "whoami") { val a = rt.accounts.active.value; add("active account", true, "signedIn=${a.isSignedIn} label=${a.label} id=${a.id} ytdlp=${com.greenaltambe.vela.ytdlp.readYtDlpVersion(rt.embeddedYtDlp.ytDlpFile)} allowAge=${rt.settings.resolve(com.greenaltambe.vela.core.settings.Settings.allowAgeRestricted)} tierOrder=${rt.settings.resolve(com.greenaltambe.vela.core.settings.Settings.accountTierOrder)}") }
+            if (which == "ytdlpv") ytdlpVerbose(rt, video, intent.getStringExtra("extra")?.split(" ")?.filter { it.isNotEmpty() } ?: emptyList())
+            if (which == "ytdlpold") {
+                // Puts the phone back in the fresh-install state: the old yt-dlp release, installed through the real updater.
+                val u = com.greenaltambe.vela.ytdlp.EmbeddedYtDlpUpdater(rt.embeddedYtDlp.ytDlpFile, rt.embeddedYtDlp::ensureInit, { true })
+                val ok = u.install("2025.11.12"); add("install old yt-dlp for the test", ok, u.status.value)
+            }
+            if (which == "ytdlpupdate") ytdlpUpdate(rt)
+            if (which == "ytdlp") ytdlp(rt, intent.getStringExtra("videos")?.split(",") ?: listOf("dQw4w9WgXcQ"))
             val failed = (0 until results.length()).count { !results.getJSONObject(it).getBoolean("ok") }
             File(filesDir, "selftest.json").writeText(JSONObject().put("device", android.os.Build.MODEL).put("sdk", android.os.Build.VERSION.SDK_INT)
                 .put("failed", failed).put("results", results).toString(2))
@@ -205,6 +223,160 @@ class SelfTestActivity : Activity() {
     }
 
     /** Positive control for the StrictMode check: a deliberate main-thread disk read must show up in this process's logcat. */
+    /**
+     * The embedded yt-dlp tier ALONE (not through the chain): init cost, then per video the resolve time, the stream counts and a real
+     * 206 on the best video and audio URL. Anonymous: never touches the account.
+     */
+    private suspend fun ytdlp(rt: PlaybackRuntime, videos: List<String>) {
+        val yt = rt.embeddedYtDlp
+        val t0 = System.currentTimeMillis()
+        val version = try { yt.ensureInit(); com.greenaltambe.vela.ytdlp.readYtDlpVersion(yt.ytDlpFile) } catch (e: Throwable) { add("yt-dlp unpack + --version", false, "${e::class.simpleName}: ${e.message} cause=${e.cause}".take(400), System.currentTimeMillis() - t0); return }
+        add("yt-dlp unpack + --version", version != null, "version=$version", System.currentTimeMillis() - t0)
+        if (version == null) return
+        val ex = com.greenaltambe.vela.extractor.ytdlp.YtDlpExtractor(com.greenaltambe.vela.ytdlp.EmbeddedProcessRunner(yt), timeout = kotlin.time.Duration.parse("120s"))
+        val probe = com.greenaltambe.vela.innertube.OkHttpStreamProbe()
+        // CPU of finished child processes (python) in ms: /proc/self/stat fields cutime+cstime, in clock ticks (100/s).
+        fun childCpuMs(): Long = File("/proc/self/stat").readText().substringAfterLast(')').trim().split(' ').let { (it[13].toLong() + it[14].toLong()) * 10 }
+        for (v in videos) {
+            val cpu0 = android.os.Process.getElapsedCpuTime(); val child0 = childCpuMs(); val t = System.currentTimeMillis()
+            val r = ex.streams(v)
+            val ms = System.currentTimeMillis() - t
+            when (r) {
+                is com.greenaltambe.vela.extractor.ExtractorResult.Failure -> add("yt-dlp streams $v", false, "${r.error::class.simpleName}/${r.error.reason}: ${r.error.message}".take(300), ms)
+                is com.greenaltambe.vela.extractor.ExtractorResult.Success -> {
+                    val set = r.value
+                    val vs = set.videoStreams.firstOrNull(); val au = set.audioStreams.firstOrNull()
+                    val vCode = vs?.let { probe.status(it.url, set.headers + it.headers) }; val aCode = au?.let { probe.status(it.url, set.headers + it.headers) }
+                    val hCode = set.hlsUrl?.let { probe.status(it, set.headers) }
+                    add("yt-dlp streams $v", (vCode == 206 || aCode == 206 || hCode in 200..206) , "video=${set.videoStreams.size} (best ${vs?.height}p) audio=${set.audioStreams.size} hls=${set.hlsUrl != null} GET hls=$hCode video=$vCode audio=$aCode appCpu=${android.os.Process.getElapsedCpuTime() - cpu0}ms pythonCpu=${childCpuMs() - child0}ms", ms)
+                }
+            }
+        }
+        val rt2 = Runtime.getRuntime(); add("memory after", true, "java heap used ${(rt2.totalMemory() - rt2.freeMemory()) / 1_000_000} MB; native heap ${android.os.Debug.getNativeHeapAllocatedSize() / 1_000_000} MB")
+    }
+
+    /**
+     * The account tier ALONE (yt-dlp with the active account's cookies, through its governor) on an age-restricted video. Checks the cookie
+     * file is gone afterwards, that the governor audit recorded the call, and that the returned URL answers 206. Only with --ez throwaway true.
+     */
+    private suspend fun ytdlpAccount(rt: PlaybackRuntime, video: String) {
+        val a = rt.accounts.active.value
+        if (!a.isSignedIn) { add("account tier", false, "no account signed in"); return }
+        val tier = com.greenaltambe.vela.extractor.ytdlp.AuthenticatedYtDlpExtractor(
+            governors = rt.governors,
+            account = { rt.accounts.cookies(a.id)?.let { jar -> com.greenaltambe.vela.extractor.ytdlp.AccountCookies(a.id, a.label, jar) } },
+            onCookiesUpdated = { id, jar -> rt.accounts.saveCookies(id, jar) },
+            tempDir = rt.embeddedYtDlp.cookieDir, runner = com.greenaltambe.vela.ytdlp.EmbeddedProcessRunner(rt.embeddedYtDlp),
+        )
+        val before = rt.audit.recent(a.id).size
+        val t0 = System.currentTimeMillis()
+        val r = tier.streams(video)
+        val ms = System.currentTimeMillis() - t0
+        val left = rt.embeddedYtDlp.cookieDir.list()?.toList().orEmpty()
+        val audited = rt.audit.recent(a.id).size - before
+        when (r) {
+            is com.greenaltambe.vela.extractor.ExtractorResult.Failure -> add("account tier $video", false, "${r.error.reason}: ${r.error.message}".take(300) + " | cookie files left=$left audit+$audited", ms)
+            is com.greenaltambe.vela.extractor.ExtractorResult.Success -> {
+                val s = r.value; val u = s.videoStreams.firstOrNull() ?: s.audioStreams.firstOrNull()?.let { au -> com.greenaltambe.vela.extractor.VideoStream(au.url, au.mimeType, au.codec, au.bitrate, 0, 0, 0) }
+                val code = u?.let { com.greenaltambe.vela.innertube.OkHttpStreamProbe().status(it.url, s.headers + it.headers) }
+                add("account tier $video", left.isEmpty() && audited > 0 && (code == 206), "label=${a.label} video=${s.videoStreams.size} GET=$code cookie files left=$left audit entries +$audited", ms)
+            }
+        }
+    }
+
+    /** With "Allow age-restricted videos" OFF (switched off for the test, then restored): friendly failure, and neither yt-dlp nor the account is called. */
+    private suspend fun ageOff(rt: PlaybackRuntime, video: String) {
+        val store = com.greenaltambe.vela.data.SqlDelightSettingsStore(rt.database)
+        val key = com.greenaltambe.vela.core.settings.Settings.allowAgeRestricted.key
+        val old = store.get(key, com.greenaltambe.vela.core.settings.SettingLayer.Global)
+        store.put(key, com.greenaltambe.vela.core.settings.SettingLayer.Global, "false")
+        try {
+            val mark = rt.log.attempts.value.size; val t0 = System.currentTimeMillis()
+            val r = rt.chain.streams(video)
+            val tried = rt.log.attempts.value.drop(mark).filter { it.outcome != com.greenaltambe.vela.extractor.chain.AttemptOutcome.NOTE }
+            val err = (r as? com.greenaltambe.vela.extractor.ExtractorResult.Failure)?.error
+            add("age-restricted OFF: friendly failure, no yt-dlp/account call", err is com.greenaltambe.vela.extractor.ExtractorError.AgeRestrictedDisabled && tried.none { it.tier == TierId.YT_DLP || it.tier == TierId.AUTHENTICATED },
+                "error=${err?.let { it::class.simpleName }} tiers=${tried.joinToString { it.tier.name + ":" + it.outcome }}", System.currentTimeMillis() - t0)
+        } finally {
+            if (old == null) store.remove(key, com.greenaltambe.vela.core.settings.SettingLayer.Global) else store.put(key, com.greenaltambe.vela.core.settings.SettingLayer.Global, old)
+        }
+    }
+
+    /** The age-restricted video through the whole chain and the player, with "Allow age-restricted videos" switched on for the test only. */
+    private suspend fun playAge(rt: PlaybackRuntime, video: String) {
+        val store = com.greenaltambe.vela.data.SqlDelightSettingsStore(rt.database)
+        val key = com.greenaltambe.vela.core.settings.Settings.allowAgeRestricted.key
+        val old = store.get(key, com.greenaltambe.vela.core.settings.SettingLayer.Global)
+        store.put(key, com.greenaltambe.vela.core.settings.SettingLayer.Global, "true")
+        try {
+            val mark = rt.log.attempts.value.size
+            play(rt, video)
+            val tried = rt.log.attempts.value.drop(mark).filter { it.subject.startsWith("streams(") }
+            add("tiers tried for $video", tried.any { it.outcome == com.greenaltambe.vela.extractor.chain.AttemptOutcome.SUCCESS }, tried.joinToString("; ") { "${it.tier}:${it.outcome}${it.reason?.let { r -> "($r)" } ?: ""} ${it.duration.inWholeMilliseconds}ms" }.take(500))
+        } finally {
+            if (old == null) store.remove(key, com.greenaltambe.vela.core.settings.SettingLayer.Global) else store.put(key, com.greenaltambe.vela.core.settings.SettingLayer.Global, old)
+        }
+    }
+
+    /** A download whose streams MUST come from the yt-dlp tier (tier order put first for the test, then restored), merged and finished. */
+    private suspend fun ytdlpDownload(rt: PlaybackRuntime) {
+        val store = com.greenaltambe.vela.data.SqlDelightSettingsStore(rt.database)
+        val key = com.greenaltambe.vela.core.settings.Settings.accountTierOrder.key
+        val old = store.get(key, com.greenaltambe.vela.core.settings.SettingLayer.Global)
+        store.put(key, com.greenaltambe.vela.core.settings.SettingLayer.Global, "YT_DLP,ANONYMOUS,ALT_CLIENT,AUTHENTICATED")
+        try {
+            val t0 = System.currentTimeMillis()
+            val id = rt.downloads.manager.enqueue(com.greenaltambe.vela.downloads.DownloadRequest(
+                com.greenaltambe.vela.extractor.VideoSummary("jNQXAC9IVRw", "Me at the zoo", "UC4QobU6STFB0P71PMvOGN5A", "jawed"), maxHeight = 144))
+            val done = withTimeoutOrNull(150_000) {
+                while (true) {
+                    val it = rt.downloads.manager.items.value.firstOrNull { x -> x.id == id }
+                    if (it != null && (it.state == com.greenaltambe.vela.data.DownloadState.COMPLETED || it.state == com.greenaltambe.vela.data.DownloadState.FAILED)) return@withTimeoutOrNull it
+                    delay(500)
+                }
+                @Suppress("UNREACHABLE_CODE") null
+            }
+            val served = rt.log.attempts.value.lastOrNull { it.outcome == com.greenaltambe.vela.extractor.chain.AttemptOutcome.SUCCESS && it.subject.startsWith("streams(") }
+            add("download through the yt-dlp tier", done?.state == com.greenaltambe.vela.data.DownloadState.COMPLETED && served?.tier == TierId.YT_DLP, "state=${done?.state} servedBy=${served?.tier} ${served?.detail?.take(120)}", System.currentTimeMillis() - t0)
+            rt.downloads.manager.remove(id)
+        } finally {
+            if (old == null) store.remove(key, com.greenaltambe.vela.core.settings.SettingLayer.Global) else store.put(key, com.greenaltambe.vela.core.settings.SettingLayer.Global, old)
+        }
+    }
+
+    /** One verbose yt-dlp call with a wall-clock stamp per stderr line, to see where the seconds go. Written to files/ytdlp-verbose.txt. */
+    private suspend fun ytdlpVerbose(rt: PlaybackRuntime, video: String, extra: List<String>) {
+        val yt = rt.embeddedYtDlp; yt.ensureInit()
+        val t0 = System.currentTimeMillis()
+        val out = try { com.greenaltambe.vela.ytdlp.EmbeddedProcessRunner(yt).run(listOf("yt-dlp", "-v") + extra + listOf("--dump-single-json", "--no-playlist", "https://www.youtube.com/watch?v=$video"), kotlin.time.Duration.parse("120s"), 64_000_000) } catch (e: Exception) { add("verbose", false, e.toString()); return }
+        File(filesDir, "ytdlp-verbose.txt").writeText("exit=${out.exitCode}\n" + out.stderr)
+        add("verbose run $extra", out.exitCode == 0, "exit=${out.exitCode} stdoutBytes=${out.stdout.length}", System.currentTimeMillis() - t0)
+    }
+
+    /** Updater contract on the real runtime: bad checksum and failed health check change nothing; a real update lands and works. */
+    private suspend fun ytdlpUpdate(rt: PlaybackRuntime) {
+        val yt = rt.embeddedYtDlp; yt.ensureInit()
+        val before = com.greenaltambe.vela.ytdlp.readYtDlpVersion(yt.ytDlpFile)
+        val client = okhttp3.OkHttpClient()
+        val tag = withContext(kotlinx.coroutines.Dispatchers.IO) { client.newCall(okhttp3.Request.Builder().url("https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest").build()).execute().use { org.json.JSONObject(it.body.string()).getString("tag_name") } }
+        add("latest release tag", true, "installed=$before latest=$tag")
+        val real = com.greenaltambe.vela.ytdlp.OkHttpFileDownloader()
+        val badSums = com.greenaltambe.vela.extractor.ytdlp.Downloader { url, target -> if (url.endsWith("SHA2-256SUMS")) target.writeText("${"0".repeat(64)}  yt-dlp\n") else real.download(url, target) }
+        val t0 = System.currentTimeMillis()
+        val r1 = com.greenaltambe.vela.ytdlp.EmbeddedYtDlpUpdater(yt.ytDlpFile, yt::ensureInit, { true }, badSums)
+        val ok1 = r1.install(tag)
+        add("update with a wrong checksum is refused", !ok1 && com.greenaltambe.vela.ytdlp.readYtDlpVersion(yt.ytDlpFile) == before, "${r1.status.value}; version=${com.greenaltambe.vela.ytdlp.readYtDlpVersion(yt.ytDlpFile)}", System.currentTimeMillis() - t0)
+        val r2 = com.greenaltambe.vela.ytdlp.EmbeddedYtDlpUpdater(yt.ytDlpFile, yt::ensureInit, { false }, real)
+        val ok2 = r2.install(tag)
+        add("failed health check rolls back", !ok2 && com.greenaltambe.vela.ytdlp.readYtDlpVersion(yt.ytDlpFile) == before, "${r2.status.value}; version=${com.greenaltambe.vela.ytdlp.readYtDlpVersion(yt.ytDlpFile)}", System.currentTimeMillis() - t0)
+        val ex = com.greenaltambe.vela.extractor.ytdlp.YtDlpExtractor(com.greenaltambe.vela.ytdlp.EmbeddedProcessRunner(yt), timeout = kotlin.time.Duration.parse("120s"))
+        val r3 = com.greenaltambe.vela.ytdlp.EmbeddedYtDlpUpdater(yt.ytDlpFile, yt::ensureInit, { val r = ex.streams("dQw4w9WgXcQ"); r is com.greenaltambe.vela.extractor.ExtractorResult.Success && r.value.videoStreams.isNotEmpty() }, real)
+        val t1 = System.currentTimeMillis()
+        val ok3 = r3.install(tag)
+        val after = com.greenaltambe.vela.ytdlp.readYtDlpVersion(yt.ytDlpFile)
+        add("real update installs and works", ok3 && after == tag, "${r3.status.value}; version=$after; previous kept=${java.io.File(yt.ytDlpFile.parentFile, "yt-dlp.previous").isFile}; leftovers=${yt.ytDlpFile.parentFile?.list()?.toList()}", System.currentTimeMillis() - t1)
+    }
+
     private suspend fun strictControl() {
         File(filesDir, "strict-control.txt").writeText("x")
         val since = System.currentTimeMillis()

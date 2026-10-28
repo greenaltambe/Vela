@@ -50,6 +50,17 @@ class AuthenticatedYtDlpExtractorTest {
         assertEquals(0, dir.listFiles()!!.size)
     }
 
+    @Test fun fileIsDeletedWhenTheRunnerThrowsOrTimesOutOrIsCancelled() = runTest {
+        val acct = { AccountCookies("a1", "google:a1", jar()) }
+        for (boom in listOf<Throwable>(IllegalStateException("python crashed"), ProcessTimeoutException(kotlin.time.Duration.parse("60s")), ProcessStartException("cannot start"))) {
+            val r = runCatching { tier(acct, { _, _ -> }, dir, FakeRunner { throw boom }).streams("v") }
+            // A crash is either reported as a failure or rethrown; either way the cookie file must be gone.
+            assertEquals(0, dir.listFiles()!!.size, "cookie file left behind after ${boom::class.simpleName} ($r)")
+        }
+        val cancelled = runCatching { tier(acct, { _, _ -> }, dir, FakeRunner { throw kotlinx.coroutines.CancellationException("cancelled") }).streams("v") }
+        assertTrue(cancelled.exceptionOrNull() is kotlinx.coroutines.CancellationException); assertEquals(0, dir.listFiles()!!.size)
+    }
+
     @Test fun rotatedCookiesWrittenBackByYtDlpAreHandedToTheStore() = runTest {
         var updated: CookieJar? = null
         val runner = FakeRunner { cmd ->

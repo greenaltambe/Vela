@@ -112,4 +112,10 @@ interface ManagedUpdater {
     val status: StateFlow<String>
     /** Installs release [tag]; true when it is now the one in use. */
     suspend fun install(tag: String): Boolean
+    /** True where the copy that ships with the app is older than what the app needs (Android): the first start then installs [GeneratedVersions.YTDLP_VERIFIED] by itself. */
+    val installsVerifiedMinimum: Boolean get() = false
 }
+
+/** The tag to install on start, or null: only for an updater that asks for it, when the installed version is below the verified one and the user did not turn updates Off. */
+fun verifiedMinimumToInstall(installed: String?, updater: ManagedUpdater, mode: com.greenaltambe.vela.core.settings.YtDlpAutoUpdate, verified: String = GeneratedVersions.YTDLP_VERIFIED): String? =
+    verified.takeIf { updater.installsVerifiedMinimum && mode != com.greenaltambe.vela.core.settings.YtDlpAutoUpdate.OFF && installed != null && compareVersions(installed, verified) < 0 }

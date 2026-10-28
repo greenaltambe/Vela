@@ -15,6 +15,10 @@ dependencies {
     implementation(project(":extractor-newpipe"))
     implementation(project(":net-okhttp"))
     implementation(project(":innertube-auth"))
+    // yt-dlp tier on Android: Python 3.12 + yt-dlp + QuickJS (GPL-3.0 library, see docs/reports/22). No ffmpeg artifact: only metadata is read.
+    implementation(project(":extractor-ytdlp"))
+    implementation(libs.youtubedl.android)
+    implementation(libs.okhttp)
     // NewPipeExtractor uses java.time, which needs desugaring below API 26 (minSdk is 24).
     coreLibraryDesugaring(libs.desugar.jdkLibs)
 
@@ -46,8 +50,16 @@ android {
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
         versionName = "1.0"
+        // The bundled Python/QuickJS ship per ABI (about 15 MB each); arm64 covers every current phone.
+        ndk { abiFilters += "arm64-v8a" }
     }
     packaging {
+        // The library unpacks libpython.zip.so from nativeLibraryDir, so the libs must be extracted at install.
+        jniLibs {
+            useLegacyPackaging = true
+            // libpython.zip.so is a zip archive (the unpacked Python), not an ELF file: stripping it fails.
+            keepDebugSymbols += "**/*.zip.so"
+        }
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }

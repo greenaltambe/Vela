@@ -96,6 +96,8 @@ fun PlayerView(
     onBack: (() -> Unit)? = null,
     /** Ends the active account's pause (the caller owns the governor); null when there is nothing to end. PlayerView asks first, then retries. */
     tryAccountNow: (() -> Unit)? = null,
+    /** One line shown under the spinner while resolving takes long (see [resolveNote]); null shows nothing. */
+    resolvingNote: String? = null,
     /** Opens Settings (the age-restricted switch lives there); null hides the button. */
     openAgeSetting: (() -> Unit)? = null,
     /** The page knows the video is live even when the summary did not say so. */
@@ -157,6 +159,7 @@ fun PlayerView(
         )
 
         if (buffering && failed == null) CircularProgressIndicator(Modifier.align(Alignment.Center).size(40.dp).testTag("player.spinner"), color = onMedia)
+        if (resolving && failed == null && resolvingNote != null) Text(resolvingNote, Modifier.align(Alignment.BottomCenter).padding(Vela.gutter).testTag("player.resolvingNote"), color = onMedia, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, maxLines = 3, overflow = TextOverflow.Ellipsis)
 
         if (failed != null) {
             Column(Modifier.align(Alignment.Center).padding(Vela.md), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Vela.sm)) {

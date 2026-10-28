@@ -48,10 +48,12 @@ fun HealthScreen(services: AppServices, navigator: Navigator, modifier: Modifier
             services.releases.forEach { w ->
                 val st by w.check.status.collectAsState()
                 Text(st.describe(), color = if (st.newerAvailable) Vela.colors.error.toColor() else Color.Unspecified, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("health.release.${st.name}"))
-                if (st.name == "yt-dlp" && st.newerAvailable && services.managedYtDlp != null && services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.ytDlpAutoUpdate) != com.greenaltambe.vela.core.settings.YtDlpAutoUpdate.OFF) {
+                if (st.name == "yt-dlp" && services.managedYtDlp != null) {
                     val msg by services.managedYtDlp.status.collectAsState()
-                    PrimaryButton("Install yt-dlp ${st.latest} in the app's folder", { scope.launch { services.managedYtDlp.install(st.latest!!) } }, modifier = Modifier.testTag("health.installYtDlp"))
-                    if (msg.isNotEmpty()) Text(msg, style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("health.ytdlpStatus"))
+                    if (st.newerAvailable && services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.ytDlpAutoUpdate) != com.greenaltambe.vela.core.settings.YtDlpAutoUpdate.OFF)
+                        PrimaryButton("Install yt-dlp ${st.latest} in the app's folder", { scope.launch { services.managedYtDlp.install(st.latest!!) } }, modifier = Modifier.testTag("health.installYtDlp"))
+                    // Also when nothing is newer: the last update (or rollback) stays visible.
+                    if (msg.isNotEmpty()) Text("Last yt-dlp update: $msg", style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("health.ytdlpStatus"))
                 }
                 w.copyLines().forEach { Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("health.copy")) }
             }
@@ -91,7 +93,14 @@ fun HealthStartEffect(services: AppServices) {
     val health = services.health ?: return
     LaunchedEffect(Unit) {
         delay(15_000)
+        var verifiedMinimumDone = false
         while (true) {
+            // A fresh install ships a yt-dlp too old for age-restricted videos: install the verified release without anyone pressing a button (checksum, version check, canary and rollback as always).
+            services.managedYtDlp?.let { up ->
+                val installed = services.releases.firstOrNull { it.check.status.value.name == "yt-dlp" }?.check?.status?.value?.bundled
+                if (!verifiedMinimumDone) com.greenaltambe.vela.health.verifiedMinimumToInstall(installed, up, services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.ytDlpAutoUpdate))
+                    ?.let { tag -> verifiedMinimumDone = runCatching { up.install(tag) }.getOrDefault(false) }
+            }
             services.releases.forEach { runCatching { it.check.check() } } // at most once a day, see ReleaseCheck
             // AUTO: install a newer yt-dlp into the app's own folder; the updater rolls back if the yt-dlp source regresses.
             services.managedYtDlp?.let { up ->

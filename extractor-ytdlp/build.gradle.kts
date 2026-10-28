@@ -5,7 +5,7 @@ plugins {
     alias(libs.plugins.kotlinSerialization)
 }
 
-// Desktop only: yt-dlp is an external process and cannot run on Android, so :androidApp must never depend on this.
+// Pure JVM: the extractor and mapping are shared with :androidApp, which supplies its own ProcessRunner (embedded Python). SystemProcessRunner and HttpsDownloader are desktop-only and never loaded on Android.
 java {
     sourceCompatibility = JavaVersion.VERSION_11
     targetCompatibility = JavaVersion.VERSION_11

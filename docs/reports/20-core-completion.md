@@ -72,7 +72,7 @@ Done in this task: every P2 feature now exists in some form (search filters and 
 | P1 Downloads (queue, resume, audio-only, merge, service, folder) | done; on-device download + merge verified | reports 11, 17 |
 | P1 Offline library | done | report 11 |
 | P1 Shorts control | done | report 9/12 |
-| P1 Account fallback playback (section 4) | done on Linux; **Android: friendly failure only** (parked) | reports 13-15 |
+| P1 Account fallback playback (section 4) | done on Linux; **Android: done in task 22** (embedded yt-dlp, anonymous first, account last; verified on the phone) | reports 13-15, 22 |
 | P2 Feed filters | done | task 9/12 |
 | P2 Search filters, history | **done within source limits** (client-side), history done | this report |
 | P2 Auto-download rules | **done, unverified live** | this report |
@@ -82,7 +82,7 @@ Done in this task: every P2 feature now exists in some form (search filters and 
 | P2 Multi-account | done | report 19 |
 | P2 Settings search | done | tasks 9, 12 |
 
-The core is complete except: Android age-restricted playback (parked), watch-history reporting/sync, live-stream measurement on both players, and the unverified-on-device items listed in section 5.
+The core is complete except: (Android age-restricted playback was closed by task 22), watch-history reporting/sync, live-stream measurement on both players, and the unverified-on-device items listed in section 5.
 
 ## 7. Manual test checklist for the user
 

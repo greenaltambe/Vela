@@ -1,4 +1,8 @@
-# PARKED: age-restricted videos on Android (decision 2026-10-28: close Stage C of task 17, keep the friendly failure)
+# CLOSED by task 22 (2026-10-28): age-restricted videos now play on Android through yt-dlp embedded in the APK
+
+Evidence: `docs/reports/22-android-age-restricted.md`. Spike B (embedded yt-dlp: Python 3.12 + QuickJS, youtubedl-android library) worked on the OPPO CPH2707 / Android 16: HtVdAasjOgU plays anonymously (no account) through the normal chain, and with the throwaway account as the last tier. Spike A (WebView PO token) was NOT needed and was not built. The text below is the history of what was established before.
+
+# (was) PARKED: age-restricted videos on Android (decision 2026-10-28: close Stage C of task 17, keep the friendly failure)
 
 Status: Android shows an explanation + "Open in browser" for age-restricted videos. Linux plays them through yt-dlp (needs a JS runtime, newest yt-dlp). Nothing for this is half-built or registered.
 

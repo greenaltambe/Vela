@@ -231,11 +231,15 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
     }
     val uriHandler = LocalUriHandler.current
 
+    val attemptLog by services.log.attempts.collectAsState()
+    val resolveStart = androidx.compose.runtime.remember(video.id) { kotlin.time.Clock.System.now() }
+    val resolvingNote = resolveNote(attemptLog, video.id, resolveStart, services.accounts.active.value.isSignedIn, services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.accountFallbackMode) != com.greenaltambe.vela.core.settings.AccountFallbackMode.NEVER)
+
     val playerBox: @Composable () -> Unit = {
         Box(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)).testTag("video.player")) {
             if (host != null) PlayerView(
                 host, video, chapters, markers, Modifier.fillMaxWidth(), onBack = { navigator.back() },
-                isLive = info?.isLive == true,
+                isLive = info?.isLive == true, resolvingNote = resolvingNote,
                 openAgeSetting = { navigator.selectTab(com.greenaltambe.vela.ui.nav.Route.Settings) },
                 tryAccountNow = services.accounts.active.value.takeIf { it.isSignedIn }?.let { a -> { services.governors.forAccount(a.id).tryNow() } }, showChapterTitle = size != WindowSizeClass.COMPACT,
                 overlay = { SponsorBlockOverlay(prompt, notice, onAccept = modules.sponsorBlock::acceptPrompt, onUndo = { n -> modules.sponsorBlock.undo(n); notice = null }) },
