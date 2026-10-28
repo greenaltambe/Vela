@@ -72,4 +72,14 @@ class AltClientTest {
         assertEquals(listOf("X"), ClientProfile.load(f).map { it.name }); f.delete()
         assertEquals(bundled.map { it.name }, ClientProfile.load(java.io.File("/nonexistent")).map { it.name })
     }
+
+    @Test fun contentWarningChecksFollowTheControversialSetting() = runTest {
+        val bodies = mutableListOf<String>()
+        val t = FakeTransport { _, _, _, body -> bodies += body!!; player("OK") }
+        AltClientExtractor(t, { profiles("P") }, contentChecks = { false }).streams("abc")
+        AltClientExtractor(t, { profiles("P") }, contentChecks = { true }).streams("abc")
+        assertTrue("\"contentCheckOk\":false" in bodies[0] && "\"racyCheckOk\":false" in bodies[0])
+        assertTrue("\"contentCheckOk\":true" in bodies[1] && "\"racyCheckOk\":true" in bodies[1])
+    }
 }
+

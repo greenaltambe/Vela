@@ -110,4 +110,18 @@ class ExtractorHealthTest {
         assertEquals("HTTP 403", r.detail); assertEquals(0L, r.run)
         assertEquals(r.copy(run = 5), HealthCodec.decode(HealthCodec.encode(listOf(r.copy(run = 5)))).single())
     }
+
+    @Test fun theOsAlertFiresOncePerFailureStreakAndAgainAfterARecovery() = runTest {
+        val sent = mutableListOf<HealthAlert>()
+        val flaky = object : Extractor by good() { var broken = true
+            override suspend fun streams(videoId: String) = if (broken) ExtractorResult.Failure(ExtractorError.Blocked("403")) else ExtractorResult.Success(StreamSet(listOf(VideoStream("https://rr.example/v", "video/mp4", "avc1", 1, 640, 360, 30)), emptyList()))
+        }
+        val h = ExtractorHealth(listOf(ExtractorTier(TierId.ANONYMOUS, flaky)), { _, _ -> 206 }, clock = clock, onAlert = { sent += it })
+        h.run(); assertEquals(0, sent.size, "one bad run is not enough")
+        h.run(); assertEquals(1, sent.size)
+        h.run(); h.run(); assertEquals(1, sent.size, "the streak going on does not notify again")
+        flaky.broken = false; h.run()
+        flaky.broken = true; h.run(); h.run(); assertEquals(2, sent.size, "a new streak notifies again")
+    }
 }
+

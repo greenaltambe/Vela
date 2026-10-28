@@ -154,6 +154,8 @@ class PlaybackSession(
     private var speedOverride: Float? = null
     private var reResolves = 0
     private var networkRecoveries = 0
+    /** The last position/duration the player reported while it was really playing, buffering or paused. */
+    private var lastGood = PlayerState()
     private var slowFailovers = 0
     private var stallJob: Job? = null
     private val _recoveryNote = MutableStateFlow<String?>(null)
@@ -186,6 +188,7 @@ class PlaybackSession(
         localPlan = null
         maxHeightOverride = null
         speedOverride = null
+        lastGood = PlayerState()
         reResolves = 0; networkRecoveries = 0; slowFailovers = 0
         recordId = null
         watchedMs = 0
@@ -395,6 +398,7 @@ class PlaybackSession(
         forAddons { it.onPlayerState(st) }
         val previous = lastStatus
         lastStatus = st.status
+        if (st.status != PlaybackStatus.IDLE && st.positionMs > 0) lastGood = st
         if (st.status == PlaybackStatus.BUFFERING && settled && localPlan == null) {
             if (stallJob?.isActive != true) stallJob = sessionScope.launch { delay(stallAfter); onStall() }
         } else if (st.status != PlaybackStatus.BUFFERING) { stallJob?.cancel(); stallJob = null }
@@ -464,7 +468,9 @@ class PlaybackSession(
         val id = videoId ?: return
         if (!settled) return
         accrue()
-        val st = controller.state.value
+        // A player that was stopped or reset (IDLE) reports position 0; that must never overwrite the position the viewer had reached.
+        val raw = controller.state.value
+        val st = if (raw.status == PlaybackStatus.IDLE && raw.positionMs == 0L && lastGood.positionMs > 0) raw.copy(positionMs = lastGood.positionMs, durationMs = lastGood.durationMs) else raw
         if (recordId == null && watchedMs == 0L && st.positionMs == 0L) return
         val now = clock.now()
         val existing = recordId

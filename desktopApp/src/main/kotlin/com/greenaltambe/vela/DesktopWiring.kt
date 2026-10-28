@@ -71,6 +71,7 @@ fun buildDesktopWiring(
     secrets: SecretStore,
     runner: ProcessRunner,
     log: DiagnosticsLog = DiagnosticsLog(),
+    logSink: com.greenaltambe.vela.extractor.chain.LogLineSink? = null,
     locator: BinaryLocator = BinaryLocator(),
     clock: Clock = Clock.System,
     /** Signed remote configuration (profiles, kill switches, canary videos); null = bundled data only. */
@@ -118,7 +119,7 @@ fun buildDesktopWiring(
     }
     note("credential store", TierId.AUTHENTICATED, secrets.description)
     val accounts = AccountManager(database, CredentialStore(secrets))
-    val audit = DbAuditLog(database)
+    val audit = DbAuditLog(database, sink = logSink)
     val governors = GovernorRegistry(clock, { governorLimits(settings) }, DbBreakerStore(database), audit)
     val signedIn = { accounts.active.value.takeIf { it.isSignedIn } }
     val ytDlpLabel = chosen?.let { "yt-dlp ${it.version} (${it.binary.path}; client picked by yt-dlp itself, see yt-dlp -v)" }
@@ -134,10 +135,10 @@ fun buildDesktopWiring(
     val tiers = (listOfNotNull(
         ExtractorTier(TierId.ANONYMOUS, PacedExtractor(NewPipeExtractor()), "NewPipeExtractor ${com.greenaltambe.vela.health.NewPipeVersion.VERSION}"),
         accountTier?.let { ExtractorTier(TierId.AUTHENTICATED, it, ytDlpLabel) },
-        ExtractorTier(TierId.ALT_CLIENT, AltClientExtractor(profiles = { remote?.profiles(com.greenaltambe.vela.innertube.ClientProfile.load()) ?: com.greenaltambe.vela.innertube.ClientProfile.load() }, onProfile = { line -> note("alt client", TierId.ALT_CLIENT, line) }), "innertube-profiles.json"),
+        ExtractorTier(TierId.ALT_CLIENT, AltClientExtractor(profiles = { remote?.profiles(com.greenaltambe.vela.innertube.ClientProfile.load()) ?: com.greenaltambe.vela.innertube.ClientProfile.load() }, onProfile = { line -> note("alt client", TierId.ALT_CLIENT, line) }, contentChecks = { settings.resolve(Settings.allowControversial) }), "innertube-profiles.json"),
         ytDlp?.let { ExtractorTier(TierId.YT_DLP, PacedExtractor(it.extractor), ytDlpLabel) },
     )).withFaults(faults)
-    val health = ExtractorHealth(tiers, OkHttpStreamProbe(), DbHealthStore(database), clock, canaries = { ExtractorHealth.DefaultCanaries + remote?.canaryVideoIds().orEmpty().map { com.greenaltambe.vela.health.Canary(it, "remote") } })
+    val health = ExtractorHealth(tiers, OkHttpStreamProbe(), DbHealthStore(database), clock, onAlert = { com.greenaltambe.vela.downloads.NotifySendNotifier().healthAlert(it.message()) }, canaries = { ExtractorHealth.DefaultCanaries + remote?.canaryVideoIds().orEmpty().map { com.greenaltambe.vela.health.Canary(it, "remote") } })
     val hint = { id: TierId ->
         if (id != TierId.YT_DLP) null
         else if (!ytDlpFound.found) "yt-dlp is not installed (${ytDlpFound.source}); install it to play age-restricted videos without an account"
@@ -153,10 +154,10 @@ fun buildDesktopWiring(
     } }
     val paused = { signedIn()?.let { governors.forAccount(it.id).cooldownUntil() }?.let { "account cooling down until ${it.toString().substring(11, 16)} UTC" } }
     val order = { TierOrder.parse(settings.resolve(Settings.accountTierOrder)) }
-    val chain = FallbackChain(tiers, accountMode = { settings.resolve(Settings.accountFallbackMode) }, log = log, clock = clock, signedInAccount = { signedIn()?.label },
+    val chain = FallbackChain(tiers, accountMode = { settings.resolve(Settings.accountFallbackMode) }, log = log, clock = clock, allowAgeRestricted = { settings.resolve(Settings.allowAgeRestricted) }, signedInAccount = { signedIn()?.label },
         accountMayServe = policy, tierOrder = order, accountPaused = paused, tierHint = hint)
     // Downloads use the anonymous tiers; the account only when the user allowed it and the anonymous tiers failed.
-    val downloadChain = FallbackChain(tiers, accountMode = { downloadAccountMode(settings.resolve(Settings.accountDownloadsMayUse)) }, log = log, clock = clock,
+    val downloadChain = FallbackChain(tiers, accountMode = { downloadAccountMode(settings.resolve(Settings.accountDownloadsMayUse)) }, log = log, clock = clock, allowAgeRestricted = { settings.resolve(Settings.allowAgeRestricted) },
         signedInAccount = { signedIn()?.label }, accountMayServe = policy, tierOrder = order, accountPaused = paused, tierHint = hint)
     val copies = probed.map { com.greenaltambe.vela.health.ToolCopy(it.binary.path.orEmpty(), it.version, it === chosen, ytDlpUpdateHint(it.binary.path.orEmpty())) }
     val updater = if (managedDir != null && ytDlp != null) {

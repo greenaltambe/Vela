@@ -29,9 +29,20 @@ data class TierAttempt(
     val at: Instant,
 )
 
-class DiagnosticsLog(private val capacity: Int = 200) {
+/** Where log lines go besides memory (a rotating file). Lines arrive already redacted. */
+fun interface LogLineSink { fun write(line: String) }
+
+class DiagnosticsLog(private val capacity: Int = 200, private val sink: LogLineSink? = null) {
     private val _attempts = MutableStateFlow<List<TierAttempt>>(emptyList())
     val attempts: StateFlow<List<TierAttempt>> = _attempts
 
-    fun record(attempt: TierAttempt) = _attempts.update { (it + attempt).takeLast(capacity) }
+    fun record(attempt: TierAttempt) {
+        _attempts.update { (it + attempt).takeLast(capacity) }
+        sink?.let { runCatching { it.write(attempt.logLine()) } }
+    }
 }
+
+/** One redacted line: when, tier, outcome, what was asked, why (never headers, bodies or cookies; the redactor also strips anything that looks like a credential). */
+fun TierAttempt.logLine(): String = com.greenaltambe.vela.auth.Redaction.redact(
+    "$at tier=${tier.name} ${outcome.name} $subject${reason?.let { " reason=${it.name}" } ?: ""} ${duration.inWholeMilliseconds}ms${detail?.let { " | ${it.replace('\n', ' ')}" } ?: ""}",
+)

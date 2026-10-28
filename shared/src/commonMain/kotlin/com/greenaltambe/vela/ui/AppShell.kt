@@ -238,7 +238,7 @@ private fun Destination(services: AppServices, navigator: Navigator, route: Rout
         is Route.Playlist -> PlaylistScreen(services, navigator, route.id, modifier)
         Route.History -> HistoryScreen(services, navigator, modifier)
         Route.ManageSubscriptions -> SubscriptionsScreen(services, navigator, modifier)
-        Route.Diagnostics -> DiagnosticsScreen(services.extractor, services.log, services.modules.log, services.downloads, modifier, faults = services.faults)
+        Route.Diagnostics -> DiagnosticsScreen(services.extractor, services.log, services.modules.log, services.downloads, modifier, faults = services.faults, exportLog = services.exportLog)
         Route.Downloads -> DownloadsScreen(services, navigator, modifier)
         Route.Accounts -> AccountsScreen(services, navigator, modifier)
         Route.AccountActivity -> AccountActivityScreen(services, navigator, modifier)

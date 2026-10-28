@@ -41,6 +41,8 @@ class SelfTestActivity : Activity() {
             if (which == "all" || which == "play") play(rt, video)
             if (which == "all" || which == "download") download(rt)
             if (which == "handoff") handoff(rt, video)
+            if (which == "all" || which == "strict") strictControl()
+            if (which == "alert") alert()
             if (which == "focus") focus(rt, video)
             val failed = (0 until results.length()).count { !results.getJSONObject(it).getBoolean("ok") }
             File(filesDir, "selftest.json").writeText(JSONObject().put("device", android.os.Build.MODEL).put("sdk", android.os.Build.VERSION.SDK_INT)
@@ -54,7 +56,9 @@ class SelfTestActivity : Activity() {
         val t0 = System.currentTimeMillis()
         rt.health.run()
         add("canary run (main thread)", true, "finished", System.currentTimeMillis() - t0)
-        val latest = rt.health.results.value.filter { it.at >= rt.health.results.value.maxOf { r -> r.at } - kotlin.time.Duration.parse("2m") }
+        // The newest run, by its run id (never "the last two minutes", which could mix two runs).
+        val newest = rt.health.results.value.maxOf { it.run }
+        val latest = rt.health.results.value.filter { it.run == newest }
         for (tier in TierId.entries) {
             val rs = latest.filter { it.tier == tier }
             if (rs.isEmpty()) continue
@@ -126,6 +130,23 @@ class SelfTestActivity : Activity() {
         am.requestAudioFocus(perm); delay(3_000); val d3 = status(); am.abandonAudioFocusRequest(perm); delay(3_000)
         add("permanent focus loss pauses and stays paused", d3 == PlaybackStatus.PAUSED && status() == PlaybackStatus.PAUSED, "during=$d3 after release=${status()}")
         rt.session.stop()
+    }
+
+    /** Posts the health notification with a made-up alert; the host then checks `dumpsys notification` for it. */
+    private fun alert() {
+        com.greenaltambe.vela.playback.HealthNotifier.show(this, com.greenaltambe.vela.health.HealthAlert(listOf(TierId.ANONYMOUS, TierId.ALT_CLIENT), null, 2))
+        add("health notification posted (made-up alert)", true, "check dumpsys notification for channel health_alerts")
+    }
+
+    /** Positive control for the StrictMode check: a deliberate main-thread disk read must show up in this process's logcat. */
+    private suspend fun strictControl() {
+        File(filesDir, "strict-control.txt").writeText("x")
+        val since = System.currentTimeMillis()
+        File(filesDir, "strict-control.txt").readText() // deliberate main-thread disk read (and write above)
+        delay(500)
+        val log = Runtime.getRuntime().exec(arrayOf("logcat", "-d", "-s", "StrictMode:*")).inputStream.bufferedReader().readText()
+        val hit = log.lineSequence().any { "StrictMode policy violation" in it && (it.contains("DiskRead") || it.contains("DiskWrite")) }
+        add("StrictMode positive control (deliberate main-thread disk read is logged)", hit, if (hit) "violation line found in logcat" else "no violation line; the log check would miss real violations", System.currentTimeMillis() - since)
     }
 
     /** A 19 s video at <=144p: video + audio download and the merge into one file, then removal. */

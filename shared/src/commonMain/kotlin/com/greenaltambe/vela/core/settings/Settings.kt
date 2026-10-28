@@ -431,6 +431,20 @@ object Settings {
         keywords = emptyList(), codec = SettingCodecs.string, section = SettingSection.ADVANCED,
     )
 
+    val allowAgeRestricted = Setting(
+        key = "playback.allowAgeRestricted", default = false, scope = SettingScope.GLOBAL,
+        label = "Allow age-restricted videos (off by default; when on, Linux plays them through yt-dlp and Android shows a notice with Open in browser)",
+        keywords = listOf("age", "restricted", "adult", "18", "mature", "sign in"),
+        codec = SettingCodecs.boolean, section = SettingSection.PLAYBACK,
+    )
+
+    val allowControversial = Setting(
+        key = "playback.allowControversial", default = false, scope = SettingScope.GLOBAL,
+        label = "Allow videos behind a content warning (off by default; the alternate client then answers YouTube's \"viewer discretion\" check)",
+        keywords = listOf("controversial", "content warning", "viewer discretion", "sensitive", "mature"),
+        codec = SettingCodecs.boolean, section = SettingSection.PLAYBACK,
+    )
+
     val slowStreamFailover = Setting(
         key = "playback.slowStreamFailover", default = true, scope = SettingScope.GLOBAL,
         label = "Switch source when a stream keeps buffering",
@@ -500,7 +514,7 @@ object Settings {
 
     val all: List<Setting<*>> = listOf(
         look, performanceMode, localOnlyHistory, hideWatched, minLengthSeconds, blockKeywords, allowKeywords, keywordsAreRegex,
-        slowStreamFailover, accountFallbackMode, accountReportActivity, accountUseForChannels, accountUseForDetails, accountDownloadsMayUse, accountKillSwitch, accountTierOrder, remoteConfigUrl, ytDlpAutoUpdate,
+        allowAgeRestricted, allowControversial, slowStreamFailover, accountFallbackMode, accountReportActivity, accountUseForChannels, accountUseForDetails, accountDownloadsMayUse, accountKillSwitch, accountTierOrder, remoteConfigUrl, ytDlpAutoUpdate,
         accountPlaybackPerHour, accountBrowsePerMinute, accountWritesPerHour, shortsMode, defaultPlaybackSpeed, maxQualityUnmetered, maxQualityMetered, preferredCodec, audioOnly, ytDlpPath,
         sponsorBlockEnabled, returnYouTubeDislikeEnabled, deArrowEnabled,
         sponsorBlockMinSegmentSeconds, sponsorBlockNotifications, sponsorBlockServer, sponsorBlockUserId, rydInFeed, rydServer,

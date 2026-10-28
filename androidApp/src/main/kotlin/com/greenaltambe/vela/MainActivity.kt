@@ -74,6 +74,7 @@ class MainActivity : ComponentActivity() {
             health = runtime.health,
             governors = runtime.governors,
             faults = runtime.faults,
+            exportLog = { val out = java.io.File(getExternalFilesDir(null) ?: filesDir, "vela-log-${System.currentTimeMillis() / 1000}.txt"); out.writeText(runtime.logFile.readAll()); out.path },
             releases = listOf(com.greenaltambe.vela.health.ReleaseWatch(com.greenaltambe.vela.health.ReleaseCheck(
                 "NewPipeExtractor", com.greenaltambe.vela.health.NewPipeVersion.VERSION, "TeamNewPipe/NewPipeExtractor",
                 com.greenaltambe.vela.core.http.ApiClient(com.greenaltambe.vela.net.OkHttpTransport(), com.greenaltambe.vela.core.http.InMemoryApiCache()),
@@ -104,9 +105,26 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * If the last process died while playing (the OS or a battery manager killed background playback), say so once and offer the
+     * system's battery-optimisation screen. Skipped when the app is already exempt; no permission is needed to open that screen.
+     */
+    private fun explainBatteryOptimisationOnce() {
+        if (!runtime.previousProcessDiedWhilePlaying || runtime.batteryHintAlreadyShown) return
+        val pm = getSystemService(android.os.PowerManager::class.java)
+        if (pm?.isIgnoringBatteryOptimizations(packageName) == true) return
+        runtime.markBatteryHintShown()
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Playback was stopped by the system")
+            .setMessage("Android ended Vela while it was playing. Letting Vela ignore battery optimisation usually keeps background playback alive. Some phones also have their own battery manager with an 'auto-start' or 'background activity' switch for apps.")
+            .setPositiveButton("Open battery settings") { _, _ -> runCatching { startActivity(Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) } }
+            .setNegativeButton("Not now", null).show()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        explainBatteryOptimisationOnce()
         ContextCompat.registerReceiver(this, pipToggle, IntentFilter(ACTION_PIP_TOGGLE), ContextCompat.RECEIVER_NOT_EXPORTED)
 
         // Keeps the PiP window's play/pause action in step, and (API 31+) lets the system enter PiP on its own when the user leaves.

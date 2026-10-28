@@ -9,6 +9,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 class JvmDatabaseFactoryTest {
     private val dir = Files.createTempDirectory("vela-db-test").toFile()
@@ -196,6 +197,25 @@ class JvmDatabaseFactoryTest {
         val driver = JvmDatabaseDriverFactory(file).create()
         driver.execute(null, "PRAGMA user_version = ${VelaDatabase.Schema.version + 1}", 0)
         driver.close()
-        assertFailsWith<IllegalStateException> { JvmDatabaseDriverFactory(file).create() }
+        assertFailsWith<DatabaseStartupException> { JvmDatabaseDriverFactory(file).create() }
+    }
+
+    @Test
+    fun aMigrationKeepsABackupOfTheOldFileAndAFailedOneNamesIt() {
+        val v1 = JvmDatabaseDriverFactory(file).create()
+        v1.dropVersion3Tables(); v1.execute(null, "DROP TABLE Setting", 0); v1.execute(null, "DROP INDEX WatchHistory_account_video_time", 0)
+        v1.execute(null, "PRAGMA user_version = 1", 0); v1.execute(null, "INSERT INTO Subscription VALUES ('a1','c','Chan',NULL,1)", 0); v1.close()
+        JvmDatabaseDriverFactory(file).create().close()
+        val backup = java.io.File("$file.bak-v1")
+        assertTrue(backup.isFile && backup.length() > 0, "a copy of the version-1 file exists after the migration")
+    }
+
+    @Test
+    fun aFileThatIsNotADatabaseIsReportedAndLeftAlone() {
+        File(file).writeText("this is not an sqlite file at all, just text".repeat(50))
+        val before = File(file).readText()
+        val e = assertFailsWith<DatabaseStartupException> { JvmDatabaseDriverFactory(file).create() }
+        assertTrue("Nothing was changed or deleted" in e.message!!)
+        assertEquals(before, File(file).readText())
     }
 }

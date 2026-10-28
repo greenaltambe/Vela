@@ -791,4 +791,20 @@ class PlaybackSessionTest {
         assertEquals(1, controller.loads.size)
     }
 
+
+    // ---- history position ----
+
+    @Test fun aPlayerThatResetsToIdleNeverOverwritesTheSavedPositionWithZero() = runTest {
+        val s = session()
+        s.start("vid", hint); runCurrent()
+        controller.playing(30_000); runCurrent()
+        clock.advance(20_000)
+        controller.state.value = PlayerState() // stopped/reset by the system: IDLE at 0
+        runCurrent()
+        s.stop(); runCurrent()
+        val row = history.rows.last()
+        assertEquals(30_000, row.positionMs, "the last real position is kept")
+        assertTrue(row.watchedMs > 0)
+    }
 }
+

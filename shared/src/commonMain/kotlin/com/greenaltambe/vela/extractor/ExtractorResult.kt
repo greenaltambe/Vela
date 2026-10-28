@@ -18,6 +18,8 @@ sealed class ExtractorError(val reason: FailureReason, val message: String, val 
     /** [url] is the challenge page when the source gave one (NewPipe does), so the app can open it. */
     class Captcha(message: String = "Captcha required", val url: String? = null, cause: Throwable? = null) : ExtractorError(FailureReason.CAPTCHA, message, cause)
     class SignInRequired(message: String = "Sign in required", cause: Throwable? = null) : ExtractorError(FailureReason.SIGN_IN_REQUIRED, message, cause)
+    /** The viewer's own setting forbids this video (age-restricted); no tier past the one that noticed was tried. */
+    class AgeRestrictedDisabled : ExtractorError(FailureReason.UNPLAYABLE, MESSAGE) { companion object { const val MESSAGE = "Age-restricted videos are disabled in settings" } }
     class Unplayable(message: String = "Unplayable", cause: Throwable? = null) : ExtractorError(FailureReason.UNPLAYABLE, message, cause)
     class RateLimited(message: String = "Rate limited", cause: Throwable? = null) : ExtractorError(FailureReason.RATE_LIMITED, message, cause)
     class Network(message: String = "Network error", cause: Throwable? = null) : ExtractorError(FailureReason.NETWORK, message, cause)

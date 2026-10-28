@@ -31,11 +31,12 @@ class DbBreakerStore(db: VelaDatabase) : BreakerStore {
 }
 
 /** The audit log in the database, capped, with the newest first for Diagnostics. */
-class DbAuditLog(private val db: VelaDatabase, private val cap: Long = 1000) : AuditSink {
+class DbAuditLog(private val db: VelaDatabase, private val cap: Long = 1000, private val sink: com.greenaltambe.vela.extractor.chain.LogLineSink? = null) : AuditSink {
     private val q get() = db.accountAuditQueries
     override fun record(entry: AuditEntry) {
         q.insert(entry.accountId, entry.at.toEpochMilliseconds(), entry.kind, entry.host, entry.result, entry.decision)
         q.trim(cap)
+        sink?.let { runCatching { it.write(Redaction.redact("${entry.at} governor account=${entry.accountId} ${entry.kind} host=${entry.host} result=${entry.result} decision=${entry.decision}")) } }
     }
     fun recent(accountId: String, limit: Long = 200): List<AuditEntry> =
         q.recent(accountId, limit).executeAsList().map { AuditEntry(it.accountId, Instant.fromEpochMilliseconds(it.at), it.kind, it.host, it.result, it.decision) }

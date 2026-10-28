@@ -5,6 +5,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.net.URI
@@ -20,12 +22,17 @@ import kotlin.time.Duration.Companion.seconds
 fun interface Downloader { suspend fun download(url: String, target: File) }
 
 /** HTTPS only, follows GitHub's redirect to the CDN. */
-class HttpsDownloader : Downloader {
+class HttpsDownloader(private val totalTimeout: kotlin.time.Duration = kotlin.time.Duration.parse("5m")) : Downloader {
     private val client = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).connectTimeout(java.time.Duration.ofSeconds(20)).build()
-    override suspend fun download(url: String, target: File) = withContext(Dispatchers.IO) {
+    /** Connect 20 s, headers 60 s, and the whole transfer at most [totalTimeout] (the release asset is about 40 MB): a stalled download fails instead of hanging; cancelling the caller interrupts it. */
+    override suspend fun download(url: String, target: File) {
         require(url.startsWith("https://")) { "refusing non-https url" }
-        val r = client.send(HttpRequest.newBuilder(URI(url)).header("User-Agent", "Vela/1.0 (yt-dlp updater)").build(), HttpResponse.BodyHandlers.ofFile(target.toPath()))
-        check(r.statusCode() == 200) { "HTTP ${r.statusCode()} for $url" }
+        withTimeout(totalTimeout) {
+            runInterruptible(Dispatchers.IO) {
+                val r = client.send(HttpRequest.newBuilder(URI(url)).timeout(java.time.Duration.ofSeconds(60)).header("User-Agent", "Vela/1.0 (yt-dlp updater)").build(), HttpResponse.BodyHandlers.ofFile(target.toPath()))
+                check(r.statusCode() == 200) { "HTTP ${r.statusCode()} for $url" }
+            }
+        }
     }
 }
 

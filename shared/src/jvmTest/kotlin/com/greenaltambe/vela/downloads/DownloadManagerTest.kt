@@ -135,6 +135,36 @@ class DownloadManagerTest {
         assertEquals(Container.MP4, merger.jobs.last().container)
     }
 
+    @Test fun aMergerThatRejectsVp9WithAacGetsVp9WithOpusInWebmBeforeH264() = test {
+        val picky = FakeMerger(rejects = { v, a -> v.startsWith("vp") && a.startsWith("mp4a") }).also { it.storage = storage }
+        extractor.withOpus = true
+        val m = started(manager(managerScope(), mergerOverride = picky))
+        m.enqueue(DownloadRequest(summary("a"), maxHeight = 720)); advanceUntilIdle()
+        assertEquals(Container.WEBM, picky.jobs.single().container)
+        val streams = repo.plan(repo.find("a", DownloadKind.VIDEO)!!).streams
+        assertTrue(streams.first { it.role == "video" }.codec.startsWith("vp")); assertTrue(streams.first { it.role == "audio" }.codec == "opus")
+    }
+
+    @Test fun withoutAnOpusTrackARejectingMergerFallsBackToH264InMp4() = test {
+        val picky = FakeMerger(rejects = { v, a -> v.startsWith("vp") && a.startsWith("mp4a") }).also { it.storage = storage }
+        val m = started(manager(managerScope(), mergerOverride = picky))
+        m.enqueue(DownloadRequest(summary("a"), preferAvc = false)); advanceUntilIdle()
+        assertEquals(Container.MP4, picky.jobs.single().container)
+        assertTrue(repo.plan(repo.find("a", DownloadKind.VIDEO)!!).streams.first { it.role == "video" }.codec.startsWith("avc"))
+    }
+
+    @Test fun lowDiskFailsClearlyBeforeAnythingIsDownloadedAndRetryWorksAfterSpaceIsFreed() = test {
+        storage.free = 1_000_000L // 1 MB free; the margin alone is 50 MB
+        val m = started()
+        val id = m.enqueue(DownloadRequest(summary("a"), maxHeight = 720)); advanceUntilIdle()
+        assertEquals(DownloadState.FAILED, m.state(id))
+        val reason = m.items.value.first().error
+        assertTrue(reason!!.contains("Not enough free space"), reason)
+        assertTrue(storage.work.isEmpty(), "nothing was written")
+        storage.free = null; m.retry(id); advanceUntilIdle()
+        assertEquals(DownloadState.COMPLETED, m.state(id))
+    }
+
     @Test fun defaultsComeFromSettings() = test {
         settings.set(Settings.downloadsPreferAvc, true)
         val m = started()

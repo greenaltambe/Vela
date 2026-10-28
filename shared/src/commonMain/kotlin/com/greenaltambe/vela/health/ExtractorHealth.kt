@@ -81,6 +81,8 @@ class ExtractorHealth(
     /** Read on every run, so a remote config can change them without a new build. */
     private val canaries: () -> List<Canary> = { DefaultCanaries },
     private val keep: Int = 400,
+    /** Called once when a failure streak reaches [ALERT_AFTER] (not again while the streak goes on, and again only after a working run): the OS notification. */
+    private val onAlert: (HealthAlert) -> Unit = {},
 ) {
     private val _results = MutableStateFlow(store.load())
     val results: StateFlow<List<CanaryResult>> = _results
@@ -137,9 +139,11 @@ class ExtractorHealth(
             store.save(merged); _results.update { merged }
             // A run is a full failure when no tier produced a single working stream resolve.
             val anyWorked = fresh.any { it.ok && it.check.startsWith("streams") }
+            val before = streak
             streak = if (fresh.isEmpty() || anyWorked) 0 else streak + 1
             store.saveStreak(streak)
             _alert.value = currentAlert()
+            if (before < ALERT_AFTER && streak >= ALERT_AFTER) _alert.value?.let { runCatching { onAlert(it) } }
         } finally { _running.value = false }
     }
 

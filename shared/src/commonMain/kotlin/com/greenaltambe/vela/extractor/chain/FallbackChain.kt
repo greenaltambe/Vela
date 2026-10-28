@@ -38,6 +38,8 @@ class FallbackChain(
     private val accountMayServe: (AccountOp) -> Boolean = { true },
     /** Environment facts worth showing when a tier failed or is missing ("yt-dlp 2026.08.19 is too old", "no JavaScript runtime"). */
     private val tierHint: (TierId) -> String? = { null },
+    /** The "allow age-restricted videos" setting. When off, the first tier that reports an age restriction ends the request: the account and yt-dlp are never asked. */
+    private val allowAgeRestricted: () -> Boolean = { true },
 ) : Extractor {
     private val memory = TierMemory(clock, memoryTtl)
     /** Anonymous tiers that answered SIGN_IN_REQUIRED recently: when one does so again the chain goes straight to the account. */
@@ -136,6 +138,10 @@ class FallbackChain(
                     memory.forgetWorked(tier.id)
                     if (result.error.reason == FailureReason.SIGN_IN_REQUIRED && tier.id != TierId.AUTHENTICATED) { signInSeen = true; signInFailures[tier.id] = clock.now() }
                     failures += tier.id to result.error
+                    if (AgeText.matches(result.error.message) && !allowAgeRestricted()) {
+                        record(subject, tier.id, AttemptOutcome.NOTE, null, "age-restricted and disabled in settings; no other source tried", Duration.ZERO)
+                        return ExtractorResult.Failure(ExtractorError.AgeRestrictedDisabled())
+                    }
                 }
             }
         }

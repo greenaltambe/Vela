@@ -276,6 +276,15 @@ class DownloadManager(
         storage().let { st -> synchronized(lock) { live[row.id]?.base = plan.streams.sumOf { st.size(it.fileName) ?: st.size(it.partName) ?: 0L } } }
         repo.savePlan(row.id, plan, row.qualityLabel.let { labelFor(plan, it) }, plan.streams.sumOf { it.expectedLength ?: 0L }.takeIf { plan.streams.all { s -> s.expectedLength != null } })
 
+        // Low disk: say so before downloading gigabytes that cannot be kept (the merge needs room for the output as well).
+        plan.streams.takeIf { list -> list.all { it.expectedLength != null } }?.let { list ->
+            val total = list.sumOf { it.expectedLength!! }
+            val have = storage().let { st -> list.sumOf { st.size(it.fileName) ?: st.size(it.partName) ?: 0L } }
+            val needed = (total - have).coerceAtLeast(0) + (if (list.size == 2) total else 0) + LOW_DISK_MARGIN
+            val free = storage().freeBytes()
+            if (free != null && free < needed) throw DownloadFailure("Not enough free space: about ${needed / 1_000_000} MB needed, ${free / 1_000_000} MB free. Free some space and retry.")
+        }
+
         var reResolves = 0
         val totals = HashMap<String, Long?>()
         plan.streams.forEach { totals[it.fileName] = it.expectedLength }
@@ -371,7 +380,13 @@ class DownloadManager(
         val base = "${row.videoId}.${row.kind.name.lowercase()}"
         var plan0 = StreamSelector.plan(set, prefs, constraints)
         (plan0 as? PlaybackPlan.Separate)?.let { sep ->
-            if (!merger.canMerge(sep.video.codec, sep.audio.codec)) plan0 = StreamSelector.plan(set, prefs.copy(preferredCodec = PreferredCodec.AVC), constraints)
+            if (!merger.canMerge(sep.video.codec, sep.audio.codec)) {
+                // Ask the merger, never assume: first the same video with an Opus track (VP9 + Opus fits WebM where VP9 + AAC fits nothing),
+                // and only then H.264 + AAC in MP4.
+                val opus = set.audioStreams.firstOrNull { it.codec.contains("opus", ignoreCase = true) }
+                plan0 = if (opus != null && merger.canMerge(sep.video.codec, opus.codec)) sep.copy(audio = opus)
+                else StreamSelector.plan(set, prefs.copy(preferredCodec = PreferredCodec.AVC), constraints)
+            }
         }
         val chosen = when (val p = plan0) {
             is PlaybackPlan.Separate -> listOf(
@@ -458,3 +473,6 @@ class DownloadManager(
         _active.value = rows.count { it.state == DownloadState.QUEUED || it.state == DownloadState.DOWNLOADING || it.state == DownloadState.MERGING }
     }
 }
+
+/** Kept free on top of what a download needs, for the database and the OS. */
+private const val LOW_DISK_MARGIN = 50L * 1_000_000

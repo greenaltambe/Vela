@@ -99,3 +99,24 @@ class PreferOtherSourceTest {
         assertEquals(3, first.calls, "falls back to the avoided tier when the others fail")
     }
 }
+
+class AgeRestrictedSettingTest {
+    private fun chain(allow: Boolean, account: StubExtractor, ytDlp: StubExtractor) = FallbackChain(
+        listOf(ExtractorTier(TierId.ANONYMOUS, StubExtractor(ExtractorError.Unplayable("This video is age-restricted"))), ExtractorTier(TierId.AUTHENTICATED, account), ExtractorTier(TierId.YT_DLP, ytDlp)),
+        { AccountFallbackMode.ONLY_ON_FAILURE }, DiagnosticsLog(), FakeClock(), signedInAccount = { "google:ab12cd" }, allowAgeRestricted = { allow },
+    )
+
+    @Test fun offStopsAtTheFirstTierThatNoticesAndNeverAsksTheAccountOrYtDlp() = kotlinx.coroutines.test.runTest {
+        val account = StubExtractor(); val ytDlp = StubExtractor()
+        val r = chain(false, account, ytDlp).streams("v") as ExtractorResult.Failure
+        assertIs<ExtractorError.AgeRestrictedDisabled>(r.error)
+        assertEquals("Age-restricted videos are disabled in settings", r.error.message)
+        assertEquals(0, account.calls); assertEquals(0, ytDlp.calls)
+    }
+
+    @Test fun onUsesTheExistingRoutes() = kotlinx.coroutines.test.runTest {
+        val account = StubExtractor(); val ytDlp = StubExtractor()
+        assertIs<ExtractorResult.Success<*>>(chain(true, account, ytDlp).streams("v"))
+        assertEquals(1, account.calls)
+    }
+}

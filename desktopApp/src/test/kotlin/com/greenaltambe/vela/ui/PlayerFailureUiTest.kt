@@ -6,6 +6,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runDesktopComposeUiTest
@@ -79,4 +80,16 @@ class PlayerFailureUiTest {
             assertTrue(runCatching { onNodeWithTag("player.tryAccountNow", useUnmergedTree = true).assertIsDisplayed() }.isFailure, "$status must not offer Try now")
         }
     }
+
+    @Test fun ageRestrictedDisabledShowsTheClearMessageAndAButtonToTheSetting() = runDesktopComposeUiTest(800, 600) {
+        val (s, host) = session(ExtractorError.AgeRestrictedDisabled())
+        var opened = 0
+        setContent { PlayerView(host, FakeData.videos[0], emptyList(), emptyList(), openAgeSetting = { opened++ }) }
+        s.start("v01", FakeData.videos[0]); waitUntil(timeoutMillis = 5_000) { s.state.value is com.greenaltambe.vela.player.SessionState.Failed }; waitForIdle()
+        onNodeWithTag("player.error", useUnmergedTree = true).assertIsDisplayed()
+        onNodeWithTag("player.error", useUnmergedTree = true).assertTextEquals("Age-restricted videos are disabled in settings")
+        onNodeWithTag("player.openAgeSetting", useUnmergedTree = true).performClick(); waitForIdle()
+        assertEquals(1, opened)
+    }
 }
+

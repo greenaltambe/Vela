@@ -46,6 +46,8 @@ class AltClientExtractor(
     private val base: String = "https://www.youtube.com/youtubei/v1",
     /** Called with the name of the profile that served each request, or a failure line; for the diagnostics log. */
     private val onProfile: (String) -> Unit = {},
+    /** The "allow controversial" setting: whether the player call answers YouTube's content-warning checks (contentCheckOk / racyCheckOk). */
+    private val contentChecks: () -> Boolean = { true },
 ) : Extractor {
 
     override suspend fun search(query: String, continuation: String?): ExtractorResult<Page<VideoSummary>> = notSupported()
@@ -104,7 +106,7 @@ class AltClientExtractor(
         val client = JsonObject(p.client + mapOf("hl" to JsonPrimitive("en"), "gl" to JsonPrimitive("US")))
         val body = buildJsonObject {
             put("context", buildJsonObject { put("client", client) })
-            put("videoId", videoId); put("contentCheckOk", true); put("racyCheckOk", true)
+            put("videoId", videoId); put("contentCheckOk", contentChecks()); put("racyCheckOk", contentChecks())
         }
         return transport.execute("POST", "$base/player?prettyPrint=false", mapOf(
             "Content-Type" to "application/json", "User-Agent" to p.userAgent,

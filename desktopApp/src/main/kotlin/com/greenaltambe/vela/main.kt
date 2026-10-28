@@ -64,16 +64,21 @@ fun main() {
         createDatabase(JvmDatabaseDriverFactory(XdgPaths.databaseFile().path))
     } catch (e: Exception) {
         System.err.println("Vela: cannot open the database (${e.message}); settings and history will not be saved")
+        // Say it on screen too: a silent in-memory session would look like all history and downloads had vanished. The file on disk was left alone.
+        if (e is com.greenaltambe.vela.data.DatabaseStartupException) runCatching {
+            javax.swing.JOptionPane.showMessageDialog(null, "${e.message}\n\nVela will run without saving anything this time.", "Vela: database problem", javax.swing.JOptionPane.ERROR_MESSAGE)
+        }
         createDatabase(JvmDatabaseDriverFactory(null))
     }
     val settings = SettingsResolver(SqlDelightSettingsStore(database))
-    val log = DiagnosticsLog()
+    val logFile = com.greenaltambe.vela.net.FileLogSink(java.io.File(XdgPaths.dataDir(), "vela.log"))
+    val log = DiagnosticsLog(sink = logFile)
     val modules = createModules(OkHttpTransport(), database, settings)
     // Credentials: libsecret when a keyring answers, else an encrypted file (Diagnostics shows which).
     // Simulated failures exist only when started with VELA_DEBUG=1 (e.g. `VELA_DEBUG=1 ./gradlew :desktopApp:run`).
     val faults = if (System.getenv("VELA_DEBUG") == "1") com.greenaltambe.vela.extractor.chain.FaultInjector() else null
     val remote = com.greenaltambe.vela.config.createRemoteConfig({ settings.resolve(Settings.remoteConfigUrl) }, SqlDelightSettingsStore(database))
-    val wiring = buildDesktopWiring(database, settings, linuxSecretStore(XdgPaths.dataDir()), SystemProcessRunner(), log, remote = remote, managedDir = java.io.File(XdgPaths.dataDir(), "bin"), faults = faults)
+    val wiring = buildDesktopWiring(database, settings, linuxSecretStore(XdgPaths.dataDir()), SystemProcessRunner(), log, logSink = logFile, remote = remote, managedDir = java.io.File(XdgPaths.dataDir(), "bin"), faults = faults)
     // Fetched in the background at start; failures only change the status line (and keep the last good config).
     kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
         remote.refresh()
@@ -121,7 +126,8 @@ fun main() {
             }
         }
         val services = remember(host) {
-            AppServices(chain, settings, log, database, host, utcOffsetMinutes = { TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 60_000 }, modules = modules, downloads = downloads, accounts = accounts, login = InnertubeAccountLogin(accounts, governors), sync = InnertubeAccountSync(accounts, governors, database), audit = audit, governors = governors, health = health, releases = releases, managedYtDlp = wiring.ytDlpUpdater, faults = faults)
+            AppServices(chain, settings, log, database, host, utcOffsetMinutes = { TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 60_000 }, modules = modules, downloads = downloads, accounts = accounts, login = InnertubeAccountLogin(accounts, governors), sync = InnertubeAccountSync(accounts, governors, database), audit = audit, governors = governors, health = health, releases = releases, managedYtDlp = wiring.ytDlpUpdater, faults = faults,
+                exportLog = { val dir = java.io.File(System.getProperty("user.home"), "Downloads").takeIf { it.isDirectory } ?: java.io.File(System.getProperty("user.home")); val out = java.io.File(dir, "vela-log-${System.currentTimeMillis() / 1000}.txt"); out.writeText(logFile.readAll()); out.path })
         }
 
         Window(

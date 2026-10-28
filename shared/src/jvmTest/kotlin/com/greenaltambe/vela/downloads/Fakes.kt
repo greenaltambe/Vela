@@ -32,7 +32,8 @@ class FakeStorage : DownloadStorage {
     override fun deletePublished(uri: String) { published.remove(uri) }
     override fun writeAsset(name: String, bytes: ByteArray): String = "/assets/$name".also { assets[it] = bytes }
     override fun deleteAsset(path: String) { assets.remove(path) }
-    override fun freeBytes(): Long? = null
+    var free: Long? = null
+    override fun freeBytes(): Long? = free
     override fun usedBytes() = published.values.sumOf { it.size.toLong() }
 }
 
@@ -62,7 +63,8 @@ class FakeFetcher : RangeFetcher {
     }
 }
 
-class FakeMerger(override val available: Boolean = true) : MediaMerger {
+class FakeMerger(override val available: Boolean = true, private val rejects: (String, String) -> Boolean = { _, _ -> false }) : MediaMerger {
+    override fun canMerge(videoCodec: String, audioCodec: String) = !rejects(videoCodec, audioCodec)
     val jobs = mutableListOf<MergeJob>()
     var failWith: String? = null
     var storage: FakeStorage? = null
@@ -94,6 +96,7 @@ class FakeExtractor(
     private val fetcher: FakeFetcher,
 ) : Extractor by StubExtractor() {
     var resolves = 0
+    var withOpus = false
     var failResolve: ExtractorError? = null
     var hlsOnly = false
     var infoCalls = 0
@@ -108,6 +111,7 @@ class FakeExtractor(
     private fun register(gen: Int) {
         for (s in videoStreams(gen)) fetcher.bodies[s.url] = video
         fetcher.bodies["https://a/$gen"] = audio
+        fetcher.bodies["https://ao/$gen"] = audio
         fetcher.bodies["https://img/thumb.jpg"] = bytesOf(50, 9)
     }
 
@@ -119,7 +123,8 @@ class FakeExtractor(
         return ExtractorResult.Success(
             StreamSet(
                 videoStreams = videoStreams(resolves),
-                audioStreams = listOf(AudioStream("https://a/$resolves", "audio/mp4", "mp4a.40.2", 128_000, itag = 140, contentLength = audio.size.toLong(), isOriginalTrack = true)),
+                audioStreams = listOf(AudioStream("https://a/$resolves", "audio/mp4", "mp4a.40.2", 128_000, itag = 140, contentLength = audio.size.toLong(), isOriginalTrack = true)) +
+                    (if (withOpus) listOf(AudioStream("https://ao/$resolves", "audio/webm", "opus", 96_000, itag = 251, contentLength = audio.size.toLong(), isOriginalTrack = true)) else emptyList()),
                 expiresAt = Instant.fromEpochSeconds(2_000_000_000), client = "fake",
             ),
         )

@@ -58,6 +58,8 @@ class AppServices(
     val managedYtDlp: com.greenaltambe.vela.health.ManagedUpdater? = null,
     /** Debug-only switch for simulated failures (Diagnostics); null in normal builds. */
     val faults: com.greenaltambe.vela.extractor.chain.FaultInjector? = null,
+    /** Writes the redacted log file somewhere the viewer can reach and returns where; null when the platform has no log file. */
+    val exportLog: (() -> String)? = null,
     val audit: DbAuditLog = DbAuditLog(database),
     val governors: GovernorRegistry = GovernorRegistry(clock, { governorLimits(settings) }, DbBreakerStore(database), audit),
 ) {

@@ -96,6 +96,8 @@ fun PlayerView(
     onBack: (() -> Unit)? = null,
     /** Ends the active account's pause (the caller owns the governor); null when there is nothing to end. PlayerView asks first, then retries. */
     tryAccountNow: (() -> Unit)? = null,
+    /** Opens Settings (the age-restricted switch lives there); null hides the button. */
+    openAgeSetting: (() -> Unit)? = null,
     /** Drawn over the picture, above the controls' bottom edge: SponsorBlock's skip prompt and "skipped, Undo" notice. */
     overlay: @Composable () -> Unit = {},
 ) {
@@ -157,7 +159,11 @@ fun PlayerView(
                 val needsSignIn = failed.extractorError?.reason == com.greenaltambe.vela.extractor.FailureReason.SIGN_IN_REQUIRED
                 val uri = androidx.compose.ui.platform.LocalUriHandler.current
                 var confirmingTry by remember { mutableStateOf(false) }
-                if (tiersFailed != null) {
+                if (failed.extractorError is com.greenaltambe.vela.extractor.ExtractorError.AgeRestrictedDisabled) {
+                    Text(com.greenaltambe.vela.extractor.ExtractorError.AgeRestrictedDisabled.MESSAGE, color = onMedia, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center, modifier = Modifier.testTag("player.error"))
+                    if (openAgeSetting != null) OutlinedButton(onClick = openAgeSetting, modifier = Modifier.testTag("player.openAgeSetting")) { Text("Open setting", maxLines = 1) }
+                    OutlinedButton(onClick = { runCatching { uri.openUri("https://www.youtube.com/watch?v=${video.id}") } }, modifier = Modifier.testTag("player.openInBrowser")) { Text("Open in browser", maxLines = 1) }
+                } else if (tiersFailed != null) {
                     // Says which tiers failed and why, and what the account did; the buttons are the actions that can change the outcome.
                     Text(tiersFailed.message, color = onMedia, style = MaterialTheme.typography.bodyMedium, maxLines = 8, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.testTag("player.error"))
                     if (tiersFailed.account == com.greenaltambe.vela.extractor.AccountStatus.PAUSED && tryAccountNow != null) {

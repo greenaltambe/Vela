@@ -43,12 +43,15 @@ class NotifySendNotifier : DownloadNotifier {
         }.getOrDefault(false)
     }
 
-    private fun send(summary: String, body: String) {
+    private fun send(summary: String, body: String, icon: String = "folder-download") {
         if (!available) return
         Thread {
-            runCatching { ProcessBuilder("notify-send", "-a", "Vela", "-i", "folder-download", summary, body).start().waitFor(5, TimeUnit.SECONDS) }
+            runCatching { ProcessBuilder("notify-send", "-a", "Vela", "-i", icon, summary, body).start().waitFor(5, TimeUnit.SECONDS) }
         }.apply { isDaemon = true; start() }
     }
+
+    /** The health alert pop-up (once per failure streak; the caller decides when). */
+    fun healthAlert(message: String) = send("Playback may be broken", message, "dialog-warning")
 
     override fun completed(title: String) = send("Download complete", title)
     override fun failed(title: String, reason: String) = send("Download failed", "$title\n$reason")
