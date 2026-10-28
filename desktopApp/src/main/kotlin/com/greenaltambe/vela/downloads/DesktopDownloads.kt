@@ -60,11 +60,12 @@ fun createDesktopDownloads(
     modules: Modules,
     settings: SettingsResolver,
     scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+    ffmpeg: String = "ffmpeg",
 ): Downloads {
     val repo = DownloadRepository(database)
     val provider = DesktopStorageProvider(settings)
     val fetcher = OkHttpRangeFetcher()
-    val merger = FfmpegMediaMerger()
+    val merger = FfmpegMediaMerger(ffmpeg)
     val notifier = NotifySendNotifier()
     val collector = OfflineCollector(extractor, modules, fetcher, provider::get, settings)
     // The desktop does not track the connection type; it is treated as unmetered like the player's network monitor.

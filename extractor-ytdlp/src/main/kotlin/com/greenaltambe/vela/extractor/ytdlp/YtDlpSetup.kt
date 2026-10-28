@@ -89,8 +89,8 @@ suspend fun probeYtDlp(
         runtimes.isEmpty() -> YtDlpProbe.Ready(
             version, emptyList(),
             note = if (needsRuntime) {
-                "yt-dlp $version prefers a JavaScript runtime (deno, node, quickjs or bun) for YouTube and none was " +
-                    "found on PATH; some formats may be missing"
+                "No JavaScript runtime (deno, node, quickjs or bun) was found, and yt-dlp $version needs one for YouTube: age-restricted " +
+                    "and many other videos will not play through yt-dlp. Install one (Fedora: sudo dnf install nodejs) or add its folder to PATH"
             } else null,
         )
         // deno is what yt-dlp enables by itself; anything else has to be named explicitly.
@@ -111,13 +111,14 @@ suspend fun createYtDlpTier(
     binary: () -> String,
     log: DiagnosticsLog,
     clock: Clock = Clock.System,
+    path: PathLookup = SystemPathLookup,
     /** Called with the JS-runtime arguments yt-dlp needs here, so the account tier can run the same way. */
     onReady: (jsRuntimeArgs: List<String>) -> Unit = {},
 ): ExtractorTier? {
     fun record(outcome: AttemptOutcome, detail: String) =
         log.record(TierAttempt("yt-dlp setup", TierId.YT_DLP, outcome, null, detail, Duration.ZERO, clock.now()))
 
-    return when (val probe = probeYtDlp(runner, binary())) {
+    return when (val probe = probeYtDlp(runner, binary(), path)) {
         is YtDlpProbe.NotInstalled -> {
             record(AttemptOutcome.SKIPPED, "yt-dlp not installed (${probe.reason})")
             null
@@ -128,4 +129,34 @@ suspend fun createYtDlpTier(
             ExtractorTier(TierId.YT_DLP, YtDlpExtractor(runner, binary, extraArgs = { probe.jsRuntimeArgs }))
         }
     }
+}
+
+/** One yt-dlp found on this machine and the version it reported (null when `--version` failed). */
+class YtDlpCandidate(val binary: FoundBinary, val version: String?)
+
+/** The oldest yt-dlp measured to play an age-restricted video anonymously is unknown; this one was measured to work (2026-10-28) and 2026.08.19 was measured not to. */
+const val YTDLP_AGE_RESTRICTED_VERIFIED = com.greenaltambe.vela.health.GeneratedVersions.YTDLP_VERIFIED
+
+/** Orders yt-dlp versions (dates, optionally with a revision). Unparseable sorts first. */
+fun compareYtDlpVersions(a: String?, b: String?): Int {
+    fun key(v: String?) = v?.trim()?.split('.')?.mapNotNull { it.toIntOrNull() }?.takeIf { it.size >= 3 } ?: emptyList()
+    val (x, y) = key(a) to key(b)
+    for (i in 0 until maxOf(x.size, y.size)) { val c = (x.getOrElse(i) { 0 }).compareTo(y.getOrElse(i) { 0 }); if (c != 0) return c }
+    return 0
+}
+
+/**
+ * Asks each candidate for its version and picks the newest: a distro yt-dlp months older than a pip copy could not play
+ * age-restricted videos, and which one a plain `yt-dlp` resolves to depends on how the app was launched. Ties go to the
+ * earlier candidate (PATH order). Null when nothing runs.
+ */
+suspend fun chooseYtDlp(runner: ProcessRunner, candidates: List<FoundBinary>, timeout: Duration = 15.seconds): Pair<YtDlpCandidate?, List<YtDlpCandidate>> {
+    val probed = candidates.map { c ->
+        val v = try {
+            runner.run(listOf(c.path!!, "--version"), timeout, maxStdoutBytes = 4096).takeIf { it.exitCode == 0 }?.stdout?.trim()?.ifEmpty { null }
+        } catch (e: CancellationException) { throw e } catch (_: Exception) { null }
+        YtDlpCandidate(c, v)
+    }
+    val best = probed.filter { it.version != null }.fold(null as YtDlpCandidate?) { acc, c -> if (acc == null || compareYtDlpVersions(c.version, acc.version) > 0) c else acc }
+    return best to probed
 }

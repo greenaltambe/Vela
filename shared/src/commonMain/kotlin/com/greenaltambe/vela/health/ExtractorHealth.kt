@@ -13,8 +13,8 @@ import kotlin.time.Instant
 
 /** The NewPipeExtractor this build ships, and when that release came out, so Diagnostics can say when it is getting old. */
 object NewPipeVersion {
-    const val VERSION = "v0.26.5"
-    const val RELEASED = "2026-08-15"
+    const val VERSION = GeneratedVersions.NEWPIPE
+    const val RELEASED = GeneratedVersions.NEWPIPE_RELEASED
     private val released: Instant get() = Instant.parse("${RELEASED}T00:00:00Z")
     fun ageDays(now: Instant): Long = (now - released).inWholeDays
 

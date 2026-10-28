@@ -36,6 +36,8 @@ class FallbackChain(
     private val accountPaused: () -> String? = { null },
     /** Which operations the account may serve (policy settings). Default: all, so a chain built without policy keeps its old behaviour. */
     private val accountMayServe: (AccountOp) -> Boolean = { true },
+    /** Environment facts worth showing when a tier failed or is missing ("yt-dlp 2026.08.19 is too old", "no JavaScript runtime"). */
+    private val tierHint: (TierId) -> String? = { null },
 ) : Extractor {
     private val memory = TierMemory(clock, memoryTtl)
     /** Anonymous tiers that answered SIGN_IN_REQUIRED recently: when one does so again the chain goes straight to the account. */
@@ -75,7 +77,8 @@ class FallbackChain(
     ): ExtractorResult<T> {
         val account = signedInAccount?.invoke()
         if (signedInAccount != null && account != memoryOwner) { memory.clear(); memoryOwner = account }
-        val candidates = candidateTiers(subject, account, op)
+        val skips = HashMap<TierId, String>()
+        val candidates = candidateTiers(subject, account, op, skips)
         var signInSeen = false
         if (candidates.isEmpty()) {
             return ExtractorResult.Failure(ExtractorError.Unplayable("No extractor tier available"))
@@ -123,11 +126,63 @@ class FallbackChain(
                 }
             }
         }
-        return ExtractorResult.Failure(failures.last().second)
+        return ExtractorResult.Failure(composeFailure(failures, skips[TierId.AUTHENTICATED]))
+    }
+
+    /**
+     * Keeps the last tier's own error unless a tier said sign-in or age: then the answer names each tier's reason, what the
+     * account did, and the environment hints, because "UNPLAYABLE: ERROR: [youtube]..." tells the viewer nothing.
+     */
+    private fun composeFailure(failures: List<Pair<TierId, ExtractorError>>, accountSkip: String?): ExtractorError {
+        val age = failures.any { (_, e) -> AgeText.matches(e.message) }
+        if (!age && failures.none { (_, e) -> e.reason == FailureReason.SIGN_IN_REQUIRED }) return failures.last().second
+        val ids = tiers.mapTo(HashSet()) { it.id }
+        val anonymous = failures.filter { it.first != TierId.AUTHENTICATED }
+        val tried = failures.firstOrNull { it.first == TierId.AUTHENTICATED }
+        val status = when {
+            tried != null -> AccountStatus.TRIED
+            TierId.AUTHENTICATED !in ids -> AccountStatus.NO_ACCOUNT_TIER
+            accountSkip == null -> AccountStatus.TRIED
+            accountSkip.startsWith("No signed-in") -> AccountStatus.SIGNED_OUT
+            accountSkip.startsWith("Account fallback") || accountSkip.startsWith("The account is not used") -> AccountStatus.DISABLED
+            else -> AccountStatus.PAUSED
+        }
+        val hints = TierId.entries.mapNotNull(tierHint).toMutableList()
+        if (age && TierId.YT_DLP !in ids && hints.none { it.contains("yt-dlp") }) hints += "No tier on this device can play age-restricted videos without an account yet"
+        val named = anonymous.joinToString(", ") { (id, e) -> "${tierName(id)} (${shortReason(e)})" }
+        val accountSentence = when (status) {
+            AccountStatus.PAUSED -> "The account is paused: ${accountSkip!!.replaceFirstChar { it.lowercase() }}."
+            AccountStatus.SIGNED_OUT -> "No account is signed in."
+            AccountStatus.DISABLED -> "Playing through the account is turned off."
+            AccountStatus.NO_ACCOUNT_TIER -> "Playing through an account is not available on this device yet."
+            AccountStatus.TRIED -> "The account also failed (${tried?.second?.let(::shortReason) ?: "no answer"})."
+        }
+        val message = (if (age) "Age-restricted" else "Sign-in required") + ": " +
+            (if (named.isEmpty()) "no anonymous tier answered" else "anonymous tiers failed — $named") + ". $accountSentence" +
+            hints.joinToString("") { " $it." }
+        return TiersFailed(
+            message = Redaction.redact(message),
+            tiers = failures.map { (id, e) -> TierFailure(tierName(id), e.reason, shortReason(e)) },
+            account = status, accountDetail = accountSkip, ageRestricted = age, hints = hints,
+        )
+    }
+
+    private fun tierName(id: TierId) = when (id) {
+        TierId.ANONYMOUS -> "NewPipe"; TierId.AUTHENTICATED -> "account"; TierId.ALT_CLIENT -> "alt client"; TierId.YT_DLP -> "yt-dlp"
+    }
+
+    private fun shortReason(e: ExtractorError): String = when {
+        AgeText.matches(e.message) -> "age-restricted"
+        e.reason == FailureReason.SIGN_IN_REQUIRED -> "sign-in required"
+        e.reason == FailureReason.RATE_LIMITED -> "rate limited"
+        e.reason == FailureReason.BLOCKED -> "blocked"
+        e.reason == FailureReason.NETWORK -> "network error"
+        e.reason == FailureReason.TIER_UNAVAILABLE -> "unavailable: " + e.message.take(80)
+        else -> e.message.take(80)
     }
 
     /** Applies the account fallback setting: drops or promotes the authenticated tier. */
-    private fun candidateTiers(subject: String, account: String?, op: AccountOp): List<ExtractorTier> {
+    private fun candidateTiers(subject: String, account: String?, op: AccountOp, skips: MutableMap<TierId, String>): List<ExtractorTier> {
         val mode = accountMode()
         var usable = tiers.filter { tier ->
             val why = if (tier.id != TierId.AUTHENTICATED) null else when {
@@ -136,7 +191,7 @@ class FallbackChain(
                 mode == AccountFallbackMode.NEVER -> "Account fallback is set to never"
                 else -> accountPaused()
             }
-            (why == null).also { keep -> if (!keep) record(subject, tier.id, AttemptOutcome.SKIPPED, null, why, Duration.ZERO) }
+            (why == null).also { keep -> if (!keep) { skips[tier.id] = why!!; record(subject, tier.id, AttemptOutcome.SKIPPED, null, why, Duration.ZERO) } }
         }
         tierOrder?.let { order ->
             val rank = TierOrder.sanitize(order(), mode)
@@ -153,4 +208,10 @@ class FallbackChain(
         detail: String?,
         duration: Duration,
     ) = log.record(TierAttempt(subject, tier, outcome, reason, detail?.let(Redaction::redact), duration, clock.now()))
+}
+
+/** Tier messages that mean "age gate" (NewPipe, yt-dlp and the player API each word it differently). */
+internal object AgeText {
+    private val needles = listOf("age-restricted", "age restricted", "confirm your age", "inappropriate for some users")
+    fun matches(message: String) = needles.any { message.contains(it, ignoreCase = true) }
 }

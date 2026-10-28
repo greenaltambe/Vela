@@ -9,6 +9,23 @@ plugins {
     alias(libs.plugins.sqldelight)
 }
 
+// Versions the app reports about itself come from the version catalog, never from a hand-edited constant.
+val generatedVersionsDir = layout.buildDirectory.dir("generated/vela/commonMain")
+val generateVersions = tasks.register("generateVersions") {
+    val newpipe = libs.versions.newpipe.extractor.get()
+    val released = libs.versions.newpipe.released.get()
+    val ytdlp = libs.versions.ytdlp.verified.get()
+    val out = generatedVersionsDir.map { it.file("com/greenaltambe/vela/health/GeneratedVersions.kt") }
+    inputs.property("v", "$newpipe|$released|$ytdlp")
+    outputs.file(out)
+    doLast {
+        out.get().asFile.apply { parentFile.mkdirs() }.writeText(
+            "package com.greenaltambe.vela.health\n\n/** Generated from gradle/libs.versions.toml by :shared:generateVersions. Do not edit. */\n" +
+                "object GeneratedVersions {\n    const val NEWPIPE = \"$newpipe\"\n    const val NEWPIPE_RELEASED = \"$released\"\n    const val YTDLP_VERIFIED = \"$ytdlp\"\n}\n",
+        )
+    }
+}
+
 kotlin {
     jvm()
     
@@ -34,6 +51,7 @@ kotlin {
     }
     
     sourceSets {
+        commonMain.configure { kotlin.srcDir(files(generatedVersionsDir).builtBy(generateVersions)) }
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.compose.uiTooling)

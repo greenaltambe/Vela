@@ -94,6 +94,8 @@ fun PlayerView(
     /** Name the current chapter inside the controls; narrow players show it on the page instead. */
     showChapterTitle: Boolean = false,
     onBack: (() -> Unit)? = null,
+    /** Ends the active account's pause (the caller owns the governor); null when there is nothing to end. PlayerView asks first, then retries. */
+    tryAccountNow: (() -> Unit)? = null,
     /** Drawn over the picture, above the controls' bottom edge: SponsorBlock's skip prompt and "skipped, Undo" notice. */
     overlay: @Composable () -> Unit = {},
 ) {
@@ -151,9 +153,25 @@ fun PlayerView(
 
         if (failed != null) {
             Column(Modifier.align(Alignment.Center).padding(Vela.md), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
+                val tiersFailed = failed.extractorError as? com.greenaltambe.vela.extractor.TiersFailed
                 val needsSignIn = failed.extractorError?.reason == com.greenaltambe.vela.extractor.FailureReason.SIGN_IN_REQUIRED
                 val uri = androidx.compose.ui.platform.LocalUriHandler.current
-                if (needsSignIn) {
+                var confirmingTry by remember { mutableStateOf(false) }
+                if (tiersFailed != null) {
+                    // Says which tiers failed and why, and what the account did; the buttons are the actions that can change the outcome.
+                    Text(tiersFailed.message, color = onMedia, style = MaterialTheme.typography.bodyMedium, maxLines = 8, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.testTag("player.error"))
+                    if (tiersFailed.account == com.greenaltambe.vela.extractor.AccountStatus.PAUSED && tryAccountNow != null) {
+                        OutlinedButton(onClick = { confirmingTry = true }, modifier = Modifier.testTag("player.tryAccountNow")) { Text("Try account now", maxLines = 1) }
+                    }
+                    OutlinedButton(onClick = { runCatching { uri.openUri("https://www.youtube.com/watch?v=${video.id}") } }, modifier = Modifier.testTag("player.openInBrowser")) { Text("Open in browser", maxLines = 1) }
+                    if (confirmingTry) androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { confirmingTry = false },
+                        title = { Text("Try the account now?") },
+                        text = { Text("The pause protects the account. Trying early sends one request; if Google pushes back again the pause gets longer.") },
+                        confirmButton = { androidx.compose.material3.TextButton(onClick = { confirmingTry = false; tryAccountNow?.invoke(); session.start(video.id, video) }, modifier = Modifier.testTag("player.tryAccountNowConfirm")) { Text("Try now") } },
+                        dismissButton = { androidx.compose.material3.TextButton(onClick = { confirmingTry = false }) { Text("Keep paused") } },
+                    )
+                } else if (needsSignIn) {
                     // Retrying cannot help: YouTube wants a signed-in viewer (age limit or bot check). Say so once, and offer the browser.
                     Text(
                         "YouTube only plays this video to a signed-in viewer (age limit or bot check). Vela could not use an account for it. Retrying will not change that.",

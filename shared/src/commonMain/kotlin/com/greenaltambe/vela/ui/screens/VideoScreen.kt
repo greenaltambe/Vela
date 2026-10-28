@@ -219,7 +219,8 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
     val playerBox: @Composable () -> Unit = {
         Box(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)).testTag("video.player")) {
             if (host != null) PlayerView(
-                host, video, chapters, markers, Modifier.fillMaxWidth(), onBack = { navigator.back() }, showChapterTitle = size != WindowSizeClass.COMPACT,
+                host, video, chapters, markers, Modifier.fillMaxWidth(), onBack = { navigator.back() },
+                tryAccountNow = services.accounts.active.value.takeIf { it.isSignedIn }?.let { a -> { services.governors.forAccount(a.id).tryNow() } }, showChapterTitle = size != WindowSizeClass.COMPACT,
                 overlay = { SponsorBlockOverlay(prompt, notice, onAccept = modules.sponsorBlock::acceptPrompt, onUndo = { n -> modules.sponsorBlock.undo(n); notice = null }) },
             ) else Box(Modifier.fillMaxWidth().padding(Vela.gutter), contentAlignment = Alignment.Center) {
                 Text("No video player is available on this system: nothing will play. (On Linux install mpv-libs.)", Modifier.testTag("video.noPlayer"), maxLines = 4, overflow = TextOverflow.Ellipsis)

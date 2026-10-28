@@ -1,0 +1,43 @@
+# Task 15: reliability part 2 (finish what task 14 deferred)
+
+Follow CLAUDE.md (report docs/reports/15-reliability-2.md; terminal reply max 5 lines + anything the owner must do). Read docs/reports/13-accounts.md, docs/reports/14-reliability.md (sections 4-5) and the "Notes from reading Grayjay's source" in docs/tasks/14-*.md. Work in the stage order below (highest payoff first). Commit nothing. For every stage, finish it OR write precisely why you stopped, with the measurements you did get. Anything not measured is labelled an assumption.
+
+Owner's findings: age-restricted videos do not play without a login (Android certainly: no account tier and no tokens; Linux should play through anonymous yt-dlp, which needs node). Everything else in the task-14 checklist worked.
+
+## Stage 0: freshness
+- Check the newest NewPipeExtractor release and the newest yt-dlp release (network is available on this machine). Run scripts/bump-newpipe.sh for real if a newer NewPipeExtractor exists (fix its bugs), run all offline + live tests, report the verdict and any API changes. Update the recorded release date used by the staleness warning (make the date come from the version catalog or a generated resource, not a hand-edited constant). Same for the yt-dlp minimum-version note if relevant.
+
+## Stage 1: age-restricted without login (both platforms)
+- Linux: reproduce with HtVdAasjOgU anonymously through the app's chain and report which tier serves it and the exact failure if it does not play (JS runtime missing? yt-dlp not found? wrong flag?). Fix the cause; if node is missing, Diagnostics and the player error must say exactly that and how to fix it.
+- Both: extend the tier-3 measurement matrix with the profiles not yet measured: TVHTML5_SIMPLY_EMBEDDED_PLAYER (with a thirdParty embedUrl in the context), VISIONOS, WEB_EMBEDDED with a correct context, ANDROID_VR with other client versions, and any other client you can justify from what yt-dlp currently uses for age-gated videos (inspect `yt-dlp -v` client selection for the age-restricted video and report which clients it tried and which won). Videos: normal, music, short, age-restricted, plus a region-locked one if possible. Success criterion: a real GET with Range returns 206 for one video and one audio stream. Anonymous first; with the test account only where anonymous fails and only through the governor.
+- Ship every profile that works anonymously as part of tier 3 (profiles stay data in innertube-profiles.json). Result needed: age-restricted plays on Android WITHOUT an account if any client can do it; if not, say so with the matrix.
+
+## Stage 2: PO tokens
+- Implement `PoTokenProvider`: (a) Android: BotGuard in a hidden WebView (session/visitor-bound and per-video tokens as required, cache with expiry, refresh ahead, never block the UI, failure = provider unavailable with a diagnostics line). (b) Linux: node + jsdom + a BotGuard library run as a small managed helper process (vendored or installed into the app data dir with pinned versions; no global npm), used by our alt-client tier and offered to yt-dlp (plugin mode) if that works. Respect the allow-list idea: the helper may only contact the BotGuard/attestation host and youtube.
+- Measure with the Stage 1 matrix: which profiles become playable or stay playable with tokens; whether stream GETs need `pot=` and when; token lifetime; cost in ms. Add a canary that tells us when IOS/ANDROID start requiring tokens.
+- Enable profiles that need a token only when the provider is available. Android parts are compile-only: say so and give manual steps.
+
+## Stage 3: Android account playback (tier 2)
+- With tokens available, re-measure the options from task 13 on Android-feasible paths (own /player with WEB or MWEB + cookies + SAPISIDHASH + PO token + visitorData, with stream-URL deciphering reusing NewPipe's player-JS code if its API allows; TVHTML5 with cookies + token). Real test account, normal and age-restricted video, 206 GET as criterion, everything under the governor. Ship it if it works; otherwise document and keep the friendly failure. Cover the "Open in browser" failure UI with a test (task 14 left it untested).
+
+## Stage 4: updates without a new app build
+- Signed remote config: Ed25519 signature, monotonic version, size cap, HTTPS only, bundled fallback, URL in a setting (default empty = bundled only). Carries client profiles, client versions, disabled-profile kill switches, canary video ids. `scripts/sign-remote-config` plus docs on hosting. Tests: tampering, rollback, expiry, oversized, wrong key, offline.
+- yt-dlp updater (Linux): app-managed copy in the data dir (download the official release asset, verify against the published SHA2-256SUMS, atomic replace, keep previous for rollback), `ytdlp.autoUpdate` OFF / ASK (default) / AUTO, run the health canary after updating and roll back automatically if the yt-dlp tier regressed. Do not auto-update a system-installed binary; offer instructions.
+- Background health: Android WorkManager periodic canary (network constraint, battery-friendly), Linux timer while the app runs; when ALL tiers fail the canary twice in a row, show a clear, non-spammy notification/banner: "Playback may be broken; tiers X, Y failing; last good time".
+
+## Stage 5: remaining failure modes
+- Captcha/sorry: anonymous `Blocked(captcha)` as a distinct error; Android WebView solve flow storing the exemption cookie and injecting it into anonymous requests (as Grayjay does); you probably cannot reproduce a challenge: implement defensively, test with fakes, label unverified.
+- Network handoff (Wi-Fi to mobile, VPN) and slow-stream failover in PlaybackSession (if throughput stays below the stream bitrate for N seconds while buffering, re-resolve once preferring a different tier/profile, bounded, setting, default on), with chaos-harness scenarios and fake clock tests.
+- Per-account persisted identity: visitorData, device id, client version and user agent stored encrypted/per account, reused; refresh only on staleness/failure; unit-tested. Assert in a live test (not just once manually) the set of hosts yt-dlp contacts with cookies.
+- Debug-only "simulate failure" menu in Diagnostics (429, captcha page, expired URL, offline) so the owner can exercise the failure paths on a phone without waiting for YouTube to do it.
+
+## Report
+Matrices (clients x videos, with and without tokens, with and without account), every assumption not measured, what is compile-only, and a short manual checklist for phone and Linux (age-restricted anonymous on both, token provider status, remote config accept/reject, updater, health notification, simulated failures, airplane mode and network switch).
+
+## Addendum to Stage 1 (owner's clarification) - DO THIS FIRST
+The owner saw age-restricted videos fail on BOTH Android and Linux while the account was "blocked" by the Accounts > Safety > "Test: simulate a rate limit" button (breaker open). On Android that is expected (no anonymous path, no tier 2). On Linux it is NOT expected: task 14 measured anonymous yt-dlp playing HtVdAasjOgU 5/5 without the account.
+- Reproduce on Linux in three states with the real app wiring (not only the test harness): (1) signed out; (2) signed in, breaker closed; (3) signed in, breaker open via the simulate button. For each, record the Diagnostics tier attempts for HtVdAasjOgU (which tiers were tried, order, outcomes, reasons, whether the yt-dlp tier was even registered).
+- Check the launch environment: start the app the way a normal user does (desktop launcher / IDE run, not an interactive terminal with an enriched PATH) and verify yt-dlp, node (JS runtime) and ffmpeg are found. Resolve binaries through a small, explicit lookup (configured path setting, then PATH, then common locations such as ~/.local/bin, /usr/local/bin, /usr/bin, Flatpak/snap paths) and show what was found in Diagnostics.
+- Check whether the simulate-429 button or the breaker changes anything beyond the account tier (tier memory entries, health state, sign-in-required handling, the "jump to account" rule, error mapping) and whether a paused account tier can turn an otherwise successful chain into a failure or swallow the anonymous result.
+- Fix the root cause, add a regression test (chain level and, where possible, wiring level), and make the player error for this case say exactly which tiers failed and why (e.g. "age-restricted: anonymous tiers failed (reasons); account paused until HH:MM") with the right action (wait / Try now / Open in browser).
+- On Android the same message must make clear that no anonymous path exists yet, until Stage 1/2/3 deliver one.

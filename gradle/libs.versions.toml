@@ -17,6 +17,10 @@ kotlinx-serialization = "1.12.0"
 media3 = "1.11.1"
 robolectric = "4.17"
 newpipe-extractor = "v0.26.5"
+# Release date of the NewPipeExtractor above (scripts/bump-newpipe.sh keeps it in step); drives the staleness warning.
+newpipe-released = "2026-08-15"
+# Newest yt-dlp whose age-restricted anonymous playback was measured here (docs/reports/15-reliability-2.md).
+ytdlp-verified = "2026.10.26"
 okhttp = "5.5.1"
 desugar-jdkLibs = "2.1.5"
 material3 = "1.12.0-alpha03"

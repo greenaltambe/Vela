@@ -68,57 +68,16 @@ fun main() {
     val settings = SettingsResolver(SqlDelightSettingsStore(database))
     val log = DiagnosticsLog()
     val modules = createModules(OkHttpTransport(), database, settings)
-    // yt-dlp is probed once at startup (`yt-dlp --version`); if it isn't there the tier is simply not registered.
-    var ytDlpArgs = emptyList<String>()
-    val ytDlp = runBlocking {
-        createYtDlpTier(SystemProcessRunner(), binary = { settings.resolve(Settings.ytDlpPath) }, log = log, onReady = { ytDlpArgs = it })
-    }
     // Credentials: libsecret when a keyring answers, else an encrypted file (Diagnostics shows which).
-    val secrets = linuxSecretStore(XdgPaths.dataDir())
-    log.record(TierAttempt("credential store", TierId.AUTHENTICATED, AttemptOutcome.NOTE, null, secrets.description, Duration.ZERO, Clock.System.now()))
-    val accounts = AccountManager(database, CredentialStore(secrets))
-    val audit = DbAuditLog(database)
-    val governors = GovernorRegistry(Clock.System, { governorLimits(settings) }, DbBreakerStore(database), audit)
-    val signedIn = { accounts.active.value.takeIf { it.isSignedIn } }
-    // Chain order: ANONYMOUS (NewPipe), AUTHENTICATED (yt-dlp --cookies as the active account), ALT_CLIENT (iOS/Android player), YT_DLP.
-    val accountTier = ytDlp?.let {
-        AuthenticatedYtDlpExtractor(
-            governors = governors,
-            account = { signedIn()?.let { a -> accounts.cookies(a.id)?.let { jar -> AccountCookies(a.id, a.label, jar) } } },
-            onCookiesUpdated = { id, jar -> accounts.saveCookies(id, jar) },
-            binary = { settings.resolve(Settings.ytDlpPath) }, extraArgs = { ytDlpArgs },
-        )
-    }
-    val tiers = listOfNotNull(
-        ExtractorTier(TierId.ANONYMOUS, PacedExtractor(NewPipeExtractor())),
-        accountTier?.let { ExtractorTier(TierId.AUTHENTICATED, it) },
-        ExtractorTier(TierId.ALT_CLIENT, AltClientExtractor(onProfile = { line ->
-            log.record(TierAttempt("alt client", TierId.ALT_CLIENT, AttemptOutcome.NOTE, null, line, Duration.ZERO, Clock.System.now()))
-        })),
-        ytDlp?.let { ExtractorTier(TierId.YT_DLP, PacedExtractor(it.extractor)) },
-    )
-    val health = ExtractorHealth(tiers, OkHttpStreamProbe(), DbHealthStore(database))
-    val chain = FallbackChain(tiers, accountMode = { settings.resolve(Settings.accountFallbackMode) }, log = log, signedInAccount = { signedIn()?.label },
-        accountMayServe = { op -> when (op) {
-            AccountOp.PLAYBACK -> true
-            AccountOp.DETAILS -> settings.resolve(Settings.accountUseForDetails)
-            AccountOp.CHANNELS -> settings.resolve(Settings.accountUseForChannels)
-            AccountOp.NEVER -> false
-        } },
-        tierOrder = { TierOrder.parse(settings.resolve(Settings.accountTierOrder)) },
-        accountPaused = { signedIn()?.let { governors.forAccount(it.id).cooldownUntil() }?.let { "account cooling down until ${it.toString().substring(11, 16)} UTC" } })
-    // Downloads use the anonymous tiers; the account only when the user allowed it and the anonymous tiers failed.
-    val downloadChain = FallbackChain(tiers, accountMode = { downloadAccountMode(settings.resolve(Settings.accountDownloadsMayUse)) }, log = log,
-        signedInAccount = { signedIn()?.label }, accountMayServe = { op -> when (op) {
-            AccountOp.PLAYBACK -> true
-            AccountOp.DETAILS -> settings.resolve(Settings.accountUseForDetails)
-            AccountOp.CHANNELS -> settings.resolve(Settings.accountUseForChannels)
-            AccountOp.NEVER -> false
-        } },
-        tierOrder = { TierOrder.parse(settings.resolve(Settings.accountTierOrder)) },
-        accountPaused = { signedIn()?.let { governors.forAccount(it.id).cooldownUntil() }?.let { "account cooling down until ${it.toString().substring(11, 16)} UTC" } })
+    val wiring = buildDesktopWiring(database, settings, linuxSecretStore(XdgPaths.dataDir()), SystemProcessRunner(), log)
+    val chain = wiring.chain
+    val accounts = wiring.accounts
+    val audit = wiring.audit
+    val governors = wiring.governors
+    val health = wiring.health
+    val downloadChain = wiring.downloadChain
     // Downloads run in the app process; whatever was mid-way when it last exited is picked up again here.
-    val downloads = createDesktopDownloads(database, downloadChain, modules, settings)
+    val downloads = createDesktopDownloads(database, downloadChain, modules, settings, ffmpeg = wiring.ffmpeg.path ?: "ffmpeg")
 
     application {
         // Created inside the application so the Swing main dispatcher the session scope uses is up. Without libmpv
