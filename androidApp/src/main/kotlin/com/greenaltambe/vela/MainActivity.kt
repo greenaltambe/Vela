@@ -51,7 +51,17 @@ import java.util.TimeZone
 class MainActivity : ComponentActivity() {
     private val runtime by lazy { PlaybackRuntime.get(this) }
     private val host by lazy { AndroidPlayerHost(runtime, ::ensureNotificationPermission) }
+    private val healthSchedule by lazy { com.greenaltambe.vela.playback.HealthWorker.schedule(applicationContext) }
+    private val remoteConfigJob by lazy {
+        // Fetched once per start in the background; a failure only changes the Diagnostics line and keeps the last good config.
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            runtime.remote.refresh()
+            runtime.log.record(com.greenaltambe.vela.extractor.chain.TierAttempt("remote config", com.greenaltambe.vela.extractor.chain.TierId.ALT_CLIENT,
+                com.greenaltambe.vela.extractor.chain.AttemptOutcome.NOTE, null, runtime.remote.status.value, kotlin.time.Duration.ZERO, kotlin.time.Clock.System.now()))
+        }
+    }
     private val services by lazy {
+        remoteConfigJob; healthSchedule
         AppServices(
             runtime.chain, runtime.settings, runtime.log, runtime.database, host,
             utcOffsetMinutes = { TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 60_000 },
@@ -63,6 +73,11 @@ class MainActivity : ComponentActivity() {
             audit = runtime.audit,
             health = runtime.health,
             governors = runtime.governors,
+            faults = runtime.faults,
+            releases = listOf(com.greenaltambe.vela.health.ReleaseWatch(com.greenaltambe.vela.health.ReleaseCheck(
+                "NewPipeExtractor", com.greenaltambe.vela.health.NewPipeVersion.VERSION, "TeamNewPipe/NewPipeExtractor",
+                com.greenaltambe.vela.core.http.ApiClient(com.greenaltambe.vela.net.OkHttpTransport(), com.greenaltambe.vela.core.http.InMemoryApiCache()),
+                com.greenaltambe.vela.data.SqlDelightSettingsStore(runtime.database)))),
             webLogin = { startActivity(android.content.Intent(this, com.greenaltambe.vela.auth.WebLoginActivity::class.java)) },
         )
     }

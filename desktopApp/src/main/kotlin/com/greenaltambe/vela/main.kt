@@ -54,6 +54,7 @@ import com.greenaltambe.vela.modules.createModules
 import com.greenaltambe.vela.net.OkHttpTransport
 import com.greenaltambe.vela.playback.DesktopPlaybackRuntime
 import com.greenaltambe.vela.playback.DesktopPlayerHost
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
 fun main() {
@@ -69,13 +70,28 @@ fun main() {
     val log = DiagnosticsLog()
     val modules = createModules(OkHttpTransport(), database, settings)
     // Credentials: libsecret when a keyring answers, else an encrypted file (Diagnostics shows which).
-    val wiring = buildDesktopWiring(database, settings, linuxSecretStore(XdgPaths.dataDir()), SystemProcessRunner(), log)
+    // Simulated failures exist only when started with VELA_DEBUG=1 (e.g. `VELA_DEBUG=1 ./gradlew :desktopApp:run`).
+    val faults = if (System.getenv("VELA_DEBUG") == "1") com.greenaltambe.vela.extractor.chain.FaultInjector() else null
+    val remote = com.greenaltambe.vela.config.createRemoteConfig({ settings.resolve(Settings.remoteConfigUrl) }, SqlDelightSettingsStore(database))
+    val wiring = buildDesktopWiring(database, settings, linuxSecretStore(XdgPaths.dataDir()), SystemProcessRunner(), log, remote = remote, managedDir = java.io.File(XdgPaths.dataDir(), "bin"), faults = faults)
+    // Fetched in the background at start; failures only change the status line (and keep the last good config).
+    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+        remote.refresh()
+        log.record(TierAttempt("remote config", TierId.ALT_CLIENT, AttemptOutcome.NOTE, null, remote.status.value, Duration.ZERO, Clock.System.now()))
+    }
     val chain = wiring.chain
     val accounts = wiring.accounts
     val audit = wiring.audit
     val governors = wiring.governors
     val health = wiring.health
     val downloadChain = wiring.downloadChain
+    // Newer-release watches: asked at most once a day (ReleaseCheck), anonymous, through the shared API client.
+    val releaseClient = com.greenaltambe.vela.core.http.ApiClient(OkHttpTransport(), com.greenaltambe.vela.core.http.InMemoryApiCache())
+    val releaseStore = SqlDelightSettingsStore(database)
+    val releases = listOfNotNull(
+        com.greenaltambe.vela.health.ReleaseWatch(com.greenaltambe.vela.health.ReleaseCheck("NewPipeExtractor", com.greenaltambe.vela.health.NewPipeVersion.VERSION, "TeamNewPipe/NewPipeExtractor", releaseClient, releaseStore)),
+        wiring.ytDlpVersion?.let { v -> com.greenaltambe.vela.health.ReleaseWatch(com.greenaltambe.vela.health.ReleaseCheck("yt-dlp", v, "yt-dlp/yt-dlp", releaseClient, releaseStore), wiring.ytDlpCopies) },
+    )
     // Downloads run in the app process; whatever was mid-way when it last exited is picked up again here.
     val downloads = createDesktopDownloads(database, downloadChain, modules, settings, ffmpeg = wiring.ffmpeg.path ?: "ffmpeg")
 
@@ -105,7 +121,7 @@ fun main() {
             }
         }
         val services = remember(host) {
-            AppServices(chain, settings, log, database, host, utcOffsetMinutes = { TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 60_000 }, modules = modules, downloads = downloads, accounts = accounts, login = InnertubeAccountLogin(accounts, governors), sync = InnertubeAccountSync(accounts, governors, database), audit = audit, governors = governors, health = health)
+            AppServices(chain, settings, log, database, host, utcOffsetMinutes = { TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 60_000 }, modules = modules, downloads = downloads, accounts = accounts, login = InnertubeAccountLogin(accounts, governors), sync = InnertubeAccountSync(accounts, governors, database), audit = audit, governors = governors, health = health, releases = releases, managedYtDlp = wiring.ytDlpUpdater, faults = faults)
         }
 
         Window(

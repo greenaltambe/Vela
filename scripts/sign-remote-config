@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Signs a Vela remote configuration with an Ed25519 key (needs openssl 3, base64, tail).
+#   scripts/sign-remote-config --gen-key key.pem        create a key; prints the PUBLIC key line for innertube-auth/src/main/resources/remote-config-pubkey.txt
+#   scripts/sign-remote-config key.pem payload.json out.json    out.json is what you host over https
+# payload.json needs "version" (integer, higher than the last one you published), "issuedAt" and "expiresAt" (ISO-8601 UTC).
+# Keep key.pem secret and OFF this repository.
+set -euo pipefail
+raw_pub() { openssl pkey -in "$1" -pubout -outform DER | tail -c 32 | base64 -w0; }
+if [ "${1:-}" = "--gen-key" ]; then
+  [ -e "${2:?usage: --gen-key key.pem}" ] && { echo "refusing to overwrite $2" >&2; exit 1; }
+  openssl genpkey -algorithm ED25519 -out "$2"; chmod 600 "$2"
+  echo "public key (put this line in remote-config-pubkey.txt): $(raw_pub "$2")"; exit 0
+fi
+key=${1:?usage: sign-remote-config key.pem payload.json out.json}; payload=${2:?}; out=${3:?}
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); assert isinstance(d["version"],int) and d["issuedAt"] and d["expiresAt"]' "$payload"
+tmp=$(mktemp); trap 'rm -f "$tmp"' EXIT
+openssl pkeyutl -sign -inkey "$key" -rawin -in "$payload" -out "$tmp"
+printf '{"payload":"%s","signature":"%s"}\n' "$(base64 -w0 "$payload")" "$(base64 -w0 "$tmp")" > "$out"
+size=$(wc -c < "$out"); [ "$size" -le 65536 ] || { echo "warning: $out is $size bytes; the app rejects more than 65536" >&2; }
+echo "wrote $out ($size bytes), signed by public key $(raw_pub "$key")"

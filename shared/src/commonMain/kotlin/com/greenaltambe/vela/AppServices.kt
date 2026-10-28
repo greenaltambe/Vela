@@ -52,6 +52,12 @@ class AppServices(
     /** Every request that carries account credentials passes through these; the audit log is what Diagnostics shows. */
     /** Canary checks of the anonymous tiers; null where the platform has none. */
     val health: com.greenaltambe.vela.health.ExtractorHealth? = null,
+    /** Newer-release watches (NewPipeExtractor, yt-dlp copies); shown on Health. */
+    val releases: List<com.greenaltambe.vela.health.ReleaseWatch> = emptyList(),
+    /** The app's own yt-dlp copy and its updater (Linux); null elsewhere. */
+    val managedYtDlp: com.greenaltambe.vela.health.ManagedUpdater? = null,
+    /** Debug-only switch for simulated failures (Diagnostics); null in normal builds. */
+    val faults: com.greenaltambe.vela.extractor.chain.FaultInjector? = null,
     val audit: DbAuditLog = DbAuditLog(database),
     val governors: GovernorRegistry = GovernorRegistry(clock, { governorLimits(settings) }, DbBreakerStore(database), audit),
 ) {

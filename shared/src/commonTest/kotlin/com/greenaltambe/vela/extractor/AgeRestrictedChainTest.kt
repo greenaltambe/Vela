@@ -109,3 +109,14 @@ class AgeRestrictedChainTest {
         assertIs<ExtractorError.Network>(c.failure())
     }
 }
+
+class ServedDetailTest {
+    @Test fun successLineNamesClientAndExtractorVersion() = runTest {
+        val log = DiagnosticsLog()
+        val ok = object : Extractor by StubExtractor() {
+            override suspend fun streams(videoId: String) = ExtractorResult.Success(StreamSet(emptyList(), emptyList(), client = "ios"))
+        }
+        FallbackChain(listOf(ExtractorTier(TierId.ALT_CLIENT, ok, "innertube-profiles.json")), { AccountFallbackMode.ONLY_ON_FAILURE }, log).streams("x")
+        assertEquals("client ios; innertube-profiles.json", log.attempts.value.single().detail)
+    }
+}

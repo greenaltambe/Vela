@@ -19,7 +19,7 @@ class ErrorMappingTest {
 
     @Test fun botCheckNeedsSignIn() { assertMapsTo<ExtractorError.SignInRequired>(SignInConfirmNotBotException("Sign in to confirm you're not a bot")) }
 
-    @Test fun reCaptchaIsBlocked() { assertMapsTo<ExtractorError.Blocked>(ReCaptchaException("reCaptcha Challenge requested", "https://youtube.com")) }
+    @Test fun reCaptchaIsItsOwnError() { assertMapsTo<ExtractorError.Captcha>(ReCaptchaException("reCaptcha Challenge requested", "https://youtube.com")) }
 
     @Test fun signInMessageOnAnotherExceptionStillNeedsSignIn() {
         assertMapsTo<ExtractorError.SignInRequired>(ParsingException("Sign in to confirm you’re not a bot"))

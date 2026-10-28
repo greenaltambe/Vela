@@ -24,7 +24,7 @@ fun Throwable.toExtractorError(): ExtractorError {
     return when (this) {
         // Subclass of ParsingException, so it has to be checked before the generic cases below.
         is SignInConfirmNotBotException -> ExtractorError.SignInRequired(message.ifBlank { "Sign in to confirm you're not a bot" }, this)
-        is ReCaptchaException -> ExtractorError.Blocked(message.ifBlank { "reCAPTCHA required" }, this)
+        is ReCaptchaException -> ExtractorError.Captcha(message.ifBlank { "reCAPTCHA required" }, url, this)
         is AgeRestrictedContentException -> ExtractorError.Unplayable(message.ifBlank { "Age-restricted content" }, this)
         is ContentNotAvailableException ->
             if (message.mentionsSignIn()) ExtractorError.SignInRequired(message, this)

@@ -18,10 +18,6 @@ object NewPipeVersion {
     private val released: Instant get() = Instant.parse("${RELEASED}T00:00:00Z")
     fun ageDays(now: Instant): Long = (now - released).inWholeDays
 
-    /** Null while fresh; after 60 days a sentence that says what to do. */
-    fun warning(now: Instant): String? = ageDays(now).takeIf { it > 60 }?.let {
-        "NewPipeExtractor $VERSION is $it days old. YouTube changes often; run scripts/bump-newpipe.sh to try the newest release."
-    }
 }
 
 /** Fetches the first bytes of a stream URL (anonymously) and returns the HTTP status; 206 means it plays. */
@@ -37,11 +33,26 @@ data class TierHealth(val tier: TierId, val lastSuccess: Instant?, val lastFailu
 }
 
 /** Where results are kept between runs. */
-interface HealthStore { fun load(): List<CanaryResult>; fun save(results: List<CanaryResult>) }
+interface HealthStore {
+    fun load(): List<CanaryResult>
+    fun save(results: List<CanaryResult>)
+    /** How many runs in a row had every tier failing; kept so a restart does not forget it. */
+    fun loadStreak(): Int = 0
+    fun saveStreak(streak: Int) {}
+}
+
+/** Shown when every tier failed the canaries in [streak] runs in a row: which tiers, and the last time anything worked. */
+data class HealthAlert(val failingTiers: List<TierId>, val lastGood: Instant?, val streak: Int) {
+    fun message(): String = "Playback may be broken: ${failingTiers.joinToString(", ") { it.name.lowercase().replace('_', ' ') }} failing. " +
+        "Last time anything worked: ${lastGood?.toString()?.substring(0, 16)?.replace('T', ' ') ?: "never"}."
+}
 class InMemoryHealthStore : HealthStore {
     private var list = emptyList<CanaryResult>()
     override fun load() = list
     override fun save(results: List<CanaryResult>) { list = results }
+    private var streak = 0
+    override fun loadStreak() = streak
+    override fun saveStreak(streak: Int) { this.streak = streak }
 }
 
 /**
@@ -54,12 +65,21 @@ class ExtractorHealth(
     private val probe: StreamProbe,
     private val store: HealthStore = InMemoryHealthStore(),
     private val clock: Clock = Clock.System,
-    private val canaries: List<Canary> = DefaultCanaries,
+    /** Read on every run, so a remote config can change them without a new build. */
+    private val canaries: () -> List<Canary> = { DefaultCanaries },
     private val keep: Int = 400,
 ) {
     private val _results = MutableStateFlow(store.load())
     val results: StateFlow<List<CanaryResult>> = _results
     private val _running = MutableStateFlow(false)
+    private val _alert = MutableStateFlow<HealthAlert?>(null)
+    private var streak = store.loadStreak()
+    /** Non-null only after [ALERT_AFTER] full-failure runs in a row, so one flaky run never raises it; any working run clears it. */
+    val alert: StateFlow<HealthAlert?> = _alert
+    init { _alert.value = currentAlert() }
+
+    private fun currentAlert(): HealthAlert? = if (streak < ALERT_AFTER) null else
+        HealthAlert(summary().map { it.tier }, _results.value.filter { it.ok && it.check.startsWith("streams") }.maxOfOrNull { it.at }, streak)
     val running: StateFlow<Boolean> = _running
 
     fun lastRun(): Instant? = _results.value.maxOfOrNull { it.at }
@@ -82,7 +102,7 @@ class ExtractorHealth(
                     val problem = when (search) { is ExtractorResult.Success -> if (search.value.items.isEmpty()) "no results" else null; is ExtractorResult.Failure -> search.error.message }
                     fresh += CanaryResult(tier.id, "search", problem == null, problem, searchStart, (clock.now() - searchStart).inWholeMilliseconds)
                 }
-                for (c in canaries) {
+                for (c in canaries()) {
                     fresh += timed(tier.id, "videoInfo(${c.label})") { when (val r = tier.extractor.videoInfo(c.videoId)) { is ExtractorResult.Success -> null; is ExtractorResult.Failure -> r.error.message } }
                     var url: String? = null; var headers = emptyMap<String, String>()
                     fresh += timed(tier.id, "streams(${c.label})") {
@@ -100,6 +120,11 @@ class ExtractorHealth(
             }
             val merged = (_results.value + fresh).sortedBy { it.at }.takeLast(keep)
             store.save(merged); _results.update { merged }
+            // A run is a full failure when no tier produced a single working stream resolve.
+            val anyWorked = fresh.any { it.ok && it.check.startsWith("streams") }
+            streak = if (fresh.isEmpty() || anyWorked) 0 else streak + 1
+            store.saveStreak(streak)
+            _alert.value = currentAlert()
         } finally { _running.value = false }
     }
 
@@ -110,6 +135,7 @@ class ExtractorHealth(
     }
 
     companion object {
+        const val ALERT_AFTER = 2
         const val SABR = "streamingData has no plain URLs: YouTube may have moved this client to SABR"
         /** Three stable public videos: a normal one, a music video and a short. */
         val DefaultCanaries = listOf(Canary("dQw4w9WgXcQ", "normal"), Canary("kJQP7kiw5Fk", "music"), Canary("jNQXAC9IVRw", "short"))

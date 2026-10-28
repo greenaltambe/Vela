@@ -9,6 +9,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -40,9 +41,17 @@ fun HealthScreen(services: AppServices, navigator: Navigator, modifier: Modifier
         val running by health.running.collectAsState()
         val results by health.results.collectAsState()
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Vela.gutter), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
-            NewPipeVersion.warning(services.clock.now())?.let { Text(it, color = Vela.colors.error.toColor(), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("health.newpipe")) }
-            Text("NewPipeExtractor ${NewPipeVersion.VERSION} (released ${NewPipeVersion.RELEASED})", style = MaterialTheme.typography.bodySmall)
-            PrimaryButton(if (running) "Checking…" else "Run checks now", { scope.launch { health.run() } }, enabled = !running, modifier = Modifier.testTag("health.run"))
+            services.releases.forEach { w ->
+                val st by w.check.status.collectAsState()
+                Text(st.describe(), color = if (st.newerAvailable) Vela.colors.error.toColor() else Color.Unspecified, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("health.release.${st.name}"))
+                if (st.name == "yt-dlp" && st.newerAvailable && services.managedYtDlp != null && services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.ytDlpAutoUpdate) != com.greenaltambe.vela.core.settings.YtDlpAutoUpdate.OFF) {
+                    val msg by services.managedYtDlp.status.collectAsState()
+                    PrimaryButton("Install yt-dlp ${st.latest} in the app's folder", { scope.launch { services.managedYtDlp.install(st.latest!!) } }, modifier = Modifier.testTag("health.installYtDlp"))
+                    if (msg.isNotEmpty()) Text(msg, style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("health.ytdlpStatus"))
+                }
+                w.copyLines().forEach { Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("health.copy")) }
+            }
+            PrimaryButton(if (running) "Checking…" else "Run checks now", { scope.launch { services.releases.forEach { runCatching { it.check.check(force = true) } }; health.run() } }, enabled = !running, modifier = Modifier.testTag("health.run"))
             Text("Checks use only the sources that need no account. Last run: ${health.lastRun()?.toString()?.substring(0, 16)?.replace('T', ' ') ?: "never"}", style = MaterialTheme.typography.bodySmall)
             health.summary().forEach { t ->
                 SectionHeader(t.tier.name.lowercase().replace('_', ' '))
@@ -70,6 +79,12 @@ fun HealthStartEffect(services: AppServices) {
     LaunchedEffect(Unit) {
         delay(15_000)
         while (true) {
+            services.releases.forEach { runCatching { it.check.check() } } // at most once a day, see ReleaseCheck
+            // AUTO: install a newer yt-dlp into the app's own folder; the updater rolls back if the yt-dlp source regresses.
+            services.managedYtDlp?.let { up ->
+                val st = services.releases.firstOrNull { it.check.status.value.name == "yt-dlp" }?.check?.status?.value
+                if (st != null && st.newerAvailable && services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.ytDlpAutoUpdate) == com.greenaltambe.vela.core.settings.YtDlpAutoUpdate.AUTO) runCatching { up.install(st.latest!!) }
+            }
             if (health.isStale()) runCatching { health.run() }
             delay(6L * 60 * 60 * 1000)
         }

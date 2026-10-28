@@ -15,6 +15,7 @@ fun mapYtDlpFailure(exitCode: Int, stderr: String): ExtractorError {
     fun has(vararg needles: String) = needles.any { text.contains(it, ignoreCase = true) }
 
     return when {
+        has("captcha", "/sorry/", "unusual traffic") -> ExtractorError.Captcha(message)
         has("confirm your age", "age-restricted", "age restricted", "inappropriate for some users") ->
             ExtractorError.Unplayable(message)
         has("private video", "this video is private") -> ExtractorError.Unplayable(message)

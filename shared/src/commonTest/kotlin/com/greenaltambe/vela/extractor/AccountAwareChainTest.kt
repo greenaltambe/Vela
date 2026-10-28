@@ -34,7 +34,7 @@ class AccountAwareChainTest {
     @Test fun signInRequiredRoutesToTheAccountTierWhenAnAccountExists() = runTest {
         assertIs<ExtractorResult.Success<*>>(chain().streams("age"))
         assertEquals(listOf(TierId.ANONYMOUS to AttemptOutcome.FAILED, TierId.AUTHENTICATED to AttemptOutcome.SUCCESS), outcomes())
-        assertEquals("account google:ab12cd", log.attempts.value.last().detail, "the label, never a name or e-mail")
+        assertEquals("account google:ab12cd; client stub", log.attempts.value.last().detail, "the label, never a name or e-mail")
     }
 
     @Test fun withoutAnAccountTheAccountTierIsSkippedAndTheNextTierServes() = runTest {

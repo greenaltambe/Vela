@@ -20,6 +20,7 @@ dependencies {
 
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.documentfile)
+    implementation(libs.androidx.work.runtime)
 
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.exoplayerHls)

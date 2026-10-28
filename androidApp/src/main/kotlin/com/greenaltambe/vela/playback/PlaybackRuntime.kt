@@ -13,6 +13,7 @@ import com.greenaltambe.vela.data.SqlDelightWatchHistoryRepository
 import com.greenaltambe.vela.data.createDatabase
 import com.greenaltambe.vela.extractor.chain.DiagnosticsLog
 import com.greenaltambe.vela.extractor.chain.FallbackChain
+import com.greenaltambe.vela.extractor.chain.withFaults
 import com.greenaltambe.vela.auth.AccountManager
 import com.greenaltambe.vela.auth.AndroidKeystoreSecretStore
 import com.greenaltambe.vela.auth.CredentialStore
@@ -69,17 +70,23 @@ class PlaybackRuntime private constructor(context: Context) {
     private fun pausedReason(): String? = accounts.active.value.takeIf { it.isSignedIn }
         ?.let { governors.forAccount(it.id).cooldownUntil() }?.let { "account cooling down until ${it.toString().substring(11, 16)} UTC" }
 
+    /** Signed remote configuration (profiles, kill switches, canary videos). Android 13+ verifies Ed25519 natively; older devices keep the bundled data. */
+    val remote by lazy { com.greenaltambe.vela.config.createRemoteConfig({ settings.resolve(Settings.remoteConfigUrl) }, SqlDelightSettingsStore(database)) }
+
     // No account tier on Android: yt-dlp does not run here, and neither NewPipe with account headers nor an own player call
     // with cookies gave playable streams (docs/reports/13-accounts.md). Anonymous -> alt client; the chain skips the account tier.
+    /** Simulated failures (Diagnostics) exist only in debuggable builds. */
+    val faults: com.greenaltambe.vela.extractor.chain.FaultInjector? =
+        if (appContext.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) com.greenaltambe.vela.extractor.chain.FaultInjector() else null
     private val tiers by lazy {
         listOf(
-            ExtractorTier(TierId.ANONYMOUS, PacedExtractor(NewPipeExtractor())),
-            ExtractorTier(TierId.ALT_CLIENT, AltClientExtractor(onProfile = { line ->
+            ExtractorTier(TierId.ANONYMOUS, PacedExtractor(NewPipeExtractor()), "NewPipeExtractor ${com.greenaltambe.vela.health.NewPipeVersion.VERSION}"),
+            ExtractorTier(TierId.ALT_CLIENT, AltClientExtractor(profiles = { remote.profiles(com.greenaltambe.vela.innertube.ClientProfile.load()) }, onProfile = { line ->
                 log.record(TierAttempt("alt client", TierId.ALT_CLIENT, AttemptOutcome.NOTE, null, line, Duration.ZERO, Clock.System.now()))
-            })),
-        )
+            }), "innertube-profiles.json"),
+        ).withFaults(faults)
     }
-    val health by lazy { ExtractorHealth(tiers, OkHttpStreamProbe(), DbHealthStore(database)) }
+    val health by lazy { ExtractorHealth(tiers, OkHttpStreamProbe(), DbHealthStore(database), canaries = { ExtractorHealth.DefaultCanaries + remote.canaryVideoIds().map { com.greenaltambe.vela.health.Canary(it, "remote") } }) }
     val chain by lazy {
         FallbackChain(tiers, accountMode = { settings.resolve(Settings.accountFallbackMode) }, log = log,
             signedInAccount = { accounts.active.value.takeIf { it.isSignedIn }?.label },

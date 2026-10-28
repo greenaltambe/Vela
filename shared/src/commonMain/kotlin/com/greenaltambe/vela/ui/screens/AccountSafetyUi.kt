@@ -141,3 +141,23 @@ fun AccountActivityScreen(services: AppServices, navigator: Navigator, modifier:
         }
     }
 }
+
+/**
+ * "Playback may be broken": shown when every source failed the health checks twice in a row. Not spammy: one line, dismissed
+ * for as long as the failure streak stays at the length it had when dismissed (it returns if it gets worse after a recovery).
+ */
+@Composable
+fun HealthBanner(services: AppServices, navigator: Navigator) {
+    val health = services.health ?: return
+    val alert by health.alert.collectAsState()
+    var dismissedAt by remember { mutableStateOf(0) }
+    val a = alert ?: return
+    if (a.streak <= dismissedAt) return
+    Surface(color = Vela.colors.surface.toColor(), modifier = Modifier.fillMaxWidth().testTag("health.banner")) {
+        Row(Modifier.padding(horizontal = Vela.gutter, vertical = Vela.xs), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.xs)) {
+            Text(a.message(), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = Vela.colors.error.toColor(), maxLines = 4, overflow = TextOverflow.Ellipsis)
+            TextButton(onClick = { navigator.push(Route.Health) }) { Text("Details") }
+            TextButton(onClick = { dismissedAt = a.streak }, modifier = Modifier.testTag("health.banner.dismiss")) { Text("Dismiss") }
+        }
+    }
+}

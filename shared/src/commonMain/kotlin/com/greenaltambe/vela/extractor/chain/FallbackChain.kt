@@ -113,7 +113,7 @@ class FallbackChain(
             when (result) {
                 is ExtractorResult.Success -> {
                     signInFailures.remove(tier.id)
-                    record(subject, tier.id, AttemptOutcome.SUCCESS, null, account?.takeIf { tier.id == TierId.AUTHENTICATED }?.let { "account $it" }, took)
+                    record(subject, tier.id, AttemptOutcome.SUCCESS, null, servedDetail(tier, account, result.value), took)
                     failures.filter { (_, e) -> e.reason.isTierHealthIssue }
                         .forEach { (failed, e) -> memory.remember(failed, e.reason, tier.id) }
                     return result
@@ -176,10 +176,19 @@ class FallbackChain(
         e.reason == FailureReason.SIGN_IN_REQUIRED -> "sign-in required"
         e.reason == FailureReason.RATE_LIMITED -> "rate limited"
         e.reason == FailureReason.BLOCKED -> "blocked"
+        e.reason == FailureReason.CAPTCHA -> "captcha required"
         e.reason == FailureReason.NETWORK -> "network error"
         e.reason == FailureReason.TIER_UNAVAILABLE -> "unavailable: " + e.message.take(80)
         else -> e.message.take(80)
     }
+
+    /** What served a request: the account (if it did), the exact client/profile when the result names one, and the code version behind the tier. */
+    private fun servedDetail(tier: ExtractorTier, account: String?, value: Any?): String? =
+        listOfNotNull(
+            account?.takeIf { tier.id == TierId.AUTHENTICATED }?.let { "account $it" },
+            (value as? StreamSet)?.client?.let { "client $it" },
+            tier.version,
+        ).joinToString("; ").ifEmpty { null }
 
     /** Applies the account fallback setting: drops or promotes the authenticated tier. */
     private fun candidateTiers(subject: String, account: String?, op: AccountOp, skips: MutableMap<TierId, String>): List<ExtractorTier> {

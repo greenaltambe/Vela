@@ -20,6 +20,7 @@ import com.greenaltambe.vela.extractor.chain.TierAttempt
 import com.greenaltambe.vela.extractor.chain.TierId
 import com.greenaltambe.vela.extractor.chain.TierOrder
 import com.greenaltambe.vela.extractor.chain.downloadAccountMode
+import com.greenaltambe.vela.extractor.chain.withFaults
 import com.greenaltambe.vela.extractor.newpipe.NewPipeExtractor
 import com.greenaltambe.vela.extractor.ytdlp.AccountCookies
 import com.greenaltambe.vela.extractor.ytdlp.AuthenticatedYtDlpExtractor
@@ -51,7 +52,18 @@ class DesktopWiring(
     val ytDlp: FoundBinary,
     val jsRuntime: FoundBinary,
     val ffmpeg: FoundBinary,
+    /** Every yt-dlp found, with its version and the command that would update it; the app never changes them. */
+    val ytDlpCopies: List<com.greenaltambe.vela.health.ToolCopy>,
+    val ytDlpVersion: String?,
+    val ytDlpUpdater: com.greenaltambe.vela.health.ManagedUpdater?,
 )
+
+/** The command that updates a yt-dlp installed at [path]. Reported, never run. */
+fun ytDlpUpdateHint(path: String, home: String = System.getProperty("user.home").orEmpty()): String = when {
+    path.startsWith("/usr/") || path.startsWith("/bin/") -> "sudo dnf upgrade yt-dlp (or your distribution's package manager)"
+    path.startsWith("$home/.local/") -> "pipx upgrade yt-dlp (or pip install -U yt-dlp; yt-dlp -U for the standalone binary)"
+    else -> "$path -U"
+}
 
 fun buildDesktopWiring(
     database: VelaDatabase,
@@ -61,6 +73,12 @@ fun buildDesktopWiring(
     log: DiagnosticsLog = DiagnosticsLog(),
     locator: BinaryLocator = BinaryLocator(),
     clock: Clock = Clock.System,
+    /** Signed remote configuration (profiles, kill switches, canary videos); null = bundled data only. */
+    remote: com.greenaltambe.vela.config.RemoteConfigManager? = null,
+    /** Where the app keeps its own yt-dlp copy (`<data dir>/bin`); null = no managed copy. */
+    managedDir: java.io.File? = null,
+    /** Debug-only: wraps the anonymous tiers so Diagnostics can simulate 429 / captcha / offline / expired URLs. */
+    faults: com.greenaltambe.vela.extractor.chain.FaultInjector? = null,
 ): DesktopWiring {
     fun note(subject: String, tier: TierId, detail: String, outcome: AttemptOutcome = AttemptOutcome.NOTE) =
         log.record(TierAttempt(subject, tier, outcome, null, detail, Duration.ZERO, clock.now()))
@@ -71,7 +89,10 @@ fun buildDesktopWiring(
     // yt-dlp is often installed twice (distro package + pip) and the two differ by months; the newest one wins unless the user named one.
     val (chosen, probed) = if (explicit) {
         locator.locate("yt-dlp", configured).takeIf { it.found }?.let { runBlocking { chooseYtDlp(runner, listOf(it)) } } ?: (null to emptyList())
-    } else runBlocking { chooseYtDlp(runner, locator.locateAll("yt-dlp")) }
+    } else runBlocking {
+        val managed = managedDir?.let { java.io.File(it, "yt-dlp") }?.takeIf { it.isFile && it.canExecute() }?.let { FoundBinary("yt-dlp", it.path, "managed by Vela") }
+        chooseYtDlp(runner, listOfNotNull(managed) + locator.locateAll("yt-dlp").filter { it.path != managed?.path })
+    }
     val ytDlpFound = chosen?.binary ?: locator.locate("yt-dlp", configured).let { if (it.found) FoundBinary("yt-dlp", null, "${it.path} does not run") else it }
     probed.forEach { c -> note("binaries", TierId.YT_DLP, "yt-dlp candidate ${c.binary.path} (${c.binary.source}): ${c.version ?: "does not run"}${if (c === chosen) "  <- used" else ""}") }
     if (chosen != null) note("binaries", TierId.YT_DLP, "yt-dlp: ${chosen.binary.path} ${chosen.version}")
@@ -87,7 +108,8 @@ fun buildDesktopWiring(
 
     // yt-dlp is probed once at startup (`yt-dlp --version`); if it isn't there the tier is simply not registered.
     var ytDlpArgs = emptyList<String>()
-    val ytDlpBinary = { ytDlpFound.path ?: settings.resolve(Settings.ytDlpPath) }
+    val activeYtDlp = java.util.concurrent.atomic.AtomicReference(ytDlpFound.path)
+    val ytDlpBinary = { activeYtDlp.get() ?: settings.resolve(Settings.ytDlpPath) }
     val ytDlp = if (ytDlpFound.found) runBlocking {
         createYtDlpTier(runner, binary = ytDlpBinary, log = log, path = locator, onReady = { ytDlpArgs = it })
     } else {
@@ -99,6 +121,7 @@ fun buildDesktopWiring(
     val audit = DbAuditLog(database)
     val governors = GovernorRegistry(clock, { governorLimits(settings) }, DbBreakerStore(database), audit)
     val signedIn = { accounts.active.value.takeIf { it.isSignedIn } }
+    val ytDlpLabel = chosen?.let { "yt-dlp ${it.version} (${it.binary.path}; client picked by yt-dlp itself, see yt-dlp -v)" }
     val accountTier = ytDlp?.let {
         AuthenticatedYtDlpExtractor(
             governors = governors,
@@ -108,13 +131,13 @@ fun buildDesktopWiring(
         )
     }
     // Chain order: ANONYMOUS (NewPipe), AUTHENTICATED (yt-dlp --cookies as the active account), ALT_CLIENT (iOS/Android player), YT_DLP.
-    val tiers = listOfNotNull(
-        ExtractorTier(TierId.ANONYMOUS, PacedExtractor(NewPipeExtractor())),
-        accountTier?.let { ExtractorTier(TierId.AUTHENTICATED, it) },
-        ExtractorTier(TierId.ALT_CLIENT, AltClientExtractor(onProfile = { line -> note("alt client", TierId.ALT_CLIENT, line) })),
-        ytDlp?.let { ExtractorTier(TierId.YT_DLP, PacedExtractor(it.extractor)) },
-    )
-    val health = ExtractorHealth(tiers, OkHttpStreamProbe(), DbHealthStore(database))
+    val tiers = (listOfNotNull(
+        ExtractorTier(TierId.ANONYMOUS, PacedExtractor(NewPipeExtractor()), "NewPipeExtractor ${com.greenaltambe.vela.health.NewPipeVersion.VERSION}"),
+        accountTier?.let { ExtractorTier(TierId.AUTHENTICATED, it, ytDlpLabel) },
+        ExtractorTier(TierId.ALT_CLIENT, AltClientExtractor(profiles = { remote?.profiles(com.greenaltambe.vela.innertube.ClientProfile.load()) ?: com.greenaltambe.vela.innertube.ClientProfile.load() }, onProfile = { line -> note("alt client", TierId.ALT_CLIENT, line) }), "innertube-profiles.json"),
+        ytDlp?.let { ExtractorTier(TierId.YT_DLP, PacedExtractor(it.extractor), ytDlpLabel) },
+    )).withFaults(faults)
+    val health = ExtractorHealth(tiers, OkHttpStreamProbe(), DbHealthStore(database), clock, canaries = { ExtractorHealth.DefaultCanaries + remote?.canaryVideoIds().orEmpty().map { com.greenaltambe.vela.health.Canary(it, "remote") } })
     val hint = { id: TierId ->
         if (id != TierId.YT_DLP) null
         else if (!ytDlpFound.found) "yt-dlp is not installed (${ytDlpFound.source}); install it to play age-restricted videos without an account"
@@ -135,5 +158,21 @@ fun buildDesktopWiring(
     // Downloads use the anonymous tiers; the account only when the user allowed it and the anonymous tiers failed.
     val downloadChain = FallbackChain(tiers, accountMode = { downloadAccountMode(settings.resolve(Settings.accountDownloadsMayUse)) }, log = log, clock = clock,
         signedInAccount = { signedIn()?.label }, accountMayServe = policy, tierOrder = order, accountPaused = paused, tierHint = hint)
-    return DesktopWiring(log, accounts, audit, governors, tiers, chain, downloadChain, health, ytDlpFound, jsFound, ffmpegFound)
+    val copies = probed.map { com.greenaltambe.vela.health.ToolCopy(it.binary.path.orEmpty(), it.version, it === chosen, ytDlpUpdateHint(it.binary.path.orEmpty())) }
+    val updater = if (managedDir != null && ytDlp != null) {
+        val core = com.greenaltambe.vela.extractor.ytdlp.YtDlpUpdater(managedDir, runner = runner, healthCheck = { bin ->
+            // The same canary the Health screen uses for this tier: the new binary must still resolve a normal video's streams.
+            val r = com.greenaltambe.vela.extractor.ytdlp.YtDlpExtractor(runner, { bin }, { ytDlpArgs }).streams("dQw4w9WgXcQ")
+            r is com.greenaltambe.vela.extractor.ExtractorResult.Success && (r.value.videoStreams.isNotEmpty() || r.value.audioStreams.isNotEmpty())
+        })
+        object : com.greenaltambe.vela.health.ManagedUpdater {
+            override val status = core.status
+            override suspend fun install(tag: String): Boolean {
+                val r = core.update(tag)
+                if (r is com.greenaltambe.vela.extractor.ytdlp.UpdateResult.Updated) { activeYtDlp.set(core.managed.path); note("yt-dlp updater", TierId.YT_DLP, core.status.value) } else note("yt-dlp updater", TierId.YT_DLP, core.status.value, AttemptOutcome.FAILED)
+                return r is com.greenaltambe.vela.extractor.ytdlp.UpdateResult.Updated
+            }
+        }
+    } else null
+    return DesktopWiring(log, accounts, audit, governors, tiers, chain, downloadChain, health, ytDlpFound, jsFound, ffmpegFound, copies, chosen?.version, updater)
 }

@@ -149,6 +149,7 @@ fun AppShell(services: AppServices, navigator: Navigator = remember { Navigator(
                         )
                     }
                     if (chrome) AccountBanner(services, navigator)
+                    if (chrome) com.greenaltambe.vela.ui.screens.HealthBanner(services, navigator)
                     SessionCheckEffect(services)
                     HealthStartEffect(services)
                     // Keyed by the active account, so switching rebuilds every screen on the new account's data.
@@ -218,7 +219,7 @@ private fun Destination(services: AppServices, navigator: Navigator, route: Rout
         is Route.Playlist -> PlaylistScreen(services, navigator, route.id, modifier)
         Route.History -> HistoryScreen(services, navigator, modifier)
         Route.ManageSubscriptions -> SubscriptionsScreen(services, navigator, modifier)
-        Route.Diagnostics -> DiagnosticsScreen(services.extractor, services.log, services.modules.log, services.downloads, modifier)
+        Route.Diagnostics -> DiagnosticsScreen(services.extractor, services.log, services.modules.log, services.downloads, modifier, faults = services.faults)
         Route.Downloads -> DownloadsScreen(services, navigator, modifier)
         Route.Accounts -> AccountsScreen(services, navigator, modifier)
         Route.AccountActivity -> AccountActivityScreen(services, navigator, modifier)

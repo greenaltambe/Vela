@@ -10,7 +10,8 @@ import kotlin.time.Instant
 
 enum class TierId { ANONYMOUS, AUTHENTICATED, ALT_CLIENT, YT_DLP }
 
-class ExtractorTier(val id: TierId, val extractor: Extractor) {
+/** [version] names the code behind the tier for Diagnostics, e.g. "NewPipeExtractor v0.26.5" or "yt-dlp 2026.10.26 (/home/u/.local/bin/yt-dlp)". */
+class ExtractorTier(val id: TierId, val extractor: Extractor, val version: String? = null) {
     val capabilities get() = extractor.capabilities
 }
 

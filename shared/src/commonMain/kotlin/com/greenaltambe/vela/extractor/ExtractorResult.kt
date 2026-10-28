@@ -3,15 +3,20 @@ package com.greenaltambe.vela.extractor
 enum class FailureReason {
     BLOCKED, SIGN_IN_REQUIRED, UNPLAYABLE, RATE_LIMITED, NETWORK, PARSE_FAILURE,
 
+    /** YouTube/Google asked for a captcha ("unusual traffic", /sorry). Distinct from BLOCKED: solving it in a browser can lift it. */
+    CAPTCHA,
+
     /** The tier itself can't run (e.g. its binary is gone); says nothing about the video, IP or connection. */
     TIER_UNAVAILABLE;
 
     /** Reasons that say something about the tier/IP rather than the video or the connection. */
-    val isTierHealthIssue: Boolean get() = this == BLOCKED || this == SIGN_IN_REQUIRED || this == RATE_LIMITED
+    val isTierHealthIssue: Boolean get() = this == BLOCKED || this == SIGN_IN_REQUIRED || this == RATE_LIMITED || this == CAPTCHA
 }
 
 sealed class ExtractorError(val reason: FailureReason, val message: String, val cause: Throwable? = null) {
     class Blocked(message: String = "Blocked", cause: Throwable? = null) : ExtractorError(FailureReason.BLOCKED, message, cause)
+    /** [url] is the challenge page when the source gave one (NewPipe does), so the app can open it. */
+    class Captcha(message: String = "Captcha required", val url: String? = null, cause: Throwable? = null) : ExtractorError(FailureReason.CAPTCHA, message, cause)
     class SignInRequired(message: String = "Sign in required", cause: Throwable? = null) : ExtractorError(FailureReason.SIGN_IN_REQUIRED, message, cause)
     class Unplayable(message: String = "Unplayable", cause: Throwable? = null) : ExtractorError(FailureReason.UNPLAYABLE, message, cause)
     class RateLimited(message: String = "Rate limited", cause: Throwable? = null) : ExtractorError(FailureReason.RATE_LIMITED, message, cause)

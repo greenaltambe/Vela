@@ -2,6 +2,9 @@ package com.greenaltambe.vela.core.settings
 
 enum class AccountFallbackMode { ONLY_ON_FAILURE, ALWAYS, NEVER }
 
+/** What to do when a newer yt-dlp exists: nothing, offer it on Health (default), or install it (and roll back if the yt-dlp source regresses). */
+enum class YtDlpAutoUpdate { OFF, ASK, AUTO }
+
 enum class ShortsMode { HIDE, SHOW, SEPARATE_TAB }
 
 /** Highest resolution to play; [height] is the cap in pixels of video height, null for no cap. */
@@ -104,6 +107,18 @@ object Settings {
         keywords = listOf("yt-dlp", "youtube-dl", "binary", "path", "extractor", "fallback"),
         codec = SettingCodecs.string,
         section = SettingSection.ADVANCED,
+    )
+
+    val ytDlpAutoUpdate = Setting(
+        key = "ytdlp.autoUpdate", default = YtDlpAutoUpdate.ASK, scope = SettingScope.GLOBAL,
+        label = "Update the app's own yt-dlp copy",
+        keywords = listOf("yt-dlp", "update", "auto", "upgrade", "extractor"),
+        codec = SettingCodecs.enum(YtDlpAutoUpdate.entries), section = SettingSection.ADVANCED,
+        choices = listOf(
+            SettingChoice(YtDlpAutoUpdate.OFF.name, "Off"),
+            SettingChoice(YtDlpAutoUpdate.ASK.name, "Ask me"),
+            SettingChoice(YtDlpAutoUpdate.AUTO.name, "Automatically"),
+        ),
     )
 
     val look = Setting(
@@ -438,6 +453,14 @@ object Settings {
         codec = SettingCodecs.string, section = SettingSection.ACCOUNT,
     )
 
+    /** Empty = bundled configuration only. Must be https; the file is only accepted with a valid Ed25519 signature (docs/remote-config.md). */
+    val remoteConfigUrl = Setting(
+        key = "remoteConfig.url", default = "", scope = SettingScope.GLOBAL,
+        label = "Remote configuration URL",
+        keywords = listOf("remote", "config", "update", "profiles", "kill switch", "signed"),
+        codec = SettingCodecs.string, section = SettingSection.ADVANCED,
+    )
+
     val accountPlaybackPerHour = Setting(
         key = "account.budget.playbackPerHour", default = 20f, scope = SettingScope.GLOBAL,
         label = "Account playback resolves per hour",
@@ -464,7 +487,7 @@ object Settings {
 
     val all: List<Setting<*>> = listOf(
         look, performanceMode, localOnlyHistory, hideWatched, minLengthSeconds, blockKeywords, allowKeywords, keywordsAreRegex,
-        accountFallbackMode, accountReportActivity, accountUseForChannels, accountUseForDetails, accountDownloadsMayUse, accountKillSwitch, accountTierOrder,
+        accountFallbackMode, accountReportActivity, accountUseForChannels, accountUseForDetails, accountDownloadsMayUse, accountKillSwitch, accountTierOrder, remoteConfigUrl, ytDlpAutoUpdate,
         accountPlaybackPerHour, accountBrowsePerMinute, accountWritesPerHour, shortsMode, defaultPlaybackSpeed, maxQualityUnmetered, maxQualityMetered, preferredCodec, audioOnly, ytDlpPath,
         sponsorBlockEnabled, returnYouTubeDislikeEnabled, deArrowEnabled,
         sponsorBlockMinSegmentSeconds, sponsorBlockNotifications, sponsorBlockServer, sponsorBlockUserId, rydInFeed, rydServer,

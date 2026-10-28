@@ -1,0 +1,2 @@
+# Base64 of the raw 32-byte Ed25519 public key that signs remote configuration (scripts/sign-remote-config --gen-key prints it).
+# Blank = no key bundled: the remote configuration URL setting then has no effect. See docs/remote-config.md.

@@ -1,6 +1,10 @@
 package com.greenaltambe.vela.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,7 +34,7 @@ import kotlinx.coroutines.launch
 
 /** Settings > Diagnostics: exercise the extractor chain by hand (search, list a result's streams) and see which tier served what and why others failed. */
 @Composable
-fun DiagnosticsScreen(extractor: Extractor, log: DiagnosticsLog, moduleLog: ModuleLog, downloads: com.greenaltambe.vela.downloads.Downloads?, modifier: Modifier = Modifier) {
+fun DiagnosticsScreen(extractor: Extractor, log: DiagnosticsLog, moduleLog: ModuleLog, downloads: com.greenaltambe.vela.downloads.Downloads?, modifier: Modifier = Modifier, faults: com.greenaltambe.vela.extractor.chain.FaultInjector? = null) {
     val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("") }
@@ -77,6 +81,15 @@ fun DiagnosticsScreen(extractor: Extractor, log: DiagnosticsLog, moduleLog: Modu
             OutlinedTextField(query, { query = it }, label = { Text("Search (lists streams on click)") }, singleLine = true)
             Button(onClick = { search() }, enabled = query.isNotBlank()) { Text("Search") }
             if (results.continuation != null) Button(onClick = { search(more = true) }) { Text("Load more") }
+        }
+        if (faults != null) {
+            val active by faults.fault.collectAsState()
+            Text("Simulate a failure (debug only): ${active.label}", style = MaterialTheme.typography.titleSmall, modifier = Modifier.testTag("faults.active"))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                com.greenaltambe.vela.extractor.chain.SimulatedFault.entries.forEach { f ->
+                    OutlinedButton(onClick = { faults.set(f) }, modifier = Modifier.testTag("faults.${f.name}")) { Text(f.label, maxLines = 1) }
+                }
+            }
         }
         Text(status)
         streamSummary?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }

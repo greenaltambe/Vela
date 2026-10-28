@@ -95,3 +95,10 @@ class YtDlpErrorsTest {
         assertEquals("yt-dlp exited with code 7", mapYtDlpFailure(7, "").message)
     }
 }
+
+class YtDlpCaptchaTest {
+    @Test fun unusualTrafficAndSorryPagesAreCaptchas() {
+        listOf("ERROR: [youtube] x: unusual traffic from your computer network", "HTTP Error 429 ... https://www.google.com/sorry/index", "ERROR: captcha required")
+            .forEach { assertIs<ExtractorError.Captcha>(mapYtDlpFailure(1, it), it) }
+    }
+}
