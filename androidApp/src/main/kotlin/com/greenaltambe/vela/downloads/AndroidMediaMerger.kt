@@ -30,6 +30,10 @@ class AndroidMediaMerger : MediaMerger {
 
     override fun containerFor(videoCodec: String, audioCodec: String): Container = Containers.forAndroidMuxer(videoCodec, audioCodec)
 
+    /** Measured on a Pixel-class OPPO CPH2707 (Android 16): VP9 into MP4 is rejected ("Failed to add the track to the muxer"), and VP9 + AAC fits no other container. */
+    override fun canMerge(videoCodec: String, audioCodec: String): Boolean =
+        !(com.greenaltambe.vela.player.StreamSelector.codecOf(videoCodec) == com.greenaltambe.vela.player.VideoCodec.VP9 && containerFor(videoCodec, audioCodec) == Container.MP4)
+
     override suspend fun merge(job: MergeJob) = withContext(Dispatchers.IO) {
         val format = when (job.container) {
             Container.MP4 -> MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4
@@ -46,8 +50,8 @@ class AndroidMediaMerger : MediaMerger {
             val aTrack = audio.firstTrack("audio/") ?: throw MergeException("no audio track in ${job.audioPath}")
             video.selectTrack(vTrack); audio.selectTrack(aTrack)
             muxer = MediaMuxer(job.outputPath, format)
-            val vOut = try { muxer.addTrack(video.getTrackFormat(vTrack)) } catch (e: IllegalArgumentException) { throw MergeException("this device's muxer cannot put ${video.getTrackFormat(vTrack).getString(MediaFormat.KEY_MIME)} in ${job.container.extension}", e) }
-            val aOut = try { muxer.addTrack(audio.getTrackFormat(aTrack)) } catch (e: IllegalArgumentException) { throw MergeException("this device's muxer cannot put ${audio.getTrackFormat(aTrack).getString(MediaFormat.KEY_MIME)} in ${job.container.extension}", e) }
+            val vOut = try { muxer.addTrack(video.getTrackFormat(vTrack)) } catch (e: RuntimeException) { throw MergeException("this device's muxer cannot put ${video.getTrackFormat(vTrack).getString(MediaFormat.KEY_MIME)} in ${job.container.extension} (${e.message})", e) }
+            val aOut = try { muxer.addTrack(audio.getTrackFormat(aTrack)) } catch (e: RuntimeException) { throw MergeException("this device's muxer cannot put ${audio.getTrackFormat(aTrack).getString(MediaFormat.KEY_MIME)} in ${job.container.extension} (${e.message})", e) }
             muxer.start()
             val buffer = ByteBuffer.allocate(BUFFER_BYTES)
             val info = MediaCodec.BufferInfo()

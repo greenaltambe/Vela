@@ -81,6 +81,11 @@ class PlaybackSession(
     private val network: NetworkMonitor = FixedNetworkMonitor(),
     private val constraints: () -> PlaybackConstraints = { PlaybackConstraints() },
     private val maxReResolves: Int = 2,
+    /** Connection drops (Wi-Fi <-> mobile, brief offline) are re-resolved this many times in a row, with a growing pause. */
+    private val maxNetworkRecoveries: Int = 3,
+    private val networkBackoff: Duration = 2.seconds,
+    /** Buffering this long after playback had started counts as a slow stream: re-resolved once per video, preferring another source (setting, default on). */
+    private val stallAfter: Duration = 12.seconds,
     private val historyInterval: Duration = 15.seconds,
     /** URLs this close to expiring count as expired, so a refresh happens before the player is rejected. */
     expiryMargin: Duration = 30.seconds,
@@ -148,6 +153,12 @@ class PlaybackSession(
     private var maxHeightOverride: Int? = null
     private var speedOverride: Float? = null
     private var reResolves = 0
+    private var networkRecoveries = 0
+    private var slowFailovers = 0
+    private var stallJob: Job? = null
+    private val _recoveryNote = MutableStateFlow<String?>(null)
+    /** Why playback was re-resolved last ("network error, retry 1/3 ..."), for Diagnostics; null when nothing happened. */
+    val recoveryNote: StateFlow<String?> = _recoveryNote
     private var loadedAtMs = 0L
     private var settled = false // false from load() until the player reports it is ready; position is not trustworthy meanwhile
 
@@ -175,7 +186,7 @@ class PlaybackSession(
         localPlan = null
         maxHeightOverride = null
         speedOverride = null
-        reResolves = 0
+        reResolves = 0; networkRecoveries = 0; slowFailovers = 0
         recordId = null
         watchedMs = 0
         playingSince = null
@@ -199,7 +210,7 @@ class PlaybackSession(
         localPlan = plan
         maxHeightOverride = null
         speedOverride = null
-        reResolves = 0
+        reResolves = 0; networkRecoveries = 0
         recordId = null
         watchedMs = 0
         playingSince = null
@@ -259,7 +270,7 @@ class PlaybackSession(
     }
 
     override fun seekTo(positionMs: Long) {
-        reResolves = 0
+        reResolves = 0; networkRecoveries = 0
         controller.seekTo(positionMs)
     }
 
@@ -326,10 +337,10 @@ class PlaybackSession(
     }
 
     /** Re-resolves the streams of the current video and resumes at [positionMs]. */
-    private suspend fun refresh(id: String, positionMs: Long, playWhenReady: Boolean) {
+    private suspend fun refresh(id: String, positionMs: Long, playWhenReady: Boolean, preferOther: Boolean = false) {
         persist()
         _state.value = SessionState.Resolving(id, refresh = true)
-        when (val result = extractor.streams(id)) {
+        when (val result = if (preferOther) extractor.streamsPreferringOther(id) else extractor.streams(id)) {
             is ExtractorResult.Success -> {
                 streams = result.value
                 leases.awaitAvailable(result.value)
@@ -384,6 +395,9 @@ class PlaybackSession(
         forAddons { it.onPlayerState(st) }
         val previous = lastStatus
         lastStatus = st.status
+        if (st.status == PlaybackStatus.BUFFERING && settled && localPlan == null) {
+            if (stallJob?.isActive != true) stallJob = sessionScope.launch { delay(stallAfter); onStall() }
+        } else if (st.status != PlaybackStatus.BUFFERING) { stallJob?.cancel(); stallJob = null }
         if (st.status == PlaybackStatus.PLAYING || st.status == PlaybackStatus.PAUSED || st.status == PlaybackStatus.ENDED) settled = true
         if (previous == PlaybackStatus.PLAYING && st.status != PlaybackStatus.PLAYING) {
             persist() // accrues the time played so far
@@ -391,16 +405,40 @@ class PlaybackSession(
         } else if (previous != PlaybackStatus.PLAYING && st.status == PlaybackStatus.PLAYING) {
             playingSince = clock.now()
         }
-        if (st.status == PlaybackStatus.PLAYING && st.positionMs >= loadedAtMs + PROGRESS_MS) reResolves = 0
+        if (st.status == PlaybackStatus.PLAYING && st.positionMs >= loadedAtMs + PROGRESS_MS) { reResolves = 0; networkRecoveries = 0 }
         if (st.status == PlaybackStatus.ENDED) {
             persist()
             if (_sleepTimer.value?.mode == SleepTimerMode.EndOfVideo) setSleepTimer(null)
         }
     }
 
+    private suspend fun onStall() {
+        val id = videoId ?: return
+        if (controller.state.value.status != PlaybackStatus.BUFFERING || slowFailovers >= 1 || !settings.resolve(Settings.slowStreamFailover)) return
+        slowFailovers++
+        val position = controller.state.value.positionMs
+        _recoveryNote.value = "stream buffering for ${stallAfter.inWholeSeconds}s at ${position / 1000}s; re-resolved once preferring another source"
+        work?.cancel()
+        refresh(id, position, playWhenReady = true, preferOther = true)
+    }
+
     private suspend fun onPlayerError(error: PlaybackError) {
         val id = videoId ?: return
         persist()
+        if (localPlan == null && error.kind == PlaybackErrorKind.Network && networkRecoveries < maxNetworkRecoveries) {
+            // A handoff changes the client's IP, which also invalidates URLs bound to it, so the streams are resolved again, not just resumed.
+            networkRecoveries++
+            _recoveryNote.value = "network error (${error.message.take(80)}); re-resolving, try $networkRecoveries/$maxNetworkRecoveries"
+            val position = controller.state.value.positionMs
+            work?.cancel()
+            delay(networkBackoff * networkRecoveries)
+            // Offline: wait (bounded) for a connection before spending a try on the network.
+            var waited = 0
+            while (network.type.value == NetworkType.OFFLINE && waited < 30) { delay(1.seconds); waited++ }
+            _state.value = SessionState.Resolving(id, refresh = true)
+            refresh(id, position, playWhenReady = true)
+            return
+        }
         val urlsDead = localPlan == null && (error.kind == PlaybackErrorKind.StreamExpiredOrForbidden || needsRefresh())
         if (!urlsDead || reResolves >= maxReResolves) {
             _state.value = SessionState.Failed(id, "${error.kind}: ${error.message}", playbackError = error)

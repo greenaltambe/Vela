@@ -57,6 +57,7 @@ import com.greenaltambe.vela.ui.nav.TopLevelRoutes
 import com.greenaltambe.vela.ui.nav.topLevel
 import com.greenaltambe.vela.ui.platform.LocalInPictureInPicture
 import com.greenaltambe.vela.ui.platform.LocalWindowControls
+import com.greenaltambe.vela.player.SessionState
 import com.greenaltambe.vela.ui.platform.PlatformBackHandler
 import com.greenaltambe.vela.ui.player.applyShortcut
 import com.greenaltambe.vela.ui.player.shortcutFor
@@ -95,6 +96,17 @@ fun AppShell(services: AppServices, navigator: Navigator = remember { Navigator(
     val playerState = host?.controllerState?.collectAsState()?.value
 
     PlatformBackHandler(enabled = navigator.canGoBack) { navigator.back() }
+
+    // The mini player survives the process being killed: remember what it shows, and bring it back (idle) on the next start.
+    var restored by remember { androidx.compose.runtime.mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        com.greenaltambe.vela.ui.nav.NowPlayingSnapshot.decode(services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.restoreNowPlaying))?.let(navigator::restore)
+        restored = true
+    }
+    LaunchedEffect(navigator.nowPlaying, restored) {
+        if (!restored) return@LaunchedEffect
+        runCatching { services.settings.set(com.greenaltambe.vela.core.settings.Settings.restoreNowPlaying, com.greenaltambe.vela.ui.nav.NowPlayingSnapshot.encode(navigator.nowPlaying)) }
+    }
 
     // Queue: when a video ends and others are queued, play the next one.
     LaunchedEffect(playerState?.status) {
@@ -200,7 +212,14 @@ private fun DockedMiniPlayer(services: AppServices, navigator: Navigator) {
         thumbnailUrl = playing.thumbnailUrl,
         playing = state.status == PlaybackStatus.PLAYING,
         progress = if (state.durationMs > 0) state.positionMs.toFloat() / state.durationMs else 0f,
-        onToggle = { if (state.status == PlaybackStatus.PLAYING) host.session.pause() else host.session.play() },
+        onToggle = {
+            when {
+                state.status == PlaybackStatus.PLAYING -> host.session.pause()
+                // After a restart the mini player is restored but nothing is loaded: start it (it resumes from the saved position).
+                host.session.state.value is SessionState.Idle -> host.session.start(playing.id, playing)
+                else -> host.session.play()
+            }
+        },
         onExpand = navigator::expandNowPlaying,
         onClose = { host.session.stop(); navigator.clearNowPlaying() },
     )

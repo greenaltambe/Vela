@@ -23,7 +23,7 @@ class VelaPlaybackService : MediaSessionService() {
             this, 0, Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        session = MediaSession.Builder(this, PlaybackRuntime.get(this).player).setSessionActivity(open).build()
+        session = MediaSession.Builder(this, NoQueuePlayer(PlaybackRuntime.get(this).player)).setSessionActivity(open).build()
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
@@ -38,4 +38,11 @@ class VelaPlaybackService : MediaSessionService() {
         session = null
         super.onDestroy()
     }
+}
+
+/** Vela plays one video at a time, so the notification and lock screen must not offer "next" (previous restarts the video, which is fine). */
+private class NoQueuePlayer(player: androidx.media3.common.Player) : androidx.media3.common.ForwardingPlayer(player) {
+    private val hidden = intArrayOf(androidx.media3.common.Player.COMMAND_SEEK_TO_NEXT, androidx.media3.common.Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+    override fun getAvailableCommands(): androidx.media3.common.Player.Commands = super.getAvailableCommands().buildUpon().removeAll(*hidden).build()
+    override fun isCommandAvailable(command: Int) = command !in hidden && super.isCommandAvailable(command)
 }

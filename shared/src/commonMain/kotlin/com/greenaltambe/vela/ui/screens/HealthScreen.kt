@@ -9,6 +9,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -55,16 +59,25 @@ fun HealthScreen(services: AppServices, navigator: Navigator, modifier: Modifier
             Text("Checks use only the sources that need no account. Last run: ${health.lastRun()?.toString()?.substring(0, 16)?.replace('T', ' ') ?: "never"}", style = MaterialTheme.typography.bodySmall)
             health.summary().forEach { t ->
                 SectionHeader(t.tier.name.lowercase().replace('_', ' '))
+                val at = t.latestRunAt?.toString()?.substring(0, 16)?.replace('T', ' ')
+                // One sentence from the latest run only: older runs can never contradict it.
                 Text(
                     when {
-                        t.lastSuccess == null && t.lastFailure == null -> "Not checked yet."
-                        t.healthy -> "Working. Last success ${t.lastSuccess.toString().substring(0, 16).replace('T', ' ')}."
-                        else -> "Failing: ${t.lastFailureReason ?: "unknown"} (since ${t.lastFailure.toString().substring(0, 16).replace('T', ' ')})."
+                        t.latest.isEmpty() -> "Not checked yet."
+                        t.healthy -> "Working (run $at, ${t.latest.size} checks passed)."
+                        else -> "Failing in the latest run ($at): ${t.failures.size} of ${t.latest.size} checks. ${t.lastFailureReason ?: "unknown"}" +
+                            (t.lastGood?.let { " Last time a check passed: ${it.toString().substring(0, 16).replace('T', ' ')}." } ?: "")
                     },
-                    style = MaterialTheme.typography.bodyMedium, maxLines = 4, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("health.tier.${t.tier.name}"),
+                    style = MaterialTheme.typography.bodyMedium, maxLines = 5, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("health.tier.${t.tier.name}"),
                 )
-                t.history.take(8).forEach { r ->
-                    Text("${if (r.ok) "ok  " else "FAIL"} ${r.check} ${r.millis}ms${r.detail?.let { " - $it" } ?: ""}", style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth())
+                t.latest.forEach { r -> HealthRow(r) }
+                if (t.runs.isNotEmpty()) {
+                    var open by remember { mutableStateOf(false) }
+                    TextButton({ open = !open }, modifier = Modifier.testTag("health.history.${t.tier.name}")) { Text(if (open) "Hide history" else "History (${t.runs.size} earlier runs)") }
+                    if (open) t.runs.forEach { run ->
+                        Text("Run ${run.first().at.toString().substring(0, 16).replace('T', ' ')}: ${run.count { it.ok }} ok, ${run.count { !it.ok }} failed", style = MaterialTheme.typography.labelMedium)
+                        run.filter { !it.ok }.forEach { r -> HealthRow(r) }
+                    }
                 }
             }
             if (results.isEmpty()) EmptyState("No results yet. Press Run checks now.")
@@ -89,4 +102,10 @@ fun HealthStartEffect(services: AppServices) {
             delay(6L * 60 * 60 * 1000)
         }
     }
+}
+
+@Composable
+private fun HealthRow(r: com.greenaltambe.vela.health.CanaryResult) {
+    Text("${if (r.ok) "ok  " else "FAIL"} ${r.check} ${r.millis}ms${r.detail?.let { " - $it" } ?: ""}", style = MaterialTheme.typography.bodySmall,
+        maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth())
 }

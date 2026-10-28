@@ -167,3 +167,34 @@ class CookieJarTest {
         assertNull(store.cookies("b"))
     }
 }
+
+class AccountIdentityTest {
+    private val clock = object : kotlin.time.Clock { var t = kotlin.time.Instant.fromEpochSeconds(1_000_000); override fun now() = t }
+    private val store = InMemorySecretStore()
+    private val ids = AccountIdentities(store, clock)
+    private var fills = 0
+    private fun fill() = Triple("visitor${++fills}", "2.2026", "UA/1")
+
+    @kotlin.test.Test fun isCreatedOnceAndReusedPerAccount() {
+        val a = ids.getOrCreate("a", ::fill); val again = ids.getOrCreate("a", ::fill)
+        kotlin.test.assertEquals(a, again); kotlin.test.assertEquals(1, fills)
+        val b = ids.getOrCreate("b", ::fill)
+        kotlin.test.assertNotEquals(a.deviceId, b.deviceId, "switching account swaps the identity")
+    }
+
+    @kotlin.test.Test fun staleOrFailedRefreshKeepsTheDeviceIdButNewVisitorData() {
+        val a = ids.getOrCreate("a", ::fill)
+        clock.t = clock.t + kotlin.time.Duration.parse("31d")
+        val r = ids.getOrCreate("a", ::fill)
+        kotlin.test.assertEquals(a.deviceId, r.deviceId); kotlin.test.assertEquals("visitor2", r.visitorData); kotlin.test.assertEquals(a.createdAt, r.createdAt)
+        kotlin.test.assertEquals("visitor3", ids.refresh("a", ::fill).visitorData)
+    }
+
+    @kotlin.test.Test fun survivesRestartAndIsRemovedWithTheAccountAndSignOutEverywhere() {
+        val a = ids.getOrCreate("a", ::fill)
+        kotlin.test.assertEquals(a, AccountIdentities(store, clock).current("a"))
+        CredentialStore(store).deleteAll()
+        kotlin.test.assertNull(ids.current("a"))
+        ids.getOrCreate("a", ::fill); ids.delete("a"); kotlin.test.assertNull(ids.current("a"))
+    }
+}

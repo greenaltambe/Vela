@@ -13,6 +13,9 @@ interface Extractor {
     suspend fun videoInfo(videoId: String): ExtractorResult<VideoInfo>
     suspend fun streams(videoId: String): ExtractorResult<StreamSet>
 
+    /** Like [streams], but asks for a different source than the one that served this video last (a stream that keeps buffering). Single-source extractors just resolve again. */
+    suspend fun streamsPreferringOther(videoId: String): ExtractorResult<StreamSet> = streams(videoId)
+
     /** The channel header plus its first page of videos; use [channelVideos] for the following pages. */
     suspend fun channel(channelId: String): ExtractorResult<ChannelPage>
     suspend fun channelVideos(channelId: String, continuation: String? = null): ExtractorResult<Page<VideoSummary>>

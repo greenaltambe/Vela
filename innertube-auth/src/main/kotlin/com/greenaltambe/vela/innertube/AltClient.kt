@@ -1,6 +1,8 @@
 package com.greenaltambe.vela.innertube
 
 import com.greenaltambe.vela.extractor.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
 import java.io.File
 import kotlin.time.Clock
@@ -68,10 +70,11 @@ class AltClientExtractor(
         else ExtractorResult.Success(set)
     }
 
-    private fun <T> attempt(videoId: String, handle: (ClientProfile, JsonElement) -> ExtractorResult<T>): ExtractorResult<T> {
+    private suspend fun <T> attempt(videoId: String, handle: (ClientProfile, JsonElement) -> ExtractorResult<T>): ExtractorResult<T> {
         var last: ExtractorError = ExtractorError.TierUnavailable("No alternate client profile is enabled")
         for (p in profiles().filter { it.enabled }) {
-            val response = try { callPlayer(p, videoId) } catch (e: java.io.IOException) {
+            // The transport is blocking: it always runs on the IO dispatcher, whatever thread the caller is on (Android main throws otherwise).
+            val response = try { withContext(Dispatchers.IO) { callPlayer(p, videoId) } } catch (e: java.io.IOException) {
                 last = ExtractorError.Network("${p.name}: ${e.message}", e); onProfile("${p.name} network error"); continue
             }
             when {

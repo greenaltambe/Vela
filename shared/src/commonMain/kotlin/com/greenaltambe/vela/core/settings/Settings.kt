@@ -425,6 +425,19 @@ object Settings {
         codec = SettingCodecs.boolean, section = SettingSection.ACCOUNT,
     )
 
+    /** The mini player's video, kept so it comes back after the OS kills the process (not user-facing, so not in [all]). */
+    val restoreNowPlaying = Setting(
+        key = "session.nowPlaying", default = "", scope = SettingScope.GLOBAL, label = "Last playing video",
+        keywords = emptyList(), codec = SettingCodecs.string, section = SettingSection.ADVANCED,
+    )
+
+    val slowStreamFailover = Setting(
+        key = "playback.slowStreamFailover", default = true, scope = SettingScope.GLOBAL,
+        label = "Switch source when a stream keeps buffering",
+        keywords = listOf("buffering", "slow", "failover", "stall", "source", "tier"),
+        codec = SettingCodecs.boolean, section = SettingSection.PLAYBACK,
+    )
+
     val accountUseForDetails = Setting(
         key = "account.useForDetails", default = false, scope = SettingScope.GLOBAL,
         label = "Use the account for video details and comments",
@@ -487,7 +500,7 @@ object Settings {
 
     val all: List<Setting<*>> = listOf(
         look, performanceMode, localOnlyHistory, hideWatched, minLengthSeconds, blockKeywords, allowKeywords, keywordsAreRegex,
-        accountFallbackMode, accountReportActivity, accountUseForChannels, accountUseForDetails, accountDownloadsMayUse, accountKillSwitch, accountTierOrder, remoteConfigUrl, ytDlpAutoUpdate,
+        slowStreamFailover, accountFallbackMode, accountReportActivity, accountUseForChannels, accountUseForDetails, accountDownloadsMayUse, accountKillSwitch, accountTierOrder, remoteConfigUrl, ytDlpAutoUpdate,
         accountPlaybackPerHour, accountBrowsePerMinute, accountWritesPerHour, shortsMode, defaultPlaybackSpeed, maxQualityUnmetered, maxQualityMetered, preferredCodec, audioOnly, ytDlpPath,
         sponsorBlockEnabled, returnYouTubeDislikeEnabled, deArrowEnabled,
         sponsorBlockMinSegmentSeconds, sponsorBlockNotifications, sponsorBlockServer, sponsorBlockUserId, rydInFeed, rydServer,

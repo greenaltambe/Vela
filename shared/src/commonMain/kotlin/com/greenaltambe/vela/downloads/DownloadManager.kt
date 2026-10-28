@@ -369,7 +369,11 @@ class DownloadManager(
         )
         val constraints = PlaybackConstraints(supportsHls = false, network = NetworkType.UNMETERED)
         val base = "${row.videoId}.${row.kind.name.lowercase()}"
-        val chosen = when (val p = StreamSelector.plan(set, prefs, constraints)) {
+        var plan0 = StreamSelector.plan(set, prefs, constraints)
+        (plan0 as? PlaybackPlan.Separate)?.let { sep ->
+            if (!merger.canMerge(sep.video.codec, sep.audio.codec)) plan0 = StreamSelector.plan(set, prefs.copy(preferredCodec = PreferredCodec.AVC), constraints)
+        }
+        val chosen = when (val p = plan0) {
             is PlaybackPlan.Separate -> listOf(
                 ResolvedStream(StoredStream("video", p.video.itag, p.video.mimeType, p.video.codec, p.video.height, p.video.bitrate, p.video.contentLength, "$base.video.${Containers.extensionFor(p.video.mimeType, false)}"), p.video.url, p.videoHeaders),
                 ResolvedStream(StoredStream("audio", p.audio.itag, p.audio.mimeType, p.audio.codec, 0, p.audio.bitrate, p.audio.contentLength, "$base.audio.${Containers.extensionFor(p.audio.mimeType, true)}"), p.audio.url, p.audioHeaders),

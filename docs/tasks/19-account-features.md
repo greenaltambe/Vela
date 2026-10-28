@@ -1,6 +1,6 @@
-# Task 18: account features (what task 13 did not finish)
+# Task 19: account features (what task 13 did not finish)
 
-Follow CLAUDE.md (report docs/reports/18-account-features.md; terminal reply max 5 lines + anything the owner must do). Read docs/reports/13-accounts.md and 14-reliability.md. Everything that carries credentials goes through the AccountGovernor and the audit log; budgets and breaker rules apply to every new call. Default for activity reporting stays OFF. Live tests use the throwaway account via VELA_TEST_COOKIES and must be harmless round trips that restore the original state. Commit nothing.
+Follow CLAUDE.md (report docs/reports/19-account-features.md; terminal reply max 5 lines + anything the owner must do). Read docs/reports/13-accounts.md and 14-reliability.md. Everything that carries credentials goes through the AccountGovernor and the audit log; budgets and breaker rules apply to every new call. Default for activity reporting stays OFF. Live tests use the throwaway account via VELA_TEST_COOKIES and must be harmless round trips that restore the original state. Commit nothing.
 
 ## A. Writes (innertube-auth, thin client, governor-owned)
 - Subscribe/unsubscribe, like/dislike/remove rating, add/remove video to a playlist and Watch Later, create/rename/delete playlist, reorder if feasible. Optimistic UI update with rollback and a clear error; local-only accounts keep working locally.

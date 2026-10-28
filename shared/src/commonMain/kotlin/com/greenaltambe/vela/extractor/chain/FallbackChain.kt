@@ -70,15 +70,27 @@ class FallbackChain(
 
     private fun page(continuation: String?) = if (continuation == null) "" else ", more"
 
+    @Volatile private var lastStreamsTier: TierId? = null
+
+    /** Tries the tiers other than the one that served streams last first; if they all fail, that one is tried too. */
+    override suspend fun streamsPreferringOther(videoId: String): ExtractorResult<StreamSet> {
+        val last = lastStreamsTier ?: return streams(videoId)
+        log.record(TierAttempt("streams($videoId)", last, AttemptOutcome.NOTE, null, "stream kept buffering; preferring another source", Duration.ZERO, clock.now()))
+        return run("streams($videoId)", AccountOp.PLAYBACK, avoid = setOf(last)) { it.streams(videoId) }
+    }
+
     private suspend fun <T> run(
         subject: String,
         op: AccountOp,
+        avoid: Set<TierId> = emptySet(),
         call: suspend (Extractor) -> ExtractorResult<T>,
     ): ExtractorResult<T> {
         val account = signedInAccount?.invoke()
         if (signedInAccount != null && account != memoryOwner) { memory.clear(); memoryOwner = account }
         val skips = HashMap<TierId, String>()
-        val candidates = candidateTiers(subject, account, op, skips)
+        val all = candidateTiers(subject, account, op, skips)
+        // Preferred order for a retry: the others first, the avoided tier last (never dropped).
+        val candidates = if (avoid.isEmpty()) all else all.filter { it.id !in avoid } + all.filter { it.id in avoid }
         var signInSeen = false
         if (candidates.isEmpty()) {
             return ExtractorResult.Failure(ExtractorError.Unplayable("No extractor tier available"))
@@ -113,6 +125,7 @@ class FallbackChain(
             when (result) {
                 is ExtractorResult.Success -> {
                     signInFailures.remove(tier.id)
+                    if (subject.startsWith("streams(")) lastStreamsTier = tier.id
                     record(subject, tier.id, AttemptOutcome.SUCCESS, null, servedDetail(tier, account, result.value), took)
                     failures.filter { (_, e) -> e.reason.isTierHealthIssue }
                         .forEach { (failed, e) -> memory.remember(failed, e.reason, tier.id) }

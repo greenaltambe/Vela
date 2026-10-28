@@ -83,6 +83,9 @@ interface MediaMerger {
     /** The container for this pair of codecs, which must be one of [containers]. */
     fun containerFor(videoCodec: String, audioCodec: String): Container = Containers.forCodecs(videoCodec, audioCodec, containers)
 
+    /** False for a pair this platform's muxer is known to reject; the download then plans again preferring H.264 + AAC. */
+    fun canMerge(videoCodec: String, audioCodec: String): Boolean = true
+
     suspend fun merge(job: MergeJob)
 
     /** Copies one stream into another container without re-encoding (WebM Opus -> Ogg Opus). */

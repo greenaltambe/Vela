@@ -93,6 +93,9 @@ private class FakeExtractor(private val clock: FakeClock) : Extractor by StubExt
         return results.removeFirstOrNull() ?: ExtractorResult.Success(fresh())
     }
 
+    var preferOtherCalls = 0
+    override suspend fun streamsPreferringOther(videoId: String): ExtractorResult<StreamSet> { preferOtherCalls++; return streams(videoId) }
+
     override suspend fun videoInfo(videoId: String): ExtractorResult<VideoInfo> {
         infoCalls++
         return ExtractorResult.Success(VideoInfo(videoId, "Looked-up title", "", "UCinfo", "Chan", 200))
@@ -119,8 +122,8 @@ class PlaybackSessionTest {
 
     private val network = FixedNetworkMonitor()
 
-    private fun TestScope.session(maxReResolves: Int = 2) = PlaybackSession(
-        extractor, controller, settings, history, backgroundScope, clock, network = network, maxReResolves = maxReResolves,
+    private fun TestScope.session(maxReResolves: Int = 2, maxNetworkRecoveries: Int = 3) = PlaybackSession(
+        extractor, controller, settings, history, backgroundScope, clock, network = network, maxReResolves = maxReResolves, maxNetworkRecoveries = maxNetworkRecoveries,
     )
 
     private fun ready(s: PlaybackSession) = assertIs<SessionState.Ready>(s.state.value)
@@ -305,13 +308,13 @@ class PlaybackSessionTest {
         s.start("vid", hint); runCurrent()
         controller.playing(10_000); runCurrent()
         clock.advance(7.hours.inWholeMilliseconds)
-        controller.error(PlaybackErrorKind.Network); runCurrent()
+        controller.error(PlaybackErrorKind.Network); runCurrent(); advanceTimeBy(3.seconds); runCurrent()
         assertEquals(2, extractor.streamCalls)
         assertEquals(10_000, controller.loads.last().startMs)
     }
 
-    @Test fun aNetworkErrorWithValidUrlsIsNotRetriedByReResolving() = runTest {
-        val s = session()
+    @Test fun withNetworkRecoveryTurnedOffANetworkErrorIsSurfaced() = runTest {
+        val s = session(maxNetworkRecoveries = 0)
         s.start("vid", hint); runCurrent()
         controller.playing(10_000); runCurrent()
         controller.error(PlaybackErrorKind.Network); runCurrent()
@@ -733,4 +736,59 @@ class PlaybackSessionTest {
         assertEquals("c", ready(s).videoId)
         assertEquals(1, controller.loads.size, "only the last video was loaded")
     }
+
+    // ---- network handoff ----
+
+    @Test fun aNetworkErrorReResolvesAndResumesAtThePositionWithGrowingBackoff() = runTest {
+        val s = session()
+        s.start("vid", hint); runCurrent()
+        controller.playing(42_000); runCurrent()
+        controller.error(PlaybackErrorKind.Network); runCurrent()
+        assertEquals(1, controller.loads.size, "waits for the backoff first")
+        advanceTimeBy(2.seconds + 1.milliseconds); runCurrent()
+        assertEquals(2, controller.loads.size)
+        assertEquals(42_000, controller.loads.last().startMs)
+        assertTrue(s.recoveryNote.value!!.contains("1/3"))
+    }
+
+    @Test fun networkRecoveriesAreBoundedAndThenTheErrorSurfaces() = runTest {
+        val s = session()
+        s.start("vid", hint); runCurrent()
+        controller.playing(5_000); runCurrent()
+        repeat(6) { controller.error(PlaybackErrorKind.Network); advanceTimeBy(30.seconds); runCurrent() }
+        assertEquals(4, controller.loads.size, "first load plus three recoveries")
+        assertEquals(PlaybackErrorKind.Network, assertIs<SessionState.Failed>(s.state.value).playbackError?.kind)
+    }
+
+    // ---- slow stream ----
+
+    @Test fun aStreamThatKeepsBufferingIsReResolvedOncePerVideoAtThePosition() = runTest {
+        val s = session()
+        s.start("vid", hint); runCurrent()
+        controller.playing(30_000); runCurrent()
+        controller.state.value = controller.state.value.copy(status = PlaybackStatus.BUFFERING); runCurrent()
+        advanceTimeBy(11.seconds); runCurrent()
+        assertEquals(1, controller.loads.size, "not yet")
+        advanceTimeBy(2.seconds); runCurrent()
+        assertEquals(2, controller.loads.size); assertEquals(30_000, controller.loads.last().startMs)
+        assertTrue(s.recoveryNote.value!!.contains("preferring another source")); assertEquals(1, extractor.preferOtherCalls)
+        controller.playing(31_000); runCurrent()
+        controller.state.value = controller.state.value.copy(status = PlaybackStatus.BUFFERING); runCurrent()
+        advanceTimeBy(30.seconds); runCurrent()
+        assertEquals(2, controller.loads.size, "only once per video")
+    }
+
+    @Test fun shortBufferingOrTheSettingOffDoesNothing() = runTest {
+        val s = session()
+        s.start("vid", hint); runCurrent()
+        controller.playing(30_000); runCurrent()
+        controller.state.value = controller.state.value.copy(status = PlaybackStatus.BUFFERING); runCurrent()
+        advanceTimeBy(5.seconds); controller.playing(35_000); runCurrent(); advanceTimeBy(30.seconds); runCurrent()
+        assertEquals(1, controller.loads.size)
+        settings.set(Settings.slowStreamFailover, false)
+        controller.state.value = controller.state.value.copy(status = PlaybackStatus.BUFFERING); runCurrent()
+        advanceTimeBy(30.seconds); runCurrent()
+        assertEquals(1, controller.loads.size)
+    }
+
 }

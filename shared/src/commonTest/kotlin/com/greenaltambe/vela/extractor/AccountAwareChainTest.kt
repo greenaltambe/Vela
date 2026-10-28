@@ -83,3 +83,19 @@ class AccountAwareChainTest {
         assertFalse(text.contains("abc123def456") || text.contains("zzz777") || text.contains("deadbeef"), text)
     }
 }
+
+class PreferOtherSourceTest {
+    @Test fun aRetryTriesTheOtherTiersFirstAndStillFallsBackToTheAvoidedOne() = kotlinx.coroutines.test.runTest {
+        val first = StubExtractor(); val second = StubExtractor()
+        val log = DiagnosticsLog()
+        val chain = FallbackChain(listOf(ExtractorTier(TierId.ANONYMOUS, first), ExtractorTier(TierId.ALT_CLIENT, second)), { AccountFallbackMode.NEVER }, log, FakeClock())
+        chain.streams("v"); assertEquals(1, first.calls)
+        chain.streamsPreferringOther("v")
+        assertEquals(1, first.calls, "the tier that served last is not asked first"); assertEquals(1, second.calls)
+        assertTrue(log.attempts.value.any { it.detail?.contains("preferring another source") == true })
+        val failing = StubExtractor(ExtractorError.Blocked())
+        val c2 = FallbackChain(listOf(ExtractorTier(TierId.ANONYMOUS, first), ExtractorTier(TierId.ALT_CLIENT, failing)), { AccountFallbackMode.NEVER }, DiagnosticsLog(), FakeClock())
+        c2.streams("v"); c2.streamsPreferringOther("v")
+        assertEquals(3, first.calls, "falls back to the avoided tier when the others fail")
+    }
+}

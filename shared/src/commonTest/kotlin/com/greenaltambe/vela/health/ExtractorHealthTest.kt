@@ -36,7 +36,7 @@ class ExtractorHealthTest {
     @Test fun aStreamUrlThatDoesNot206IsAFailureOfThatCheck() = runTest {
         val h = ExtractorHealth(listOf(ExtractorTier(TierId.ANONYMOUS, good())), { _, _ -> 403 }, clock = clock)
         h.run()
-        assertTrue(h.results.value.any { it.check.startsWith("GET") && !it.ok && it.detail == "HTTP 403" })
+        assertTrue(h.results.value.any { it.check.startsWith("GET") && !it.ok && it.detail == "HTTP 403, again after 2s: HTTP 403" })
     }
 
     @Test fun anEmptyStreamSetIsReportedAsPossibleSabr() = runTest {
@@ -85,5 +85,29 @@ class ExtractorHealthTest {
         val h2 = ExtractorHealth(listOf(ExtractorTier(TierId.ANONYMOUS, flaky)), { _, _ -> 206 }, clock = clock)
         h2.run(); h2.run(); assertNotNull(h2.alert.value)
         flaky.broken = false; h2.run(); assertNull(h2.alert.value)
+    }
+
+    @Test fun anEarly403ThatPassesAfterTheWaitIsOkAndBothAttemptsAreLogged() = runTest {
+        var calls = 0
+        val h = ExtractorHealth(listOf(ExtractorTier(TierId.ANONYMOUS, good())), { _, _ -> if (++calls == 1) 403 else 206 }, clock = clock)
+        h.run()
+        val get = h.results.value.single { it.check.startsWith("GET") && it.detail != null }
+        assertTrue(get.ok && "first attempt HTTP 403" in get.detail!!, get.detail)
+    }
+
+    @Test fun statusComesFromTheLatestRunOnlyAndOlderRunsGoToHistory() = runTest {
+        var code = 403
+        val h = ExtractorHealth(listOf(ExtractorTier(TierId.ANONYMOUS, good())), { _, _ -> code }, clock = clock)
+        h.run(); clock.advance(1.days); code = 206; h.run()
+        val t = h.summary().single()
+        assertTrue(t.healthy, "the older failing run does not make the tier failing"); assertNull(t.lastFailure)
+        assertEquals(1, t.runs.size); assertTrue(t.runs.single().any { !it.ok })
+    }
+
+    @Test fun codecReadsRowsSavedBeforeRunsExisted() {
+        val old = "ANONYMOUS|GET(x)|0|12|1700000000000|HTTP 403"
+        val r = HealthCodec.decode(old).single()
+        assertEquals("HTTP 403", r.detail); assertEquals(0L, r.run)
+        assertEquals(r.copy(run = 5), HealthCodec.decode(HealthCodec.encode(listOf(r.copy(run = 5)))).single())
     }
 }

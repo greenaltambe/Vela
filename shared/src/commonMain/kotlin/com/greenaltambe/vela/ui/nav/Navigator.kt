@@ -98,6 +98,9 @@ class Navigator(start: Route = Route.Home) {
         return next
     }
 
+    /** Puts a video back in the mini player after a restart; it does nothing if something is already there. The player stays idle until the viewer presses play. */
+    fun restore(video: VideoSummary) { if (nowPlaying == null) nowPlaying = video }
+
     fun clearNowPlaying() {
         nowPlaying = null
         queue = emptyList()
@@ -106,5 +109,16 @@ class Navigator(start: Route = Route.Home) {
     /** For the mini player: reopens the page of what is playing. */
     fun expandNowPlaying() {
         nowPlaying?.let { if (current !is Route.Video) push(Route.Video(it)) }
+    }
+}
+
+
+/** The mini player's video as one settings value (tab-separated), so it survives the process being killed. */
+object NowPlayingSnapshot {
+    private fun clean(s: String?) = s.orEmpty().replace('\t', ' ').replace('\n', ' ')
+    fun encode(v: VideoSummary?): String = if (v == null) "" else listOf(v.id, v.title, v.channelId, v.channelName, v.thumbnailUrl).joinToString("\t") { clean(it) }
+    fun decode(raw: String): VideoSummary? {
+        val p = raw.split('\t'); if (p.size < 5 || p[0].isBlank()) return null
+        return VideoSummary(p[0], p[1], p[2], p[3], p[4].ifBlank { null })
     }
 }

@@ -7,6 +7,7 @@ import com.greenaltambe.vela.auth.BreakerSignal
 import com.greenaltambe.vela.auth.CallKind
 import com.greenaltambe.vela.auth.CookieJar
 import com.greenaltambe.vela.auth.SapisidHash
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlin.time.Clock
 
@@ -54,7 +55,7 @@ class AuthSession(
     }
 
     /** Sends one signed request through the governor. Throws `GovernorDenied` without sending when it refuses. */
-    fun send(kind: CallKind, method: String, url: String, body: String? = null, origin: String = YOUTUBE_ORIGIN, extra: Map<String, String> = emptyMap()): RawResponse = runBlocking {
+    fun send(kind: CallKind, method: String, url: String, body: String? = null, origin: String = YOUTUBE_ORIGIN, extra: Map<String, String> = emptyMap()): RawResponse = runBlocking(Dispatchers.IO) { // the request itself never runs on the caller's thread
         governor.call(kind, hostOf(url)) {
             val response = transport.execute(method, url, headersFor(url, origin, extra), body)
             absorb(response, hostOf(url))
