@@ -16,6 +16,18 @@ import com.greenaltambe.vela.extractor.chain.FallbackChain
 import com.greenaltambe.vela.auth.AccountManager
 import com.greenaltambe.vela.auth.AndroidKeystoreSecretStore
 import com.greenaltambe.vela.auth.CredentialStore
+import com.greenaltambe.vela.auth.DbAuditLog
+import com.greenaltambe.vela.auth.DbBreakerStore
+import com.greenaltambe.vela.auth.GovernorRegistry
+import com.greenaltambe.vela.auth.governorLimits
+import com.greenaltambe.vela.extractor.chain.PacedExtractor
+import com.greenaltambe.vela.extractor.chain.TierOrder
+import com.greenaltambe.vela.health.DbHealthStore
+import com.greenaltambe.vela.health.ExtractorHealth
+import com.greenaltambe.vela.innertube.OkHttpStreamProbe
+import com.greenaltambe.vela.extractor.chain.downloadAccountMode
+import com.greenaltambe.vela.innertube.InnertubeAccountSync
+import com.greenaltambe.vela.extractor.chain.AccountOp
 import com.greenaltambe.vela.extractor.chain.AttemptOutcome
 import com.greenaltambe.vela.extractor.chain.ExtractorTier
 import com.greenaltambe.vela.extractor.chain.TierAttempt
@@ -50,25 +62,50 @@ class PlaybackRuntime private constructor(context: Context) {
     val modules by lazy { createModules(OkHttpTransport(), database, settings) }
     /** Accounts and their credentials (Keystore-encrypted, excluded from backup). */
     val accounts by lazy { AccountManager(database, CredentialStore(AndroidKeystoreSecretStore(appContext))) }
-    val login by lazy { InnertubeAccountLogin(accounts) }
+    val audit by lazy { DbAuditLog(database) }
+    val governors by lazy { GovernorRegistry(Clock.System, { governorLimits(settings) }, DbBreakerStore(database), audit) }
+    val login by lazy { InnertubeAccountLogin(accounts, governors) }
+    val sync by lazy { InnertubeAccountSync(accounts, governors, database) }
+    private fun pausedReason(): String? = accounts.active.value.takeIf { it.isSignedIn }
+        ?.let { governors.forAccount(it.id).cooldownUntil() }?.let { "account cooling down until ${it.toString().substring(11, 16)} UTC" }
 
     // No account tier on Android: yt-dlp does not run here, and neither NewPipe with account headers nor an own player call
     // with cookies gave playable streams (docs/reports/13-accounts.md). Anonymous -> alt client; the chain skips the account tier.
     private val tiers by lazy {
         listOf(
-            ExtractorTier(TierId.ANONYMOUS, NewPipeExtractor()),
+            ExtractorTier(TierId.ANONYMOUS, PacedExtractor(NewPipeExtractor())),
             ExtractorTier(TierId.ALT_CLIENT, AltClientExtractor(onProfile = { line ->
                 log.record(TierAttempt("alt client", TierId.ALT_CLIENT, AttemptOutcome.NOTE, null, line, Duration.ZERO, Clock.System.now()))
             })),
         )
     }
+    val health by lazy { ExtractorHealth(tiers, OkHttpStreamProbe(), DbHealthStore(database)) }
     val chain by lazy {
         FallbackChain(tiers, accountMode = { settings.resolve(Settings.accountFallbackMode) }, log = log,
-            signedInAccount = { accounts.active.value.takeIf { it.isSignedIn }?.label })
+            signedInAccount = { accounts.active.value.takeIf { it.isSignedIn }?.label },
+            accountMayServe = { op -> when (op) {
+                AccountOp.PLAYBACK -> true
+                AccountOp.DETAILS -> settings.resolve(Settings.accountUseForDetails)
+                AccountOp.CHANNELS -> settings.resolve(Settings.accountUseForChannels)
+                AccountOp.NEVER -> false
+            } },
+            tierOrder = { TierOrder.parse(settings.resolve(Settings.accountTierOrder)) }, accountPaused = ::pausedReason)
+    }
+    /** Downloads use the anonymous tiers; the account only when the user allowed it and they failed. */
+    val downloadChain by lazy {
+        FallbackChain(tiers, accountMode = { downloadAccountMode(settings.resolve(Settings.accountDownloadsMayUse)) }, log = log,
+            signedInAccount = { accounts.active.value.takeIf { it.isSignedIn }?.label },
+            accountMayServe = { op -> when (op) {
+                AccountOp.PLAYBACK -> true
+                AccountOp.DETAILS -> settings.resolve(Settings.accountUseForDetails)
+                AccountOp.CHANNELS -> settings.resolve(Settings.accountUseForChannels)
+                AccountOp.NEVER -> false
+            } },
+            tierOrder = { TierOrder.parse(settings.resolve(Settings.accountTierOrder)) }, accountPaused = ::pausedReason)
     }
 
     /** Downloads and the offline library; the queue is recovered when this is first used. */
-    val downloads by lazy { createAndroidDownloads(appContext, database, chain, modules, settings, network) }
+    val downloads by lazy { createAndroidDownloads(appContext, database, downloadChain, modules, settings, network) }
 
     private val bandwidthMeter by lazy { DefaultBandwidthMeter.Builder(appContext).build() }
 

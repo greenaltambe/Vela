@@ -42,8 +42,12 @@ class JvmDatabaseFactoryTest {
         assertEquals(1, JvmDatabaseDriverFactory(file).create().scalar("PRAGMA foreign_keys"))
     }
 
-    /** Takes a current database back to what version 5 looked like: an Account row with no kind, e-mail or auth state. */
+    /** Takes a current database back to what version 6 looked like: no account audit log. */
+    private fun SqlDriver.dropVersion7Table() { execute(null, "DROP TABLE AccountAudit", 0) }
+
+    /** ...back to what version 5 looked like: an Account row with no kind, e-mail or auth state. */
     private fun SqlDriver.dropVersion6Columns() {
+        dropVersion7Table()
         listOf("kind", "email", "avatarUrl", "channelId", "authState").forEach { execute(null, "ALTER TABLE Account DROP COLUMN $it", 0) }
     }
 
@@ -153,6 +157,20 @@ class JvmDatabaseFactoryTest {
         assertEquals("LOCAL", row.kind)
         assertEquals("OK", row.authState)
         assertEquals(null, row.email)
+    }
+
+    @Test
+    fun versionSixDatabaseGainsTheAuditLogAndKeepsItsAccounts() {
+        val v6 = JvmDatabaseDriverFactory(file).create()
+        v6.dropVersion7Table()
+        v6.execute(null, "PRAGMA user_version = 6", 0)
+        v6.execute(null, "INSERT INTO Account(id, displayName, createdAt, kind) VALUES ('g1','G',1,'GOOGLE')", 0)
+        v6.close()
+
+        val db = createDatabase(JvmDatabaseDriverFactory(file))
+        assertEquals("GOOGLE", db.accountQueries.selectById("g1").executeAsOne().kind)
+        db.accountAuditQueries.insert("g1", 5, "BROWSE", "www.youtube.com", "ok", "allowed")
+        assertEquals(1, db.accountAuditQueries.recent("g1", 10).executeAsList().size)
     }
 
     @Test

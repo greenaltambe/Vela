@@ -140,6 +140,7 @@ class AccountManager(
             db.watchHistoryQueries.clearForAccount(id)
             db.searchHistoryQueries.clearForAccount(id)
             db.feedItemQueries.clearForAccount(id)
+            db.accountAuditQueries.clearForAccount(id)
             q.delete(id)
         }
         if (_active.value.id == id) switchTo(LOCAL_ACCOUNT)

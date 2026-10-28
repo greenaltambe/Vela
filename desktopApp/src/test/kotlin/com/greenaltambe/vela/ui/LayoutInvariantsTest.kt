@@ -32,6 +32,7 @@ class LayoutInvariantsTest {
         "library" to { f -> f.navigator.selectTab(Route.Library) },
         "settings" to { f -> f.navigator.selectTab(Route.Settings) },
         "accounts" to { f -> f.navigator.selectTab(Route.Settings); f.navigator.push(Route.Accounts) },
+        "account-activity" to { f -> f.navigator.selectTab(Route.Settings); f.navigator.push(Route.AccountActivity) },
         "downloads" to { f -> f.navigator.selectTab(Route.Library); f.navigator.push(Route.Downloads) },
         "channel" to { f -> f.navigator.push(Route.Channel("UC1", FakeData.longChannel)) },
         "history" to { f -> f.navigator.selectTab(Route.Library); f.navigator.push(Route.History) },

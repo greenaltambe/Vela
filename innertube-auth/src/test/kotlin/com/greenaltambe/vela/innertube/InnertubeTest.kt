@@ -21,6 +21,9 @@ class FakeTransport(val responder: (String, String, Map<String, String>, String?
 private fun ok(body: String, vararg setCookie: String) = RawResponse(200, body, if (setCookie.isEmpty()) emptyMap() else mapOf("Set-Cookie" to setCookie.toList()), "")
 private class FixedClock(val at: Instant = Instant.fromEpochSeconds(1_700_000_000)) : Clock { override fun now() = at }
 
+private fun gov(id: String = "a1") = AccountGovernor(id, FixedClock(), { GovernorLimits(minSpacingMs = 0, browsePerMinute = 1000) })
+private fun registry() = GovernorRegistry(FixedClock(), { GovernorLimits(minSpacingMs = 0, browsePerMinute = 1000) })
+
 private fun jar(vararg extra: Cookie) = CookieJar(listOf(
     Cookie("SID", "sid-v", ".google.com"), Cookie("SAPISID", "AbCdEfGhIjKlMnOp/1234567890", ".youtube.com"),
     Cookie("__Secure-1PSIDTS", "old-ts", ".youtube.com")) + extra)
@@ -56,7 +59,7 @@ class InnertubeTest {
 
     @Test fun sessionSignsRequestsAsTheBrowserDoes() {
         val t = FakeTransport { _, _, _, _ -> ok("{}") }
-        AuthSession(jar(), t, FixedClock(), minGapMs = 0).send("POST", "https://www.youtube.com/youtubei/v1/browse", "{}")
+        AuthSession(jar(), gov(), t, FixedClock()).send(CallKind.BROWSE, "POST", "https://www.youtube.com/youtubei/v1/browse", "{}")
         val h = t.calls.single().third
         assertEquals("SAPISIDHASH 1700000000_6aeb9e08815c5ecdb84affddc7278a326b39e88e", h["Authorization"])
         assertEquals("0", h["X-Goog-AuthUser"]); assertEquals("https://www.youtube.com", h["Origin"]); assertEquals("https://www.youtube.com", h["X-Origin"])
@@ -66,36 +69,41 @@ class InnertubeTest {
     @Test fun rotatedCookiesFromSetCookieAreKeptAndReported() {
         var saved: CookieJar? = null
         val t = FakeTransport { _, _, _, _ -> ok("{}", "__Secure-1PSIDTS=new-ts; Domain=.youtube.com; Path=/; Secure; HttpOnly; Expires=Wed, 21 Oct 2026 07:28:00 GMT") }
-        val s = AuthSession(jar(), t, FixedClock(), onCookiesChanged = { saved = it }, minGapMs = 0)
-        s.send("GET", "https://www.youtube.com/x")
+        val s = AuthSession(jar(), gov(), t, FixedClock(), onCookiesChanged = { saved = it })
+        s.send(CallKind.BROWSE, "GET", "https://www.youtube.com/x")
         assertEquals("new-ts", s.jar.get("__Secure-1PSIDTS"))
         assertEquals("new-ts", saved!!.get("__Secure-1PSIDTS"))
     }
 
-    @Test fun http429BacksOffAndIsReportedNotRetriedBlindly() {
-        val sleeps = mutableListOf<Long>(); val clock = FixedClock()
+    @Test fun http429OpensTheBreakerAndTheNextCallIsRefusedWithoutBeingSent() {
         val t = FakeTransport { _, _, _, _ -> RawResponse(429, "", mapOf("Retry-After" to listOf("7")), "") }
-        val s = AuthSession(jar(), t, clock, minGapMs = 0, sleep = { sleeps += it })
-        val e = assertFailsWith<AuthFailure.RateLimited> { s.send("GET", "https://www.youtube.com/x") }
-        assertEquals(7000, e.retryAfterMs)
-        assertFailsWith<AuthFailure.RateLimited> { s.send("GET", "https://www.youtube.com/x") }
-        assertTrue(sleeps.isNotEmpty() && sleeps.all { it > 0 }, "the second call waited out the backoff: $sleeps")
+        val s = AuthSession(jar(), gov(), t, FixedClock())
+        assertFailsWith<AuthFailure.RateLimited> { s.send(CallKind.BROWSE, "GET", "https://www.youtube.com/x") }
+        assertFailsWith<GovernorDenied> { s.send(CallKind.BROWSE, "GET", "https://www.youtube.com/x") }
+        assertEquals(1, t.calls.size)
     }
 
-    @Test fun callsAreSpacedWithJitter() {
-        val sleeps = mutableListOf<Long>()
-        var now = Instant.fromEpochSeconds(1_700_000_000)
-        val clock = object : Clock { override fun now() = now }
+    @Test fun sorryRedirectAndUnusualTrafficPagesAreBlocksNotData() {
+        val sorry = AuthSession(jar(), gov(), FakeTransport { _, _, _, _ -> RawResponse(200, "<html>captcha</html>", emptyMap(), "https://www.google.com/sorry/index?continue=x") }, FixedClock())
+        assertEquals(BlockSignal.CAPTCHA, assertFailsWith<AuthFailure.Blocked> { sorry.send(CallKind.BROWSE, "GET", "https://www.youtube.com/x") }.signal)
+        val traffic = AuthSession(jar(), gov("a2"), FakeTransport { _, _, _, _ -> RawResponse(200, "<p>Our systems have detected unusual traffic</p>", emptyMap(), "https://www.youtube.com/x") }, FixedClock())
+        assertEquals(BlockSignal.UNUSUAL_TRAFFIC, assertFailsWith<AuthFailure.Blocked> { traffic.send(CallKind.BROWSE, "GET", "https://www.youtube.com/x") }.signal)
+    }
+
+    @Test fun jsonAnswersMentioningCaptchaAreNotBlocks() {
+        val s = AuthSession(jar(), gov(), FakeTransport { _, _, _, _ -> ok("""{"config":"recaptcha unusual traffic"}""") }, FixedClock())
+        s.send(CallKind.BROWSE, "GET", "https://www.youtube.com/x")
+    }
+
+    @Test fun credentialsOnlyExistInTheSessionsOwnHeaders() {
         val t = FakeTransport { _, _, _, _ -> ok("{}") }
-        val s = AuthSession(jar(), t, clock, minGapMs = 900, sleep = { sleeps += it; now += kotlin.time.Duration.parse("${it}ms") })
-        repeat(3) { s.send("GET", "https://www.youtube.com/x") }
-        assertEquals(2, sleeps.size)
-        assertTrue(sleeps.all { it in 900..1200 }, "gap plus up to a third jitter: $sleeps")
+        AuthSession(jar(), gov(), t, FixedClock()).send(CallKind.BROWSE, "GET", "https://www.youtube.com/x")
+        assertTrue(t.calls.single().third.keys.containsAll(listOf("Cookie", "Authorization")), "the transport sees credentials only from the session")
     }
 
     @Test fun unauthorizedMeansLoggedOut() {
-        val s = AuthSession(jar(), FakeTransport { _, _, _, _ -> RawResponse(401, "", emptyMap(), "") }, FixedClock(), minGapMs = 0)
-        assertFailsWith<AuthFailure.LoggedOut> { s.send("GET", "https://www.youtube.com/x") }
+        val s = AuthSession(jar(), gov(), FakeTransport { _, _, _, _ -> RawResponse(401, "", emptyMap(), "") }, FixedClock())
+        assertFailsWith<AuthFailure.LoggedOut> { s.send(CallKind.BROWSE, "GET", "https://www.youtube.com/x") }
     }
 
     @Test fun clientVersionIsScrapedFromYtcfg() {
@@ -109,7 +117,7 @@ class InnertubeTest {
     private val db = createDatabase(JvmDatabaseDriverFactory())
     private val secrets = InMemorySecretStore()
     private val accounts = AccountManager(db, CredentialStore(secrets))
-    private fun login(t: AuthTransport) = InnertubeAccountLogin(accounts, t, clock = FixedClock())
+    private fun login(t: AuthTransport) = InnertubeAccountLogin(accounts, registry(), t, clock = FixedClock())
 
     @Test fun importingValidCookiesCreatesAndActivatesTheAccountAndStoresOnlyGoogleCookies() = runBlocking {
         val file = jar(Cookie("unrelated", "x", ".example.com")).toNetscape()
@@ -152,7 +160,7 @@ class SyncTest {
     private val db = createDatabase(JvmDatabaseDriverFactory())
     private val accounts = AccountManager(db, CredentialStore(InMemorySecretStore()))
     private val g = accounts.addGoogle(GoogleIdentity("T", "t@example.com", null, "UCx"), jar())
-    private fun sync(t: AuthTransport) = InnertubeAccountSync(accounts, db, t, clock = FixedClock())
+    private fun sync(t: AuthTransport) = InnertubeAccountSync(accounts, registry(), db, t, clock = FixedClock())
     private val feed = FakeTransport { _, _, _, _ -> ok(fixture("subscriptions.json")) }
 
     @Test fun pullIsIdempotentAndNeverDeletesLocalRows() = runBlocking {

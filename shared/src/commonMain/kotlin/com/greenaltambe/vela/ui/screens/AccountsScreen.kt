@@ -59,6 +59,7 @@ fun AccountsScreen(services: AppServices, navigator: Navigator, modifier: Modifi
     var removing by remember { mutableStateOf<Account?>(null) }
     var wipingAll by remember { mutableStateOf(false) }
     val login = services.login
+    var onboarding by remember { mutableStateOf<(() -> Unit)?>(null) }
 
     val pick = rememberTextFilePicker { text ->
         if (text == null) { message = "No file was read."; return@rememberTextFilePicker }
@@ -105,8 +106,8 @@ fun AccountsScreen(services: AppServices, navigator: Navigator, modifier: Modifi
                             "Browsers rotate the cookies of windows that stay open, which would invalidate the export. A \"cookies.txt\" export extension for your browser does this.",
                         style = MaterialTheme.typography.bodyMedium,
                     )
-                    services.webLogin?.let { PrimaryButton("Sign in with Google", it, modifier = Modifier.testTag("accounts.webLogin")) }
-                    PrimaryButton(if (busy) "Checking…" else "Import cookies.txt", pick, enabled = !busy, modifier = Modifier.testTag("accounts.import"))
+                    services.webLogin?.let { start -> PrimaryButton("Sign in with Google", { onboarding = start }, modifier = Modifier.testTag("accounts.webLogin")) }
+                    PrimaryButton(if (busy) "Checking…" else "Import cookies.txt", { onboarding = pick }, enabled = !busy, modifier = Modifier.testTag("accounts.import"))
                 }
                 message?.let { Text(it, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("accounts.message")) }
                 SectionHeader("Privacy")
@@ -116,10 +117,14 @@ fun AccountsScreen(services: AppServices, navigator: Navigator, modifier: Modifi
                     style = MaterialTheme.typography.bodySmall,
                 )
                 TextButton(onClick = { wipingAll = true }, modifier = Modifier.testTag("accounts.signOutAll")) { Text("Sign out everywhere") }
+                SectionHeader("Safety")
+                Text("Account requests: ${services.accounts.credentialStoreDescription.let { "credentials in $it" }}. See Settings > Account activity for every request. Pausing the account is automatic; the button below only tests the banner and the pause.", style = MaterialTheme.typography.bodySmall)
+                TextButton(onClick = { if (active.kind == AccountKind.GOOGLE) services.governors.forAccount(active.id).trip(com.greenaltambe.vela.auth.BlockSignal.HTTP_429) }, enabled = active.kind == AccountKind.GOOGLE, modifier = Modifier.testTag("accounts.simulate429")) { Text("Test: simulate a rate limit") }
             }
         }
     }
 
+    onboarding?.let { go -> AccountOnboardingDialog(services, onDismiss = { onboarding = null }, onAccepted = { onboarding = null; go() }) }
     removing?.let { a ->
         AlertDialog(
             onDismissRequest = { removing = null },

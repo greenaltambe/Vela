@@ -35,6 +35,7 @@ enum class SettingSection(val title: String) {
     LIBRARY("Library and history"),
     DOWNLOADS("Downloads"),
     MODULES("Modules"),
+    ACCOUNT("Account"),
     ADVANCED("Advanced"),
 }
 

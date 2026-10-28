@@ -2,6 +2,10 @@ package com.greenaltambe.vela
 
 import com.greenaltambe.vela.auth.AccountLogin
 import com.greenaltambe.vela.auth.AccountManager
+import com.greenaltambe.vela.auth.DbAuditLog
+import com.greenaltambe.vela.auth.DbBreakerStore
+import com.greenaltambe.vela.auth.GovernorRegistry
+import com.greenaltambe.vela.auth.governorLimits
 import com.greenaltambe.vela.auth.CredentialStore
 import com.greenaltambe.vela.auth.InMemorySecretStore
 import com.greenaltambe.vela.core.settings.SettingsResolver
@@ -45,6 +49,11 @@ class AppServices(
     val webLogin: (() -> Unit)? = null,
     /** Pulls account data (subscriptions) into the local tables; null where there is no login. */
     val sync: com.greenaltambe.vela.auth.AccountSync? = null,
+    /** Every request that carries account credentials passes through these; the audit log is what Diagnostics shows. */
+    /** Canary checks of the anonymous tiers; null where the platform has none. */
+    val health: com.greenaltambe.vela.health.ExtractorHealth? = null,
+    val audit: DbAuditLog = DbAuditLog(database),
+    val governors: GovernorRegistry = GovernorRegistry(clock, { governorLimits(settings) }, DbBreakerStore(database), audit),
 ) {
     private val db = database
     private val feeds = HashMap<String, FeedService>()

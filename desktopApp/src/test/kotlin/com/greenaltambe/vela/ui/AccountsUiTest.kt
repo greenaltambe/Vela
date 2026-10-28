@@ -3,6 +3,8 @@
 package com.greenaltambe.vela.ui
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -82,5 +84,56 @@ class AccountsUiTest {
         assertEquals(localCount, f.services.subscriptions.all().size, "the local account keeps its own")
         f.services.accounts.switchTo(g.id)
         assertEquals(1, f.services.subscriptions.all().size)
+    }
+
+    @Test fun onboardingGateNeedsBothAcknowledgementsAndReportingDefaultsOff() = runDesktopComposeUiTest(800, 1000) {
+        val f = buildFixture(login = ::NoLogin)
+        f.navigator.selectTab(Route.Settings); f.navigator.push(Route.Accounts)
+        setContent { AppUnderTest(f) }
+        waitForIdle()
+        onNodeWithTag("accounts.import").performClick(); waitForIdle()
+        onNodeWithTag("onboarding.continue").assertIsNotEnabled()
+        onNodeWithTag("onboarding.terms").performClick(); waitForIdle()
+        onNodeWithTag("onboarding.continue").assertIsNotEnabled()
+        onNodeWithTag("onboarding.throwaway").performClick(); waitForIdle()
+        onNodeWithTag("onboarding.continue").assertIsEnabled()
+        assertEquals(false, f.services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.accountReportActivity), "reporting stays off unless switched on")
+    }
+
+    @Test fun anOpenBreakerShowsABannerOnEveryScreenAndTryNowAsksFirst() = runDesktopComposeUiTest(800, 1000) {
+        val f = buildFixture(login = ::NoLogin)
+        val g = f.services.accounts.addGoogle(identity, jar)
+        val gov = f.services.governors.forAccount(g.id)
+        gov.trip(BlockSignal.HTTP_429)
+        setContent { AppUnderTest(f) }
+        waitForIdle()
+        onNodeWithTag("account.banner").assertIsDisplayed()          // on Home
+        f.navigator.selectTab(Route.Library); waitForIdle()
+        onNodeWithTag("account.banner").assertIsDisplayed()          // and on Library
+        onNodeWithTag("account.tryNow").performClick(); waitForIdle()
+        assertEquals(BreakerState.OPEN, gov.status.value.state, "nothing happens before confirming")
+        onNodeWithTag("account.tryNowConfirm").performClick(); waitForIdle()
+        assertEquals(BreakerState.HALF_OPEN, gov.status.value.state)
+    }
+
+    @Test fun signedOutAccountShowsTheBannerWithoutAnyNetwork() = runDesktopComposeUiTest(800, 1000) {
+        val f = buildFixture(login = ::NoLogin)
+        val g = f.services.accounts.addGoogle(identity, jar)
+        f.services.accounts.setAuthState(g.id, AuthState.NEEDS_RELOGIN)
+        setContent { AppUnderTest(f) }
+        waitForIdle()
+        onNodeWithTag("account.banner").assertIsDisplayed()
+    }
+
+    @Test fun activityScreenListsAuditedRequestsAndPurges() = runDesktopComposeUiTest(800, 1000) {
+        val f = buildFixture(login = ::NoLogin)
+        val g = f.services.accounts.addGoogle(identity, jar)
+        f.services.audit.record(AuditEntry(g.id, f.services.clock.now(), "BROWSE", "www.youtube.com", "ok", "allowed"))
+        f.navigator.selectTab(Route.Settings); f.navigator.push(Route.AccountActivity)
+        setContent { AppUnderTest(f) }
+        waitForIdle()
+        onNodeWithText("www.youtube.com", substring = true).assertIsDisplayed()
+        onNodeWithTag("activity.purge").performClick(); waitForIdle()
+        assertTrue(f.services.audit.recent(g.id).isEmpty())
     }
 }

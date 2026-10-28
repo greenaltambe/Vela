@@ -151,8 +151,19 @@ fun PlayerView(
 
         if (failed != null) {
             Column(Modifier.align(Alignment.Center).padding(Vela.md), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                Text(failed.message, color = onMedia, style = MaterialTheme.typography.bodyMedium, maxLines = 4, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.testTag("player.error"))
-                OutlinedButton(onClick = { session.start(video.id, video) }, modifier = Modifier.testTag("player.retry")) { Text("Retry", maxLines = 1) }
+                val needsSignIn = failed.extractorError?.reason == com.greenaltambe.vela.extractor.FailureReason.SIGN_IN_REQUIRED
+                val uri = androidx.compose.ui.platform.LocalUriHandler.current
+                if (needsSignIn) {
+                    // Retrying cannot help: YouTube wants a signed-in viewer (age limit or bot check). Say so once, and offer the browser.
+                    Text(
+                        "YouTube only plays this video to a signed-in viewer (age limit or bot check). Vela could not use an account for it. Retrying will not change that.",
+                        color = onMedia, style = MaterialTheme.typography.bodyMedium, maxLines = 5, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.testTag("player.error"),
+                    )
+                    OutlinedButton(onClick = { runCatching { uri.openUri("https://www.youtube.com/watch?v=${video.id}") } }, modifier = Modifier.testTag("player.openInBrowser")) { Text("Open in browser", maxLines = 1) }
+                } else {
+                    Text(failed.message, color = onMedia, style = MaterialTheme.typography.bodyMedium, maxLines = 4, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.testTag("player.error"))
+                    OutlinedButton(onClick = { session.start(video.id, video) }, modifier = Modifier.testTag("player.retry")) { Text("Retry", maxLines = 1) }
+                }
             }
         }
 

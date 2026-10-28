@@ -25,7 +25,7 @@ class LiveAccountTierTest {
         println("TIER2 js runtime args present=${args.isNotEmpty()}")
 
         var rotated = 0
-        val tier2 = AuthenticatedYtDlpExtractor({ AccountCookies("test", "google:test", jar) }, { _, _ -> rotated++ }, runner = runner, extraArgs = { args })
+        val tier2 = AuthenticatedYtDlpExtractor({ AccountCookies("test", "google:test", jar) }, com.greenaltambe.vela.auth.GovernorRegistry(), { _, _ -> rotated++ }, runner = runner, extraArgs = { args })
         val r = runBlocking { tier2.streams(ageRestricted) }
         println("TIER2 age-restricted with account -> ${r::class.simpleName}; cookie rotation write-backs=$rotated")
         assertIs<ExtractorResult.Success<*>>(r)

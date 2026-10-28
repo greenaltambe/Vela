@@ -1,5 +1,6 @@
 package com.greenaltambe.vela.innertube
 
+import com.greenaltambe.vela.auth.CallKind
 import kotlinx.serialization.json.*
 
 /** The website client identity every account call presents. Bundled in `innertube-web.json`; [override] wins when present. */
@@ -32,9 +33,9 @@ class InnertubeClient(
     private val web: WebClient = WebClient.bundled(),
     private val base: String = "https://www.youtube.com/youtubei/v1",
 ) {
-    fun call(endpoint: String, body: JsonObject = JsonObject(emptyMap())): JsonElement {
+    fun call(endpoint: String, body: JsonObject = JsonObject(emptyMap()), kind: CallKind = CallKind.BROWSE): JsonElement {
         val payload = buildJsonObject { put("context", web.context()); body.forEach { (k, v) -> put(k, v) } }
-        val r = session.send("POST", "$base/$endpoint?prettyPrint=false", payload.toString(), extra = mapOf("Content-Type" to "application/json", "User-Agent" to web.userAgent))
+        val r = session.send(kind, "POST", "$base/$endpoint?prettyPrint=false", payload.toString(), extra = mapOf("Content-Type" to "application/json", "User-Agent" to web.userAgent))
         val json = try { lenientJson.parseToJsonElement(r.body) } catch (e: Exception) { throw AuthFailure.Unparseable("not JSON (${r.body.length} chars)") }
         return json
     }
@@ -43,7 +44,7 @@ class InnertubeClient(
     fun continuation(token: String): JsonElement = call("browse", buildJsonObject { put("continuation", token) })
 
     /** Who the cookies belong to. Throws [AuthFailure.LoggedOut] when the response is the signed-out menu. */
-    fun accountInfo(): AccountInfo = InnertubeParsers.accountInfo(call("account/account_menu"))
+    fun accountInfo(): AccountInfo = InnertubeParsers.accountInfo(call("account/account_menu", kind = CallKind.SESSION_CHECK))
         ?: throw AuthFailure.LoggedOut("account menu has no active account")
 
     /** Every channel the account subscribes to, following continuations. */

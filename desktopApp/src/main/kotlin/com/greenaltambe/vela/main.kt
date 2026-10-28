@@ -22,8 +22,19 @@ import com.greenaltambe.vela.data.createDatabase
 import com.greenaltambe.vela.extractor.chain.DiagnosticsLog
 import com.greenaltambe.vela.extractor.chain.FallbackChain
 import com.greenaltambe.vela.auth.AccountManager
+import com.greenaltambe.vela.auth.DbAuditLog
+import com.greenaltambe.vela.auth.DbBreakerStore
+import com.greenaltambe.vela.auth.GovernorRegistry
+import com.greenaltambe.vela.auth.governorLimits
+import com.greenaltambe.vela.extractor.chain.PacedExtractor
+import com.greenaltambe.vela.extractor.chain.TierOrder
+import com.greenaltambe.vela.health.DbHealthStore
+import com.greenaltambe.vela.health.ExtractorHealth
+import com.greenaltambe.vela.innertube.OkHttpStreamProbe
+import com.greenaltambe.vela.extractor.chain.downloadAccountMode
 import com.greenaltambe.vela.auth.CredentialStore
 import com.greenaltambe.vela.auth.linuxSecretStore
+import com.greenaltambe.vela.extractor.chain.AccountOp
 import com.greenaltambe.vela.extractor.chain.AttemptOutcome
 import com.greenaltambe.vela.extractor.chain.ExtractorTier
 import com.greenaltambe.vela.extractor.chain.TierAttempt
@@ -66,26 +77,48 @@ fun main() {
     val secrets = linuxSecretStore(XdgPaths.dataDir())
     log.record(TierAttempt("credential store", TierId.AUTHENTICATED, AttemptOutcome.NOTE, null, secrets.description, Duration.ZERO, Clock.System.now()))
     val accounts = AccountManager(database, CredentialStore(secrets))
+    val audit = DbAuditLog(database)
+    val governors = GovernorRegistry(Clock.System, { governorLimits(settings) }, DbBreakerStore(database), audit)
     val signedIn = { accounts.active.value.takeIf { it.isSignedIn } }
     // Chain order: ANONYMOUS (NewPipe), AUTHENTICATED (yt-dlp --cookies as the active account), ALT_CLIENT (iOS/Android player), YT_DLP.
     val accountTier = ytDlp?.let {
         AuthenticatedYtDlpExtractor(
+            governors = governors,
             account = { signedIn()?.let { a -> accounts.cookies(a.id)?.let { jar -> AccountCookies(a.id, a.label, jar) } } },
             onCookiesUpdated = { id, jar -> accounts.saveCookies(id, jar) },
             binary = { settings.resolve(Settings.ytDlpPath) }, extraArgs = { ytDlpArgs },
         )
     }
     val tiers = listOfNotNull(
-        ExtractorTier(TierId.ANONYMOUS, NewPipeExtractor()),
+        ExtractorTier(TierId.ANONYMOUS, PacedExtractor(NewPipeExtractor())),
         accountTier?.let { ExtractorTier(TierId.AUTHENTICATED, it) },
         ExtractorTier(TierId.ALT_CLIENT, AltClientExtractor(onProfile = { line ->
             log.record(TierAttempt("alt client", TierId.ALT_CLIENT, AttemptOutcome.NOTE, null, line, Duration.ZERO, Clock.System.now()))
         })),
-        ytDlp,
+        ytDlp?.let { ExtractorTier(TierId.YT_DLP, PacedExtractor(it.extractor)) },
     )
-    val chain = FallbackChain(tiers, accountMode = { settings.resolve(Settings.accountFallbackMode) }, log = log, signedInAccount = { signedIn()?.label })
+    val health = ExtractorHealth(tiers, OkHttpStreamProbe(), DbHealthStore(database))
+    val chain = FallbackChain(tiers, accountMode = { settings.resolve(Settings.accountFallbackMode) }, log = log, signedInAccount = { signedIn()?.label },
+        accountMayServe = { op -> when (op) {
+            AccountOp.PLAYBACK -> true
+            AccountOp.DETAILS -> settings.resolve(Settings.accountUseForDetails)
+            AccountOp.CHANNELS -> settings.resolve(Settings.accountUseForChannels)
+            AccountOp.NEVER -> false
+        } },
+        tierOrder = { TierOrder.parse(settings.resolve(Settings.accountTierOrder)) },
+        accountPaused = { signedIn()?.let { governors.forAccount(it.id).cooldownUntil() }?.let { "account cooling down until ${it.toString().substring(11, 16)} UTC" } })
+    // Downloads use the anonymous tiers; the account only when the user allowed it and the anonymous tiers failed.
+    val downloadChain = FallbackChain(tiers, accountMode = { downloadAccountMode(settings.resolve(Settings.accountDownloadsMayUse)) }, log = log,
+        signedInAccount = { signedIn()?.label }, accountMayServe = { op -> when (op) {
+            AccountOp.PLAYBACK -> true
+            AccountOp.DETAILS -> settings.resolve(Settings.accountUseForDetails)
+            AccountOp.CHANNELS -> settings.resolve(Settings.accountUseForChannels)
+            AccountOp.NEVER -> false
+        } },
+        tierOrder = { TierOrder.parse(settings.resolve(Settings.accountTierOrder)) },
+        accountPaused = { signedIn()?.let { governors.forAccount(it.id).cooldownUntil() }?.let { "account cooling down until ${it.toString().substring(11, 16)} UTC" } })
     // Downloads run in the app process; whatever was mid-way when it last exited is picked up again here.
-    val downloads = createDesktopDownloads(database, chain, modules, settings)
+    val downloads = createDesktopDownloads(database, downloadChain, modules, settings)
 
     application {
         // Created inside the application so the Swing main dispatcher the session scope uses is up. Without libmpv
@@ -113,7 +146,7 @@ fun main() {
             }
         }
         val services = remember(host) {
-            AppServices(chain, settings, log, database, host, utcOffsetMinutes = { TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 60_000 }, modules = modules, downloads = downloads, accounts = accounts, login = InnertubeAccountLogin(accounts), sync = InnertubeAccountSync(accounts, database))
+            AppServices(chain, settings, log, database, host, utcOffsetMinutes = { TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 60_000 }, modules = modules, downloads = downloads, accounts = accounts, login = InnertubeAccountLogin(accounts, governors), sync = InnertubeAccountSync(accounts, governors, database), audit = audit, governors = governors, health = health)
         }
 
         Window(

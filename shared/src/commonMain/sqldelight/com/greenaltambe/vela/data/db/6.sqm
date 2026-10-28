@@ -1,0 +1,11 @@
+-- 6 -> 7: the local audit log of every request that carried account credentials.
+CREATE TABLE AccountAudit (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    accountId TEXT NOT NULL,
+    at INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    host TEXT NOT NULL,
+    result TEXT NOT NULL,
+    decision TEXT NOT NULL
+);
+CREATE INDEX AccountAudit_time ON AccountAudit(at);

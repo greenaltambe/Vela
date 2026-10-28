@@ -59,7 +59,10 @@ class MainActivity : ComponentActivity() {
             downloads = runtime.downloads,
             accounts = runtime.accounts,
             login = runtime.login,
-            sync = com.greenaltambe.vela.innertube.InnertubeAccountSync(runtime.accounts, runtime.database),
+            sync = runtime.sync,
+            audit = runtime.audit,
+            health = runtime.health,
+            governors = runtime.governors,
             webLogin = { startActivity(android.content.Intent(this, com.greenaltambe.vela.auth.WebLoginActivity::class.java)) },
         )
     }

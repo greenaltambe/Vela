@@ -9,6 +9,7 @@ import kotlin.time.Clock
 
 class InnertubeAccountSync(
     private val accounts: AccountManager,
+    private val governors: GovernorRegistry,
     private val db: VelaDatabase,
     private val transport: AuthTransport = OkHttpAuthTransport(),
     private val web: WebClient = WebClient.bundled(),
@@ -20,10 +21,12 @@ class InnertubeAccountSync(
         if (!account.isSignedIn) return SyncResult(0, 0, "No signed-in account.")
         val jar = accounts.cookies(account.id) ?: return SyncResult(0, 0, "Credentials are missing; sign in again.")
         val remote = try {
-            val session = AuthSession(jar, transport, clock, onCookiesChanged = { accounts.saveCookies(account.id, it) })
+            val session = AuthSession(jar, governors.forAccount(account.id), transport, clock, onCookiesChanged = { accounts.saveCookies(account.id, it) })
             withContext(Dispatchers.IO) { InnertubeClient(session, web, base).subscriptions() }
         } catch (e: AuthFailure.LoggedOut) {
             accounts.setAuthState(account.id, AuthState.NEEDS_RELOGIN); return SyncResult(0, 0, "Signed out; sign in again.")
+        } catch (e: GovernorDenied) {
+            return SyncResult(0, 0, e.message ?: "Account traffic is paused.")
         } catch (e: Exception) {
             return SyncResult(0, 0, Redaction.redact(e.message ?: e.javaClass.simpleName))
         }

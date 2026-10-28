@@ -1,6 +1,10 @@
 package com.greenaltambe.vela.extractor.ytdlp
 
+import com.greenaltambe.vela.auth.BlockPatterns
+import com.greenaltambe.vela.auth.CallKind
 import com.greenaltambe.vela.auth.CookieJar
+import com.greenaltambe.vela.auth.GovernorDenied
+import com.greenaltambe.vela.auth.GovernorRegistry
 import com.greenaltambe.vela.extractor.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -23,6 +27,7 @@ class AccountCookies(val accountId: String, val label: String, val jar: CookieJa
  */
 class AuthenticatedYtDlpExtractor(
     private val account: () -> AccountCookies?,
+    private val governors: GovernorRegistry,
     private val onCookiesUpdated: (accountId: String, jar: CookieJar) -> Unit,
     private val tempDir: File = File(System.getProperty("java.io.tmpdir")),
     private val runner: ProcessRunner = SystemProcessRunner(),
@@ -37,22 +42,35 @@ class AuthenticatedYtDlpExtractor(
         extraArgs = { extraArgs() + (cookieFile?.let { listOf("--cookies", it.path) } ?: emptyList()) },
     )
 
-    private suspend fun <T> withAccount(call: suspend (Extractor) -> ExtractorResult<T>): ExtractorResult<T> {
+    private suspend fun <T> withAccount(kind: CallKind = CallKind.BROWSE, call: suspend (Extractor) -> ExtractorResult<T>): ExtractorResult<T> {
         val acct = account() ?: return ExtractorResult.Failure(ExtractorError.TierUnavailable("No signed-in account"))
-        return lock.withLock {
-            val file = File(tempDir, "vela-${UUID.randomUUID()}.cookies.txt")
-            try {
-                writePrivate(file, acct.jar.toNetscape())
-                cookieFile = file
-                val result = call(inner)
-                runCatching { CookieJar.parseNetscape(file.readText()) }.getOrNull()
-                    ?.takeIf { it.looksSignedIn && it.toNetscape() != acct.jar.toNetscape() }
-                    ?.let { onCookiesUpdated(acct.accountId, it) }
-                result
-            } finally {
-                cookieFile = null
-                file.delete()
+        val governor = governors.forAccount(acct.accountId)
+        return try {
+            governor.call(kind, "www.youtube.com", inspect = { r: ExtractorResult<T> ->
+                // yt-dlp reports a block as text on stderr, which the extractor turned into the failure message.
+                (r as? ExtractorResult.Failure)?.error?.let { e ->
+                    if (e.reason == FailureReason.SIGN_IN_REQUIRED) governor.loginRequired()
+                    BlockPatterns.scan(e.message)
+                }
+            }) {
+                lock.withLock {
+                    val file = File(tempDir, "vela-${UUID.randomUUID()}.cookies.txt")
+                    try {
+                        writePrivate(file, acct.jar.toNetscape())
+                        cookieFile = file
+                        val result = call(inner)
+                        runCatching { CookieJar.parseNetscape(file.readText()) }.getOrNull()
+                            ?.takeIf { it.looksSignedIn && it.toNetscape() != acct.jar.toNetscape() }
+                            ?.let { onCookiesUpdated(acct.accountId, it) }
+                        result
+                    } finally {
+                        cookieFile = null
+                        file.delete()
+                    }
+                }
             }
+        } catch (d: GovernorDenied) {
+            ExtractorResult.Failure(ExtractorError.TierUnavailable(d.message ?: "Account traffic is paused"))
         }
     }
 
@@ -65,8 +83,8 @@ class AuthenticatedYtDlpExtractor(
 
     override val capabilities get() = inner.capabilities
     override suspend fun search(query: String, continuation: String?) = withAccount { it.search(query, continuation) }
-    override suspend fun videoInfo(videoId: String) = withAccount { it.videoInfo(videoId) }
-    override suspend fun streams(videoId: String) = withAccount { it.streams(videoId) }
+    override suspend fun videoInfo(videoId: String) = withAccount(CallKind.PLAYBACK) { it.videoInfo(videoId) }
+    override suspend fun streams(videoId: String) = withAccount(CallKind.PLAYBACK) { it.streams(videoId) }
     override suspend fun channel(channelId: String) = withAccount { it.channel(channelId) }
     override suspend fun channelVideos(channelId: String, continuation: String?) = withAccount { it.channelVideos(channelId, continuation) }
     override suspend fun comments(videoId: String, sort: CommentSort, continuation: String?) = withAccount { it.comments(videoId, sort, continuation) }

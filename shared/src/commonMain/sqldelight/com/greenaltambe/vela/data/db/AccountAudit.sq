@@ -1,0 +1,26 @@
+CREATE TABLE AccountAudit (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    accountId TEXT NOT NULL,
+    at INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    host TEXT NOT NULL,
+    result TEXT NOT NULL,
+    decision TEXT NOT NULL
+);
+
+CREATE INDEX AccountAudit_time ON AccountAudit(at);
+
+insert:
+INSERT INTO AccountAudit(accountId, at, kind, host, result, decision) VALUES (?, ?, ?, ?, ?, ?);
+
+recent:
+SELECT * FROM AccountAudit WHERE accountId = ? ORDER BY at DESC, id DESC LIMIT ?;
+
+trim:
+DELETE FROM AccountAudit WHERE id NOT IN (SELECT id FROM AccountAudit ORDER BY at DESC, id DESC LIMIT ?);
+
+clearForAccount:
+DELETE FROM AccountAudit WHERE accountId = ?;
+
+clearAll:
+DELETE FROM AccountAudit;

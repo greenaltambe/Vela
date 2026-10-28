@@ -60,7 +60,12 @@ import com.greenaltambe.vela.ui.platform.LocalWindowControls
 import com.greenaltambe.vela.ui.platform.PlatformBackHandler
 import com.greenaltambe.vela.ui.player.applyShortcut
 import com.greenaltambe.vela.ui.player.shortcutFor
+import com.greenaltambe.vela.ui.screens.AccountActivityScreen
+import com.greenaltambe.vela.ui.screens.AccountBanner
 import com.greenaltambe.vela.ui.screens.AccountsScreen
+import com.greenaltambe.vela.ui.screens.HealthScreen
+import com.greenaltambe.vela.ui.screens.HealthStartEffect
+import com.greenaltambe.vela.ui.screens.SessionCheckEffect
 import com.greenaltambe.vela.ui.screens.ChannelScreen
 import com.greenaltambe.vela.ui.screens.DownloadsScreen
 import com.greenaltambe.vela.ui.screens.HistoryScreen
@@ -136,13 +141,16 @@ fun AppShell(services: AppServices, navigator: Navigator = remember { Navigator(
             Row(Modifier.fillMaxSize().then(if (chrome) Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)) else Modifier)) {
                 if (chrome && rail) SideRail(route.topLevel(), onSelect = navigator::selectTab, onSearch = { navigator.push(Route.Search()) })
                 Column(Modifier.weight(1f)) {
-                    if (chrome && route !is Route.Video && route !is Route.Search && route != Route.Settings && route != Route.Accounts) {
+                    if (chrome && route !is Route.Video && route !is Route.Search && route != Route.Settings && route != Route.Accounts && route != Route.AccountActivity && route != Route.Health) {
                         VelaTopBar(
                             routeTitle(route), onBack = if (navigator.canGoBack) ({ navigator.back() }) else null,
                             onSearch = if (rail) null else ({ navigator.push(Route.Search()) }),
                             menu = overflowMenu(services, navigator),
                         )
                     }
+                    if (chrome) AccountBanner(services, navigator)
+                    SessionCheckEffect(services)
+                    HealthStartEffect(services)
                     // Keyed by the active account, so switching rebuilds every screen on the new account's data.
                     val activeAccount by services.accounts.active.collectAsState()
                     androidx.compose.runtime.key(activeAccount.id) { Destination(services, navigator, route, Modifier.weight(1f)) }
@@ -166,6 +174,8 @@ private fun routeTitle(route: Route): String = when (route) {
     Route.ManageSubscriptions -> "Subscriptions"
     Route.Diagnostics -> "Diagnostics"
     Route.Accounts -> "Accounts"
+    Route.AccountActivity -> "Account activity"
+    Route.Health -> "Health"
     Route.Downloads -> "Downloads"
     is Route.Search -> "Search"
     is Route.Video -> ""
@@ -211,5 +221,7 @@ private fun Destination(services: AppServices, navigator: Navigator, route: Rout
         Route.Diagnostics -> DiagnosticsScreen(services.extractor, services.log, services.modules.log, services.downloads, modifier)
         Route.Downloads -> DownloadsScreen(services, navigator, modifier)
         Route.Accounts -> AccountsScreen(services, navigator, modifier)
+        Route.AccountActivity -> AccountActivityScreen(services, navigator, modifier)
+        Route.Health -> HealthScreen(services, navigator, modifier)
     }
 }

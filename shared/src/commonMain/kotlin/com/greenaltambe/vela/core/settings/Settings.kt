@@ -27,10 +27,10 @@ object Settings {
         key = "playback.accountFallbackMode",
         default = AccountFallbackMode.ONLY_ON_FAILURE,
         scope = SettingScope.GLOBAL,
-        label = "Account fallback",
+        label = "Use the account for playback",
         keywords = listOf("login", "account", "blocked", "sign in", "fallback"),
         codec = SettingCodecs.enum(AccountFallbackMode.entries),
-        section = SettingSection.PLAYBACK,
+        section = SettingSection.ACCOUNT,
         choices = listOf(
             SettingChoice(AccountFallbackMode.ONLY_ON_FAILURE.name, "Only on failure"),
             SettingChoice(AccountFallbackMode.ALWAYS.name, "Always use account"),
@@ -396,9 +396,76 @@ object Settings {
         range = SettingRange(min = 0.0, max = 10.0, step = 1.0),
     )
 
+    val accountReportActivity = Setting(
+        key = "account.reportActivity", default = false, scope = SettingScope.GLOBAL,
+        label = "Tell YouTube what I watch (adds to the account's history)",
+        keywords = listOf("account", "history", "activity", "report", "watch"),
+        codec = SettingCodecs.boolean, section = SettingSection.ACCOUNT,
+    )
+
+    val accountUseForChannels = Setting(
+        key = "account.useForChannels", default = false, scope = SettingScope.GLOBAL,
+        label = "Use the account for channel pages",
+        keywords = listOf("account", "channel", "login"),
+        codec = SettingCodecs.boolean, section = SettingSection.ACCOUNT,
+    )
+
+    val accountUseForDetails = Setting(
+        key = "account.useForDetails", default = false, scope = SettingScope.GLOBAL,
+        label = "Use the account for video details and comments",
+        keywords = listOf("account", "details", "comments", "login"),
+        codec = SettingCodecs.boolean, section = SettingSection.ACCOUNT,
+    )
+
+    val accountDownloadsMayUse = Setting(
+        key = "account.downloadsMayUseAccount", default = false, scope = SettingScope.GLOBAL,
+        label = "Downloads may use the account when anonymous fails",
+        keywords = listOf("account", "download", "login"),
+        codec = SettingCodecs.boolean, section = SettingSection.ACCOUNT,
+    )
+
+    val accountKillSwitch = Setting(
+        key = "account.killSwitch", default = false, scope = SettingScope.GLOBAL,
+        label = "Stop ALL traffic that carries account credentials",
+        keywords = listOf("account", "kill", "stop", "disable", "emergency"),
+        codec = SettingCodecs.boolean, section = SettingSection.ACCOUNT,
+    )
+
+    val accountTierOrder = Setting(
+        key = "account.tierOrder", default = "ANONYMOUS,ALT_CLIENT,YT_DLP,AUTHENTICATED", scope = SettingScope.GLOBAL,
+        label = "Order sources are tried in",
+        keywords = listOf("account", "order", "tier", "fallback", "sources"),
+        codec = SettingCodecs.string, section = SettingSection.ACCOUNT,
+    )
+
+    val accountPlaybackPerHour = Setting(
+        key = "account.budget.playbackPerHour", default = 20f, scope = SettingScope.GLOBAL,
+        label = "Account playback resolves per hour",
+        keywords = listOf("account", "budget", "limit", "playback"),
+        codec = SettingCodecs.float, section = SettingSection.ACCOUNT,
+        range = SettingRange(min = 1.0, max = 120.0, step = 1.0),
+    )
+
+    val accountBrowsePerMinute = Setting(
+        key = "account.budget.browsePerMinute", default = 6f, scope = SettingScope.GLOBAL,
+        label = "Account browse/sync calls per minute",
+        keywords = listOf("account", "budget", "limit", "browse", "sync"),
+        codec = SettingCodecs.float, section = SettingSection.ACCOUNT,
+        range = SettingRange(min = 1.0, max = 30.0, step = 1.0),
+    )
+
+    val accountWritesPerHour = Setting(
+        key = "account.budget.writesPerHour", default = 10f, scope = SettingScope.GLOBAL,
+        label = "Account writes per hour",
+        keywords = listOf("account", "budget", "limit", "write"),
+        codec = SettingCodecs.float, section = SettingSection.ACCOUNT,
+        range = SettingRange(min = 0.0, max = 60.0, step = 1.0),
+    )
+
     val all: List<Setting<*>> = listOf(
         look, performanceMode, localOnlyHistory, hideWatched, minLengthSeconds, blockKeywords, allowKeywords, keywordsAreRegex,
-        accountFallbackMode, shortsMode, defaultPlaybackSpeed, maxQualityUnmetered, maxQualityMetered, preferredCodec, audioOnly, ytDlpPath,
+        accountFallbackMode, accountReportActivity, accountUseForChannels, accountUseForDetails, accountDownloadsMayUse, accountKillSwitch, accountTierOrder,
+        accountPlaybackPerHour, accountBrowsePerMinute, accountWritesPerHour, shortsMode, defaultPlaybackSpeed, maxQualityUnmetered, maxQualityMetered, preferredCodec, audioOnly, ytDlpPath,
         sponsorBlockEnabled, returnYouTubeDislikeEnabled, deArrowEnabled,
         sponsorBlockMinSegmentSeconds, sponsorBlockNotifications, sponsorBlockServer, sponsorBlockUserId, rydInFeed, rydServer,
         deArrowFeed, deArrowSearch, deArrowVideoPage, deArrowPlayerTitle, deArrowTitleCasing, deArrowMinVotes, deArrowGeneratedThumbnails, deArrowThumbnailServer,
