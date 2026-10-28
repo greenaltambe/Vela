@@ -7,6 +7,7 @@ import com.greenaltambe.vela.extractor.chain.TierId
 import com.greenaltambe.vela.playback.PlaybackRuntime
 import com.greenaltambe.vela.player.PlaybackStatus
 import com.greenaltambe.vela.player.SessionState
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -44,6 +45,8 @@ class SelfTestActivity : Activity() {
             if (which == "live") live(rt, video)
             if (which == "all" || which == "strict") strictControl()
             if (which == "alert") alert()
+            if (which == "captcha") captcha(rt)
+            if (which == "chat") chat(video, intent.getStringExtra("liveVideo") ?: "4xDzrJKXOOY")
             if (which == "focus") focus(rt, video)
             val failed = (0 until results.length()).count { !results.getJSONObject(it).getBoolean("ok") }
             File(filesDir, "selftest.json").writeText(JSONObject().put("device", android.os.Build.MODEL).put("sdk", android.os.Build.VERSION.SDK_INT)
@@ -158,6 +161,47 @@ class SelfTestActivity : Activity() {
     private fun alert() {
         com.greenaltambe.vela.playback.HealthNotifier.show(this, com.greenaltambe.vela.health.HealthAlert(listOf(TierId.ANONYMOUS, TierId.ALT_CLIENT), null, 2))
         add("health notification posted (made-up alert)", true, "check dumpsys notification for channel health_alerts")
+    }
+
+    /**
+     * Captcha flow without a real captcha: (1) the exemption cookie store accepts a value, sends it only to YouTube hosts and expires it;
+     * (2) the captcha activity opens on Google's public reCAPTCHA demo page, shows it, and returns "Done"/"Cancel" to the waiting request.
+     * The host taps Done with adb. The real unblock (YouTube accepting the cookie) stays unproven.
+     */
+    private suspend fun captcha(rt: PlaybackRuntime) {
+        var now = kotlin.time.Instant.fromEpochSeconds(1_800_000_000)
+        val clock = object : kotlin.time.Clock { override fun now() = now }
+        val store = com.greenaltambe.vela.extractor.SettingsExemptionCookie(com.greenaltambe.vela.core.settings.InMemorySettingsStore(), clock, kotlin.time.Duration.parse("6h"))
+        store.save("testvalue123")
+        val ok = store.headerFor("www.youtube.com") == "GOOGLE_ABUSE_EXEMPTION=testvalue123" && store.headerFor("rr1---sn-x.googlevideo.com") == null && store.headerFor("i.ytimg.com") == null
+        now += kotlin.time.Duration.parse("7h")
+        add("exemption cookie: accepted, YouTube hosts only, expires after 6 h", ok && store.headerFor("www.youtube.com") == null, "sentToYouTube=$ok expiredAfter7h=${store.headerFor("www.youtube.com") == null}")
+        val url = "https://www.google.com/recaptcha/api2/demo"
+        val waiting = kotlinx.coroutines.MainScope().async { rt.captcha.request(url, kotlin.time.Duration.parse("60s")) }
+        delay(500)
+        add("captcha challenge is published for the banner", rt.captcha.pending.value == url, "pending=${rt.captcha.pending.value}")
+        startActivity(android.content.Intent(this, com.greenaltambe.vela.auth.CaptchaActivity::class.java).putExtra(com.greenaltambe.vela.auth.CaptchaActivity.EXTRA_URL, url))
+        Log.i(TAG, "CAPTCHA activity started; waiting up to 60 s for Done/Cancel")
+        val solved = waiting.await()
+        add("captcha activity returned (Done without an exemption cookie = not solved)", !solved && rt.captcha.pending.value == null, "solved=$solved pending=${rt.captcha.pending.value}")
+    }
+
+    /** Chat on the phone: the replay of an ended stream (offsets, seek) and a live chat; anonymous, through the real client. */
+    private suspend fun chat(replayVideo: String, liveVideo: String) {
+        val client = com.greenaltambe.vela.innertube.LiveChatClient()
+        val replay = client.open(replayVideo)
+        add("chat replay opens (isReplay)", replay?.isReplay == true, "video=$replayVideo replay=${replay?.isReplay}")
+        if (replay != null) {
+            val first = replay.poll()
+            add("chat replay first chunk has video offsets", first.messages.isNotEmpty() && first.messages.all { it.offsetMs != null }, "n=${first.messages.size} offsets=${first.messages.take(3).map { it.offsetMs }} next=${first.nextPollMs}")
+            replay.seek(600_000)
+            val seeked = replay.poll()
+            val offs = seeked.messages.mapNotNull { it.offsetMs }
+            add("chat replay seek to 600 s returns a chunk that covers 600 s (the panel then shows only messages up to the playhead)", offs.isNotEmpty() && offs.min() <= 600_000 && offs.max() >= 600_000, "n=${offs.size} min=${offs.minOrNull()} max=${offs.maxOrNull()}")
+        }
+        val live = client.open(liveVideo)
+        val batch = live?.poll()
+        add("live chat polls", live != null && !live.isReplay && (batch?.messages?.isNotEmpty() == true), "video=$liveVideo n=${batch?.messages?.size} next=${batch?.nextPollMs}")
     }
 
     /** Positive control for the StrictMode check: a deliberate main-thread disk read must show up in this process's logcat. */

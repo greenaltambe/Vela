@@ -28,19 +28,27 @@ class LiveChatClient(
         val renderer = next.findAll("liveChatRenderer").firstOrNull() ?: return@withContext null
         val token = renderer.findAll("continuation").firstNotNullOfOrNull { (it as? JsonPrimitive)?.contentOrNull } ?: return@withContext null
         val replay = (renderer["isReplay"] as? JsonPrimitive)?.booleanOrNull == true
-        Channel(token, replay)
+        Channel(token, token, replay)
     }
 
-    private inner class Channel(private var token: String, override val isReplay: Boolean) : ChatChannel {
+    private inner class Channel(private var token: String, private val firstToken: String, override val isReplay: Boolean) : ChatChannel {
         private val seen = LinkedHashSet<String>()
+        private var startAtMs: Long? = null
+
+        /** Replay: start again from the first continuation, asking for the chunk that contains [positionMs] (`currentPlayerState.playerOffsetMs`). */
+        override suspend fun seek(positionMs: Long) { if (isReplay) { token = firstToken; startAtMs = positionMs; seen.clear() } }
 
         override suspend fun poll(): ChatBatch = withContext(Dispatchers.IO) {
-            val json = post(if (isReplay) "live_chat/get_live_chat_replay" else "live_chat/get_live_chat", buildJsonObject { put("continuation", token) })
+            val json = post(if (isReplay) "live_chat/get_live_chat_replay" else "live_chat/get_live_chat", buildJsonObject {
+                put("continuation", token)
+                startAtMs?.let { putJsonObject("currentPlayerState") { put("playerOffsetMs", it.toString()) } }
+            })
+            startAtMs = null
             val parsed = LiveChatParser.parse(json)
             parsed.nextToken?.let { token = it }
             val fresh = parsed.messages.filter { seen.add(it.id) }
             while (seen.size > 2000) seen.remove(seen.first())
-            ChatBatch(fresh, parsed.timeoutMs.coerceIn(MIN_POLL_MS, MAX_POLL_MS), ended = parsed.nextToken == null)
+            ChatBatch(fresh, if (isReplay) 0 else parsed.timeoutMs.coerceIn(MIN_POLL_MS, MAX_POLL_MS), ended = parsed.nextToken == null)
         }
     }
 
@@ -52,8 +60,12 @@ object LiveChatParser {
 
     fun parse(json: JsonElement): Parsed {
         val cont = json.findAll("liveChatContinuation").firstOrNull()
-        val actions = (cont ?: json).findAll("addChatItemAction")
-        val messages = actions.mapNotNull { a -> a["item"]?.let(::message) }
+        val root = cont ?: json
+        val replays = root.findAll("replayChatItemAction")
+        val messages = if (replays.isNotEmpty()) replays.flatMap { w ->
+            val at = w["videoOffsetTimeMsec"].string?.toLongOrNull()
+            w.findAll("addChatItemAction").mapNotNull { a -> a["item"]?.let(::message)?.copy(offsetMs = at) }
+        } else root.findAll("addChatItemAction").mapNotNull { a -> a["item"]?.let(::message) }
         val c = cont["continuations"][0]
         val data = listOf("timedContinuationData", "invalidationContinuationData", "liveChatReplayContinuationData").firstNotNullOfOrNull { c[it] }
         val next = data["continuation"].string

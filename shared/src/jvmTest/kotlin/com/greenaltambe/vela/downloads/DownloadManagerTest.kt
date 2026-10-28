@@ -165,6 +165,17 @@ class DownloadManagerTest {
         assertEquals(DownloadState.COMPLETED, m.state(id))
     }
 
+    @Test fun aComponentThrowingMidDownloadFailsThatDownloadWithAReasonAndTheManagerKeepsWorking() = test {
+        var exploded = false
+        fetcher.script = { r -> if (!exploded && r.url.startsWith("https://a/")) { exploded = true; throw IllegalStateException("simulated component crash") } else null }
+        val m = started()
+        val a = m.enqueue(DownloadRequest(summary("a"), maxHeight = 720)); advanceUntilIdle()
+        assertEquals(DownloadState.FAILED, m.state(a))
+        assertTrue(m.items.value.first { it.id == a }.error!!.contains("simulated component crash"), "the reason is kept: ${m.items.value.first { it.id == a }.error}")
+        val b = m.enqueue(DownloadRequest(summary("b"), maxHeight = 720)); advanceUntilIdle()
+        assertEquals(DownloadState.COMPLETED, m.state(b), "the manager is still alive and finishes the next one")
+    }
+
     @Test fun defaultsComeFromSettings() = test {
         settings.set(Settings.downloadsPreferAvc, true)
         val m = started()

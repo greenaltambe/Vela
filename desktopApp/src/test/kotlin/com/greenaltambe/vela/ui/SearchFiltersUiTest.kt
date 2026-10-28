@@ -34,4 +34,12 @@ class SearchFiltersUiTest {
         onNodeWithText("Most viewed").performClick(); waitForIdle()
         onNodeWithTag("search.filter.sort").assertIsDisplayed()
     }
+
+    @Test fun resultsHiddenByTheFeedRulesAreExplainedNotSilentlyEmpty() = runDesktopComposeUiTest(800, 1000) {
+        val f = buildFixture(withDownloads = false)
+        f.services.settings.set(com.greenaltambe.vela.core.settings.Settings.minLengthSeconds, 3_000_000f)   // longer than anything: hides every result
+        f.navigator.push(Route.Search("lofi"))
+        setContent { AppUnderTest(f) }; waitForIdle()
+        waitUntil(timeoutMillis = 3_000) { runCatching { onNodeWithTag("search.hiddenByFeed").assertIsDisplayed() }.isSuccess }
+    }
 }

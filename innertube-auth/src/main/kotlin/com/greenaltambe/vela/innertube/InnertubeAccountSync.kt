@@ -15,13 +15,15 @@ class InnertubeAccountSync(
     private val web: WebClient = WebClient.bundled(),
     private val clock: Clock = Clock.System,
     private val base: String = "https://www.youtube.com/youtubei/v1",
+    /** The chosen profile per account (null = never a non-default one). */
+    private val profiles: com.greenaltambe.vela.auth.ProfileStore? = null,
 ) : AccountSync {
     override suspend fun pullSubscriptions(): SyncResult {
         val account = accounts.active.value
         if (!account.isSignedIn) return SyncResult(0, 0, "No signed-in account.")
         val jar = accounts.cookies(account.id) ?: return SyncResult(0, 0, "Credentials are missing; sign in again.")
         val remote = try {
-            val session = AuthSession(jar, governors.forAccount(account.id), transport, clock, onCookiesChanged = { accounts.saveCookies(account.id, it) })
+            val session = AuthSession(jar, governors.forAccount(account.id), transport, clock, onCookiesChanged = { accounts.saveCookies(account.id, it) }, pageId = { profiles?.pageId(account.id) })
             withContext(Dispatchers.IO) { InnertubeClient(session, web, base).subscriptions() }
         } catch (e: AuthFailure.LoggedOut) {
             accounts.setAuthState(account.id, AuthState.NEEDS_RELOGIN); return SyncResult(0, 0, "Signed out; sign in again.")

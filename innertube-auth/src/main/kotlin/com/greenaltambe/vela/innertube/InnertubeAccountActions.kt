@@ -13,14 +13,17 @@ class InnertubeAccountActions(
     private val web: WebClient = WebClient.bundled(),
     private val clock: Clock = Clock.System,
     private val base: String = "https://www.youtube.com/youtubei/v1",
+    /** The chosen profile per account (null = never a non-default one). */
+    private val profiles: com.greenaltambe.vela.auth.ProfileStore? = null,
 ) : AccountActions {
 
     private suspend fun <T> run(block: InnertubeClient.() -> T): Pair<ActionResult, T?> {
         val account = accounts.active.value
         if (!account.isSignedIn) return ActionResult.LocalOnly to null
+        if (profiles?.blocksWrites(account.id) == true) return ActionResult.Failed("The chosen profile is not verified; nothing is written to it.") to null
         val jar = accounts.cookies(account.id) ?: return ActionResult.Failed("Credentials are missing; sign in again.") to null
         return try {
-            val session = AuthSession(jar, governors.forAccount(account.id), transport, clock, onCookiesChanged = { accounts.saveCookies(account.id, it) })
+            val session = AuthSession(jar, governors.forAccount(account.id), transport, clock, onCookiesChanged = { accounts.saveCookies(account.id, it) }, pageId = { profiles?.pageId(account.id) })
             ActionResult.Ok to withContext(Dispatchers.IO) { InnertubeClient(session, web, base).block() }
         } catch (e: AuthFailure.LoggedOut) {
             accounts.setAuthState(account.id, AuthState.NEEDS_RELOGIN); ActionResult.Failed("Signed out; sign in again.") to null

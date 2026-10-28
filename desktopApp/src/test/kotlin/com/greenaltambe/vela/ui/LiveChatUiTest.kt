@@ -44,4 +44,19 @@ class LiveChatUiTest {
         setContent { AppUnderTest(g) }; waitForIdle()
         assertTrue(runCatching { onNodeWithTag("video.chat.toggle", useUnmergedTree = true).assertIsDisplayed() }.isFailure)
     }
+
+    @Test fun aReplayShowsOnlyTheMessagesAtOrBeforeThePlayhead() = runDesktopComposeUiTest(800, 1000) {
+        val replay = object : ChatChannel {
+            override val isReplay = true
+            override suspend fun poll() = ChatBatch(listOf(ChatMessage("a", "Early", "before the playhead", offsetMs = 1_000), ChatMessage("b", "Late", "after the playhead", offsetMs = 5_000_000)), 0)
+        }
+        val f = buildFixture(withDownloads = false, liveChat = object : LiveChatSource { override suspend fun open(videoId: String): ChatChannel? = replay })
+        f.navigator.push(Route.Video(FakeData.videos[0]))   // the harness video is 1845 s long and the playhead starts at 754 s
+        setContent { AppUnderTest(f) }; waitForIdle()
+        waitUntil(timeoutMillis = 5_000) { runCatching { onNodeWithTag("video.chat.toggle", useUnmergedTree = true).assertIsDisplayed() }.isSuccess }
+        onNodeWithText("Show chat replay", useUnmergedTree = true).assertIsDisplayed()
+        onNodeWithTag("video.chat.toggle", useUnmergedTree = true).performClick()
+        waitUntil(timeoutMillis = 5_000) { runCatching { onNodeWithText("Early: before the playhead", useUnmergedTree = true).assertIsDisplayed() }.isSuccess }
+        assertTrue(runCatching { onNodeWithText("Late: after the playhead", useUnmergedTree = true).assertIsDisplayed() }.isFailure, "a message from later in the video is not shown yet")
+    }
 }

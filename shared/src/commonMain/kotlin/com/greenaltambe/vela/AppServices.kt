@@ -49,6 +49,8 @@ class AppServices(
     val webLogin: (() -> Unit)? = null,
     /** Writes to the signed-in account (subscribe, like, Watch Later, playlists); null where there is no login. */
     val actions: com.greenaltambe.vela.auth.AccountActions? = null,
+    /** Which channel/profile of the account is used (experimental, off by default); null where there is no login. */
+    val profiles: com.greenaltambe.vela.auth.AccountProfiles? = null,
     /** Reads from the signed-in account (Recommended Home, playlists); null where there is no login. */
     val reads: com.greenaltambe.vela.auth.AccountReads? = null,
     /** Pulls account data (subscriptions) into the local tables; null where there is no login. */

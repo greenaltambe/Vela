@@ -92,6 +92,7 @@ class MainActivity : ComponentActivity() {
             sync = runtime.sync,
             actions = runtime.actions,
             reads = runtime.reads,
+            profiles = runtime.profiles,
             audit = runtime.audit,
             health = runtime.health,
             governors = runtime.governors,

@@ -146,6 +146,8 @@ fun SearchScreen(services: AppServices, navigator: Navigator, query: String, mod
             }
         } else {
             SearchFilterRow(filters) { filters = it }
+            // Never an unexplained empty list: say when Settings > Feed rules (minimum length, hide watched, keywords) hid results.
+            (results.items.size - shownAll.size).takeIf { it > 0 }?.let { Text("$it result${if (it == 1) "" else "s"} hidden by your feed filters (Settings > Feed).", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = Vela.gutter).testTag("search.hiddenByFeed")) }
             if (!filters.isDefault && shown.isEmpty() && shownAll.isNotEmpty()) Text("Nothing in the ${shownAll.size} loaded results matches. Filters apply to loaded results; load more or relax them.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = Vela.gutter).testTag("search.filterEmpty"))
             VideoCollection(
                 services, navigator, shown, state, grid = false, testTag = "search.list",

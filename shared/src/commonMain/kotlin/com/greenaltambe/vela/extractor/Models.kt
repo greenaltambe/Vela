@@ -39,6 +39,8 @@ data class VideoInfo(
     val thumbnailUrl: String? = null,
     val chapters: List<Chapter> = emptyList(),
     val isLive: Boolean = false,
+    /** An ended live stream (a recording of one): its chat may be available as a replay. */
+    val wasLive: Boolean = false,
     val uploadDate: Instant? = null,
     val isShort: Boolean = false,
     val ageRestricted: Boolean = false,

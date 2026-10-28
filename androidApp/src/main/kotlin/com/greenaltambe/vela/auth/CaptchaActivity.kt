@@ -28,7 +28,8 @@ class CaptchaActivity : Activity() {
         val done = Button(this).apply { text = "Done"; setOnClickListener { finishWithCookie(url) } }
         val cancel = Button(this).apply { text = "Cancel"; setOnClickListener { runtime.captcha.dismiss(); finish() } }
         val bar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.END; setBackgroundColor(Color.WHITE); addView(cancel); addView(done) }
-        setContentView(LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; addView(bar); addView(FrameLayout(this@CaptchaActivity).apply { addView(web) }, LinearLayout.LayoutParams(-1, 0, 1f)) })
+        // Edge-to-edge is the default on Android 15+: keep the buttons out from under the status bar (seen on the phone: they overlapped the clock and icons).
+        setContentView(LinearLayout(this).apply { fitsSystemWindows = true; orientation = LinearLayout.VERTICAL; addView(bar); addView(FrameLayout(this@CaptchaActivity).apply { addView(web) }, LinearLayout.LayoutParams(-1, 0, 1f)) })
     }
 
     private fun finishWithCookie(url: String) {

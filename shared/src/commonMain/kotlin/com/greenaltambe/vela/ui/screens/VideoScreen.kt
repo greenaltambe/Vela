@@ -221,6 +221,14 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
     val player = host?.controllerState?.collectAsState()?.value
     val position = player?.positionMs ?: 0
     val current = currentChapter(chapters, position)
+    // An ended stream is recognised by its chat, not by NewPipe's stream type (measured: a real stream replay came back as a normal video).
+    // One anonymous request per long non-live video page; live streams show the panel at once.
+    val liveNow = video.isLive || info?.isLive == true
+    var replayChat by remember(video.id) { mutableStateOf<com.greenaltambe.vela.extractor.ChatChannel?>(null) }
+    androidx.compose.runtime.LaunchedEffect(video.id, info) {
+        val i = info
+        if (services.liveChat != null && !liveNow && i != null && (i.wasLive || i.durationSeconds > 900)) replayChat = runCatching { services.liveChat.open(video.id) }.getOrNull()?.takeIf { it.isReplay }
+    }
     val uriHandler = LocalUriHandler.current
 
     val playerBox: @Composable () -> Unit = {
@@ -264,7 +272,7 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
                 }, modifier = Modifier.testTag("video.subscribe"))
             }
         }
-        if (services.liveChat != null && (video.isLive || info?.isLive == true)) item { LiveChatPanel(services.liveChat, video.id) }
+        if (services.liveChat != null && (liveNow || replayChat != null)) item { LiveChatPanel(services.liveChat, video.id, replay = !liveNow, position = position, preopened = replayChat) }
         if (actionError != null || actionNote != null) item {
             Text(actionError ?: actionNote.orEmpty(), color = if (actionError != null) Vela.colors.error.toColor() else androidx.compose.ui.graphics.Color.Unspecified,
                 style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag(if (actionError != null) "video.actionError" else "video.actionNote"))
@@ -414,17 +422,42 @@ private fun storedVideoInfo(o: OfflineVideo): VideoInfo = VideoInfo(
  * ended stream is read in order, NOT synchronised to the playback position.
  */
 @Composable
-private fun LiveChatPanel(source: com.greenaltambe.vela.extractor.LiveChatSource, videoId: String) {
+private fun LiveChatPanel(source: com.greenaltambe.vela.extractor.LiveChatSource, videoId: String, replay: Boolean, position: Long, preopened: com.greenaltambe.vela.extractor.ChatChannel? = null) {
     var open by remember(videoId) { mutableStateOf(false) }
     var lines by remember(videoId) { mutableStateOf<List<com.greenaltambe.vela.extractor.ChatMessage>>(emptyList()) }
     var status by remember(videoId) { mutableStateOf<String?>(null) }
+    val playhead = androidx.compose.runtime.rememberUpdatedState(position)
     androidx.compose.runtime.LaunchedEffect(videoId, open) {
         if (!open) return@LaunchedEffect
         status = "Connecting to chat…"
-        val chat = source.open(videoId)
-        if (chat == null) { status = "This video has no live chat."; return@LaunchedEffect }
-        status = if (chat.isReplay) "Chat replay (not synchronised with the video)" else null
+        val chat = preopened ?: source.open(videoId)
+        if (chat == null) { status = if (replay) "Chat replay unavailable for this video." else "This video has no live chat."; return@LaunchedEffect }
+        status = if (chat.isReplay) "Chat replay, synchronised with the video" else null
         var failures = 0
+        if (chat.isReplay) {
+            // Replay: messages carry the video time they appeared at. Fetch ahead of the playhead (at most one request a second, only when less than
+            // 20 s are buffered), show what is at or before the playhead, and start again from the new position after a seek either way.
+            var buffer = emptyList<com.greenaltambe.vela.extractor.ChatMessage>(); var fetchedUntil = -1L; var lastPos = playhead.value; var exhausted = false
+            if (lastPos > 3_000) { chat.seek(lastPos); fetchedUntil = -1 }
+            while (true) {
+                val p = playhead.value
+                if (p < lastPos - 2_000 || (fetchedUntil >= 0 && p > fetchedUntil + 15_000)) { chat.seek(p); buffer = emptyList(); fetchedUntil = -1; exhausted = false }
+                lastPos = p
+                if (!exhausted && fetchedUntil < p + 20_000) {
+                    try {
+                        val batch = chat.poll().also { failures = 0 }
+                        buffer = (buffer + batch.messages.filter { it.offsetMs != null }).sortedBy { it.offsetMs }.takeLast(600)
+                        fetchedUntil = maxOf(fetchedUntil, batch.messages.mapNotNull { it.offsetMs }.maxOrNull() ?: (p + 5_000))
+                        if (batch.ended) exhausted = true
+                    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
+                        if (++failures >= 3) { status = "Chat replay stopped: ${e.message?.take(80) ?: "unreachable"}"; return@LaunchedEffect }
+                        kotlinx.coroutines.delay(4_000L * failures)
+                    }
+                }
+                lines = buffer.filter { (it.offsetMs ?: Long.MAX_VALUE) <= p }.takeLast(100)
+                kotlinx.coroutines.delay(1_000)
+            }
+        }
         while (true) {
             val batch = try { chat.poll().also { failures = 0 } } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 if (++failures >= 3) { status = "Chat stopped: ${e.message?.take(80) ?: "unreachable"}"; return@LaunchedEffect }
@@ -436,7 +469,7 @@ private fun LiveChatPanel(source: com.greenaltambe.vela.extractor.LiveChatSource
         }
     }
     Column(Modifier.fillMaxWidth().testTag("video.chat")) {
-        OutlinedButton(onClick = { open = !open }, modifier = Modifier.testTag("video.chat.toggle")) { Text(if (open) "Hide chat" else "Show live chat", maxLines = 1) }
+        OutlinedButton(onClick = { open = !open }, modifier = Modifier.testTag("video.chat.toggle")) { Text(if (open) "Hide chat" else if (replay) "Show chat replay" else "Show live chat", maxLines = 1) }
         if (open) {
             status?.let { Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("video.chat.status")) }
             Column(Modifier.heightIn(max = 280.dp).verticalScroll(androidx.compose.foundation.rememberScrollState(), reverseScrolling = true).testTag("video.chat.lines")) {

@@ -96,7 +96,6 @@ fun SessionCheckEffect(services: AppServices) {
 fun AccountOnboardingDialog(services: AppServices, onDismiss: () -> Unit, onAccepted: () -> Unit) {
     var understandsTerms by remember { mutableStateOf(false) }
     var throwaway by remember { mutableStateOf(false) }
-    var report by remember { mutableStateOf(services.settings.resolve(Settings.accountReportActivity)) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Before you add an account") },
@@ -107,14 +106,12 @@ fun AccountOnboardingDialog(services: AppServices, onDismiss: () -> Unit, onAcce
                 Text("Remove everything: Accounts > Remove, or Sign out everywhere. Both delete the stored cookies from this device.", style = MaterialTheme.typography.bodyMedium)
                 Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(understandsTerms, { understandsTerms = it }, modifier = Modifier.testTag("onboarding.terms")); Text("I understand the risk to this account") }
                 Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(throwaway, { throwaway = it }, modifier = Modifier.testTag("onboarding.throwaway")); Text("This is a throwaway account, or I accept the risk for it") }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Switch(report, { report = it }, modifier = Modifier.testTag("onboarding.report"))
-                    Text("  Add what I watch to this account's YouTube history (off is safer)", Modifier.weight(1f))
-                }
+                // Reporting what you watch to the account is NOT implemented (it needs tracking URLs that only an own signed-in player call yields), so there is no switch: nothing here may promise it.
+                Text("Not available: what you watch stays on this device; Vela never adds to your YouTube history.", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("onboarding.noReporting"))
             }
         },
         confirmButton = {
-            TextButton(onClick = { services.settings.setRaw(Settings.accountReportActivity, report.toString()); onAccepted() }, enabled = understandsTerms && throwaway, modifier = Modifier.testTag("onboarding.continue")) { Text("Continue") }
+            TextButton(onClick = { onAccepted() }, enabled = understandsTerms && throwaway, modifier = Modifier.testTag("onboarding.continue")) { Text("Continue") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )

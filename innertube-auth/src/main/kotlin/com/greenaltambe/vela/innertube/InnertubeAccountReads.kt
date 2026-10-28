@@ -14,6 +14,8 @@ class InnertubeAccountReads(
     private val web: WebClient = WebClient.bundled(),
     private val clock: Clock = Clock.System,
     private val base: String = "https://www.youtube.com/youtubei/v1",
+    /** The chosen profile per account (null = never a non-default one). */
+    private val profiles: com.greenaltambe.vela.auth.ProfileStore? = null,
     private val onFailure: (String) -> Unit = {},
 ) : AccountReads {
     private suspend fun <T> run(block: InnertubeClient.() -> T): T? {
@@ -21,7 +23,7 @@ class InnertubeAccountReads(
         if (!account.isSignedIn) return null
         val jar = accounts.cookies(account.id) ?: return null
         return try {
-            val session = AuthSession(jar, governors.forAccount(account.id), transport, clock, onCookiesChanged = { accounts.saveCookies(account.id, it) })
+            val session = AuthSession(jar, governors.forAccount(account.id), transport, clock, onCookiesChanged = { accounts.saveCookies(account.id, it) }, pageId = { profiles?.pageId(account.id) })
             withContext(Dispatchers.IO) { InnertubeClient(session, web, base).block() }
         } catch (e: AuthFailure.LoggedOut) { accounts.setAuthState(account.id, AuthState.NEEDS_RELOGIN); onFailure("signed out"); null
         } catch (e: kotlinx.coroutines.CancellationException) { throw e

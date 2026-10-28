@@ -97,7 +97,9 @@ class AccountsUiTest {
         onNodeWithTag("onboarding.continue").assertIsNotEnabled()
         onNodeWithTag("onboarding.throwaway").performClick(); waitForIdle()
         onNodeWithTag("onboarding.continue").assertIsEnabled()
-        assertEquals(false, f.services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.accountReportActivity), "reporting stays off unless switched on")
+        onNodeWithTag("onboarding.noReporting").assertIsDisplayed()
+        assertEquals(false, f.services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.accountReportActivity), "reporting is off and cannot be switched on")
+        assertTrue(com.greenaltambe.vela.core.settings.Settings.all.none { it.key == "account.reportActivity" }, "no setting promises it")
     }
 
     @Test fun anOpenBreakerShowsABannerOnEveryScreenAndTryNowAsksFirst() = runDesktopComposeUiTest(800, 1000) {

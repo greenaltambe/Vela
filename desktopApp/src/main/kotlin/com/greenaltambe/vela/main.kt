@@ -97,6 +97,7 @@ fun main() {
     val chain = wiring.chain
     val accounts = wiring.accounts
     activeAccountId.set { accounts.active.value.id }
+    val profileStore = com.greenaltambe.vela.auth.ProfileStore(SqlDelightSettingsStore(database))
     val audit = wiring.audit
     val governors = wiring.governors
     val health = wiring.health
@@ -151,7 +152,7 @@ fun main() {
             }
         }
         val services = remember(host) {
-            AppServices(chain, settings, log, database, host, utcOffsetMinutes = { TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 60_000 }, modules = modules, downloads = downloads, accounts = accounts, login = InnertubeAccountLogin(accounts, governors), sync = InnertubeAccountSync(accounts, governors, database), actions = com.greenaltambe.vela.innertube.InnertubeAccountActions(accounts, governors), reads = com.greenaltambe.vela.innertube.InnertubeAccountReads(accounts, governors), audit = audit, governors = governors, health = health, releases = releases, managedYtDlp = wiring.ytDlpUpdater, faults = faults,
+            AppServices(chain, settings, log, database, host, utcOffsetMinutes = { TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 60_000 }, modules = modules, downloads = downloads, accounts = accounts, login = InnertubeAccountLogin(accounts, governors), sync = InnertubeAccountSync(accounts, governors, database, profiles = profileStore), actions = com.greenaltambe.vela.innertube.InnertubeAccountActions(accounts, governors, profiles = profileStore), reads = com.greenaltambe.vela.innertube.InnertubeAccountReads(accounts, governors, profiles = profileStore), profiles = com.greenaltambe.vela.innertube.InnertubeAccountProfiles(accounts, governors, profileStore), audit = audit, governors = governors, health = health, releases = releases, managedYtDlp = wiring.ytDlpUpdater, faults = faults,
                 backupFiles = AwtBackupFiles(), liveChat = com.greenaltambe.vela.innertube.LiveChatClient(), autoDownloader = autoDownloader,
                 exportLog = { val dir = java.io.File(System.getProperty("user.home"), "Downloads").takeIf { it.isDirectory } ?: java.io.File(System.getProperty("user.home")); val out = java.io.File(dir, "vela-log-${System.currentTimeMillis() / 1000}.txt"); out.writeText(logFile.readAll()); out.path })
         }

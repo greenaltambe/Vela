@@ -166,3 +166,9 @@ The customisation target is the Prism app. Visual work comes after the core.
 ## 10. How to use this doc in a new chat
 
 The next chat is the **Linux coding project**. Suggested first task: set up the Kotlin Multiplatform project skeleton and build **phase 1 (extractor layer)** on the desktop target first, with the settings schema and extractor interface in place so Android can be added on top. Keep the architecture rules in section 5 in mind from the first file.
+
+## 11. Status notes (kept short; the reports hold the evidence)
+
+- **Watch-history reporting to the account is NOT implemented, by decision (2026-10-28).** It needs YouTube's playback tracking URLs, which only an own signed-in `/player` call returns; that is tied to the parked Android age-restricted work (`docs/tasks/parked-android-age-restricted.md`). History always stays on the device. The old `account.reportActivity` setting was never read by anything and has been removed from the UI and the settings list; the account onboarding says "Not available: what you watch stays on this device". The merged-history view labels account entries "From your YouTube account".
+- **Age-restricted playback**: Linux through yt-dlp (needs a JS runtime), off by default (`playback.allowAgeRestricted`); Android shows an explanation and "Open in browser".
+- **Profiles (brand channels)** are experimental, off by default, and only used after a read-only check confirms the identity (task 21).

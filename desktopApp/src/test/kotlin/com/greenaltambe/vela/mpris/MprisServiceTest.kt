@@ -48,4 +48,28 @@ class MprisServiceTest {
             }
         } finally { service?.close() }
     }
+
+    /** What GNOME's media widget receives: the signals on the real session bus, captured with the system's own dbus-monitor. */
+    @Test fun statusMetadataAndSeekChangesAreAnnouncedAsPropertiesChangedSignals() {
+        val name = "org.mpris.MediaPlayer2.vela_sig${ProcessHandle.current().pid()}"
+        val mon = runCatching { ProcessBuilder("dbus-monitor", "--session", "type='signal',path='/org/mpris/MediaPlayer2',interface='org.freedesktop.DBus.Properties'").redirectErrorStream(true).start() }.getOrNull()
+        Assume.assumeTrue("no dbus-monitor", mon != null)
+        val captured = StringBuffer()
+        Thread { mon!!.inputStream.bufferedReader().forEachLine { captured.appendLine(it) } }.apply { isDaemon = true; start() }
+        val service = MprisService.start(state, media, commands, name)
+        Assume.assumeTrue("no session bus", service != null)
+        try {
+            Thread.sleep(800)
+            state.value = PlayerState(PlaybackStatus.PAUSED, 20_000, 200_000, 1f); Thread.sleep(500)
+            state.value = PlayerState(PlaybackStatus.PLAYING, 20_000, 200_000, 1f); Thread.sleep(500)
+            media.value = MediaInfo("zzz999", "Next title", "Other channel", null); Thread.sleep(800)
+            state.value = PlayerState(PlaybackStatus.PLAYING, 100_000, 200_000, 2f); Thread.sleep(800)
+            val log = captured.toString()
+            println("MPRIS signals captured: ${Regex("member=PropertiesChanged").findAll(log).count()}")
+            assertTrue("member=PropertiesChanged" in log, "no PropertiesChanged signal at all:\n$log")
+            assertTrue("org.mpris.MediaPlayer2.Player" in log && "PlaybackStatus" in log && "Paused" in log && "Playing" in log, "status changes are announced:\n${log.take(1500)}")
+            assertTrue("xesam:title" in log && "Next title" in log, "a new video's metadata is announced")
+            assertTrue("Rate" in log, "a speed change is announced")
+        } finally { service?.close(); mon?.destroyForcibly() }
+    }
 }

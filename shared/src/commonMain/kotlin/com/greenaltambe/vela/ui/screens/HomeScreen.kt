@@ -65,6 +65,7 @@ fun HomeScreen(services: AppServices, navigator: Navigator, modifier: Modifier =
         header = {
             SectionHeader(showing) { TextButton(onClick = { load(more = false) }, enabled = !loading) { Text("Refresh", maxLines = 1) } }
             note?.let { Text(it, style = androidx.compose.material3.MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("home.note")) }
+            (videos.items.size - shown.size).takeIf { it > 0 }?.let { Text("$it hidden by your feed filters (Settings > Feed).", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("home.hiddenByFeed")) }
         },
         footer = if (videos.continuation != null) ({ TextButton(onClick = { load(more = true) }, enabled = !loading) { Text("Load more", maxLines = 1) } }) else null,
     )

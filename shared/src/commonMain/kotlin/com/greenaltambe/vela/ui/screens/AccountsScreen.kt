@@ -25,6 +25,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -78,6 +79,7 @@ fun AccountsScreen(services: AppServices, navigator: Navigator, modifier: Modifi
         VelaTopBar("Accounts", onBack = { navigator.back() })
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
             Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = Vela.gutter, vertical = Vela.sm), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
+                if (active.kind == AccountKind.GOOGLE && services.profiles != null && services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.accountProfilesExperimental)) ProfileSection(services)
                 if (active.kind == AccountKind.GOOGLE && active.authState != AuthState.OK) {
                     Text("Signed out: ${active.displayName}'s session no longer works. Add the account again to sign in.", color = Vela.colors.error.toColor(), modifier = Modifier.testTag("accounts.banner"))
                 }
@@ -168,5 +170,31 @@ private fun AccountRow(a: Account, selected: Boolean, onSwitch: () -> Unit, onSi
                 }
             }
         }
+    }
+}
+
+
+/** Experimental (Settings > Account switch, off by default): which channel of the account is used. Choosing one is checked with a read first and reverted if YouTube does not confirm it. */
+@Composable
+private fun ProfileSection(services: AppServices) {
+    val profiles = services.profiles ?: return
+    val scope = rememberCoroutineScope()
+    var message by remember { mutableStateOf<String?>(null) }
+    var options by remember { mutableStateOf<List<com.greenaltambe.vela.auth.AccountProfile>?>(null) }
+    var current by remember { mutableStateOf(profiles.current()) }
+    Column(Modifier.testTag("accounts.profile"), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
+        Text("Profile (experimental)", style = MaterialTheme.typography.titleMedium)
+        Text(current?.let { "${it.profile.name}${if (it.verified) " (confirmed by YouTube)" else ""}" } ?: "Main channel (default)", modifier = Modifier.testTag("accounts.profile.current"))
+        OutlinedButton(onClick = { message = "Reading your profiles…"; scope.launch { options = profiles.list(); message = if (options == null) "Could not read the profiles." else null } }, modifier = Modifier.testTag("accounts.profile.change")) { Text("Change profile", maxLines = 1) }
+        message?.let { Text(it, modifier = Modifier.testTag("accounts.profile.message"), style = MaterialTheme.typography.bodySmall) }
+        Text("Only reads use another profile until YouTube confirms it; nothing is written to an unconfirmed profile.", style = MaterialTheme.typography.bodySmall)
+    }
+    options?.let { list ->
+        androidx.compose.material3.AlertDialog(onDismissRequest = { options = null }, title = { Text("Use which profile?") },
+            text = { Column { list.forEach { p -> TextButton(onClick = {
+                options = null; message = "Checking with YouTube…"
+                scope.launch { val r = profiles.select(p); current = profiles.current(); message = if (r is com.greenaltambe.vela.auth.ActionResult.Failed) r.message else "Using ${p.name}." }
+            }, modifier = Modifier.testTag("accounts.profile.option.${p.name}")) { Text(p.name + if (p.pageId == null) " (default)" else "", maxLines = 1) } } } },
+            confirmButton = {}, dismissButton = { TextButton(onClick = { options = null }) { Text("Cancel") } })
     }
 }

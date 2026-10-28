@@ -194,7 +194,8 @@ fun PlaylistScreen(services: AppServices, navigator: Navigator, playlistId: Long
 fun HistoryScreen(services: AppServices, navigator: Navigator, modifier: Modifier = Modifier) {
     var revision by remember { mutableStateOf(0) }
     var confirmClear by remember { mutableStateOf(false) }
-    val records: List<WatchRecord> = remember(revision) { services.history.recent() }
+    var limit by remember { mutableStateOf(500) }   // older history is loaded 500 rows at a time, never all at once
+    val records: List<WatchRecord> = remember(revision, limit) { services.history.recent(limit.toLong()) }
     val days = remember(records) { groupHistoryByDay(records, services.clock.now(), services.utcOffsetMinutes()) }
     val progress = remember(records) { services.history.progress() }
     // The account's own history, shown below this device's: loaded on request (it costs browse budget), de-duplicated by video (entries from the account carry no time), labelled by source.
@@ -210,6 +211,7 @@ fun HistoryScreen(services: AppServices, navigator: Navigator, modifier: Modifie
                 }
             }
             if (records.isEmpty()) item { EmptyState("Nothing watched yet.") }
+            if (records.size >= limit) item(key = "load-older") { TextButton(onClick = { limit += 500 }, modifier = Modifier.testTag("history.older")) { Text("Load older history (showing the latest $limit)", maxLines = 1) } }
             if (services.reads != null && services.accounts.active.value.isSignedIn) item {
                 TextButton(onClick = {
                     accountNote = "Loading…"

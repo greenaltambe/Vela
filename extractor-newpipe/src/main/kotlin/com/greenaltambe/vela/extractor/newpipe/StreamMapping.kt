@@ -98,6 +98,7 @@ internal fun StreamInfo.toVideoInfo() = VideoInfo(
     thumbnailUrl = thumbnails.bestUrl(),
     chapters = streamSegments.orEmpty().map { Chapter(it.title.orEmpty(), it.startTimeSeconds.toLong()) },
     isLive = streamType == StreamType.LIVE_STREAM || streamType == StreamType.AUDIO_LIVE_STREAM,
+    wasLive = streamType == StreamType.POST_LIVE_STREAM || streamType == StreamType.POST_LIVE_AUDIO_STREAM,
     uploadDate = uploadDate?.instant?.let { Instant.fromEpochMilliseconds(it.toEpochMilli()) },
     isShort = isShortFormContent,
     ageRestricted = ageLimit != StreamExtractor.NO_AGE_LIMIT,

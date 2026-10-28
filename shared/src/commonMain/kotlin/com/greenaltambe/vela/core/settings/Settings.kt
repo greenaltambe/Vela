@@ -424,8 +424,15 @@ object Settings {
 
     val accountReportActivity = Setting(
         key = "account.reportActivity", default = false, scope = SettingScope.GLOBAL,
-        label = "Tell YouTube what I watch (adds to the account's history)",
+        label = "Tell YouTube what I watch (NOT AVAILABLE: not implemented, so it is not shown anywhere and nothing reads it)",
         keywords = listOf("account", "history", "activity", "report", "watch"),
+        codec = SettingCodecs.boolean, section = SettingSection.ACCOUNT,
+    )
+
+    val accountProfilesExperimental = Setting(
+        key = "account.profilesExperimental", default = false, scope = SettingScope.GLOBAL,
+        label = "Experimental: choose another channel/profile of the account (unverified with more than one profile; reads only until it confirms the identity)",
+        keywords = listOf("profile", "channel", "brand", "account", "experimental"),
         codec = SettingCodecs.boolean, section = SettingSection.ACCOUNT,
     )
 
@@ -532,7 +539,7 @@ object Settings {
 
     val all: List<Setting<*>> = listOf(
         look, performanceMode, localOnlyHistory, hideWatched, minLengthSeconds, blockKeywords, allowKeywords, keywordsAreRegex,
-        homeSource, allowAgeRestricted, allowControversial, slowStreamFailover, accountFallbackMode, accountReportActivity, accountUseForChannels, accountUseForDetails, accountDownloadsMayUse, accountKillSwitch, accountTierOrder, remoteConfigUrl, ytDlpAutoUpdate,
+        homeSource, allowAgeRestricted, allowControversial, slowStreamFailover, accountFallbackMode, accountProfilesExperimental, accountUseForChannels, accountUseForDetails, accountDownloadsMayUse, accountKillSwitch, accountTierOrder, remoteConfigUrl, ytDlpAutoUpdate,
         accountPlaybackPerHour, accountBrowsePerMinute, accountWritesPerHour, shortsMode, defaultPlaybackSpeed, maxQualityUnmetered, maxQualityMetered, preferredCodec, audioOnly, ytDlpPath,
         sponsorBlockEnabled, returnYouTubeDislikeEnabled, deArrowEnabled,
         sponsorBlockMinSegmentSeconds, sponsorBlockNotifications, sponsorBlockServer, sponsorBlockUserId, rydInFeed, rydServer,

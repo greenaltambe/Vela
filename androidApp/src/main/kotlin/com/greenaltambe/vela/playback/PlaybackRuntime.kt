@@ -74,9 +74,11 @@ class PlaybackRuntime private constructor(context: Context) {
     val audit by lazy { DbAuditLog(database, sink = logFile) }
     val governors by lazy { GovernorRegistry(Clock.System, { governorLimits(settings) }, DbBreakerStore(database), audit) }
     val login by lazy { InnertubeAccountLogin(accounts, governors) }
-    val sync by lazy { InnertubeAccountSync(accounts, governors, database) }
-    val reads by lazy { com.greenaltambe.vela.innertube.InnertubeAccountReads(accounts, governors) }
-    val actions by lazy { com.greenaltambe.vela.innertube.InnertubeAccountActions(accounts, governors) }
+    val profileStore by lazy { com.greenaltambe.vela.auth.ProfileStore(SqlDelightSettingsStore(database)) }
+    val profiles by lazy { com.greenaltambe.vela.innertube.InnertubeAccountProfiles(accounts, governors, profileStore) }
+    val sync by lazy { InnertubeAccountSync(accounts, governors, database, profiles = profileStore) }
+    val reads by lazy { com.greenaltambe.vela.innertube.InnertubeAccountReads(accounts, governors, profiles = profileStore) }
+    val actions by lazy { com.greenaltambe.vela.innertube.InnertubeAccountActions(accounts, governors, profiles = profileStore) }
     private fun pausedReason(): String? = accounts.active.value.takeIf { it.isSignedIn }
         ?.let { governors.forAccount(it.id).cooldownUntil() }?.let { "account cooling down until ${it.toString().substring(11, 16)} UTC" }
 

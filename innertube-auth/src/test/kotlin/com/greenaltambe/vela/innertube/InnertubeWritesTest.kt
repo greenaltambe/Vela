@@ -139,4 +139,20 @@ class ProfilesTest {
         fun headers(page: String?) = AuthSession(CookieJar(listOf(Cookie("SID", "s", ".google.com"), Cookie("SAPISID", "p", ".youtube.com"))), AccountGovernor("a"), FakeTransport { _, _, _, _ -> RawResponse(200, "{}", emptyMap(), "") }, pageId = { page }).headersFor("https://www.youtube.com/youtubei/v1/browse")
         assertNull(headers(null)["X-Goog-PageId"]); assertEquals("page9", headers("page9")["X-Goog-PageId"])
     }
+
+    @Test fun replayMessagesCarryTheirVideoOffsetAndASeekRestartsFromThePlayerOffset() = kotlinx.coroutines.runBlocking<Unit> {
+        val bodies = mutableListOf<String>()
+        val replay = """{"continuationContents":{"liveChatContinuation":{"continuations":[{"liveChatReplayContinuationData":{"continuation":"R2"}}],"actions":[
+            {"replayChatItemAction":{"videoOffsetTimeMsec":"5929","actions":[{"addChatItemAction":{"item":{"liveChatTextMessageRenderer":{"id":"r1","authorName":{"simpleText":"A"},"message":{"runs":[{"text":"early"}]}}}}}]}},
+            {"replayChatItemAction":{"videoOffsetTimeMsec":"23879","actions":[{"addChatItemAction":{"item":{"liveChatTextMessageRenderer":{"id":"r2","authorName":{"simpleText":"B"},"message":{"runs":[{"text":"later"}]}}}}}]}}]}}}"""
+        val t = FakeTransport { _, url, _, body -> bodies += url.substringAfter("/v1/").substringBefore('?') + " " + body.orEmpty(); RawResponse(200, if ("/next" in url) """{"contents":{"liveChatRenderer":{"isReplay":true,"continuations":[{"reloadContinuationData":{"continuation":"R1"}}]}}}""" else replay, emptyMap(), "") }
+        val chat = LiveChatClient(t, WebClient("WEB", "2.0", "en", "US", "UA")).open("vid")!!
+        assertTrue(chat.isReplay)
+        val first = chat.poll()
+        assertEquals(listOf(5929L, 23879L), first.messages.map { it.offsetMs }); assertEquals(0, first.nextPollMs, "the caller paces a replay, not the service")
+        chat.seek(600_000); chat.poll()
+        assertTrue("live_chat/get_live_chat_replay" in bodies.last() && "\"continuation\":\"R1\"" in bodies.last() && "\"playerOffsetMs\":\"600000\"" in bodies.last(), bodies.last())
+        chat.poll()
+        assertTrue("playerOffsetMs" !in bodies.last(), "the offset is sent once, then the chunk continuation carries on")
+    }
 }
