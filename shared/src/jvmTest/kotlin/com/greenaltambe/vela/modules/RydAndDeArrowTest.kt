@@ -127,10 +127,15 @@ class DeArrowTest {
     private val dearrow = DeArrow(ApiClient(transport, InMemoryApiCache(), FakeClock(), sleep = {}), settings, log)
     private val video = Fixtures.SPONSORED_VIDEO
 
+    // DeArrow is off by default (owner decision); these tests are about what it does when the viewer turned it on.
+    init { settings.set(Settings.deArrowEnabled, true) }
+
     private fun summary(id: String = video, title: String = "Original CLICKBAIT title") =
         VideoSummary(id, title, "UC", "chan", thumbnailUrl = "https://i.ytimg.com/vi/$id/hq.jpg")
 
     // ---- parsing the real answer ----
+
+    @Test fun isOffByDefault() = assertFalse(DeArrow(ApiClient(transport, InMemoryApiCache(), FakeClock(), sleep = {}), SettingsResolver(InMemorySettingsStore()), log).isEnabled(SettingsResolver(InMemorySettingsStore())))
 
     @Test fun parsesTheRealPrefixAnswerAndFindsTheVideo() {
         val all = parseBrandingResponse(Fixtures.text("dearrow_branding_efd7.json"))

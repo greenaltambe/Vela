@@ -19,7 +19,7 @@ object CacheMaintenance {
             db.apiCacheQueries.clearEntries()
             db.apiCacheQueries.clearSegments()
             db.feedItemQueries.clearAllFeeds()
-            cacheSettingPrefixes.forEach { db.settingQueries.deleteByPrefix(it) }
+            cacheSettingPrefixes.forEach { SqlDelightSettingsStore(db).removePrefix(it) }
         }
         return "Cleared the HTTP/DeArrow/Return YouTube Dislike cache, SponsorBlock segments, the subscription feed and the health/release results. Accounts, downloads, playlists, history, subscriptions and settings were not touched."
     }

@@ -42,12 +42,12 @@ fun SponsorBlockOverlay(prompt: Segment?, notice: SkipNotice?, onAccept: () -> U
     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
         if (prompt != null) {
             val label = SegmentCategory.fromId(prompt.category)?.label ?: prompt.category
-            OutlinedButton(onClick = onAccept, modifier = Modifier.background(Vela.colors.mediaScrim.toColor(), Vela.pillShape).testTag("sponsorblock.prompt")) {
+            OutlinedButton(onClick = onAccept, modifier = Modifier.background(Vela.colors.mediaScrim.toColor(), Vela.mediumShape).testTag("sponsorblock.prompt")) {
                 Text(if (prompt.isPoint) "Jump to highlight" else "Skip $label", maxLines = 1, color = Vela.colors.onMedia.toColor())
             }
         }
         if (notice != null) {
-            Row(Modifier.background(Vela.colors.mediaScrim.toColor(), Vela.pillShape).padding(start = Vela.md).testTag("sponsorblock.notice"), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.background(Vela.colors.mediaScrim.toColor(), Vela.mediumShape).padding(start = Vela.md).testTag("sponsorblock.notice"), verticalAlignment = Alignment.CenterVertically) {
                 Text("Skipped: ${notice.label}", style = MaterialTheme.typography.bodyMedium, maxLines = 1, color = Vela.colors.onMedia.toColor())
                 TextButton(onClick = { onUndo(notice) }, modifier = Modifier.testTag("sponsorblock.undo")) { Text("Undo") }
             }

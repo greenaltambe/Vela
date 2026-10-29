@@ -60,4 +60,6 @@ class Setting<T>(
     val choices: List<SettingChoice> = emptyList(),
     /** Bounds for numeric settings; null when unbounded or not numeric. */
     val range: SettingRange? = null,
+    /** One or two sentences for the (i) tooltip where the setting is not obvious; empty when the label says it all. */
+    val info: String = "",
 )

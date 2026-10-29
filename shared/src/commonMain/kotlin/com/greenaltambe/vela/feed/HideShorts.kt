@@ -8,6 +8,6 @@ import com.greenaltambe.vela.extractor.VideoSummary
 object HideShorts : FeedStep {
     override fun apply(items: List<VideoSummary>, context: FeedContext): List<VideoSummary> =
         items.filter { item ->
-            !item.isShort || context.settings.resolve(Settings.shortsMode, channelId = item.channelId) == ShortsMode.SHOW
+            !item.isShort || context.resolve(Settings.shortsMode, item.channelId) == ShortsMode.SHOW
         }
 }

@@ -40,6 +40,11 @@ import com.greenaltambe.vela.ui.nav.Route
 import com.greenaltambe.vela.ui.platform.rememberTextFilePicker
 import kotlinx.coroutines.launch
 
+private const val PAGE = 60
+
+private fun quickShown(services: AppServices, entries: List<com.greenaltambe.vela.feed.FeedEntry>, tab: SubsTab): List<com.greenaltambe.vela.extractor.VideoSummary> =
+    (if (tab == SubsTab.FEED) standardFeedPipeline(WatchedLookup.None) else shortsFeedPipeline(WatchedLookup.None)).run(entries.take(PAGE).map { it.video }, FeedContext(services.settings))
+
 private enum class SubsTab(val label: String) { FEED("Feed"), SHORTS("Shorts"), CHANNELS("Channels") }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -61,14 +66,19 @@ fun SubscriptionsScreen(services: AppServices, navigator: Navigator, modifier: M
         }
         when (tab) {
             SubsTab.FEED, SubsTab.SHORTS -> PullToRefreshBox(isRefreshing = refreshing, onRefresh = { scope.launch { services.feed.refresh() } }, modifier = Modifier.fillMaxSize()) {
-                val watched = WatchedLookup.of(services.history.watchedVideoIds())
-                val pipeline = if (tab == SubsTab.FEED) standardFeedPipeline(watched) else shortsFeedPipeline(watched)
-                val shown = remember(entries, tab, failures, branding) {
-                    pipeline.with(DeArrowStep(services.modules.dearrow, DeArrowSurface.FEED)).run(entries.map { it.video }, FeedContext(services.settings))
-                }
-                val shownIds = remember(entries) { entries.map { it.video.id } }
+                val noSubs = rememberAsync(refreshing, keepWhileLoading = true, first = { false }, compute = { services.subscriptions.all().isEmpty() })
+                // The pipeline (watched lookup included) runs off the main thread; the cached rows show at once through the quick pass.
+                val all = rememberAsync(entries, tab, failures, branding, keepWhileLoading = true,
+                    first = { quickShown(services, entries, tab) },
+                    compute = {
+                        val pipeline = if (tab == SubsTab.FEED) standardFeedPipeline(WatchedLookup.of(services.history.watchedVideoIds())) else shortsFeedPipeline(WatchedLookup.of(services.history.watchedVideoIds()))
+                        pipeline.with(DeArrowStep(services.modules.dearrow, DeArrowSurface.FEED)).run(entries.map { it.video }, FeedContext(services.settings))
+                    })
+                // Only the first page is handed to the list and prefetched; the next page is appended when the end is reached.
+                var pageSize by remember(tab) { mutableStateOf(PAGE) }
+                val shown = remember(all, pageSize) { all.take(pageSize) }
+                val shownIds = remember(shown) { shown.map { it.id } }
                 LaunchedEffect(shownIds) { services.modules.dearrow.prefetch(shownIds) }
-                val noSubs = services.subscriptions.all().isEmpty()
                 val state: ListState = when {
                     shown.isEmpty() && refreshing -> ListState.Loading
                     shown.isEmpty() && noSubs -> ListState.Empty("No subscriptions yet. Subscribe to a channel, or import a file.", "Import or manage") { tab = SubsTab.CHANNELS }
@@ -77,6 +87,7 @@ fun SubscriptionsScreen(services: AppServices, navigator: Navigator, modifier: M
                 }
                 VideoCollection(
                     services, navigator, shown, state, testTag = "subs.feed",
+                    onEndReached = if (shown.size < all.size) ({ pageSize += PAGE }) else null,
                     header = {
                         Column {
                             SectionHeader(if (tab == SubsTab.FEED) "New from your channels" else "Shorts") {

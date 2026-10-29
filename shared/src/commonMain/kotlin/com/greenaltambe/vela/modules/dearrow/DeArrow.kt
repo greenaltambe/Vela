@@ -12,6 +12,9 @@ import com.greenaltambe.vela.extractor.VideoSummary
 import com.greenaltambe.vela.feed.FeedContext
 import com.greenaltambe.vela.feed.FeedStep
 import com.greenaltambe.vela.modules.FeatureModule
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -148,15 +151,18 @@ class DeArrow(
 
     @Synchronized fun cached(videoId: String): Branding? = known[videoId]
 
-    suspend fun prefetch(videoIds: List<String>) {
-        if (!isEnabled(settings)) return
-        val todo = synchronized(this) { videoIds.filter { it !in known }.distinct() }
-        if (todo.isEmpty()) return
+    /** Runs on [Dispatchers.Default] whatever the caller's dispatcher (screens call it from the main thread: the cache lookups, hashing and JSON parsing must not run there), at most 4 requests at once. */
+    suspend fun prefetch(videoIds: List<String>) = withContext(Dispatchers.Default) {
+        if (!isEnabled(settings)) return@withContext
+        val todo = synchronized(this@DeArrow) { videoIds.filter { it !in known }.distinct() }
+        if (todo.isEmpty()) return@withContext
         val server = settings.resolve(Settings.sponsorBlockServer).trimEnd('/')
         val byPrefix = todo.groupBy { Sha256.prefix(it, 4) }
+        val gate = kotlinx.coroutines.sync.Semaphore(4)
         coroutineScope {
             byPrefix.map { (prefix, ids) ->
                 async {
+                  gate.withPermit {
                     when (val r = client.get("$server/api/branding/$prefix", ttl = 12.hours, cacheNegative = true)) {
                         is ApiResult.Ok -> {
                             val parsed = parseBrandingResponse(r.body)
@@ -175,9 +181,11 @@ class DeArrow(
                             }
                         }
                     }
+                  }
                 }
             }.awaitAll()
         }
+        Unit
     }
 
     fun enabledFor(surface: DeArrowSurface): Boolean = isEnabled(settings) && when (surface) {

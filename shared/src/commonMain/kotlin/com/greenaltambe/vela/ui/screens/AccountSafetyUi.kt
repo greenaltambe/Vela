@@ -131,7 +131,7 @@ fun AccountActivityScreen(services: AppServices, navigator: Navigator, modifier:
             TextButton(onClick = { services.audit.purge(account.id); revision++ }, modifier = Modifier.testTag("activity.purge")) { Text("Clear") }
         }
         if (rows.isEmpty()) EmptyState("The account has not been used yet.")
-        else LazyColumn(Modifier.fillMaxSize().padding(horizontal = Vela.gutter)) {
+        else LazyColumn(Modifier.fillMaxSize().padding(horizontal = Vela.gutter), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = com.greenaltambe.vela.ui.nav.LocalChromeInset.current)) {
             items(rows) { r ->
                 Text("${r.at.toString().substring(0, 19).replace('T', ' ')}  ${r.kind}  ${r.host}  ${r.result}  [${r.decision}]", style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(vertical = 2.dp))
             }

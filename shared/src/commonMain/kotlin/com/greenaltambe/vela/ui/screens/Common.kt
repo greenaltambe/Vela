@@ -5,6 +5,8 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -35,9 +37,11 @@ fun VideoMenu(services: AppServices, video: VideoSummary, modifier: Modifier = M
     if (download) DownloadDialog(services, listOf(video), onDismiss = { download = false })
     Box(modifier) {
         androidx.compose.material3.IconButton(onClick = { open = true }, modifier = Modifier.testTag("video.menu")) { androidx.compose.material3.Icon(com.greenaltambe.vela.ui.look.Vela.icons.more, "More options for ${video.title}") }
-        DropdownMenu(open, { open = false }) {
+        // Composed only while open: a list of 60 cards used to build 60 popup menus it never showed.
+        if (open) DropdownMenu(true, { open = false }) {
             if (services.downloads != null) DropdownMenuItem(
-                text = { Text(if (services.downloads.isDownloaded(video.id)) "✓ Downloaded" else "Download...") },
+                text = { Text(if (services.downloads.isDownloaded(video.id)) "Downloaded" else "Download...") },
+                leadingIcon = { androidx.compose.material3.Icon(if (services.downloads.isDownloaded(video.id)) com.greenaltambe.vela.ui.look.Vela.icons.downloaded else com.greenaltambe.vela.ui.look.Vela.icons.download, null) },
                 onClick = { open = false; download = true },
             )
             // Re-read on every open so the checkmarks reflect the database.
@@ -45,7 +49,8 @@ fun VideoMenu(services: AppServices, video: VideoSummary, modifier: Modifier = M
             lists.forEach { list ->
                 val has = remember(open, revision, list.id) { services.playlists.contains(list.id, video.id) }
                 DropdownMenuItem(
-                    text = { Text((if (has) "✓ " else "") + list.name) },
+                    text = { Text(list.name) },
+                    leadingIcon = if (has) ({ androidx.compose.material3.Icon(com.greenaltambe.vela.ui.look.Vela.icons.check, "In this playlist") }) else null,
                     onClick = {
                         if (has) services.playlists.remove(list.id, video.id) else services.playlists.add(list.id, listOf(video), services.clock.now())
                         revision++
@@ -63,20 +68,40 @@ fun AppServices.filterFeed(videos: List<VideoSummary>, surface: DeArrowSurface =
         .with(DeArrowStep(modules.dearrow, surface))
         .run(videos, FeedContext(settings))
 
+/** The same pipeline without asking the database which videos were watched: cheap enough for the first frame. */
+fun AppServices.filterFeedQuick(videos: List<VideoSummary>, surface: DeArrowSurface = DeArrowSurface.FEED): List<VideoSummary> =
+    standardFeedPipeline(WatchedLookup.None).with(DeArrowStep(modules.dearrow, surface)).run(videos, FeedContext(settings))
+
+/**
+ * Shows [first] at once and replaces it with [compute] (run on [Dispatchers.Default], never on the main thread) when it is ready.
+ * With [keepWhileLoading] a change of [keys] keeps showing the previous result until the new one arrives (stale-while-revalidate:
+ * a refreshed feed does not blink back to a skeleton); without it a change of [keys] starts again from [first].
+ */
+@Composable
+fun <T> rememberAsync(vararg keys: Any?, keepWhileLoading: Boolean = false, first: () -> T, compute: () -> T): T {
+    var value by (if (keepWhileLoading) remember { mutableStateOf(first()) } else remember(*keys) { mutableStateOf(first()) })
+    LaunchedEffect(*keys) { value = withContext(Dispatchers.Default) { compute() } }
+    return value
+}
+
 /**
  * [videos] through the feed pipeline for [surface]. Lists show at once with what is known; DeArrow (and, if enabled,
  * Return YouTube Dislike) are fetched afterwards for the ids on screen and the list recomputes when they arrive.
+ * The watched-history lookup and the full pass run off the main thread; the first frame uses [filterFeedQuick].
  */
 @Composable
 fun rememberFiltered(services: AppServices, videos: List<VideoSummary>, surface: DeArrowSurface): List<VideoSummary> {
     val branding by services.modules.dearrow.revision.collectAsState()
-    val ids = remember(videos) { videos.map { it.id } }
+    val ids = remember(videos) { videos.take(PREFETCH_LIMIT).map { it.id } }
     LaunchedEffect(ids) {
         launch { services.modules.dearrow.prefetch(ids) }
         if (services.settings.resolve(Settings.rydInFeed)) launch { services.modules.ryd.prefetch(ids) }
     }
-    return remember(videos, branding) { services.filterFeed(videos, surface) }
+    return rememberAsync(videos, branding, keepWhileLoading = true, first = { services.filterFeedQuick(videos, surface) }, compute = { services.filterFeed(videos, surface) })
 }
+
+/** Only the ids this many deep are prefetched (DeArrow, RYD): the rest are fetched when the list is scrolled that far. */
+const val PREFETCH_LIMIT = 60
 
 /** "👍 1.2K  👎 12" for a card when the setting is on and the numbers are known; null otherwise. */
 @Composable

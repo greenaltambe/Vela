@@ -79,7 +79,7 @@ object InnertubeParsers {
             com.greenaltambe.vela.extractor.VideoSummary(
                 id, v["title"].text() ?: return@mapNotNull null,
                 owner["runs"][0]["navigationEndpoint"]["browseEndpoint"]["browseId"].string ?: "", owner.text() ?: "",
-                v["thumbnail"]["thumbnails"].array.lastOrNull()["url"].string,
+                v["thumbnail"]["thumbnails"].array.lastOrNull()["url"].string?.let { if (it.startsWith("//")) "https:$it" else it },
                 clock(v["lengthText"].text()), views(v["viewCountText"].text()),
                 isLive = v["badges"].toString().contains("LIVE"),
             )
@@ -89,7 +89,9 @@ object InnertubeParsers {
             val id = l["contentId"].string ?: return@mapNotNull null
             val title = l["metadata"]["lockupMetadataViewModel"]["title"]["content"].string ?: return@mapNotNull null
             val channel = l["metadata"]["lockupMetadataViewModel"]["metadata"]["contentMetadataViewModel"]["metadataRows"][0]["metadataParts"][0]["text"]["content"].string ?: ""
-            com.greenaltambe.vela.extractor.VideoSummary(id, title, "", channel)
+            // The lockup carries its picture as image "sources"; the largest is last.
+            val thumb = l["contentImage"]["thumbnailViewModel"]["image"]["sources"].array.lastOrNull()["url"].string
+            com.greenaltambe.vela.extractor.VideoSummary(id, title, "", channel, thumb?.let { if (it.startsWith("//")) "https:$it" else it })
         }
         return (classic + lockups).distinctBy { it.id }
     }

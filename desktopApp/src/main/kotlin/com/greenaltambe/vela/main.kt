@@ -1,5 +1,6 @@
 package com.greenaltambe.vela
 
+import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.unit.DpSize
@@ -180,8 +181,16 @@ fun main() {
             },
             state = windowState,
             title = "Vela",
+            icon = velaWindowIcon,
         ) {
             CompositionLocalProvider(LocalWindowControls provides windowControls, LocalVolumeSlider provides true) { App(services, navigator) }
         }
     }
+}
+
+/** The window / taskbar icon: the launcher art (docs/icon), a few sizes so the shell picks a sharp one. */
+private val velaWindowIcon: androidx.compose.ui.graphics.painter.Painter by lazy {
+    val loader = Thread.currentThread().contextClassLoader
+    val image = listOf(256, 128, 64, 48).firstNotNullOfOrNull { loader.getResourceAsStream("icons/vela-$it.png") }?.use { javax.imageio.ImageIO.read(it) }
+    androidx.compose.ui.graphics.painter.BitmapPainter(image!!.toComposeImageBitmap())
 }

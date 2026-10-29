@@ -21,6 +21,39 @@ data class LookTokens(
     val effects: EffectTokens = EffectTokens(),
     /** Which icon set the components draw from; only the built-in "material" set exists so far. */
     val iconSetId: String = "material",
+    val accent: AccentTokens = AccentTokens(),
+    val icons: IconTokens = IconTokens(),
+    val motion: MotionTokens = MotionTokens(),
+)
+
+/** The palette's gradient (the "wake"): marks what is selected and tints buttons, switches, sliders and the profile ring. Never body text. */
+@Serializable
+data class AccentTokens(
+    val wake: List<Long> = Palettes.stops(com.greenaltambe.vela.core.settings.Palette.VELA),
+)
+
+@Serializable
+data class IconTokens(
+    val style: com.greenaltambe.vela.core.settings.IconStyle = com.greenaltambe.vela.core.settings.IconStyle.FILLED,
+    val weight: com.greenaltambe.vela.core.settings.IconWeight = com.greenaltambe.vela.core.settings.IconWeight.REGULAR,
+    val rounded: Boolean = true,
+)
+
+/**
+ * Every animation takes its numbers from here (brief section 6): four durations, three spring feels, two easings. [reduced] (the
+ * Reduce motion setting, or Performance mode) shortens durations to [reducedFactor] of their value and removes the non-essential
+ * animations (stagger, bounce, shimmer sweep).
+ */
+@Serializable
+data class MotionTokens(
+    val durationsMs: List<Int> = listOf(90, 160, 240, 360),
+    /** (damping ratio, stiffness) for snappy, standard and bouncy. */
+    val snappy: List<Float> = listOf(0.9f, 900f),
+    val standard: List<Float> = listOf(0.8f, 400f),
+    val bouncy: List<Float> = listOf(0.55f, 380f),
+    val reduced: Boolean = false,
+    val reducedFactor: Float = 0.4f,
+    val staggerMs: Int = 28,
 )
 
 @Serializable
@@ -52,6 +85,9 @@ data class TypographyTokens(
     val headingSizeSp: Float = 16f,
     val bodySizeSp: Float = 14f,
     val captionSizeSp: Float = 12f,
+    /** The text-size setting (80-130 %) as a factor, applied to every size above. */
+    val scale: Float = 1f,
+    val titleWeight: com.greenaltambe.vela.core.settings.TitleWeight = com.greenaltambe.vela.core.settings.TitleWeight.LIGHT,
 )
 
 @Serializable
@@ -94,6 +130,8 @@ data class EffectTokens(
     val blur: Boolean = false,
     val blurRadiusDp: Float = 16f,
     val gradientBackground: Boolean = false,
+    /** Bars never let page text show through: the tint over the blur is at least this opaque (chosen so bar labels keep 4.5:1). */
+    val barTintAlpha: Float = 0.98f,
 )
 
 /** The built-in Looks. */

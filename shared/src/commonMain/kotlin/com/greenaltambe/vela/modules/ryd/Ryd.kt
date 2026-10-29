@@ -92,11 +92,12 @@ class ReturnYouTubeDislike(
     }
 
     /** Fetches what is not known yet; failures are logged and ignored. */
-    suspend fun prefetch(videoIds: List<String>) {
-        if (!isEnabled(settings)) return
-        val todo = synchronized(this) { videoIds.filter { it !in known && it !in unknown }.distinct() }
+    suspend fun prefetch(videoIds: List<String>) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+        if (!isEnabled(settings)) return@withContext
+        val todo = synchronized(this@ReturnYouTubeDislike) { videoIds.filter { it !in known && it !in unknown }.distinct() }
         val gate = Semaphore(concurrency)
         coroutineScope { todo.map { id -> async { gate.withPermit { votes(id) } } }.awaitAll() }
+        Unit
     }
 }
 

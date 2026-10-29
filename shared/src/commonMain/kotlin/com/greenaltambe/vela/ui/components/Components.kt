@@ -4,6 +4,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,6 +37,26 @@ import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.rememberTooltipState
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import com.greenaltambe.vela.core.settings.NavTab
+import com.greenaltambe.vela.core.settings.MiniLook
+import com.greenaltambe.vela.core.settings.NavLabels
+import com.greenaltambe.vela.ui.look.pressable
+import com.greenaltambe.vela.ui.look.VelaMotion
+import com.greenaltambe.vela.ui.look.glassEnabled
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.unit.lerp
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.ui.draw.alpha
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -60,6 +81,8 @@ import com.greenaltambe.vela.extractor.VideoSummary
 import com.greenaltambe.vela.library.formatTimestamp
 import com.greenaltambe.vela.ui.look.ComponentIds
 import com.greenaltambe.vela.ui.look.Vela
+import com.greenaltambe.vela.ui.look.pressFeedback
+import com.greenaltambe.vela.ui.look.popOnSelect
 import com.greenaltambe.vela.ui.look.toColor
 import com.greenaltambe.vela.ui.nav.Route
 import kotlin.time.Clock
@@ -101,18 +124,19 @@ fun VideoCard(
     val replaced = video.originalTitle != null || video.originalThumbnailUrl != null
     val title = if (showOriginal) video.originalTitle ?: video.title else video.title
     val thumbnail = if (showOriginal) video.originalThumbnailUrl ?: video.thumbnailUrl else video.thumbnailUrl
-    val click = Modifier.combinedClickable(onClick = onClick, onLongClick = if (replaced) ({ showOriginal = !showOriginal }) else null)
+    val source = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val click = Modifier.pressFeedback(source).combinedClickable(interactionSource = source, indication = null, onClick = onClick, onLongClick = if (replaced) ({ showOriginal = !showOriginal }) else null)
 
     if (style == VideoCardStyle.VERTICAL) {
         Column(modifier.fillMaxWidth().testTag(ComponentIds.VIDEO_CARD).then(click), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
-            Thumbnail(video, thumbnail, extras, Modifier.fillMaxWidth().clip(Vela.mediumShape))
+            Thumbnail(video, thumbnail, extras, Modifier.fillMaxWidth().clip(Vela.thumbnailShape))
             Row(horizontalArrangement = Arrangement.spacedBy(Vela.sm), verticalAlignment = Alignment.Top) {
                 Avatar(video.channelName, onChannelClick)
                 Column(Modifier.weight(1f)) {
                     Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("card.title"))
                     // Channel on its own line (it can be very long), the numbers under it: neither pushes the other off.
                     if (video.channelName.isNotBlank()) Text(video.channelName, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor(), modifier = Modifier.testTag("card.channel"))
-                    val stats = listOfNotNull(formatViews(video.viewCount), formatAge(video.uploadedAt, Clock.System.now()), extras.badge, if (showOriginal) "original" else null).joinToString(" · ")
+                    val stats = remember(video.viewCount, video.uploadedAt, extras.badge, showOriginal) { listOfNotNull(formatViews(video.viewCount), formatAge(video.uploadedAt, Clock.System.now()), extras.badge, if (showOriginal) "original" else null).joinToString(" · ") }
                     if (stats.isNotEmpty()) Text(stats, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor(), modifier = Modifier.testTag("card.meta"))
                 }
                 trailing?.invoke()
@@ -121,7 +145,7 @@ fun VideoCard(
     } else {
         Row(modifier.fillMaxWidth().testTag(ComponentIds.VIDEO_CARD).then(click), horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
             // 36% of the row, but never wider than 168 dp: on a 320 dp phone the text (beside the menu button) still keeps 120 dp.
-            Thumbnail(video, thumbnail, extras, Modifier.fillMaxWidth(0.36f).widthIn(max = 168.dp).clip(Vela.mediumShape))
+            Thumbnail(video, thumbnail, extras, Modifier.fillMaxWidth(0.36f).widthIn(max = 168.dp).clip(Vela.thumbnailShape))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
                 Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("card.title"))
                 if (video.channelName.isNotBlank()) Text(
@@ -129,7 +153,7 @@ fun VideoCard(
                     color = Vela.colors.onSurfaceVariant.toColor(),
                     modifier = Modifier.testTag("card.channel"),
                 )
-                val stats = listOfNotNull(formatViews(video.viewCount), formatAge(video.uploadedAt, Clock.System.now()), extras.badge, if (showOriginal) "original" else null).joinToString(" · ")
+                val stats = remember(video.viewCount, video.uploadedAt, extras.badge, showOriginal) { listOfNotNull(formatViews(video.viewCount), formatAge(video.uploadedAt, Clock.System.now()), extras.badge, if (showOriginal) "original" else null).joinToString(" · ") }
                 if (stats.isNotEmpty()) Text(stats, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor(), modifier = Modifier.testTag("card.meta"))
             }
             trailing?.invoke()
@@ -140,7 +164,9 @@ fun VideoCard(
 @Composable
 private fun Thumbnail(video: VideoSummary, url: String?, extras: CardExtras, modifier: Modifier) {
     Box(modifier.aspectRatio(16f / 9f).background(Vela.colors.surfaceVariant.toColor()).testTag("card.thumbnail")) {
-        if (url != null) AsyncImage(url, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
+        // Some feeds (Home recommendations, account playlists) arrive without a picture; YouTube serves one for every video id.
+        val shown = url ?: if (video.id.isNotBlank()) "https://i.ytimg.com/vi/${video.id}/mqdefault.jpg" else null
+        if (shown != null) AsyncImage(shown, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
         if (video.isLive) Badge("LIVE", Vela.colors.error.toColor(), Modifier.align(Alignment.TopStart).padding(Vela.xs))
         else if (video.isShort) Badge("SHORT", Vela.colors.primary.toColor(), Modifier.align(Alignment.TopStart).padding(Vela.xs))
         formatDuration(video.durationSeconds)?.takeIf { !video.isLive }?.let { Badge(it, Vela.colors.background.toColor().copy(alpha = 0.85f), Modifier.align(Alignment.BottomEnd).padding(Vela.xs), textColor = Vela.colors.onBackground.toColor()) }
@@ -157,7 +183,7 @@ private fun Thumbnail(video: VideoSummary, url: String?, extras: CardExtras, mod
 }
 
 @Composable
-private fun Badge(text: String, background: androidx.compose.ui.graphics.Color, modifier: Modifier, textColor: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.White) {
+private fun Badge(text: String, background: androidx.compose.ui.graphics.Color, modifier: Modifier, textColor: androidx.compose.ui.graphics.Color = Vela.colors.onMedia.toColor()) {
     Text(
         text, modifier.clip(Vela.smallShape).background(background).padding(horizontal = Vela.xs),
         style = MaterialTheme.typography.bodySmall, color = textColor, maxLines = 1, softWrap = false,
@@ -236,49 +262,113 @@ fun ChapterRow(chapter: Chapter, current: Boolean, onClick: () -> Unit, modifier
     }
 }
 
-/** What the bottom bar and side rail show for a top-level [Route]. Labels are short enough for a 320 dp bar. */
-data class NavItem(val route: Route, val label: String)
+/** What a tab shows in the bar and the rail. Labels are short enough for a 320 dp bar. */
+data class NavEntry(val tab: NavTab, val label: String)
 
-val NavItems = listOf(
-    NavItem(Route.Home, "Home"),
-    NavItem(Route.Subscriptions, "Subs"),
-    NavItem(Route.Library, "Library"),
-    NavItem(Route.Settings, "Settings"),
-)
+fun navEntries(tabs: List<NavTab>) = tabs.map { NavEntry(it, when (it) {
+    NavTab.HOME -> "Home"; NavTab.SUBSCRIPTIONS -> "Subs"; NavTab.LIBRARY -> "Library"; NavTab.SEARCH -> "Search"; NavTab.DOWNLOADS -> "Downloads"
+}) }
 
 @Composable
-private fun NavItem.icon(): ImageVector = when (route) {
-    Route.Home -> Vela.icons.home
-    Route.Subscriptions -> Vela.icons.subscriptions
-    Route.Library -> Vela.icons.library
-    else -> Vela.icons.settings
+private fun NavEntry.icon(): ImageVector = when (tab) {
+    NavTab.HOME -> Vela.icons.home
+    NavTab.SUBSCRIPTIONS -> Vela.icons.subscriptions
+    NavTab.LIBRARY -> Vela.icons.library
+    NavTab.SEARCH -> Vela.icons.search
+    NavTab.DOWNLOADS -> Vela.icons.download
 }
 
+/** The line that marks the selected tab: the palette gradient. */
 @Composable
-fun BottomNav(selected: Route, onSelect: (Route) -> Unit, modifier: Modifier = Modifier) {
-    NavigationBar(modifier.testTag(ComponentIds.BOTTOM_NAV)) {
-        NavItems.forEach { item ->
-            NavigationBarItem(
-                selected = item.route == selected, onClick = { onSelect(item.route) },
-                icon = { Icon(item.icon(), null) },
-                label = { Text(item.label, maxLines = 1, softWrap = false, style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("nav.label")) },
-                modifier = Modifier.semantics { contentDescription = item.label },
-            )
+private fun SelectedMarker(modifier: Modifier = Modifier) {
+    Box(modifier.height(2.dp).width(Vela.lg).clip(Vela.pillShape).background(Vela.wake).testTag("nav.marker"))
+}
+
+/**
+ * The tab bar. [shrink] (0..1) is how far it has contracted: at 0 the tabs share the full width with their labels; at 1 it is a small
+ * pill of icons only. Everything between is the same layout evaluated at that fraction (width, height, spacing between the icons and the
+ * labels' height and opacity all interpolate), so the contraction is one smooth motion with the icons moving together, never a switch
+ * between two layouts. The caller decides where it sits and gives it a [shape]; its surface is the bar tint (at least the Look's bar
+ * opacity when glass is on), so page text never reads through it.
+ */
+@Composable
+fun BottomNav(entries: List<NavEntry>, selected: NavTab?, labelsVisible: Boolean, shrink: Float, shape: androidx.compose.ui.graphics.Shape, onSelect: (NavTab) -> Unit, modifier: Modifier = Modifier, bottomInset: Boolean = false) {
+    val tint = if (glassEnabled()) Vela.look.effects.barTintAlpha else 1f
+    val surface = Vela.colors.surface.toColor().copy(alpha = tint)
+    val n = entries.size.coerceAtLeast(1)
+    val f = shrink.coerceIn(0f, 1f)
+    BoxWithConstraints(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        val pad = Vela.xs
+        val iconGap = Vela.xs * f
+        val compactWidth = Vela.minTouch * n + Vela.xs * (n - 1) + pad * 2
+        val barWidth = lerp(maxWidth, compactWidth, f)
+        val itemWidth = (barWidth - pad * 2 - iconGap * (n - 1)) / n
+        val fullHeight = if (labelsVisible) Vela.minTouch + Vela.md else Vela.minTouch + Vela.xs
+        val itemHeight = lerp(fullHeight, Vela.minTouch, f) - pad * 2   // the bar's own padding above and below keeps its overall height
+        Row(
+            Modifier.testTag(ComponentIds.BOTTOM_NAV).width(barWidth).clip(shape).background(surface)
+                // A docked bar is painted behind the gesture area, so its content keeps clear of it.
+                .then(if (bottomInset) Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)) else Modifier).padding(pad),
+            horizontalArrangement = Arrangement.spacedBy(iconGap), verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // The highlight sits one inset inside the bar's edge, so its corner is the bar's minus that inset (concentric, not a different curve).
+            val highlightShape = RoundedCornerShape((Vela.look.radii.largeDp.dp - pad - Vela.xs / 2).coerceAtLeast(0.dp))
+            entries.forEach { e ->
+                val isSelected = e.tab == selected
+                Column(
+                    Modifier.width(itemWidth).height(itemHeight).padding(Vela.xs / 2).clip(highlightShape)
+                        .background(if (isSelected) Vela.colors.surfaceVariant.toColor() else androidx.compose.ui.graphics.Color.Transparent)
+                        .semantics { contentDescription = e.label; this.selected = isSelected }.pressable(role = Role.Tab) { onSelect(e.tab) }.testTag("nav.tab.${e.tab.name}"),
+                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+                ) {
+                    Icon(e.icon(), null, tint = if (isSelected) Vela.colors.onSurface.toColor() else Vela.colors.onSurfaceVariant.toColor())
+                    // The label's room and opacity fade out as the bar contracts; it is gone from the tree once the pill is complete.
+                    if (labelsVisible && f < 0.99f) Box(Modifier.height(NAV_LABEL_HEIGHT * (1f - f)).alpha(1f - f), contentAlignment = Alignment.TopCenter) {
+                        Text(e.label, maxLines = 1, softWrap = false, style = MaterialTheme.typography.bodySmall, color = if (isSelected) Vela.colors.onSurface.toColor() else Vela.colors.onSurfaceVariant.toColor(), modifier = Modifier.wrapContentHeight(unbounded = true, align = Alignment.Top).testTag("nav.label"))
+                    }
+                    if (isSelected) SelectedMarker() else Spacer(Modifier.height(2.dp))
+                }
+            }
         }
     }
 }
 
+/** The height reserved for a tab's label while the bar is full size. */
+private val NAV_LABEL_HEIGHT = 18.dp
+
+/**
+ * The left rail on wide windows and Linux: the same tab list, collapsible to icons. Keyboard: Tab moves between items (a ring shows
+ * the focus), Enter opens one; hovering or focusing a collapsed item shows its name as a tooltip.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SideRail(selected: Route, onSelect: (Route) -> Unit, onSearch: () -> Unit, modifier: Modifier = Modifier) {
-    NavigationRail(modifier.testTag(ComponentIds.SIDE_RAIL).fillMaxHeight()) {
-        NavigationRailItem(selected = false, onClick = onSearch, icon = { Icon(Vela.icons.search, null) }, label = { Text("Search", maxLines = 1, softWrap = false, style = MaterialTheme.typography.bodySmall) }, modifier = Modifier.testTag("rail.search"))
-        Spacer(Modifier.size(Vela.sm))
-        NavItems.forEach { item ->
-            NavigationRailItem(
-                selected = item.route == selected, onClick = { onSelect(item.route) },
-                icon = { Icon(item.icon(), null) },
-                label = { Text(item.label, maxLines = 1, softWrap = false, style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("nav.label")) },
-            )
+fun SideRail(entries: List<NavEntry>, selected: NavTab?, collapsed: Boolean, onToggleCollapsed: () -> Unit, onSelect: (NavTab) -> Unit, modifier: Modifier = Modifier) {
+    val width by androidx.compose.animation.core.animateDpAsState(if (collapsed) 72.dp else 176.dp, VelaMotion.standard(Vela.motion), label = "railWidth")
+    Column(
+        modifier.fillMaxHeight().width(width).background(Vela.colors.surface.toColor()).windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Vertical + WindowInsetsSides.Start))
+            .padding(horizontal = Vela.xs, vertical = Vela.sm).testTag(ComponentIds.SIDE_RAIL),
+        verticalArrangement = Arrangement.spacedBy(Vela.xs),
+    ) {
+        Box(Modifier.heightIn(min = Vela.minTouch).widthIn(min = Vela.minTouch).clip(Vela.mediumShape).semantics { contentDescription = if (collapsed) "Expand the rail" else "Collapse the rail" }.pressable(role = Role.Button, onClick = onToggleCollapsed).testTag("rail.toggle"), contentAlignment = Alignment.Center) {
+            androidx.compose.material3.Icon(if (collapsed) com.greenaltambe.vela.ui.look.Vela.icons.chevronRight else com.greenaltambe.vela.ui.look.Vela.icons.chevronLeft, null)
+        }
+        entries.forEach { e ->
+            val isSelected = e.tab == selected
+            TooltipBox(
+                positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(), tooltip = { if (collapsed) PlainTooltip { Text(e.label) } },
+                state = rememberTooltipState(),
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().heightIn(min = Vela.minTouch).clip(Vela.mediumShape)
+                        .background(if (isSelected) Vela.colors.surfaceVariant.toColor() else androidx.compose.ui.graphics.Color.Transparent)
+                        .semantics { contentDescription = e.label; this.selected = isSelected }.pressable(role = Role.Tab) { onSelect(e.tab) }.padding(horizontal = Vela.sm).testTag("rail.tab.${e.tab.name}"),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm),
+                ) {
+                    Icon(e.icon(), null, tint = if (isSelected) Vela.colors.onSurface.toColor() else Vela.colors.onSurfaceVariant.toColor())
+                    if (!collapsed) Text(e.label, maxLines = 1, softWrap = false, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f, fill = false).testTag("nav.label"))
+                    if (isSelected && !collapsed) SelectedMarker()
+                }
+            }
         }
     }
 }
@@ -298,6 +388,8 @@ fun VelaTopBar(
     onSearch: (() -> Unit)? = null,
     menu: List<MenuAction> = emptyList(),
     actions: @Composable () -> Unit = {},
+    /** The profile button (avatar), at the right end; shown only where there is no Back button, where the app's mark takes the left. */
+    profile: (@Composable () -> Unit)? = null,
 ) {
     Row(
         modifier.fillMaxWidth()
@@ -306,6 +398,7 @@ fun VelaTopBar(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (onBack != null) IconButton(onClick = onBack, modifier = Modifier.testTag("nav.back")) { Icon(Vela.icons.back, "Back") }
+        else if (profile != null) com.greenaltambe.vela.ui.look.VelaMark(Modifier.padding(start = Vela.xs).testTag("topbar.logo"), size = 32.dp)
         else Spacer(Modifier.size(Vela.sm))
         Text(title, Modifier.weight(1f).padding(horizontal = Vela.xs), style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
         actions()
@@ -319,33 +412,61 @@ fun VelaTopBar(
                 }
             }
         }
+        if (onBack == null && profile != null) profile()
     }
 }
 
-/** Docked above the nav while something plays and its page is closed: thumbnail, title, play/pause, close, and a thin progress line. */
+/** What the mini player shows and does; built once from the player host and used by every layout (bar over/under the page, wide rail). */
+class MiniState(
+    val title: String, val thumbnailUrl: String?, val playing: Boolean, val progress: Float,
+    val onToggle: () -> Unit, val onExpand: () -> Unit, val onClose: () -> Unit,
+)
+
+/**
+ * The mini player while something plays and its page is closed. REGULAR (CARD) is a bar-wide card: thumbnail, title, play/pause,
+ * close and a thin progress line. PIP is a small picture-in-picture style card (the thumbnail with the controls on it). Both take
+ * their [shape] from the corner-radius setting (the caller passes it, because attached to the bar only the outer corners are round).
+ */
 @Composable
-fun MiniPlayer(
-    title: String, thumbnailUrl: String?, playing: Boolean, progress: Float,
-    onToggle: () -> Unit, onExpand: () -> Unit, onClose: () -> Unit, modifier: Modifier = Modifier,
-) {
-    Column(modifier.fillMaxWidth().background(Vela.colors.surfaceVariant.toColor()).testTag(ComponentIds.MINI_PLAYER)) {
-        Box(Modifier.fillMaxWidth().height(2.dp).background(Vela.colors.outline.toColor())) {
-            Box(Modifier.fillMaxWidth(progress.coerceIn(0f, 1f)).fillMaxHeight().background(Vela.colors.primary.toColor()))
-        }
-        Row(Modifier.fillMaxWidth().clickable(onClick = onExpand).padding(start = Vela.sm), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
-            Box(Modifier.size(width = 64.dp, height = 36.dp).clip(Vela.smallShape).background(Vela.colors.outline.toColor())) {
-                if (thumbnailUrl != null) AsyncImage(thumbnailUrl, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
+fun MiniPlayer(state: MiniState, look: MiniLook, shape: androidx.compose.ui.graphics.Shape, modifier: Modifier = Modifier) {
+    when (look) {
+        MiniLook.CARD -> Column(modifier.clip(shape).background(Vela.colors.surfaceVariant.toColor()).testTag(ComponentIds.MINI_PLAYER)) {
+            Box(Modifier.fillMaxWidth().height(2.dp).background(Vela.colors.outline.toColor())) {
+                Box(Modifier.fillMaxWidth(state.progress.coerceIn(0f, 1f)).fillMaxHeight().background(Vela.colors.primary.toColor()))
             }
-            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            IconButton(onClick = onToggle, modifier = Modifier.testTag("mini.toggle")) { Icon(if (playing) Vela.icons.pause else Vela.icons.play, if (playing) "Pause" else "Play") }
-            IconButton(onClick = onClose, modifier = Modifier.testTag("mini.close")) { Icon(Vela.icons.close, "Close player") }
+            Row(Modifier.fillMaxWidth().clickable(onClick = state.onExpand).padding(start = Vela.sm), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+                Box(Modifier.size(width = 64.dp, height = 36.dp).clip(Vela.smallShape).background(Vela.colors.outline.toColor())) {
+                    if (state.thumbnailUrl != null) AsyncImage(state.thumbnailUrl, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
+                }
+                Text(state.title, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                IconButton(onClick = state.onToggle, modifier = Modifier.testTag("mini.toggle")) { Icon(if (state.playing) Vela.icons.pause else Vela.icons.play, if (state.playing) "Pause" else "Play") }
+                IconButton(onClick = state.onClose, modifier = Modifier.testTag("mini.close")) { Icon(Vela.icons.close, "Close player") }
+            }
+        }
+        MiniLook.PIP -> Box(modifier.size(PIP_WIDTH, PIP_WIDTH * 9 / 16).clip(shape).background(Vela.colors.mediaBackground.toColor()).clickable(onClick = state.onExpand).testTag(ComponentIds.MINI_PLAYER)) {
+            if (state.thumbnailUrl != null) AsyncImage(state.thumbnailUrl, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
+            Box(Modifier.matchParentSize().background(Vela.colors.mediaScrim.toColor().copy(alpha = 0.35f)))
+            IconButton(onClick = state.onToggle, modifier = Modifier.align(Alignment.Center).testTag("mini.toggle")) { Icon(if (state.playing) Vela.icons.pause else Vela.icons.play, if (state.playing) "Pause" else "Play", tint = Vela.colors.onMedia.toColor()) }
+            IconButton(onClick = state.onClose, modifier = Modifier.align(Alignment.TopEnd).testTag("mini.close")) { Icon(Vela.icons.close, "Close player", tint = Vela.colors.onMedia.toColor()) }
+            Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Vela.colors.outline.toColor().copy(alpha = 0.5f))) {
+                Box(Modifier.fillMaxWidth(state.progress.coerceIn(0f, 1f)).fillMaxHeight().background(Vela.colors.primary.toColor()))
+            }
         }
     }
 }
+
+/** The picture-in-picture style mini player is this wide (16:9). */
+val PIP_WIDTH = 176.dp
 
 @Composable
 fun PrimaryButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
-    Button(onClick = onClick, modifier = modifier, enabled = enabled, shape = Vela.pillShape) { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+    val source = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    // The palette gradient is the button's fill; the label is black or white, whichever reads better over the worst stop.
+    val onGradient = com.greenaltambe.vela.ui.look.Contrast.onAll(Vela.look.accent.wake).toColor()
+    Button(
+        onClick = onClick, modifier = modifier.pressFeedback(source).alpha(if (enabled) 1f else 0.4f).background(Vela.wake, Vela.buttonShape), enabled = enabled, shape = Vela.buttonShape, interactionSource = source,
+        colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color.Transparent, disabledContainerColor = androidx.compose.ui.graphics.Color.Transparent, contentColor = onGradient, disabledContentColor = onGradient),
+    ) { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) }
 }
 
 /** An icon with a short label under it: the video page's action row (Download, Save, Share). */
@@ -355,7 +476,7 @@ fun ActionChip(icon: ImageVector, label: String, onClick: () -> Unit, modifier: 
         modifier.heightIn(min = Vela.minTouch).widthIn(min = Vela.minTouch).clip(Vela.mediumShape).clickable(onClick = onClick).padding(horizontal = Vela.sm, vertical = Vela.xs),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(icon, null, tint = if (selected) Vela.colors.primary.toColor() else Vela.colors.onSurface.toColor())
+        Icon(icon, null, Modifier.popOnSelect(selected), tint = if (selected) Vela.colors.primary.toColor() else Vela.colors.onSurface.toColor())
         Text(label, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
     }
 }

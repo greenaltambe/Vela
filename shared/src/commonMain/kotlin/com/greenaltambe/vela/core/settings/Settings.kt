@@ -211,7 +211,8 @@ object Settings {
 
     val sponsorBlockEnabled = moduleToggle("sponsorblock", "SponsorBlock", "sponsor", "skip", "segments")
     val returnYouTubeDislikeEnabled = moduleToggle("ryd", "Return YouTube Dislike", "dislike", "ryd", "likes")
-    val deArrowEnabled = moduleToggle("dearrow", "DeArrow", "titles", "thumbnails", "clickbait")
+    // Off by default (owner decision, task 23): replacement titles and thumbnails change what a video looks like, unlike SponsorBlock and RYD, which most people want.
+    val deArrowEnabled = moduleToggle("dearrow", "DeArrow", "titles", "thumbnails", "clickbait", default = false)
 
     // ---- SponsorBlock ----
 
@@ -449,6 +450,13 @@ object Settings {
         keywords = emptyList(), codec = SettingCodecs.string, section = SettingSection.ADVANCED,
     )
 
+    /** Debug aid: a small readout of frame times in a corner (and one line per 2 s in the log). Not a Look key. */
+    val debugFrameStats = Setting(
+        key = "debug.frameStats", default = false, scope = SettingScope.GLOBAL, label = "Show frame times (debug)",
+        keywords = listOf("frame", "fps", "jank", "debug", "performance", "overlay"), codec = SettingCodecs.boolean, section = SettingSection.ADVANCED,
+        info = "Shows how long frames take, so slow screens can be measured on the phone and on Linux.",
+    )
+
     val homeSource = Setting(
         key = "home.source", default = HomeSource.RECOMMENDED, scope = SettingScope.GLOBAL,
         label = "Home shows (Recommended needs a signed-in account; otherwise Trending)",
@@ -539,14 +547,14 @@ object Settings {
 
     val all: List<Setting<*>> = listOf(
         look, performanceMode, localOnlyHistory, hideWatched, minLengthSeconds, blockKeywords, allowKeywords, keywordsAreRegex,
-        homeSource, allowAgeRestricted, allowControversial, slowStreamFailover, accountFallbackMode, accountProfilesExperimental, accountUseForChannels, accountUseForDetails, accountDownloadsMayUse, accountKillSwitch, accountTierOrder, remoteConfigUrl, ytDlpAutoUpdate,
+        debugFrameStats, homeSource, allowAgeRestricted, allowControversial, slowStreamFailover, accountFallbackMode, accountProfilesExperimental, accountUseForChannels, accountUseForDetails, accountDownloadsMayUse, accountKillSwitch, accountTierOrder, remoteConfigUrl, ytDlpAutoUpdate,
         accountPlaybackPerHour, accountBrowsePerMinute, accountWritesPerHour, shortsMode, defaultPlaybackSpeed, maxQualityUnmetered, maxQualityMetered, preferredCodec, audioOnly, ytDlpPath,
         sponsorBlockEnabled, returnYouTubeDislikeEnabled, deArrowEnabled,
         sponsorBlockMinSegmentSeconds, sponsorBlockNotifications, sponsorBlockServer, sponsorBlockUserId, rydInFeed, rydServer,
         deArrowFeed, deArrowSearch, deArrowVideoPage, deArrowPlayerTitle, deArrowTitleCasing, deArrowMinVotes, deArrowGeneratedThumbnails, deArrowThumbnailServer,
         downloadsFolder, downloadsDefaultQuality, downloadsAudioOnlyDefault, downloadsPreferAvc, downloadsKeepOriginalAudio,
         downloadsWifiOnly, downloadsConcurrent, downloadsDeleteAfterWatch, downloadsStorageCapGb, autoDownloadDeleteDays, downloadsCommentPages,
-    ) + sponsorBlockActions.values
+    ) + sponsorBlockActions.values + LookSettings.all
 
     /**
      * Settings whose label or keywords match every word of [query] (case-insensitive substring match),
@@ -574,9 +582,9 @@ object Settings {
         choices = MaxQuality.entries.map { SettingChoice(it.name, if (it.height == null) "Best available" else "${it.height}p") },
     )
 
-    private fun moduleToggle(id: String, label: String, vararg keywords: String) = Setting(
+    private fun moduleToggle(id: String, label: String, vararg keywords: String, default: Boolean = true) = Setting(
         key = "modules.$id.enabled",
-        default = true,
+        default = default,
         scope = SettingScope.GLOBAL,
         label = label,
         keywords = keywords.toList(),

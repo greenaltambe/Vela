@@ -22,6 +22,8 @@ import com.greenaltambe.vela.core.settings.LookChoice
 import com.greenaltambe.vela.core.settings.Settings
 import com.greenaltambe.vela.core.settings.SettingsResolver
 import com.greenaltambe.vela.ui.look.LocalLook
+import com.greenaltambe.vela.ui.look.LookBuilder
+import com.greenaltambe.vela.ui.look.LookSnapshot
 import com.greenaltambe.vela.ui.look.LocalPerformanceMode
 import com.greenaltambe.vela.ui.look.LookTokens
 import com.greenaltambe.vela.ui.look.Looks
@@ -42,19 +44,7 @@ fun VelaTheme(look: LookTokens, performanceMode: Boolean = false, content: @Comp
             outline = c.outline.toColor(), error = c.error.toColor(),
         )
     }
-    val typography = remember(look) {
-        val t = look.typography
-        val family = if (t.fontFamily == "system") FontFamily.Default else FontFamily.Default // custom families arrive with the font picker
-        Typography(
-            titleLarge = TextStyle(fontFamily = family, fontSize = t.titleSizeSp.sp),
-            titleMedium = TextStyle(fontFamily = family, fontSize = t.headingSizeSp.sp),
-            bodyLarge = TextStyle(fontFamily = family, fontSize = t.bodySizeSp.sp),
-            bodyMedium = TextStyle(fontFamily = family, fontSize = t.bodySizeSp.sp),
-            bodySmall = TextStyle(fontFamily = family, fontSize = t.captionSizeSp.sp),
-            labelLarge = TextStyle(fontFamily = family, fontSize = t.bodySizeSp.sp),
-            headlineMedium = TextStyle(fontFamily = family, fontSize = (t.titleSizeSp + 4).sp),
-        )
-    }
+    val typography = remember(look) { typographyFor(look.typography) }
     // Compose Desktop does not enforce Material's 48 dp minimum for touch (Android does): make it the Look's rule on both.
     CompositionLocalProvider(
         LocalLook provides look, LocalPerformanceMode provides performanceMode,
@@ -72,11 +62,37 @@ fun VelaTheme(look: LookTokens, performanceMode: Boolean = false, content: @Comp
 fun VelaTheme(settings: SettingsResolver, content: @Composable () -> Unit) {
     val revision by settings.revision.collectAsState()
     val systemDark = isSystemInDarkTheme()
-    val look = remember(revision, systemDark) {
-        Looks.forChoice(pureBlack = settings.resolve(Settings.look) == LookChoice.PURE_BLACK, systemDark = systemDark)
-    }
-    val performance = remember(revision) { settings.resolve(Settings.performanceMode) }
-    VelaTheme(look, performance, content)
+    val snapshot = remember(revision) { LookSnapshot.of(settings) }
+    val look = remember(snapshot, systemDark) { LookBuilder.build(snapshot, systemDark) }
+    VelaTheme(look, snapshot.performance, content)
 }
 
 private fun androidx.compose.ui.graphics.Color.luminance() = 0.2126f * red + 0.7152f * green + 0.0722f * blue
+
+/** Material typography from the Look's type tokens: font family slot, text scale and the (light by default) weight of titles. */
+fun typographyFor(t: com.greenaltambe.vela.ui.look.TypographyTokens): Typography {
+    val family = fontFamilyFor(t.fontFamily)
+    val titleWeight = when (t.titleWeight) {
+        com.greenaltambe.vela.core.settings.TitleWeight.LIGHT -> androidx.compose.ui.text.font.FontWeight.Light
+        com.greenaltambe.vela.core.settings.TitleWeight.NORMAL -> androidx.compose.ui.text.font.FontWeight.Normal
+        com.greenaltambe.vela.core.settings.TitleWeight.MEDIUM -> androidx.compose.ui.text.font.FontWeight.Medium
+    }
+    fun size(sp: Float) = (sp * t.scale).sp
+    return Typography(
+        titleLarge = TextStyle(fontFamily = family, fontSize = size(t.titleSizeSp), fontWeight = titleWeight),
+        titleMedium = TextStyle(fontFamily = family, fontSize = size(t.headingSizeSp), fontWeight = titleWeight),
+        bodyLarge = TextStyle(fontFamily = family, fontSize = size(t.bodySizeSp)),
+        bodyMedium = TextStyle(fontFamily = family, fontSize = size(t.bodySizeSp)),
+        bodySmall = TextStyle(fontFamily = family, fontSize = size(t.captionSizeSp)),
+        labelLarge = TextStyle(fontFamily = family, fontSize = size(t.bodySizeSp)),
+        headlineMedium = TextStyle(fontFamily = family, fontSize = size(t.titleSizeSp + 4), fontWeight = titleWeight),
+    )
+}
+
+/** The family a font choice names (its lower-case id). Vela and System use the platform UI font; the others are the platform's generic families. */
+fun fontFamilyFor(id: String): FontFamily = when (id) {
+    "grotesque" -> FontFamily.SansSerif
+    "serif" -> FontFamily.Serif
+    "mono" -> FontFamily.Monospace
+    else -> FontFamily.Default
+}

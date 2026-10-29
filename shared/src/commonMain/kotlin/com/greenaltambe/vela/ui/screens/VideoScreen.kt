@@ -261,7 +261,7 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
             }
         }
         item {
-            Row(Modifier.fillMaxWidth().clickableChannel { navigator.push(Route.Channel(video.channelId, video.channelName)) }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+            Row(Modifier.fillMaxWidth().clickableChannel { (info?.channelId?.takeIf { it.isNotBlank() } ?: video.channelId).takeIf { it.isNotBlank() }?.let { id -> navigator.push(Route.Channel(id, info?.channelName?.takeIf { it.isNotBlank() } ?: video.channelName)) } }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
                 val channelName = info?.channelName?.takeIf { it.isNotBlank() } ?: video.channelName
                 Avatar(channelName)
                 Text(channelName, Modifier.weight(1f).testTag("video.channel"), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)

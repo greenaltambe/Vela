@@ -179,6 +179,7 @@ internal fun JsonObject.flatVideos(): List<VideoSummary> = objects("entries").ma
 
 internal fun JsonObject.toChannelPage(channelId: String, continuation: String?): ChannelPage {
     val avatar = objects("thumbnails").firstOrNull { it.str("id")?.startsWith("avatar") == true }?.str("url")
+    val banner = objects("thumbnails").firstOrNull { it.str("id")?.startsWith("banner") == true }?.str("url")
     return ChannelPage(
         id = str("channel_id") ?: str("id") ?: channelId,
         name = str("channel") ?: str("uploader") ?: str("title").orEmpty(),
@@ -187,5 +188,6 @@ internal fun JsonObject.toChannelPage(channelId: String, continuation: String?):
         subscriberCount = long("channel_follower_count"),
         videos = flatVideos(),
         continuation = continuation,
+        bannerUrl = banner,
     )
 }

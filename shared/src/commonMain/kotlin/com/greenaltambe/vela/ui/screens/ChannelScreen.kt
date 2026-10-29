@@ -1,6 +1,8 @@
 package com.greenaltambe.vela.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -75,6 +77,9 @@ fun ChannelScreen(services: AppServices, navigator: Navigator, channelId: String
         services, navigator, videos, state, testTag = "channel.list",
         header = {
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
+                page?.bannerUrl?.let { banner ->
+                    coil3.compose.AsyncImage(banner, null, Modifier.fillMaxWidth().aspectRatio(16f / 4.5f).clip(Vela.thumbnailShape).testTag("channel.banner"), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.md)) {
                     Avatar(name, size = 64.dp, url = page?.avatarUrl)
                     Column(Modifier.weight(1f)) {

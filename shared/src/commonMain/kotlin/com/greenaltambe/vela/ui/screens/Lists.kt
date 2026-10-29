@@ -1,5 +1,6 @@
 package com.greenaltambe.vela.ui.screens
 
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -14,7 +15,14 @@ import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
+import com.greenaltambe.vela.ui.look.appearOnce
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import com.greenaltambe.vela.modules.ryd.summary
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,17 +50,17 @@ sealed interface ListState {
     data class Error(val message: String, val onRetry: (() -> Unit)?) : ListState
 }
 
-/** What the cards of a list need to know that is not in the video: downloaded, how far watched, RYD numbers. */
+/** What the cards of a list need to know that is not in the video: downloaded, how far watched, RYD numbers. Read off the main thread; cards fill in as the answers arrive. */
 @Composable
 fun rememberCardExtras(services: AppServices, videos: List<VideoSummary>): (VideoSummary) -> CardExtras {
-    val downloaded = remember(videos) { services.downloads?.completedIds().orEmpty() }
-    val progress = remember(videos) { services.history.progress() }
-    val ryd = videos.associate { it.id to rydBadgeFor(services, it.id) }
+    val downloaded = rememberAsync(videos.size, keepWhileLoading = true, first = { emptySet<String>() }, compute = { services.downloads?.completedIds().orEmpty() })
+    val progress = rememberAsync(videos.size, keepWhileLoading = true, first = { emptyMap<String, Float>() }, compute = { services.history.progress() })
+    val rydRevision by services.modules.ryd.revision.collectAsState()
+    val rydOn = services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.rydInFeed) && services.modules.ryd.isEnabled(services.settings)
+    // One lookup per list change, not one composable (and one revision collector) per card.
+    val ryd = remember(rydRevision, videos, rydOn) { if (rydOn) videos.associate { it.id to services.modules.ryd.cached(it.id)?.summary() } else emptyMap() }
     return { v -> CardExtras(watched = progress[v.id], downloaded = v.id in downloaded, badge = ryd[v.id]) }
 }
-
-@Composable
-private fun rydBadgeFor(services: AppServices, id: String): String? = rydBadge(services, id)
 
 /**
  * A scrolling list of videos that adapts to the window: COMPACT gets one column of vertical cards (thumbnail across the
@@ -72,12 +80,22 @@ fun VideoCollection(
     header: (@Composable () -> Unit)? = null,
     footer: (@Composable () -> Unit)? = null,
     trailing: @Composable ((VideoSummary) -> Unit)? = { v -> VideoMenu(services, v) },
+    /** Called when the last item of [videos] is composed, so a screen can append the next page. */
+    onEndReached: (() -> Unit)? = null,
 ) {
     val size = LocalWindowSize.current
     val extras = rememberCardExtras(services, videos)
     val padding = Vela.contentPadding
     val open = { v: VideoSummary -> navigator.push(Route.Video(v)) }
-    val channel = { v: VideoSummary -> navigator.push(Route.Channel(v.channelId, v.channelName)) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    // Some listings (shorts, certain search results) carry no channel id; ask the video itself before opening, never open a channel with a blank id.
+    val channel = { v: VideoSummary ->
+        if (v.channelId.isNotBlank()) navigator.push(Route.Channel(v.channelId, v.channelName))
+        else scope.launch {
+            val info = (services.extractor.videoInfo(v.id) as? com.greenaltambe.vela.extractor.ExtractorResult.Success)?.value
+            info?.channelId?.takeIf { it.isNotBlank() }?.let { navigator.push(Route.Channel(it, info.channelName.ifBlank { v.channelName })) }
+        }
+    }
 
     if (grid && size != WindowSizeClass.COMPACT) {
         LazyVerticalGrid(
@@ -86,7 +104,10 @@ fun VideoCollection(
         ) {
             header?.let { h -> item(span = { GridItemSpan(maxLineSpan) }) { h() } }
             stateItems(state) { SkeletonCard(vertical = true) }
-            items(videos, key = { it.id }) { v -> VideoCard(v, { open(v) }, style = VideoCardStyle.VERTICAL, extras = extras(v), onChannelClick = { channel(v) }, trailing = trailing?.let { t -> { t(v) } }) }
+            gridItemsIndexed(videos, key = { _, v -> v.id }, contentType = { _, _ -> "video" }) { i, v ->
+                VideoCard(v, { open(v) }, modifier = Modifier.appearOnce(v.id, i), style = VideoCardStyle.VERTICAL, extras = extras(v), onChannelClick = { channel(v) }, trailing = trailing?.let { t -> { t(v) } })
+                if (onEndReached != null && v.id == videos.last().id) LaunchedEffect(videos.size) { onEndReached() }
+            }
             footer?.let { f -> item(span = { GridItemSpan(maxLineSpan) }) { f() } }
         }
     } else {
@@ -98,8 +119,9 @@ fun VideoCollection(
             ) {
                 header?.let { h -> item { h() } }
                 stateItems(state) { SkeletonCard(vertical = vertical) }
-                items(videos, key = { it.id }) { v ->
-                    VideoCard(v, { open(v) }, style = if (vertical) VideoCardStyle.VERTICAL else VideoCardStyle.HORIZONTAL, extras = extras(v), onChannelClick = { channel(v) }, trailing = trailing?.let { t -> { t(v) } })
+                itemsIndexed(videos, key = { _, v -> v.id }, contentType = { _, _ -> "video" }) { i, v ->
+                    VideoCard(v, { open(v) }, modifier = Modifier.appearOnce(v.id, i), style = if (vertical) VideoCardStyle.VERTICAL else VideoCardStyle.HORIZONTAL, extras = extras(v), onChannelClick = { channel(v) }, trailing = trailing?.let { t -> { t(v) } })
+                    if (onEndReached != null && v.id == videos.last().id) LaunchedEffect(videos.size) { onEndReached() }
                 }
                 footer?.let { f -> item { f() } }
             }
@@ -109,7 +131,7 @@ fun VideoCollection(
 
 private fun LazyListScope.stateItems(state: ListState, skeleton: @Composable () -> Unit) {
     when (state) {
-        ListState.Loading -> items(6) { skeleton() }
+        ListState.Loading -> items(6, contentType = { "skeleton" }) { skeleton() }
         ListState.Ready -> {}
         is ListState.Empty -> item { EmptyState(state.message, actionLabel = state.actionLabel, onAction = state.onAction) }
         is ListState.Error -> item { ErrorRow(state.message, state.onRetry) }
@@ -118,7 +140,7 @@ private fun LazyListScope.stateItems(state: ListState, skeleton: @Composable () 
 
 private fun LazyGridScope.stateItems(state: ListState, skeleton: @Composable () -> Unit) {
     when (state) {
-        ListState.Loading -> items(6) { skeleton() }
+        ListState.Loading -> items(6, contentType = { "skeleton" }) { skeleton() }
         ListState.Ready -> {}
         is ListState.Empty -> item(span = { GridItemSpan(maxLineSpan) }) { EmptyState(state.message, actionLabel = state.actionLabel, onAction = state.onAction) }
         is ListState.Error -> item(span = { GridItemSpan(maxLineSpan) }) { ErrorRow(state.message, state.onRetry) }

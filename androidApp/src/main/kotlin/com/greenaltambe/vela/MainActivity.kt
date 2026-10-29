@@ -158,6 +158,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        com.greenaltambe.vela.ui.platform.configureImageLoader(applicationContext)
         explainBatteryOptimisationOnce()
         ContextCompat.registerReceiver(this, pipToggle, IntentFilter(ACTION_PIP_TOGGLE), ContextCompat.RECEIVER_NOT_EXPORTED)
 

@@ -83,6 +83,8 @@ fun Scrubber(
 ) {
     var widthPx by remember { mutableFloatStateOf(0f) }
     var dragging by remember { mutableStateOf<Float?>(null) }
+    // The thumb grows while it is held, on a snappy spring (a quick fade when motion is reduced).
+    val thumbGrow by androidx.compose.animation.core.animateFloatAsState(if (dragging != null) 1.3f else 1f, com.greenaltambe.vela.ui.look.VelaMotion.snappy(Vela.motion), label = "thumbGrow")
     val thumbPx = with(androidx.compose.ui.platform.LocalDensity.current) { thumbRadius.toPx() }
     val geometry = ScrubGeometry(widthPx, thumbPx)
     val shown = dragging ?: value.coerceIn(0f, 1f)
@@ -128,7 +130,7 @@ fun Scrubber(
             }
             drawRoundRect(playedColor, Offset(g.trackStart, cy - th / 2), Size((g.xFor(shown) - g.trackStart).coerceAtLeast(0f), th), round)
             ticks.forEach { t -> val x = g.xFor(t); drawRect(tickColor, Offset(x - 1.dp.toPx(), cy - th), Size(2.dp.toPx(), th * 2)) }
-            drawCircle(playedColor, if (dragging != null) thumbRadius.toPx() * 1.3f else thumbRadius.toPx(), Offset(g.xFor(shown), cy))
+            drawCircle(playedColor, thumbRadius.toPx() * thumbGrow, Offset(g.xFor(shown), cy))
         }
         val label = dragging?.let { f -> previewLabel?.invoke(f) }
         if (label != null) {
@@ -138,7 +140,7 @@ fun Scrubber(
                 maxLines = 1,
                 modifier = Modifier
                     .offset { IntOffset((geometry.xFor(dragging ?: 0f) - 24.dp.toPx()).roundToInt().coerceAtLeast(0), -(28.dp.roundToPx())) }
-                    .background(Vela.colors.surfaceVariant.toColor(), RoundedCornerShape(6.dp))
+                    .background(Vela.colors.surfaceVariant.toColor(), Vela.smallShape)
                     .testTag("scrubber.preview"),
             )
         }

@@ -8,7 +8,8 @@ import kotlin.time.Instant
 
 class FeedStepsTest {
     private val resolver = SettingsResolver(InMemorySettingsStore())
-    private val context = FeedContext(resolver)
+    /** A new context per run, as the screens do: it remembers per-channel settings for the length of one run. */
+    private val context get() = FeedContext(resolver)
 
     private fun v(id: String, title: String = "t$id", channel: String = "c", seconds: Long? = 300, short: Boolean = false) =
         VideoSummary(id, title, channel, "n", durationSeconds = seconds, isShort = short)

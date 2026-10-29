@@ -118,6 +118,8 @@ data class ChannelPage(
     val subscriberCount: Long? = null,
     val videos: List<VideoSummary> = emptyList(),
     val continuation: String? = null,
+    /** The wide banner image behind the channel header, when the channel has one. */
+    val bannerUrl: String? = null,
 )
 
 @Serializable

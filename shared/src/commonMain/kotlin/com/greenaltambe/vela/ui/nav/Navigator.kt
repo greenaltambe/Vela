@@ -26,22 +26,32 @@ sealed interface Route {
     data object Backup : Route
     data object DownloadRules : Route
     data object Downloads : Route
+    data object Customize : Route
+    data class SettingsPage(val pageId: String, val highlight: String? = null) : Route
+    data class CustomizePage(val page: String) : Route
 }
 
-val TopLevelRoutes: List<Route> = listOf(Route.Home, Route.Subscriptions, Route.Library, Route.Settings)
+/** Pages that can be tabs (Settings never is: it lives in the profile menu). Used for the direction of the tab transition. */
+val TopLevelRoutes: List<Route> = listOf(Route.Home, Route.Subscriptions, Route.Library, Route.Downloads)
 
 /** The part of the stack that top-level destination [route] belongs to. */
 fun Route.topLevel(): Route = when (this) {
     Route.Home, is Route.Video, is Route.Search, is Route.Channel -> Route.Home
     Route.Subscriptions, Route.ManageSubscriptions -> Route.Subscriptions
     Route.Library, is Route.Playlist, Route.History, Route.Downloads, Route.DownloadRules -> Route.Library
-    Route.Settings, Route.Diagnostics, Route.Accounts, Route.AccountActivity, Route.Health, Route.Backup -> Route.Settings
+    Route.Settings, Route.Diagnostics, Route.Accounts, Route.AccountActivity, Route.Health, Route.Backup, Route.Customize, is Route.CustomizePage, is Route.SettingsPage -> Route.Settings
 }
+
+/** What the last navigation did, so the shell can animate it: tabs crossfade and slide a little, pushes slide in, pops slide out. */
+enum class NavAction { TAB, PUSH, POP, REPLACE }
 
 /** A back stack plus the "what is playing" state the docked mini player needs. */
 @Stable
 class Navigator(start: Route = Route.Home) {
     private val stack = mutableStateListOf(start)
+
+    var lastAction: NavAction by mutableStateOf(NavAction.TAB)
+        private set
 
     val current: Route get() = stack.last()
     val canGoBack: Boolean get() = stack.size > 1
@@ -57,18 +67,21 @@ class Navigator(start: Route = Route.Home) {
     /** Swaps the current screen for [route] (a search view re-searching), so Back does not step through every query. */
     fun replace(route: Route) {
         if (route is Route.Video) nowPlaying = route.video
+        lastAction = NavAction.REPLACE
         stack[stack.lastIndex] = route
     }
 
     fun push(route: Route) {
         if (route == current) return
         if (route is Route.Video) nowPlaying = route.video
+        lastAction = NavAction.PUSH
         stack.add(route)
     }
 
     /** Switches tab: the stack becomes just that destination. */
     fun selectTab(route: Route) {
         if (stack.size == 1 && current == route) return
+        lastAction = NavAction.TAB
         stack.clear()
         stack.add(route)
     }
@@ -76,6 +89,7 @@ class Navigator(start: Route = Route.Home) {
     /** Pops one screen; false if already at the root of a tab (the platform may then leave the app). */
     fun back(): Boolean {
         if (stack.size <= 1) return false
+        lastAction = NavAction.POP
         stack.removeAt(stack.lastIndex)
         return true
     }
@@ -83,6 +97,7 @@ class Navigator(start: Route = Route.Home) {
     /** Replaces the current video page with another (related videos, queue advance) so Back does not walk through them all. */
     fun replaceWithVideo(video: VideoSummary, startSeconds: Long? = null) {
         nowPlaying = video
+        lastAction = if (current is Route.Video) NavAction.REPLACE else NavAction.PUSH
         if (current is Route.Video) stack[stack.lastIndex] = Route.Video(video, startSeconds) else stack.add(Route.Video(video, startSeconds))
     }
 

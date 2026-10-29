@@ -4,6 +4,8 @@ import com.greenaltambe.vela.data.FeedRepository
 import com.greenaltambe.vela.data.SubscriptionRepository
 import com.greenaltambe.vela.extractor.Extractor
 import com.greenaltambe.vela.extractor.ExtractorResult
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -38,9 +40,11 @@ class FeedService(
     /** Reads the cache again, e.g. after an unsubscribe or an import changed what should show. */
     fun reload() { _entries.value = cache.entries() }
 
+    /** Everything below runs on [Dispatchers.Default]: the screens call this from the main thread, and 300 channels' worth of fetching, merging and database writes must not. */
     suspend fun refresh() {
         if (!_refreshing.compareAndSet(expect = false, update = true)) return
         try {
+          withContext(Dispatchers.Default) {
             val channels = subscriptions.all()
             val subscribed = channels.mapTo(HashSet()) { it.channelId }
             val now = clock.now()
@@ -63,6 +67,7 @@ class FeedService(
             cache.replaceAll(merged)
             _entries.value = merged
             _failures.value = failures
+          }
         } finally {
             _refreshing.value = false
         }

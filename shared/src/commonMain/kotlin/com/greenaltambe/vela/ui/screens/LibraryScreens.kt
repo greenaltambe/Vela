@@ -179,8 +179,8 @@ fun PlaylistScreen(services: AppServices, navigator: Navigator, playlistId: Long
                     v, onClick = { navigator.push(Route.Video(v)) }, style = VideoCardStyle.HORIZONTAL, extras = extras(v),
                     trailing = {
                         Column {
-                            IconButton(onClick = { services.playlists.move(playlistId, index, index - 1); revision++ }, enabled = index > 0) { Text("↑") }
-                            IconButton(onClick = { services.playlists.move(playlistId, index, index + 1); revision++ }, enabled = index < items.lastIndex) { Text("↓") }
+                            IconButton(onClick = { services.playlists.move(playlistId, index, index - 1); revision++ }, enabled = index > 0) { androidx.compose.material3.Icon(com.greenaltambe.vela.ui.look.Vela.icons.arrowUp, "Move up") }
+                            IconButton(onClick = { services.playlists.move(playlistId, index, index + 1); revision++ }, enabled = index < items.lastIndex) { androidx.compose.material3.Icon(com.greenaltambe.vela.ui.look.Vela.icons.arrowDown, "Move down") }
                             IconButton(onClick = { services.playlists.remove(playlistId, v.id); revision++ }) { Icon(com.greenaltambe.vela.ui.look.Vela.icons.close, "Remove from playlist") }
                         }
                     },
@@ -195,9 +195,11 @@ fun HistoryScreen(services: AppServices, navigator: Navigator, modifier: Modifie
     var revision by remember { mutableStateOf(0) }
     var confirmClear by remember { mutableStateOf(false) }
     var limit by remember { mutableStateOf(500) }   // older history is loaded 500 rows at a time, never all at once
-    val records: List<WatchRecord> = remember(revision, limit) { services.history.recent(limit.toLong()) }
+    // Read off the main thread; null until the first answer (a skeleton shows meanwhile, never a false "Nothing watched yet").
+    val loaded: List<WatchRecord>? = rememberAsync(revision, limit, keepWhileLoading = true, first = { null as List<WatchRecord>? }, compute = { services.history.recent(limit.toLong()) })
+    val records: List<WatchRecord> = loaded.orEmpty()
     val days = remember(records) { groupHistoryByDay(records, services.clock.now(), services.utcOffsetMinutes()) }
-    val progress = remember(records) { services.history.progress() }
+    val progress = rememberAsync(revision, limit, keepWhileLoading = true, first = { emptyMap<String, Float>() }, compute = { services.history.progress() })
     // The account's own history, shown below this device's: loaded on request (it costs browse budget), de-duplicated by video (entries from the account carry no time), labelled by source.
     var accountItems by remember { mutableStateOf<List<VideoSummary>?>(null) }
     var accountNote by remember { mutableStateOf<String?>(null) }
@@ -210,7 +212,8 @@ fun HistoryScreen(services: AppServices, navigator: Navigator, modifier: Modifie
                     TextButton(onClick = { confirmClear = true }, enabled = records.isNotEmpty(), modifier = Modifier.testTag("history.clear")) { Text("Clear all", maxLines = 1) }
                 }
             }
-            if (records.isEmpty()) item { EmptyState("Nothing watched yet.") }
+            if (loaded == null) items(5, contentType = { "skeleton" }) { com.greenaltambe.vela.ui.components.SkeletonCard(vertical = false) }
+            else if (records.isEmpty()) item { EmptyState("Nothing watched yet.") }
             if (records.size >= limit) item(key = "load-older") { TextButton(onClick = { limit += 500 }, modifier = Modifier.testTag("history.older")) { Text("Load older history (showing the latest $limit)", maxLines = 1) } }
             if (services.reads != null && services.accounts.active.value.isSignedIn) item {
                 TextButton(onClick = {
@@ -229,7 +232,7 @@ fun HistoryScreen(services: AppServices, navigator: Navigator, modifier: Modifie
             }
             days.forEach { day ->
                 item(key = "day-${day.label}") { Text(day.label, style = MaterialTheme.typography.titleMedium, maxLines = 1) }
-                items(day.records, key = { "h-${it.id}" }) { r ->
+                items(day.records, key = { "h-${it.id}" }, contentType = { "history" }) { r ->
                     val v = VideoSummary(r.videoId, r.title, r.channelId, "", durationSeconds = r.durationMs / 1000)
                     VideoCard(
                         v, onClick = { navigator.push(Route.Video(v)) }, style = VideoCardStyle.HORIZONTAL, extras = CardExtras(watched = progress[r.videoId]),

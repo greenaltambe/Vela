@@ -13,7 +13,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 
-/** The top-bar menu switches accounts, and nothing one account holds is visible from the other. */
+/** The profile menu switches accounts, and nothing one account holds is visible from the other. */
 class AccountSwitcherUiTest {
     private val jar = CookieJar(listOf(Cookie("SID", "s", ".google.com"), Cookie("SAPISID", "p", ".youtube.com")))
 
@@ -26,9 +26,9 @@ class AccountSwitcherUiTest {
         f.services.subscriptions.subscribe("UCg", "Only on the Google account", null, Clock.System.now())
         setContent { AppUnderTest(f) }
         waitForIdle()
-        onNodeWithTag("nav.overflow").performClick(); waitForIdle()
-        onNodeWithText("✓ Second Person").assertIsDisplayed()
-        onNodeWithText("Switch to This device").performClick(); waitForIdle()
+        onNodeWithTag("profile.button").performClick(); waitForIdle()
+        onNodeWithTag("profile.switch").performClick(); waitForIdle()
+        onNodeWithTag("profile.switchTo").performClick(); waitForIdle()
         assertEquals("local", accounts.active.value.id)
         assertTrue(!f.services.subscriptions.isSubscribed("UCg"), "the local account cannot see the Google account's subscription")
         accounts.switchTo(g.id)

@@ -36,6 +36,7 @@ internal fun ChannelInfo.toChannelPage(videos: List<InfoItem>, continuation: Str
     subscriberCount = subscriberCount.takeIf { it >= 0 },
     videos = videos.toVideoSummaries(),
     continuation = continuation,
+    bannerUrl = banners.bestUrl(),
 )
 
 internal fun CommentsInfoItem.toComment() = Comment(

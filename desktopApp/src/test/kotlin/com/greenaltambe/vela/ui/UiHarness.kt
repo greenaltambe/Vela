@@ -149,10 +149,10 @@ class FakeHost(override val session: PlaybackSession, val controller: FakeContro
 
 class Fixture(val services: AppServices, val navigator: Navigator, val settings: SettingsResolver, val controller: FakeController, val dir: File)
 
-fun buildFixture(pureBlack: Boolean = false, withDownloads: Boolean = true, login: ((AccountManager) -> com.greenaltambe.vela.auth.AccountLogin)? = null, actions: com.greenaltambe.vela.auth.AccountActions? = null, reads: com.greenaltambe.vela.auth.AccountReads? = null, extractorOverride: Extractor? = null, backupFiles: com.greenaltambe.vela.backup.BackupFiles? = null, liveChat: com.greenaltambe.vela.extractor.LiveChatSource? = null): Fixture {
+fun buildFixture(pureBlack: Boolean = false, withDownloads: Boolean = true, login: ((AccountManager) -> com.greenaltambe.vela.auth.AccountLogin)? = null, actions: com.greenaltambe.vela.auth.AccountActions? = null, reads: com.greenaltambe.vela.auth.AccountReads? = null, extractorOverride: Extractor? = null, backupFiles: com.greenaltambe.vela.backup.BackupFiles? = null, liveChat: com.greenaltambe.vela.extractor.LiveChatSource? = null, wrapDriver: ((app.cash.sqldelight.db.SqlDriver) -> app.cash.sqldelight.db.SqlDriver)? = null): Fixture {
     val settings = SettingsResolver(InMemorySettingsStore())
     if (pureBlack) settings.set(Settings.look, LookChoice.PURE_BLACK)
-    val database = createDatabase(JvmDatabaseDriverFactory())
+    val database = createDatabase(if (wrapDriver == null) JvmDatabaseDriverFactory() else object : com.greenaltambe.vela.data.DatabaseDriverFactory { override fun create() = wrapDriver(JvmDatabaseDriverFactory().create()) })
     val extractor = extractorOverride ?: FakeExtractor()
     val log = DiagnosticsLog()
     val modules = createModules(object : HttpTransport { override suspend fun execute(request: HttpRequest) = HttpResponse(404, "") }, database, settings)

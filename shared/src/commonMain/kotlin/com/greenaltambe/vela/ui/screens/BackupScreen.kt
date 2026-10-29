@@ -31,7 +31,7 @@ fun BackupScreen(services: AppServices, navigator: Navigator, modifier: Modifier
 
     Column(modifier.fillMaxSize()) {
         VelaTopBar("Backup and restore", onBack = { navigator.back() })
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Vela.gutter), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = Vela.gutter, end = Vela.gutter, bottom = com.greenaltambe.vela.ui.nav.LocalChromeInset.current), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
             Text("A backup holds your settings (including per-channel and per-video overrides), subscriptions, local playlists and Watch later, and optionally history and search history. It never holds accounts, passwords, cookies or downloads.", style = MaterialTheme.typography.bodyMedium)
             if (files == null) { Text("This platform has no file picker for backups yet.", modifier = Modifier.testTag("backup.unavailable")); return@Column }
             SectionHeader("Create")

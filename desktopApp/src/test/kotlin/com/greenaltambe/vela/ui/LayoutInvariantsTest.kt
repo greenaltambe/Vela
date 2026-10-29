@@ -36,6 +36,17 @@ class LayoutInvariantsTest {
         "downloads" to { f -> f.navigator.selectTab(Route.Library); f.navigator.push(Route.Downloads) },
         "channel" to { f -> f.navigator.push(Route.Channel("UC1", FakeData.longChannel)) },
         "history" to { f -> f.navigator.selectTab(Route.Library); f.navigator.push(Route.History) },
+        // Task 23: the new and restructured pages.
+        "settings-playback" to { f -> f.navigator.selectTab(Route.Settings); f.navigator.push(Route.SettingsPage("playback")) },
+        "settings-safety" to { f -> f.navigator.selectTab(Route.Settings); f.navigator.push(Route.SettingsPage("safety")) },
+        "settings-extras" to { f -> f.navigator.selectTab(Route.Settings); f.navigator.push(Route.SettingsPage("extras")) },
+        "customize" to { f -> f.navigator.selectTab(Route.Settings); f.navigator.push(Route.Customize) },
+        "customize-color" to { f -> f.navigator.selectTab(Route.Settings); f.navigator.push(Route.CustomizePage("color")) },
+        "customize-text" to { f -> f.navigator.selectTab(Route.Settings); f.navigator.push(Route.CustomizePage("text")) },
+        "customize-icons" to { f -> f.navigator.selectTab(Route.Settings); f.navigator.push(Route.CustomizePage("icons")) },
+        "customize-glass" to { f -> f.navigator.selectTab(Route.Settings); f.navigator.push(Route.CustomizePage("glass")) },
+        "customize-tabs" to { f -> f.navigator.selectTab(Route.Settings); f.navigator.push(Route.CustomizePage("tabs")) },
+        "customize-stub" to { f -> f.navigator.selectTab(Route.Settings); f.navigator.push(Route.CustomizePage("looks")) },
     )
 
     private fun insidePlayer(n: SemanticsNode): Boolean {
@@ -61,17 +72,17 @@ class LayoutInvariantsTest {
 
     private var black = false
 
-    private fun check(screen: Screen, name: String, pureBlack: Boolean, setup: (Fixture) -> Unit): List<String> {
+    private fun check(screen: Screen, name: String, pureBlack: Boolean, setup: (Fixture) -> Unit, fontScale: Float = 1f): List<String> {
         black = pureBlack
         val problems = mutableListOf<String>()
         runDesktopComposeUiTest(screen.width, screen.height) {
             val f = buildFixture(pureBlack)
             setup(f)
-            setContent { AppUnderTest(f) }
+            setContent { androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(androidx.compose.ui.platform.LocalDensity.current.density, fontScale)) { AppUnderTest(f) } }
             waitForIdle()
             mainClock.advanceTimeBy(600)
             waitForIdle()
-            val where = "$name @ ${screen.name}${if (pureBlack) " black" else ""}"
+            val where = "$name @ ${screen.name}${if (pureBlack) " black" else ""}${if (fontScale != 1f) " font x$fontScale" else ""}"
             fun tag(n: SemanticsNode) = n.config.getOrNull(SemanticsProperties.TestTag)
 
             // Merged tree: what a user can touch.
@@ -113,8 +124,8 @@ class LayoutInvariantsTest {
         return problems
     }
 
-    private fun runAll(pureBlack: Boolean, sizes: List<Screen>): List<String> =
-        sizes.flatMap { s -> routes.flatMap { (name, setup) -> check(s, name, pureBlack, setup) } }.distinct()
+    private fun runAll(pureBlack: Boolean, sizes: List<Screen>, fontScale: Float = 1f): List<String> =
+        sizes.flatMap { s -> routes.flatMap { (name, setup) -> check(s, name, pureBlack, setup, fontScale) } }.distinct()
 
     @Test fun lightLayoutHoldsAtEverySize() {
         val problems = runAll(pureBlack = false, Screens)
@@ -124,5 +135,11 @@ class LayoutInvariantsTest {
     @Test fun pureBlackLayoutHoldsOnPhoneAndDesktop() {
         val problems = runAll(pureBlack = true, listOf(Screens[0], Screens[1], Screens[4]))
         assertTrue(problems.isEmpty(), "${problems.size} layout problems:\n" + problems.joinToString("\n"))
+    }
+
+    /** System font size 130 %: phone, tablet and desktop. Nothing may wrap mid-word, overflow or fall under the touch minimum. */
+    @Test fun largeSystemFontHoldsOnPhoneTabletAndDesktop() {
+        val problems = runAll(pureBlack = false, listOf(Screens[1], Screens[3], Screens[4]), fontScale = 1.3f)
+        assertTrue(problems.isEmpty(), "${problems.size} layout problems at font scale 1.3:\n" + problems.joinToString("\n"))
     }
 }

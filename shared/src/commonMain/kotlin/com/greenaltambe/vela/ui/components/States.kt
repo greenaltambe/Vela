@@ -23,30 +23,30 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.greenaltambe.vela.ui.look.Vela
+import com.greenaltambe.vela.ui.look.shimmer
 import com.greenaltambe.vela.ui.look.toColor
 
-/** A grey placeholder shaped like a video card, shown while a list loads (no animation: nothing shimmers on slow phones). */
+/** A placeholder shaped like a video card, shown while a list loads. The blocks shimmer, unless motion is reduced or the app is in the background (then they are flat). */
 @Composable
 fun SkeletonCard(vertical: Boolean, modifier: Modifier = Modifier) {
-    val block = Vela.colors.surfaceVariant.toColor()
     if (vertical) {
         Column(modifier.fillMaxWidth().testTag("skeleton"), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
-            Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(Vela.mediumShape).background(block))
+            Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(Vela.mediumShape).shimmer())
             Row(horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                Box(Modifier.size(36.dp).clip(Vela.pillShape).background(block))
+                Box(Modifier.size(36.dp).clip(Vela.pillShape).shimmer())
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
-                    Box(Modifier.fillMaxWidth().height(14.dp).clip(Vela.smallShape).background(block))
-                    Box(Modifier.fillMaxWidth(0.6f).height(12.dp).clip(Vela.smallShape).background(block))
+                    Box(Modifier.fillMaxWidth().height(14.dp).clip(Vela.smallShape).shimmer())
+                    Box(Modifier.fillMaxWidth(0.6f).height(12.dp).clip(Vela.smallShape).shimmer())
                 }
             }
         }
     } else {
         Row(modifier.fillMaxWidth().testTag("skeleton"), horizontalArrangement = Arrangement.spacedBy(Vela.md)) {
-            Box(Modifier.fillMaxWidth(0.4f).aspectRatio(16f / 9f).clip(Vela.mediumShape).background(block))
+            Box(Modifier.fillMaxWidth(0.4f).aspectRatio(16f / 9f).clip(Vela.mediumShape).shimmer())
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
-                Box(Modifier.fillMaxWidth().height(14.dp).clip(Vela.smallShape).background(block))
-                Box(Modifier.fillMaxWidth(0.7f).height(14.dp).clip(Vela.smallShape).background(block))
-                Box(Modifier.fillMaxWidth(0.4f).height(12.dp).clip(Vela.smallShape).background(block))
+                Box(Modifier.fillMaxWidth().height(14.dp).clip(Vela.smallShape).shimmer())
+                Box(Modifier.fillMaxWidth(0.7f).height(14.dp).clip(Vela.smallShape).shimmer())
+                Box(Modifier.fillMaxWidth(0.4f).height(12.dp).clip(Vela.smallShape).shimmer())
             }
         }
     }

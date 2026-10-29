@@ -3,6 +3,9 @@ package com.greenaltambe.vela.debug
 import android.app.Activity
 import android.os.Bundle
 import android.util.Log
+import com.greenaltambe.vela.core.settings.rawValue
+import com.greenaltambe.vela.core.settings.resetToDefault
+import com.greenaltambe.vela.core.settings.setRaw
 import com.greenaltambe.vela.extractor.chain.TierId
 import com.greenaltambe.vela.playback.PlaybackRuntime
 import com.greenaltambe.vela.player.PlaybackStatus
@@ -57,6 +60,26 @@ class SelfTestActivity : Activity() {
                 else add("account tier", false, "refused: pass --ez throwaway true only when the signed-in account (see run whoami) is the throwaway account")
             }
             if (which == "ytdlpdl") ytdlpDownload(rt)
+            if (which == "seed") seed(rt, intent.getIntExtra("subs", 300), intent.getIntExtra("feed", 5000))
+            if (which == "unseed") unseed(rt)
+            if (which == "sample") { MainThreadSampler.run(intent.getIntExtra("seconds", 8), File(filesDir, "sample.txt")); add("sampler started", true, "writes files/sample.txt") }
+            if (which == "perfmode") {
+                val store = com.greenaltambe.vela.data.SqlDelightSettingsStore(rt.database)
+                val k = com.greenaltambe.vela.core.settings.Settings.performanceMode.key
+                if (intent.getBooleanExtra("on", false)) store.put(k, com.greenaltambe.vela.core.settings.SettingLayer.Global, "true") else store.remove(k, com.greenaltambe.vela.core.settings.SettingLayer.Global)
+                add("performance mode", true, "on=${intent.getBooleanExtra("on", false)}")
+            }
+            if (which == "lookdump") add("look settings", true, com.greenaltambe.vela.core.settings.LookSettings.all.joinToString(" ") { it.key.removePrefix("look.") + "=" + rt.settings.rawValue(it) })
+            if (which == "lookreset") { com.greenaltambe.vela.core.settings.LookStore(rt.settings).reset(); add("look reset", true, "all look.* keys back to defaults") }
+            if (which == "setlook") {
+                // --es k look.nav.barStyle --es v MINIMAL  (a look.* key only; used to try the bar and mini player options)
+                val k = intent.getStringExtra("k").orEmpty(); val v = intent.getStringExtra("v")
+                val setting = com.greenaltambe.vela.core.settings.LookSettings.all.firstOrNull { it.key == k }
+                if (setting == null) add("setlook", false, "unknown look key $k") else {
+                    if (v == null || v == "default") rt.settings.resetToDefault(setting) else rt.settings.setRaw(setting, v)
+                    add("setlook", true, "$k=${rt.settings.rawValue(setting)}")
+                }
+            }
             if (which == "whoami") { val a = rt.accounts.active.value; add("active account", true, "signedIn=${a.isSignedIn} label=${a.label} id=${a.id} ytdlp=${com.greenaltambe.vela.ytdlp.readYtDlpVersion(rt.embeddedYtDlp.ytDlpFile)} allowAge=${rt.settings.resolve(com.greenaltambe.vela.core.settings.Settings.allowAgeRestricted)} tierOrder=${rt.settings.resolve(com.greenaltambe.vela.core.settings.Settings.accountTierOrder)}") }
             if (which == "ytdlpv") ytdlpVerbose(rt, video, intent.getStringExtra("extra")?.split(" ")?.filter { it.isNotEmpty() } ?: emptyList())
             if (which == "ytdlpold") {
@@ -98,10 +121,15 @@ class SelfTestActivity : Activity() {
         val advanced = withTimeoutOrNull(30_000) { while (rt.controller.state.value.status != PlaybackStatus.PLAYING || rt.controller.state.value.positionMs < 2000) delay(250); true }
         add("playback starts and advances", advanced == true, "status=${rt.controller.state.value.status} pos=${rt.controller.state.value.positionMs}")
         if (advanced != true) return
+        // The player resumes from history: if that is near the end, start over so 20 s of playback and a seek still fit before the end.
+        rt.controller.state.value.let { st -> if (st.durationMs > 0 && st.durationMs - st.positionMs < 120_000) { rt.session.seekTo(5_000); delay(2_500) } }
         val p0 = rt.controller.state.value.positionMs; delay(20_000); val p1 = rt.controller.state.value.positionMs
         add("position advances for 20 s", p1 - p0 in 15_000..26_000, "advanced ${p1 - p0} ms")
-        rt.session.seekTo(p1 + 30_000); delay(4_000)
-        add("seek", rt.controller.state.value.positionMs >= p1 + 29_000, "pos=${rt.controller.state.value.positionMs}")
+        // Seek 30 s ahead, but never past the end of a short video (it resumes from history, so p1 can be near the end).
+        val dur = rt.controller.state.value.durationMs
+        val target = if (dur > 0) (p1 + 30_000).coerceAtMost(maxOf(p1, dur - 15_000)) else p1 + 30_000
+        rt.session.seekTo(target); delay(4_000)
+        add("seek", rt.controller.state.value.positionMs >= target - 1_000, "target=$target pos=${rt.controller.state.value.positionMs}")
         rt.session.pause(); delay(1_500); val ps = rt.controller.state.value
         add("pause", ps.status == PlaybackStatus.PAUSED, "status=${ps.status}")
         rt.session.play(); delay(3_000)
@@ -302,6 +330,26 @@ class SelfTestActivity : Activity() {
         }
     }
 
+    /** Synthetic data for the list-performance work: [subs] subscriptions and [feed] cached feed rows for the active account (all ids start with "UCseed"/"seed"). Thumbnails reuse a few real images so decoding is realistic. */
+    private fun seed(rt: PlaybackRuntime, subs: Int, feed: Int) {
+        val acct = rt.accounts.active.value.id; val now = System.currentTimeMillis()
+        val thumbs = listOf("dQw4w9WgXcQ", "kJQP7kiw5Fk", "jNQXAC9IVRw", "LXb3EKWsInQ", "HtVdAasjOgU", "9bZkp7q19f0", "JGwWNGJdvx8", "RgKAFK5djSk")
+        rt.database.transaction {
+            for (i in 0 until subs) rt.database.subscriptionQueries.upsert(acct, "UCseed%04d".format(i), "Seed channel $i", "https://i.ytimg.com/vi/${thumbs[i % thumbs.size]}/default.jpg", now - i)
+            for (i in 0 until feed) rt.database.feedItemQueries.upsert(acct, "seed%06d".format(i), "UCseed%04d".format(i % subs.coerceAtLeast(1)), "Seed channel ${i % subs.coerceAtLeast(1)}", when (i) { 0 -> "日本語のタイトルがここに入ります。長いタイトルのテスト"; 1 -> "हिन्दी शीर्षक: यह एक लंबा शीर्षक परीक्षण है"; 2 -> "🎉🔥 Emoji title 👍🏽 with flags 🇯🇵🇮🇳"; else -> "Seeded video number $i with a reasonably long title to wrap onto two lines" }, "https://i.ytimg.com/vi/${thumbs[i % thumbs.size]}/hqdefault.jpg", 300L + i % 3000, 1000L * (i % 900), 0, now - i * 60_000L, now)
+        }
+        add("seeded", true, "subs=$subs feed=$feed account=${rt.accounts.active.value.label}")
+    }
+
+    private fun unseed(rt: PlaybackRuntime) {
+        val acct = rt.accounts.active.value.id
+        rt.database.transaction {
+            rt.database.feedItemQueries.deleteForChannel(acct, "UCseed0000")
+            for (i in 0 until 2000) { rt.database.subscriptionQueries.delete(acct, "UCseed%04d".format(i)); rt.database.feedItemQueries.deleteForChannel(acct, "UCseed%04d".format(i)) }
+        }
+        add("unseeded", true, "removed seed subscriptions and feed rows")
+    }
+
     /** The age-restricted video through the whole chain and the player, with "Allow age-restricted videos" switched on for the test only. */
     private suspend fun playAge(rt: PlaybackRuntime, video: String) {
         val store = com.greenaltambe.vela.data.SqlDelightSettingsStore(rt.database)
@@ -319,7 +367,7 @@ class SelfTestActivity : Activity() {
     }
 
     /** A download whose streams MUST come from the yt-dlp tier (tier order put first for the test, then restored), merged and finished. */
-    private suspend fun ytdlpDownload(rt: PlaybackRuntime) {
+    private suspend fun ytdlpDownload(rt: PlaybackRuntime) = withWifiOnlyOff(rt) {
         val store = com.greenaltambe.vela.data.SqlDelightSettingsStore(rt.database)
         val key = com.greenaltambe.vela.core.settings.Settings.accountTierOrder.key
         val old = store.get(key, com.greenaltambe.vela.core.settings.SettingLayer.Global)
@@ -388,7 +436,17 @@ class SelfTestActivity : Activity() {
     }
 
     /** A 19 s video at <=144p: video + audio download and the merge into one file, then removal. */
-    private suspend fun download(rt: PlaybackRuntime) {
+    /** Runs [block] with the Wi-Fi-only downloads setting off (the test phone is often on mobile data), then puts the viewer's value back. */
+    private suspend fun <T> withWifiOnlyOff(rt: PlaybackRuntime, block: suspend () -> T): T {
+        val store = com.greenaltambe.vela.data.SqlDelightSettingsStore(rt.database)
+        val key = com.greenaltambe.vela.core.settings.Settings.downloadsWifiOnly.key
+        val layer = com.greenaltambe.vela.core.settings.SettingLayer.Global
+        val old = store.get(key, layer)
+        store.put(key, layer, "false")
+        try { return block() } finally { if (old == null) store.remove(key, layer) else store.put(key, layer, old) }
+    }
+
+    private suspend fun download(rt: PlaybackRuntime) = withWifiOnlyOff(rt) {
         val t0 = System.currentTimeMillis()
         val id = rt.downloads.manager.enqueue(com.greenaltambe.vela.downloads.DownloadRequest(
             com.greenaltambe.vela.extractor.VideoSummary("jNQXAC9IVRw", "Me at the zoo", "UC4QobU6STFB0P71PMvOGN5A", "jawed"), maxHeight = 144))

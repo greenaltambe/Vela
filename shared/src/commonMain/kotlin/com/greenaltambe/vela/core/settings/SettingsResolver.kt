@@ -25,14 +25,24 @@ class SettingsResolver(private val store: SettingsStore) {
     /** True if [layer] holds its own value for [setting], as opposed to inheriting. */
     fun hasValue(setting: Setting<*>, layer: SettingLayer): Boolean = store.get(setting.key, layer) != null
 
+    private var batchDepth = 0
+    private var batchDirty = false
+    private fun changed() { if (batchDepth > 0) batchDirty = true else _revision.update { it + 1 } }
+
+    /** Runs [block]; every write inside it counts as ONE change for observers (one revision bump, so the UI recomposes once). */
+    fun batch(block: () -> Unit) {
+        batchDepth++
+        try { block() } finally { batchDepth--; if (batchDepth == 0 && batchDirty) { batchDirty = false; _revision.update { it + 1 } } }
+    }
+
     fun <T> set(setting: Setting<T>, value: T, layer: SettingLayer = SettingLayer.Global) {
         require(layer.scope <= setting.scope) { "${setting.key} cannot be overridden at ${layer.scope} level" }
         store.put(setting.key, layer, setting.codec.encode(value))
-        _revision.update { it + 1 }
+        changed()
     }
 
     fun clear(setting: Setting<*>, layer: SettingLayer) {
         store.remove(setting.key, layer)
-        _revision.update { it + 1 }
+        changed()
     }
 }

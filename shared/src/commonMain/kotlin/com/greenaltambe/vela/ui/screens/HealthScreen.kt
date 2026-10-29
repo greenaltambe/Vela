@@ -44,7 +44,8 @@ fun HealthScreen(services: AppServices, navigator: Navigator, modifier: Modifier
         if (health == null) { EmptyState("Health checks are not available on this platform."); return@Column }
         val running by health.running.collectAsState()
         val results by health.results.collectAsState()
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Vela.gutter), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = Vela.gutter, end = Vela.gutter, bottom = com.greenaltambe.vela.ui.nav.LocalChromeInset.current), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
+            androidx.compose.material3.TextButton(onClick = { navigator.push(com.greenaltambe.vela.ui.nav.Route.Diagnostics) }, modifier = Modifier.testTag("health.diagnostics")) { Text("Open diagnostics (tier log, simulated failures)", maxLines = 1) }
             services.releases.forEach { w ->
                 val st by w.check.status.collectAsState()
                 Text(st.describe(), color = if (st.newerAvailable) Vela.colors.error.toColor() else Color.Unspecified, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("health.release.${st.name}"))

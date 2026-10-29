@@ -78,7 +78,7 @@ fun AccountsScreen(services: AppServices, navigator: Navigator, modifier: Modifi
     Column(modifier.fillMaxSize()) {
         VelaTopBar("Accounts", onBack = { navigator.back() })
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-            Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = Vela.gutter, vertical = Vela.sm), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
+            Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = Vela.gutter, end = Vela.gutter, top = Vela.sm, bottom = Vela.sm + com.greenaltambe.vela.ui.nav.LocalChromeInset.current), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
                 if (active.kind == AccountKind.GOOGLE && services.profiles != null && services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.accountProfilesExperimental)) ProfileSection(services)
                 if (active.kind == AccountKind.GOOGLE && active.authState != AuthState.OK) {
                     Text("Signed out: ${active.displayName}'s session no longer works. Add the account again to sign in.", color = Vela.colors.error.toColor(), modifier = Modifier.testTag("accounts.banner"))

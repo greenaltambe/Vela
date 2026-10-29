@@ -17,7 +17,7 @@ fun interface WatchedLookup {
 /** Drops videos already in the local history, unless that channel's setting says to keep them. */
 class HideWatched(private val watched: WatchedLookup) : FeedStep {
     override fun apply(items: List<VideoSummary>, context: FeedContext): List<VideoSummary> =
-        items.filter { !(context.settings.resolve(Settings.hideWatched, channelId = it.channelId) && watched.isWatched(it.id)) }
+        items.filter { !(context.resolve(Settings.hideWatched, it.channelId) && watched.isWatched(it.id)) }
 }
 
 /**
@@ -27,7 +27,7 @@ class HideWatched(private val watched: WatchedLookup) : FeedStep {
 object MinLength : FeedStep {
     override fun apply(items: List<VideoSummary>, context: FeedContext): List<VideoSummary> =
         items.filter { v ->
-            val min = context.settings.resolve(Settings.minLengthSeconds, channelId = v.channelId).toLong()
+            val min = context.resolve(Settings.minLengthSeconds, v.channelId).toLong()
             min <= 0 || v.durationSeconds == null || v.durationSeconds >= min
         }
 }
@@ -55,11 +55,11 @@ data class KeywordRules(val block: List<String>, val allow: List<String>, val re
 /** Block / allow by title, per channel, case-insensitive; plain substrings by default, regular expressions by setting. */
 object KeywordFilter : FeedStep {
     override fun apply(items: List<VideoSummary>, context: FeedContext): List<VideoSummary> {
-        val regex = context.settings.resolve(Settings.keywordsAreRegex)
+        val regex = context.resolve(Settings.keywordsAreRegex)
         val cache = HashMap<Pair<String, String>, KeywordRules>()
         return items.filter { v ->
-            val block = context.settings.resolve(Settings.blockKeywords, channelId = v.channelId)
-            val allow = context.settings.resolve(Settings.allowKeywords, channelId = v.channelId)
+            val block = context.resolve(Settings.blockKeywords, v.channelId)
+            val allow = context.resolve(Settings.allowKeywords, v.channelId)
             if (block.isEmpty() && allow.isEmpty()) return@filter true
             cache.getOrPut(block to allow) { KeywordRules(KeywordRules.split(block), KeywordRules.split(allow), regex) }.accepts(v.title)
         }
@@ -69,7 +69,7 @@ object KeywordFilter : FeedStep {
 /** Keeps only Shorts: the content of the Shorts tab when [ShortsMode.SEPARATE_TAB] is set for the channel. */
 object OnlyShorts : FeedStep {
     override fun apply(items: List<VideoSummary>, context: FeedContext): List<VideoSummary> =
-        items.filter { it.isShort && context.settings.resolve(Settings.shortsMode, channelId = it.channelId) != ShortsMode.HIDE }
+        items.filter { it.isShort && context.resolve(Settings.shortsMode, it.channelId) != ShortsMode.HIDE }
 }
 
 /** The steps of the main subscription / home feed, in order. */

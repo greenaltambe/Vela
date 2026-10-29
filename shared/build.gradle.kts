@@ -76,6 +76,8 @@ kotlin {
             implementation(libs.kotlinx.serializationJson)
             implementation(libs.sqldelight.runtime)
             implementation(libs.coil.compose)
+            implementation(libs.compose.materialIconsExtended)
+            implementation(libs.lucide.icons)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
