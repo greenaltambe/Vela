@@ -11,10 +11,10 @@ enum class TitleWeight { LIGHT, NORMAL, MEDIUM }
  * Ready-made: Material Rounded / Outlined / Sharp / Two-tone and Lucide. Every pack covers every icon in the app.
  */
 enum class IconStyle { FILLED, LINE, DUOTONE, ROUNDED, OUTLINED, SHARP, TWO_TONE, LUCIDE }
-/** How the seek bar is drawn: a hairline or a bold track, each with or without a round marker, spikes (bars) behind the current position, or a wave that moves up to it. */
-enum class ProgressStyle { HAIRLINE, HAIRLINE_DOT, BOLD, BOLD_DOT, SPIKES, WAVE }
+/** How the seek bar is drawn: a hairline or a bold track, each with or without a round marker, a ribbon (bold with a dot, thin silky ribbons lifting off the watched part), or a wave that moves up to the current position. */
+enum class ProgressStyle { HAIRLINE, HAIRLINE_DOT, BOLD, BOLD_DOT, RIBBON, WAVE }
 enum class IconWeight { THIN, REGULAR, BOLD }
-enum class NavTab { HOME, SUBSCRIPTIONS, LIBRARY, SEARCH, DOWNLOADS }
+enum class NavTab { HOME, SHORTS, SUBSCRIPTIONS, LIBRARY, SEARCH, DOWNLOADS }
 enum class NavLabels { HIDDEN, ALWAYS }
 enum class BarStyle { FLOATING, DOCKED, MINIMAL }
 /** The mini player: a bar-wide card, or a small picture-in-picture style card. */
@@ -24,7 +24,7 @@ enum class MiniPlacement { ATTACHED, SEPARATE }
 
 /** The tab list as one setting value: tab names in order, comma separated. Unknown names and repeats are dropped; fewer than two usable tabs gives the default. */
 object NavTabs {
-    val default = listOf(NavTab.HOME, NavTab.SUBSCRIPTIONS, NavTab.LIBRARY)
+    val default = listOf(NavTab.HOME, NavTab.SHORTS, NavTab.SUBSCRIPTIONS, NavTab.LIBRARY)
     const val MAX = 5
 
     fun parse(raw: String): List<NavTab> {
@@ -77,7 +77,7 @@ object LookSettings {
 
     val progressStyle = pick(
         "look.progressStyle", ProgressStyle.BOLD_DOT, ProgressStyle.entries, "Progress bar",
-        mapOf(ProgressStyle.HAIRLINE to "Hairline", ProgressStyle.HAIRLINE_DOT to "Hairline + dot", ProgressStyle.BOLD to "Bold", ProgressStyle.BOLD_DOT to "Bold + dot", ProgressStyle.SPIKES to "Spikes", ProgressStyle.WAVE to "Wave"),
+        mapOf(ProgressStyle.HAIRLINE to "Hairline", ProgressStyle.HAIRLINE_DOT to "Hairline + dot", ProgressStyle.BOLD to "Bold", ProgressStyle.BOLD_DOT to "Bold + dot", ProgressStyle.RIBBON to "Ribbon", ProgressStyle.WAVE to "Wave"),
         listOf("progress", "seek", "bar", "scrubber", "timeline", "spikes", "waves", "hairline", "thumb"),
         "The player's seek bar. Every style is filled with the colour palette.",
     )
@@ -85,7 +85,7 @@ object LookSettings {
         key = "look.nav.tabs", default = NavTabs.encode(NavTabs.default), scope = SettingScope.GLOBAL, label = "Tabs in the bar", keywords = listOf("tabs", "bar", "navigation", "order", "home", "shorts", "downloads"),
         codec = SettingCodecs.string, section = SettingSection.APPEARANCE, info = "Which pages get a tab, in order (2 to 5). Settings is never a tab: it lives in the profile menu.",
     )
-    val navOpenOn = pick("look.nav.openOn", NavTab.HOME, NavTab.entries.filter { it != NavTab.SEARCH }, "Open on", mapOf(NavTab.HOME to "Home", NavTab.SUBSCRIPTIONS to "Subscriptions", NavTab.LIBRARY to "Library", NavTab.DOWNLOADS to "Downloads"), listOf("start", "open", "launch", "first"))
+    val navOpenOn = pick("look.nav.openOn", NavTab.HOME, NavTab.entries.filter { it != NavTab.SEARCH }, "Open on", mapOf(NavTab.HOME to "Home", NavTab.SHORTS to "Shorts", NavTab.SUBSCRIPTIONS to "Subscriptions", NavTab.LIBRARY to "Library", NavTab.DOWNLOADS to "Downloads"), listOf("start", "open", "launch", "first"))
     val navLabels = pick("look.nav.labels", NavLabels.ALWAYS, NavLabels.entries, "Tab labels", mapOf(NavLabels.HIDDEN to "Hidden", NavLabels.ALWAYS to "Always visible"), listOf("labels", "tabs", "text", "hide"), "Labels also hide while the bar is shrunk (see Shrink the bar while scrolling).")
     val barStyle = pick("look.nav.barStyle", BarStyle.FLOATING, BarStyle.entries, "Bar style", mapOf(BarStyle.FLOATING to "Floating", BarStyle.DOCKED to "Docked", BarStyle.MINIMAL to "Minimal"), listOf("bar", "floating", "docked", "pill", "minimal", "dock"), "Floating runs over the page (the page scrolls behind it). Docked sits below the page. Minimal is a small icon-only pill that also floats.")
     val navShrink = flag("look.nav.shrinkOnScroll", false, "Shrink the bar while scrolling", listOf("shrink", "scroll", "collapse", "bar", "dock"), "Scrolling down contracts the bar into a small icon pill (the labels hide); scrolling up brings it back. The mini player moves with it.")

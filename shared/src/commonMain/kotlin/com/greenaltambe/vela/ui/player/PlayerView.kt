@@ -122,6 +122,10 @@ fun PlayerView(
     val volume by session.volume.collectAsState()
     val muted by session.muted.collectAsState()
     val sleep by session.sleepTimer.collectAsState()
+    val captions by session.captions.collectAsState()
+    val audioTracks by session.audioTracks.collectAsState()
+    val audioTrack by session.audioTrack.collectAsState()
+    val activeCaption by session.activeCaption.collectAsState()
     val window = LocalWindowControls.current
     val desktop = LocalVolumeSlider.current // desktop has its own volume; Android uses the system's
 
@@ -143,7 +147,8 @@ fun PlayerView(
     var preview by remember { mutableStateOf<Float?>(null) }
     var menu by remember { mutableStateOf<Menu?>(null) }
     var showStats by remember { mutableStateOf(false) }
-    val showControls = controlsEnabled && (controlsVisible || menu != null || preview != null)
+    var chaptersOpen by remember(video.id) { mutableStateOf(false) }
+    val showControls = controlsEnabled && (controlsVisible || menu != null || preview != null || chaptersOpen)
     // Pausing (from anywhere) brings the controls up; after that a tap on the picture hides them again even though it stays paused.
     LaunchedEffect(player.status) { if (player.status == PlaybackStatus.PAUSED) controlsVisible = true }
 
@@ -163,7 +168,20 @@ fun PlayerView(
 
     val boxModifier = if (fullscreen) modifier.fillMaxSize() else modifier.fillMaxWidth().aspectRatio(16f / 9f)
     val onMedia = Vela.colors.onMedia.toColor()
-    Box(boxModifier.background(Vela.colors.mediaBackground.toColor()).testTag("player.view")) {
+    // Desktop: the mouse over the picture brings the controls up (they stay while it moves, and go after it rests for a few seconds); leaving hides them.
+    val hoverModifier = if (!desktop) Modifier else Modifier.pointerInput(video.id) {
+        awaitPointerEventScope {
+            while (true) {
+                val event = awaitPointerEvent()
+                when (event.type) {
+                    androidx.compose.ui.input.pointer.PointerEventType.Enter, androidx.compose.ui.input.pointer.PointerEventType.Move -> { controlsVisible = true; touches++ }
+                    androidx.compose.ui.input.pointer.PointerEventType.Exit -> controlsVisible = false
+                    else -> {}
+                }
+            }
+        }
+    }
+    Box(boxModifier.then(hoverModifier).background(Vela.colors.mediaBackground.toColor()).testTag("player.view")) {
         host.Surface(Modifier.fillMaxSize())
 
         // The poster stands in until this video has a picture of its own.
@@ -172,6 +190,19 @@ fun PlayerView(
                 video.thumbnailUrl?.let { AsyncImage(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
             }
         }
+
+        // Subtitles, drawn here from the track's WebVTT (the same on every platform), above the controls' bottom row while they show.
+        val fetch = com.greenaltambe.vela.ui.platform.LocalTextFetcher.current
+        val cues by androidx.compose.runtime.produceState(emptyList<com.greenaltambe.vela.library.Cue>(), activeCaption, fetch) {
+            val track = activeCaption
+            value = if (track == null || fetch == null) emptyList() else fetch(track.url)?.let { com.greenaltambe.vela.library.Vtt.parse(it) }.orEmpty()
+        }
+        val cue = if (active && cues.isNotEmpty()) com.greenaltambe.vela.library.Vtt.at(cues, position) else null
+        if (cue != null) Text(
+            cue.text, Modifier.align(Alignment.BottomCenter).padding(start = Vela.md, end = Vela.md, bottom = if (showControls) 96.dp else Vela.md).clip(Vela.smallShape)
+                .background(Vela.colors.mediaScrim.toColor().copy(alpha = 0.7f)).padding(horizontal = Vela.sm, vertical = Vela.xs).testTag("player.caption"),
+            color = onMedia, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center, maxLines = 3,
+        )
 
         // Taps toggle the controls. Under the controls, so their buttons take their own taps.
         Box(
@@ -276,7 +307,16 @@ fun PlayerView(
                     Row(Modifier.fillMaxWidth().padding(horizontal = Vela.sm), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
                         Text(if (live) (if (behind == null || behind < LIVE_EDGE_MS) "LIVE" else "-${formatTimestamp(behind / 1000)} behind live") else "${formatTimestamp(shown / 1000)} / ${formatTimestamp(duration / 1000)}", color = onMedia, style = MaterialTheme.typography.bodySmall, maxLines = 1, softWrap = false, modifier = Modifier.testTag("player.time"))
                         if (live && behind != null && behind >= LIVE_EDGE_MS) TextButton(onClick = { touch(); session.goLive() }, modifier = Modifier.testTag("player.goLive")) { Text("Go live", color = onMedia, maxLines = 1) }
-                        if (showChapterTitle) currentChapter(chapters, shown)?.let { Text(it.title, Modifier.weight(1f).testTag("player.chapterTitle"), color = onMedia, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                        // The current chapter's name sits above the seek bar; tapping it opens the chapter list.
+                        currentChapter(chapters, shown)?.let { ch ->
+                            Row(
+                                Modifier.weight(1f).clip(Vela.mediumShape).clickable { touch(); chaptersOpen = true }.padding(horizontal = Vela.xs, vertical = Vela.xs).testTag("player.chapterTitle"),
+                                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.xs),
+                            ) {
+                                Text(ch.title, Modifier.weight(1f, fill = false), color = onMedia, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Icon(Vela.icons.chevronRight, null, Modifier.size(16.dp), tint = onMedia)
+                            }
+                        }
                     }
                     Scrubber(
                         value = if (live && behind != null && duration > 0) (1f - behind.toFloat() / duration).coerceIn(0f, 1f) else if (duration > 0) position.toFloat() / duration else 0f,
@@ -302,7 +342,16 @@ fun PlayerView(
                             trackColor = onMedia.copy(alpha = 0.3f), style = com.greenaltambe.vela.core.settings.ProgressStyle.BOLD_DOT,
                         )
                         Box(Modifier.weight(1f))
-                        IconButton(onClick = {}, enabled = false, modifier = Modifier.testTag("player.captions")) { Icon(Vela.icons.captions, "Captions (not available yet)", tint = onMedia.copy(alpha = 0.4f)) }
+                        if (captions.isEmpty()) IconButton(onClick = {}, enabled = false, modifier = Modifier.testTag("player.captions")) { Icon(Vela.icons.captions, "No captions for this video", tint = onMedia.copy(alpha = 0.4f)) }
+                        else MenuButton(Vela.icons.captions, "Captions", Menu.CAPTIONS, menu, { menu = it }, if (activeCaption != null) Vela.colors.primary.toColor() else onMedia, ::touch) {
+                            DropdownMenuItem(text = { Text("Off", maxLines = 1) }, onClick = { session.selectCaption(null); menu = null }, enabled = activeCaption != null)
+                            captions.forEach { c -> DropdownMenuItem(text = { Text(c.label, maxLines = 1) }, onClick = { session.selectCaption(c); menu = null }, enabled = activeCaption != c) }
+                        }
+                        // Only videos with more than one soundtrack (languages, dubs) offer a choice.
+                        if (audioTracks.isNotEmpty()) MenuButton(Vela.icons.audioTrack, "Audio track", Menu.AUDIO, menu, { menu = it }, onMedia, ::touch) {
+                            val inUse = audioTrack ?: audioTracks.firstOrNull { it.original }?.key ?: audioTracks.first().key
+                            audioTracks.forEach { t -> DropdownMenuItem(text = { Text(t.label, maxLines = 1) }, onClick = { session.selectAudioTrack(if (t.original) null else t.key); menu = null }, enabled = t.key != inUse) }
+                        }
                         MenuButton(Vela.icons.quality, "Quality", Menu.QUALITY, menu, { menu = it }, onMedia, ::touch) {
                             val st = sessionState as? SessionState.Ready
                             DropdownMenuItem(text = { Text("Auto", maxLines = 1) }, onClick = { session.selectQuality(null); menu = null }, enabled = st?.maxHeight != null)
@@ -325,6 +374,7 @@ fun PlayerView(
         }
     }
 
+    if (chaptersOpen && chapters.isNotEmpty()) ChaptersSheet(chapters, position, onSeek = { session.seekTo(it) }, onDismiss = { chaptersOpen = false })
     if (showStats) AlertDialog(
         onDismissRequest = { showStats = false },
         title = { Text("Stats for nerds") },
@@ -333,7 +383,7 @@ fun PlayerView(
     )
 }
 
-private enum class Menu { QUALITY, SPEED, SLEEP }
+private enum class Menu { QUALITY, SPEED, SLEEP, CAPTIONS, AUDIO }
 
 @Composable
 private fun MenuButton(

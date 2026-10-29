@@ -88,6 +88,7 @@ import com.greenaltambe.vela.ui.components.VideoCard
 import com.greenaltambe.vela.ui.components.VideoCardStyle
 import com.greenaltambe.vela.ui.components.formatViews
 import com.greenaltambe.vela.ui.layout.LocalWindowSize
+import com.greenaltambe.vela.ui.layout.LocalWindowWidthDp
 import com.greenaltambe.vela.ui.layout.WindowSizeClass
 import com.greenaltambe.vela.ui.look.LocalLook
 import com.greenaltambe.vela.ui.look.Vela
@@ -218,8 +219,6 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
     androidx.compose.runtime.SideEffect {
         if (offline == null && pageCache != null && (info != null || related.isNotEmpty() || comments.isNotEmpty())) pageCache.put(video.id, VideoPageCache.Entry(info, related, comments, commentsNext, services.clock.now()))
     }
-    // Back closes the comments (to the related videos) before it leaves the page.
-    PlatformBackHandler(enabled = commentsOpen) { commentsOpen = false }
 
     val chapters: List<Chapter> = remember(info) { info?.let { effectiveChapters(it.chapters, it.description, it.durationSeconds) }.orEmpty() }
 
@@ -312,22 +311,21 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
                 if (titleReplaced) LinkButton(if (showOriginalTitle) "Original title · use DeArrow" else "DeArrow title · show original", { showOriginalTitle = !showOriginalTitle }, Modifier.testTag("video.toggleOriginal"))
                 val meta = listOfNotNull(formatViews(info?.viewCount ?: video.viewCount), info?.likeCount?.let { "${compact(it)} likes" }).joinToString(" · ")
                 if (meta.isNotEmpty()) Text(meta, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor())
-                if (size == WindowSizeClass.COMPACT) current?.let { Text("Chapter: ${it.title}", style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Vela.colors.primary.toColor(), modifier = Modifier.testTag("video.chapterNow")) }
                 infoError?.let { Text("Details unavailable: $it", style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis) }
             }
         }
         item {
-            Row(Modifier.fillMaxWidth().clickableChannel { (info?.channelId?.takeIf { it.isNotBlank() } ?: video.channelId).takeIf { it.isNotBlank() }?.let { id -> navigator.push(Route.Channel(id, info?.channelName?.takeIf { it.isNotBlank() } ?: video.channelName)) } }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+            Row(Modifier.fillMaxWidth().clip(Vela.mediumShape).clickableChannel { (info?.channelId?.takeIf { it.isNotBlank() } ?: video.channelId).let { id -> navigator.push(Route.Channel(id, info?.channelName?.takeIf { it.isNotBlank() } ?: video.channelName, if (id.isBlank()) video.id else "")) } }.padding(horizontal = Vela.xs), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
                 val channelName = info?.channelName?.takeIf { it.isNotBlank() } ?: video.channelName
-                Avatar(channelName)
+                Avatar(channelName, url = video.channelAvatarUrl)
                 Text(channelName, Modifier.weight(1f).testTag("video.channel"), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 // Optimistic: the local table and the button change at once; the account call follows, and a failure puts both back and says why.
                 if (subscribed) OutlinedButton(onClick = {
                     services.subscriptions.unsubscribe(video.channelId); subscribed = false
-                    scope.launch { (services.actions?.unsubscribe(video.channelId) as? ActionResult.Failed)?.let { services.subscriptions.subscribe(video.channelId, video.channelName, null, services.clock.now()); subscribed = true; actionError = "Could not unsubscribe on the account: ${it.message}" } }
+                    scope.launch { (services.actions?.unsubscribe(video.channelId) as? ActionResult.Failed)?.let { services.subscriptions.subscribe(video.channelId, video.channelName, video.channelAvatarUrl, services.clock.now()); subscribed = true; actionError = "Could not unsubscribe on the account: ${it.message}" } }
                 }, modifier = Modifier.testTag("video.subscribe")) { Text("Subscribed", maxLines = 1) }
                 else PrimaryButton("Subscribe", onClick = {
-                    services.subscriptions.subscribe(video.channelId, video.channelName, null, services.clock.now()); subscribed = true
+                    services.subscriptions.subscribe(video.channelId, video.channelName, video.channelAvatarUrl, services.clock.now()); subscribed = true
                     scope.launch { (services.actions?.subscribe(video.channelId) as? ActionResult.Failed)?.let { services.subscriptions.unsubscribe(video.channelId); subscribed = false; actionError = "Could not subscribe on the account: ${it.message}" } }
                 }, modifier = Modifier.testTag("video.subscribe"))
             }
@@ -342,8 +340,8 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
             val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
             // Five actions do not fit one phone width at full label size: they keep their natural size and the row scrolls sideways when it must, never clipping one.
             androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
-            // Centred when they fit; when they do not, the row is as wide as it needs and scrolls.
-            Row(Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()).widthIn(min = maxWidth).testTag("video.actions"), horizontalArrangement = Arrangement.spacedBy(Vela.xs, Alignment.CenterHorizontally)) {
+            // Spread edge to edge when they fit (no wasted margin at the sides); when they do not, the row is as wide as it needs and scrolls.
+            Row(Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()).widthIn(min = maxWidth).testTag("video.actions"), horizontalArrangement = Arrangement.SpaceBetween) {
                 // The viewer's own like and dislike (account only); the counts next to them are Return YouTube Dislike's. With RYD off or
                 // unreachable there is no count: the like says "Like", the dislike button stays and says "Dislike".
                 val canRate = services.actions != null && services.accounts.active.value.isSignedIn
@@ -386,7 +384,8 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
         }
         info?.takeIf { it.description.isNotBlank() }?.let { d ->
             item {
-                val text = remember(d.description) { descriptionText(parseDescription(d.description)) { seconds -> host?.session?.seekTo(seconds * 1000) } }
+                val linkColor = Vela.colors.primary.toColor()
+                val text = remember(d.description, linkColor) { linkedText(d.description, linkColor) { seconds -> host?.session?.seekTo(seconds * 1000) } }
                 // The "more" button is a full touch target tall, so the card gets less padding under it.
                 Column(Modifier.fillMaxWidth().clip(Vela.mediumShape).background(Vela.colors.surface.toColor()).padding(start = Vela.md, end = Vela.md, top = Vela.md, bottom = Vela.xs)) {
                     Text(text, style = MaterialTheme.typography.bodyMedium, maxLines = if (descriptionExpanded) Int.MAX_VALUE else 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("video.description"))
@@ -394,53 +393,42 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
                 }
             }
         }
-        if (host != null) item {
+        if (host != null && services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.showContribute)) item {
             ContributeSection(modules = modules, videoId = video.id, positionMs = player?.positionMs ?: 0, durationMs = player?.durationMs ?: 0, status = submitting, onStatus = { submitting = it })
         }
-        if (chapters.isNotEmpty()) {
-            item { SectionHeader("Chapters") }
-            items(chapters, key = { "ch-${it.startSeconds}" }) { c -> ChapterRow(c, current = c == current, onClick = { host?.session?.seekTo(c.startSeconds * 1000) }) }
+        // Comments are one wide button, right under the description (also in the wide layout, where related videos sit in the side column): it opens the panel here.
+        item {
+            Row(
+                Modifier.fillMaxWidth().clip(Vela.mediumShape).background(Vela.colors.surface.toColor()).clickable { commentsOpen = true }.heightIn(min = Vela.minTouch).padding(horizontal = Vela.md).testTag("video.commentsButton"),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm),
+            ) {
+                Text("Comments", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, maxLines = 1)
+                if (comments.isNotEmpty()) Text("${comments.size}${if (commentsNext != null) "+" else ""}", style = MaterialTheme.typography.bodyMedium, color = Vela.colors.onSurfaceVariant.toColor())
+                Icon(Vela.icons.chevronRight, null, tint = Vela.colors.onSurfaceVariant.toColor())
+            }
         }
     }
 
     val secondary: LazyListScope.() -> Unit = {
-        if (!commentsOpen) {
-            // Comments are one wide button; opening it swaps the related videos for the comments.
-            item {
-                Row(
-                    Modifier.fillMaxWidth().clip(Vela.mediumShape).background(Vela.colors.surface.toColor()).clickable { commentsOpen = true }.heightIn(min = Vela.minTouch).padding(horizontal = Vela.md).testTag("video.commentsButton"),
-                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm),
-                ) {
-                    Text("Comments", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, maxLines = 1)
-                    if (comments.isNotEmpty()) Text("${comments.size}${if (commentsNext != null) "+" else ""}", style = MaterialTheme.typography.bodyMedium, color = Vela.colors.onSurfaceVariant.toColor())
-                    Icon(Vela.icons.chevronRight, null, tint = Vela.colors.onSurfaceVariant.toColor())
-                }
-            }
-            if (relatedShown.isNotEmpty()) {
-                item { SectionHeader("Related") }
-                items(relatedShown, key = { "rel-${it.id}" }) { v ->
-                    // On a phone-sized MEDIUM window the column beside the player is narrow: a thumbnail across its width reads better than a tiny one.
-                    VideoCard(v, onClick = { navigator.replaceWithVideo(v) }, style = if (size == WindowSizeClass.MEDIUM) VideoCardStyle.VERTICAL else VideoCardStyle.HORIZONTAL, onChannelClick = { navigator.push(Route.Channel(v.channelId, v.channelName)) }, trailing = { VideoMenu(services, v) })
-                }
-            }
-        } else {
-        item {
-            SectionHeader("Comments") {
-                // Only offered when the extractor can honour it; otherwise the control would silently do nothing.
-                if (services.extractor.capabilities.supportsCommentSort) TextButton(onClick = { sort = if (sort == CommentSort.TOP) CommentSort.NEWEST else CommentSort.TOP }) { Text(if (sort == CommentSort.TOP) "Top" else "Newest", maxLines = 1) }
-                TextButton(onClick = { commentsOpen = false }, modifier = Modifier.testTag("video.commentsClose")) { Text("Related videos", maxLines = 1) }
+        if (relatedShown.isNotEmpty()) {
+            item { SectionHeader("Related") }
+            items(relatedShown, key = { "rel-${it.id}" }) { v ->
+                // On a phone-sized MEDIUM window the column beside the player is narrow: a thumbnail across its width reads better than a tiny one.
+                VideoCard(v, onClick = { navigator.replaceWithVideo(v) }, style = if (size == WindowSizeClass.MEDIUM) VideoCardStyle.VERTICAL else VideoCardStyle.HORIZONTAL, onChannelClick = { navigator.push(Route.Channel(v.channelId, v.channelName)) }, trailing = { VideoMenu(services, v) })
             }
         }
-        when (val st = commentsState) {
-            ListState.Loading -> items(3) { SkeletonCard(vertical = false) }
-            is ListState.Empty -> item { Text(st.message, Modifier.testTag("video.commentsStatus"), style = MaterialTheme.typography.bodyMedium) }
-            is ListState.Error -> item { ErrorRow(st.message, st.onRetry) }
-            ListState.Ready -> {}
-        }
-        items(comments, key = { "c-${it.id}" }) { c ->
-            CommentItem(
-                c, replies = replies[c.id], repliesLoading = c.id in repliesLoading,
-                onToggleReplies = {
+    }
+
+    // The comments sit in the room under the picture (never over it); the same panel serves the phone layout and the wide one.
+    PlatformBackHandler(enabled = commentsOpen) { commentsOpen = false }
+    val commentsPanel: @Composable (Modifier) -> Unit = { m ->
+        androidx.compose.animation.AnimatedVisibility(commentsOpen, m, enter = androidx.compose.animation.slideInVertically { it } + androidx.compose.animation.fadeIn(), exit = androidx.compose.animation.slideOutVertically { it } + androidx.compose.animation.fadeOut()) {
+            CommentsPanel(
+                comments, commentsState, hasMore = commentsNext != null, loadingMore = commentsLoading,
+                canSort = services.extractor.capabilities.supportsCommentSort, newestFirst = sort == CommentSort.NEWEST,
+                onToggleSort = { sort = if (sort == CommentSort.TOP) CommentSort.NEWEST else CommentSort.TOP },
+                replies = replies, repliesLoading = repliesLoading,
+                onToggleReplies = { c ->
                     if (replies.containsKey(c.id)) replies = replies - c.id
                     else {
                         repliesLoading = repliesLoading + c.id
@@ -451,16 +439,18 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
                         }
                     }
                 },
+                onSeek = { seconds -> host?.session?.seekTo(seconds * 1000) },
+                onLoadMore = { loadComments(more = true) }, onDismiss = { commentsOpen = false }, modifier = Modifier.fillMaxSize(),
             )
-        }
-        if (commentsNext != null) item { TextButton(onClick = { loadComments(more = true) }, enabled = !commentsLoading, modifier = Modifier.testTag("video.moreComments")) { Text("Load more comments", maxLines = 1) } }
         }
     }
 
     if (downloadDialog) DownloadDialog(services, listOf(video), onDismiss = { downloadDialog = false })
 
     val gap = Arrangement.spacedBy(Vela.sm)
-    if (size == WindowSizeClass.COMPACT) {
+    // Two columns (related videos beside the player) only in a really wide window; narrower ones, desktop windows included, stack like the phone.
+    val twoColumn = LocalWindowWidthDp.current >= 1000f
+    if (!twoColumn) {
         val corner = Vela.look.radii.largeDp
         val topInsetPx = WindowInsets.safeDrawing.getTop(density)
         Box(
@@ -497,17 +487,20 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
                     if (p > 0f) { clip = true; shape = androidx.compose.foundation.shape.RoundedCornerShape((corner * p * 0.6f).dp) }
                 },
             ) { playerBox() }
-            LazyColumn(
-                Modifier.weight(1f).fillMaxWidth().testTag("video.list").graphicsLayer { alpha = (1f - 1.8f * (dragPx / (pageHeightPx * 0.5f))).coerceIn(0f, 1f) },
-                state = detailsState, contentPadding = Vela.contentPadding, verticalArrangement = gap,
-            ) { details(); secondary() }
+            Box(Modifier.weight(1f).fillMaxWidth().graphicsLayer { alpha = (1f - 1.8f * (dragPx / (pageHeightPx * 0.5f))).coerceIn(0f, 1f) }) {
+                LazyColumn(Modifier.fillMaxSize().testTag("video.list"), state = detailsState, contentPadding = Vela.contentPadding, verticalArrangement = gap) { details(); secondary() }
+                commentsPanel(Modifier.fillMaxSize())
+            }
         }
         }
     } else {
         Row(modifier.fillMaxSize()) {
             Column(Modifier.weight(1.6f).fillMaxSize()) {
                 playerBox()
-                LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("video.list"), state = detailsState, contentPadding = Vela.contentPadding, verticalArrangement = gap) { details() }
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    LazyColumn(Modifier.fillMaxSize().testTag("video.list"), state = detailsState, contentPadding = Vela.contentPadding, verticalArrangement = gap) { details() }
+                    commentsPanel(Modifier.fillMaxSize())
+                }
             }
             LazyColumn(Modifier.weight(1f).fillMaxSize().testTag("video.side"), state = sideState, contentPadding = Vela.contentPadding, verticalArrangement = gap) { secondary() }
         }
@@ -515,18 +508,6 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
 }
 
 private fun Modifier.clickableChannel(onClick: () -> Unit): Modifier = this.then(Modifier.clickable(onClick = onClick))
-
-/** Links open externally; timestamps seek the player. */
-private fun descriptionText(parts: List<DescriptionPart>, onSeek: (Long) -> Unit): AnnotatedString = buildAnnotatedString {
-    val style = TextLinkStyles(SpanStyle(textDecoration = TextDecoration.Underline))
-    parts.forEach { part ->
-        when (part) {
-            is DescriptionPart.Text -> append(part.text)
-            is DescriptionPart.Link -> withLink(LinkAnnotation.Url(part.url, style)) { append(part.text) }
-            is DescriptionPart.Time -> withLink(LinkAnnotation.Clickable("t=${part.seconds}", style) { onSeek(part.seconds) }) { append(part.text) }
-        }
-    }
-}
 
 /** The stored page of a download as the [VideoInfo] the page works with. */
 private fun storedVideoInfo(o: OfflineVideo): VideoInfo = VideoInfo(

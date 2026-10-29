@@ -33,7 +33,10 @@ import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.Audiotrack
+import androidx.compose.material.icons.outlined.Comment
+import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.outlined.WatchLater
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Pause
@@ -65,7 +68,10 @@ internal object MaterialOutlined {
             "search" to Icons.Outlined.Search,
             "back" to Icons.AutoMirrored.Outlined.ArrowBack,
             "close" to Icons.Outlined.Close,
-            "more" to Icons.Outlined.MoreVert,
+            "more" to Icons.Outlined.MoreHoriz,
+            "watchLater" to Icons.Outlined.WatchLater,
+            "comment" to Icons.Outlined.Comment,
+            "audioTrack" to Icons.Outlined.Audiotrack,
             "play" to Icons.Outlined.PlayArrow,
             "pause" to Icons.Outlined.Pause,
             "rewind" to Icons.Outlined.FastRewind,

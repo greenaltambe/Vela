@@ -28,7 +28,7 @@ internal fun splitHeaders(headers: Map<String, String>): SplitHeaders {
     return SplitHeaders(ua ?: FALLBACK_USER_AGENT, headers.filterKeys { !it.equals("User-Agent", ignoreCase = true) })
 }
 
-private fun httpFactory(headers: Map<String, String>): DefaultHttpDataSource.Factory {
+internal fun httpFactory(headers: Map<String, String>): DefaultHttpDataSource.Factory {
     val split = splitHeaders(headers)
     return DefaultHttpDataSource.Factory()
         .setUserAgent(split.userAgent)

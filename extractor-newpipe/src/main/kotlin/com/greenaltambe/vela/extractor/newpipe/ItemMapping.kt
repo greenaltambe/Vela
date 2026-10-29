@@ -2,6 +2,7 @@ package com.greenaltambe.vela.extractor.newpipe
 
 import com.greenaltambe.vela.extractor.ChannelPage
 import com.greenaltambe.vela.extractor.Comment
+import com.greenaltambe.vela.extractor.PlaylistRef
 import com.greenaltambe.vela.extractor.VideoSummary
 import org.schabi.newpipe.extractor.InfoItem
 import org.schabi.newpipe.extractor.channel.ChannelInfo
@@ -16,6 +17,8 @@ internal fun StreamInfoItem.toVideoSummary(): VideoSummary? {
         title = name.orEmpty(),
         channelId = channelIdFromUrl(uploaderUrl).orEmpty(),
         channelName = uploaderName.orEmpty(),
+        channelAvatarUrl = uploaderAvatars.bestUrl(),
+        publishedText = textualUploadDate?.takeIf { it.isNotBlank() },
         thumbnailUrl = thumbnails.bestUrl(),
         durationSeconds = duration.takeIf { it >= 0 },
         viewCount = viewCount.takeIf { it >= 0 },
@@ -23,6 +26,11 @@ internal fun StreamInfoItem.toVideoSummary(): VideoSummary? {
         isLive = streamType == org.schabi.newpipe.extractor.stream.StreamType.LIVE_STREAM || streamType == org.schabi.newpipe.extractor.stream.StreamType.AUDIO_LIVE_STREAM,
         uploadedAt = uploadDate?.instant?.let { kotlin.time.Instant.fromEpochMilliseconds(it.toEpochMilli()) },
     )
+}
+
+internal fun List<InfoItem>.toPlaylistRefs(): List<PlaylistRef> = filterIsInstance<org.schabi.newpipe.extractor.playlist.PlaylistInfoItem>().mapNotNull { p ->
+    val id = queryParam(p.url.orEmpty(), "list") ?: return@mapNotNull null
+    PlaylistRef(id, p.name.orEmpty(), p.thumbnails.bestUrl(), p.streamCount.takeIf { it >= 0 }, p.uploaderName.orEmpty())
 }
 
 internal fun List<InfoItem>.toVideoSummaries(): List<VideoSummary> =

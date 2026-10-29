@@ -244,6 +244,14 @@ object Settings {
         codec = SettingCodecs.boolean, section = SettingSection.MODULES,
     )
 
+    val showContribute = Setting(
+        key = "modules.showContribute", default = false, scope = SettingScope.GLOBAL,
+        label = "Show Contribute under videos",
+        keywords = listOf("contribute", "sponsorblock", "dearrow", "submit", "segment", "thumbnail"),
+        codec = SettingCodecs.boolean, section = SettingSection.MODULES,
+        info = "A card on the video page for sending SponsorBlock segments and DeArrow thumbnails. Off unless you want it.",
+    )
+
     val sponsorBlockServer = Setting(
         key = "sponsorblock.server", default = "https://sponsor.ajay.app", scope = SettingScope.GLOBAL,
         label = "SponsorBlock server",
@@ -563,7 +571,7 @@ object Settings {
         debugFrameStats, homeSource, allowAgeRestricted, allowControversial, slowStreamFailover, accountFallbackMode, accountProfilesExperimental, accountUseForChannels, accountUseForDetails, accountDownloadsMayUse, accountKillSwitch, accountTierOrder, remoteConfigUrl, ytDlpAutoUpdate,
         accountPlaybackPerHour, accountBrowsePerMinute, accountWritesPerHour, shortsMode, defaultPlaybackSpeed, seekStepSeconds, holdSpeed, maxQualityUnmetered, maxQualityMetered, preferredCodec, audioOnly, ytDlpPath,
         sponsorBlockEnabled, returnYouTubeDislikeEnabled, deArrowEnabled,
-        sponsorBlockMinSegmentSeconds, sponsorBlockNotifications, sponsorBlockServer, sponsorBlockUserId, rydInFeed, rydServer,
+        sponsorBlockMinSegmentSeconds, sponsorBlockNotifications, showContribute, sponsorBlockServer, sponsorBlockUserId, rydInFeed, rydServer,
         deArrowFeed, deArrowSearch, deArrowVideoPage, deArrowPlayerTitle, deArrowTitleCasing, deArrowMinVotes, deArrowGeneratedThumbnails, deArrowThumbnailServer,
         downloadsFolder, downloadsDefaultQuality, downloadsAudioOnlyDefault, downloadsPreferAvc, downloadsKeepOriginalAudio,
         downloadsWifiOnly, downloadsConcurrent, downloadsDeleteAfterWatch, downloadsStorageCapGb, autoDownloadDeleteDays, downloadsCommentPages,
@@ -605,3 +613,6 @@ object Settings {
         section = SettingSection.MODULES,
     )
 }
+
+/** Shorts are on unless the (global) Shorts setting says Hide: then no Shorts tab, no Shorts filter in search. */
+fun SettingsResolver.shortsEnabled(): Boolean = resolve(Settings.shortsMode) != ShortsMode.HIDE

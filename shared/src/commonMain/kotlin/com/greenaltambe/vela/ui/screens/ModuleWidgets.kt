@@ -1,6 +1,12 @@
 package com.greenaltambe.vela.ui.screens
 
 import androidx.compose.foundation.background
+import com.greenaltambe.vela.ui.components.PrimaryButton
+import com.greenaltambe.vela.ui.components.SecondaryButton
+import androidx.compose.material3.Icon
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Column
@@ -77,31 +83,40 @@ fun ContributeSection(
     var confirmSegment by remember { mutableStateOf(false) }
     var confirmFrame by remember { mutableStateOf(false) }
 
-    com.greenaltambe.vela.ui.components.LinkButton(if (expanded) "Hide contribute" else "Contribute", { expanded = !expanded }, Modifier.testTag("contribute.toggle"))
-    if (!expanded) return
-
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
-        SectionHeader("Submit a SponsorBlock segment")
-        Row(horizontalArrangement = Arrangement.spacedBy(Vela.sm), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedButton(onClick = { start = positionMs }, modifier = Modifier.testTag("contribute.markStart")) { Text("Mark start" + (start?.let { " (${formatTimestamp(it / 1000)})" } ?: "")) }
-            OutlinedButton(onClick = { end = positionMs }, modifier = Modifier.testTag("contribute.markEnd")) { Text("Mark end" + (end?.let { " (${formatTimestamp(it / 1000)})" } ?: "")) }
+    // One card: a header row that opens it, then the two kinds of contribution, each with its own small heading and the same button family.
+    Column(Modifier.fillMaxWidth().clip(Vela.mediumShape).background(Vela.colors.surface.toColor())) {
+        Row(
+            Modifier.fillMaxWidth().clickable { expanded = !expanded }.heightIn(min = Vela.minTouch).padding(horizontal = Vela.md).testTag("contribute.toggle"),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm),
+        ) {
+            Text("Contribute", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, maxLines = 1)
+            Icon(if (expanded) Vela.icons.chevronUp else Vela.icons.chevronDown, null, tint = Vela.colors.onSurfaceVariant.toColor())
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(Vela.sm), verticalAlignment = Alignment.CenterVertically) {
-            androidx.compose.foundation.layout.Box {
-                OutlinedButton(onClick = { menu = true }) { Text(category.label) }
-                DropdownMenu(menu, { menu = false }) {
-                    SegmentCategory.entries.forEach { c -> DropdownMenuItem(text = { Text(c.label) }, onClick = { category = c; menu = false }) }
+        if (expanded) Column(Modifier.fillMaxWidth().padding(start = Vela.md, end = Vela.md, bottom = Vela.md), verticalArrangement = Arrangement.spacedBy(Vela.md)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
+                Text("SponsorBlock segment", style = MaterialTheme.typography.bodyMedium, color = Vela.colors.onSurfaceVariant.toColor())
+                Row(horizontalArrangement = Arrangement.spacedBy(Vela.sm), modifier = Modifier.fillMaxWidth()) {
+                    SecondaryButton("Mark start" + (start?.let { " (${formatTimestamp(it / 1000)})" } ?: ""), { start = positionMs }, Modifier.weight(1f).testTag("contribute.markStart"))
+                    SecondaryButton("Mark end" + (end?.let { " (${formatTimestamp(it / 1000)})" } ?: ""), { end = positionMs }, Modifier.weight(1f).testTag("contribute.markEnd"))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(Vela.sm), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    androidx.compose.foundation.layout.Box(Modifier.weight(1f)) {
+                        SecondaryButton(category.label, { menu = true }, Modifier.fillMaxWidth())
+                        DropdownMenu(menu, { menu = false }) {
+                            SegmentCategory.entries.forEach { c -> DropdownMenuItem(text = { Text(c.label) }, onClick = { category = c; menu = false }) }
+                        }
+                    }
+                    val s = start; val e = end
+                    val valid = s != null && (category == SegmentCategory.POI_HIGHLIGHT || (e != null && e > s))
+                    PrimaryButton("Review and submit", { confirmSegment = true }, Modifier.weight(1f).testTag("contribute.review"), enabled = valid)
                 }
             }
-            val s = start; val e = end
-            val valid = s != null && (category == SegmentCategory.POI_HIGHLIGHT || (e != null && e > s))
-            OutlinedButton(onClick = { confirmSegment = true }, enabled = valid, modifier = Modifier.testTag("contribute.review")) { Text("Review and submit") }
+            Column(verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
+                Text("DeArrow thumbnail", style = MaterialTheme.typography.bodyMedium, color = Vela.colors.onSurfaceVariant.toColor())
+                SecondaryButton("Use the frame at ${formatTimestamp(positionMs / 1000)}", { confirmFrame = true }, Modifier.fillMaxWidth().testTag("contribute.frame"), enabled = durationMs > 0)
+            }
+            status?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor(), modifier = Modifier.testTag("contribute.status")) }
         }
-        SectionHeader("Suggest a DeArrow thumbnail")
-        OutlinedButton(onClick = { confirmFrame = true }, enabled = durationMs > 0, modifier = Modifier.testTag("contribute.frame")) {
-            Text("Use the frame at ${formatTimestamp(positionMs / 1000)}")
-        }
-        status?.let { Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("contribute.status")) }
     }
 
     if (confirmSegment) {

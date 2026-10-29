@@ -11,12 +11,12 @@ enum class DurationFilter(val label: String, private val range: LongRange?) {
 
 enum class SearchSort(val label: String) { RELEVANCE("Relevance"), VIEWS("Most viewed"), SHORTEST("Shortest"), LONGEST("Longest") }
 
-data class SearchFilters(val duration: DurationFilter = DurationFilter.ANY, val sort: SearchSort = SearchSort.RELEVANCE) {
-    val isDefault get() = duration == DurationFilter.ANY && sort == SearchSort.RELEVANCE
+data class SearchFilters(val duration: DurationFilter = DurationFilter.ANY, val sort: SearchSort = SearchSort.RELEVANCE, val shortsOnly: Boolean = false) {
+    val isDefault get() = duration == DurationFilter.ANY && sort == SearchSort.RELEVANCE && !shortsOnly
 
     /** Narrows and reorders [items]; "relevance" keeps the source's order. Unknown lengths or view counts sort last. */
     fun apply(items: List<VideoSummary>): List<VideoSummary> {
-        val kept = items.filter { duration.matches(it.durationSeconds) || (duration == DurationFilter.ANY) }
+        val kept = items.filter { (duration.matches(it.durationSeconds) || (duration == DurationFilter.ANY)) && (!shortsOnly || it.isShort) }
         return when (sort) {
             SearchSort.RELEVANCE -> kept
             SearchSort.VIEWS -> kept.sortedByDescending { it.viewCount ?: -1 }

@@ -80,8 +80,10 @@ object InnertubeParsers {
                 id, v["title"].text() ?: return@mapNotNull null,
                 owner["runs"][0]["navigationEndpoint"]["browseEndpoint"]["browseId"].string ?: "", owner.text() ?: "",
                 v["thumbnail"]["thumbnails"].array.lastOrNull()["url"].string?.let { if (it.startsWith("//")) "https:$it" else it },
-                clock(v["lengthText"].text()), views(v["viewCountText"].text()),
+                clock(v["lengthText"].text()), views(v["viewCountText"].text() ?: v["shortViewCountText"].text()),
                 isLive = v["badges"].toString().contains("LIVE"),
+                publishedText = v["publishedTimeText"].text(),
+                channelAvatarUrl = v["channelThumbnailSupportedRenderers"]["channelThumbnailWithLinkRenderer"]["thumbnail"]["thumbnails"].array.firstOrNull()["url"].string?.let { if (it.startsWith("//")) "https:$it" else it },
             )
         }
         val lockups = json.findAll("lockupViewModel").mapNotNull { l ->
@@ -91,13 +93,22 @@ object InnertubeParsers {
             val channel = l["metadata"]["lockupMetadataViewModel"]["metadata"]["contentMetadataViewModel"]["metadataRows"][0]["metadataParts"][0]["text"]["content"].string ?: ""
             // The lockup carries its picture as image "sources"; the largest is last.
             val thumb = l["contentImage"]["thumbnailViewModel"]["image"]["sources"].array.lastOrNull()["url"].string
-            com.greenaltambe.vela.extractor.VideoSummary(id, title, "", channel, thumb?.let { if (it.startsWith("//")) "https:$it" else it })
+            val avatar = l["metadata"]["lockupMetadataViewModel"]["image"]["decoratedAvatarViewModel"]["avatar"]["avatarViewModel"]["image"]["sources"].array.firstOrNull()["url"].string
+            // The second metadata row is "1.2M views" then "3 days ago".
+            val parts = l["metadata"]["lockupMetadataViewModel"]["metadata"]["contentMetadataViewModel"]["metadataRows"][1]["metadataParts"]
+            com.greenaltambe.vela.extractor.VideoSummary(id, title, "", channel, thumb?.let { if (it.startsWith("//")) "https:$it" else it }, viewCount = views(parts[0]["text"]["content"].string), channelAvatarUrl = avatar, publishedText = parts[1]["text"]["content"].string)
         }
         return (classic + lockups).distinctBy { it.id }
     }
 
     private fun clock(text: String?): Long? = text?.split(':')?.mapNotNull { it.trim().toLongOrNull() }?.takeIf { it.size in 2..3 }?.fold(0L) { acc, n -> acc * 60 + n }
-    private fun views(text: String?): Long? = text?.filter { it.isDigit() }?.toLongOrNull()
+    /** "1,234 views", "1.2K views", "3.4M views": the count; null if there is no number. */
+    private fun views(text: String?): Long? {
+        val m = Regex("""([\d.,]+)\s*([KMB])?""", RegexOption.IGNORE_CASE).find(text ?: return null) ?: return null
+        val number = m.groupValues[1].replace(",", "").toDoubleOrNull() ?: return null
+        val scale = when (m.groupValues[2].uppercase()) { "K" -> 1_000.0; "M" -> 1_000_000.0; "B" -> 1_000_000_000.0; else -> 1.0 }
+        return (number * scale).toLong()
+    }
 
     fun profiles(json: JsonElement): List<ProfileInfo> = json.findAll("accountItem").mapNotNull { a ->
         val name = a["accountName"].text() ?: return@mapNotNull null

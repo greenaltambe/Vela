@@ -41,6 +41,15 @@ interface Extractor {
     /** The channel's Shorts tab. */
     suspend fun channelShorts(channelId: String, continuation: String? = null): ExtractorResult<Page<VideoSummary>> = notSupported()
 
+    /** The channel's Live tab (current and past streams). */
+    suspend fun channelLive(channelId: String, continuation: String? = null): ExtractorResult<Page<VideoSummary>> = notSupported()
+
+    /** The channel's Playlists tab. */
+    suspend fun channelPlaylists(channelId: String, continuation: String? = null): ExtractorResult<Page<PlaylistRef>> = notSupported()
+
+    /** The videos of a YouTube playlist (not one of the app's own). */
+    suspend fun playlistVideos(playlistId: String, continuation: String? = null): ExtractorResult<Page<VideoSummary>> = notSupported()
+
     /**
      * The channel's newest uploads (about the last 15), newest first, for the subscription feed. Each item carries
      * [VideoSummary.uploadedAt] when the source knows it. Durations are often unknown here (see [VideoSummary.durationSeconds]).

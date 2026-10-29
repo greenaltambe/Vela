@@ -25,6 +25,9 @@ val LocalWindowControls = staticCompositionLocalOf<WindowControls?> { null }
 /** Opens the platform's share sheet for a title and link (Android: the system chooser); null where there is none, and the page then copies the link. */
 val LocalShare = staticCompositionLocalOf<((title: String, url: String) -> Unit)?> { null }
 
+/** Fetches the text at an address (a caption file), or null when it could not be read. Provided by the app shell. */
+val LocalTextFetcher = staticCompositionLocalOf<(suspend (String) -> String?)?> { null }
+
 /** True where the app has its own volume control (desktop); Android leaves volume to the system buttons and shows only mute. */
 val LocalVolumeSlider = staticCompositionLocalOf { false }
 

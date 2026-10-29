@@ -22,6 +22,8 @@ class Modules(
     val segments: SegmentRepository,
     val ryd: ReturnYouTubeDislike,
     val dearrow: DeArrow,
+    /** The shared HTTP client (cached GETs), for other readers of small public files such as subtitle tracks. */
+    val client: ApiClient,
 ) {
     val all: List<FeatureModule> get() = listOf(sponsorBlock, ryd, dearrow)
 }
@@ -37,5 +39,6 @@ fun createModules(transport: HttpTransport, database: VelaDatabase, settings: Se
         segments = segments,
         ryd = ReturnYouTubeDislike(client, settings, log, clock),
         dearrow = DeArrow(client, settings, log, clock),
+        client = client,
     )
 }

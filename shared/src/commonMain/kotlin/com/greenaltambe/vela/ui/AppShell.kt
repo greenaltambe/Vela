@@ -12,6 +12,7 @@ import com.greenaltambe.vela.ui.components.navEntries
 import com.greenaltambe.vela.ui.nav.NavConfig
 import com.greenaltambe.vela.ui.nav.openTab
 import com.greenaltambe.vela.core.settings.BarStyle
+import com.greenaltambe.vela.core.settings.shortsEnabled
 import com.greenaltambe.vela.ui.screens.ProfileButton
 import com.greenaltambe.vela.ui.screens.ProfileMenu
 import androidx.compose.foundation.layout.Box
@@ -196,6 +197,8 @@ private fun AppShellContent(services: AppServices, navigator: Navigator) {
     // a recording alone would point at parts of the old screen that are gone by the time it is drawn again.
     val pipPosition = remember { com.greenaltambe.vela.ui.nav.PipPosition() }
     val videoPageCache = remember { com.greenaltambe.vela.ui.screens.VideoPageCache() }
+    val shortsFeed = remember { com.greenaltambe.vela.ui.screens.ShortsFeedStore() }
+    val searchStore = remember { com.greenaltambe.vela.ui.screens.SearchStore() }
     val homeFeed = remember { com.greenaltambe.vela.ui.screens.HomeFeedStore() }
     var prevShot by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
     LaunchedEffect(route is Route.Video) { if (route is Route.Video) prevShot = runCatching { prevScreen.toImageBitmap() }.getOrNull() else prevShot = null }
@@ -209,10 +212,13 @@ private fun AppShellContent(services: AppServices, navigator: Navigator) {
                 drawRect(androidx.compose.ui.graphics.Brush.radialGradient(listOf(wake.first().copy(alpha = glowAlpha), androidx.compose.ui.graphics.Color.Transparent), center = androidx.compose.ui.geometry.Offset(0f, 0f), radius = radius))
                 drawRect(androidx.compose.ui.graphics.Brush.radialGradient(listOf(wake.last().copy(alpha = glowAlpha), androidx.compose.ui.graphics.Color.Transparent), center = androidx.compose.ui.geometry.Offset(size.width, 0f), radius = radius))
             }
+            // A pointer press means "not keyboard navigation" (focus rings hide); a navigation key means the opposite.
+            .pointerInput(Unit) { awaitPointerEventScope { while (true) { val e = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial); if (e.type == androidx.compose.ui.input.pointer.PointerEventType.Press) com.greenaltambe.vela.ui.look.InputModality.keyboard = false } } }
             .focusRequester(focus)
             .focusable()
             // onKeyEvent (not preview): a focused text field takes its own keys first, so typing never triggers a shortcut.
             .onKeyEvent { e ->
+                if (e.type == KeyEventType.KeyDown && e.key in setOf(androidx.compose.ui.input.key.Key.Tab, androidx.compose.ui.input.key.Key.DirectionLeft, androidx.compose.ui.input.key.Key.DirectionRight, androidx.compose.ui.input.key.Key.DirectionUp, androidx.compose.ui.input.key.Key.DirectionDown, androidx.compose.ui.input.key.Key.Enter)) com.greenaltambe.vela.ui.look.InputModality.keyboard = true
                 // Space: a tap toggles play, holding it plays fast until it is released (the speed is a playback setting).
                 if (e.key == androidx.compose.ui.input.key.Key.Spacebar && host != null && navigator.nowPlaying != null) {
                     when (e.type) {
@@ -254,6 +260,7 @@ private fun AppShellContent(services: AppServices, navigator: Navigator) {
             // Looping animations (shimmer) stop while the app is not on screen.
             com.greenaltambe.vela.ui.look.LocalAnimationsActive provides lifecycleState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED),
         ) {
+            androidx.compose.runtime.SideEffect { navigator.shortsInPlayer = services.settings.shortsEnabled() }
             val mini = if (chrome) rememberMiniState(services, navigator) else null
             // The picture-in-picture look floats over the whole window (and can be dragged anywhere), so the bar does not carry it.
             val pipMini = mini != null && nav.miniLook == MiniLook.PIP
@@ -279,7 +286,7 @@ private fun AppShellContent(services: AppServices, navigator: Navigator) {
                         }
                     },
                 ) {
-                    if (chrome && route !is Route.Video && route !is Route.Search && route != Route.Settings && route != Route.Accounts && route != Route.AccountActivity && route != Route.Health && route != Route.Backup && route != Route.Customize && route !is Route.CustomizePage && route !is Route.SettingsPage) {
+                    if (chrome && route != Route.Shorts && route !is Route.ShortsPlayer && route !is Route.Video && route !is Route.Search && route != Route.Settings && route != Route.Accounts && route != Route.AccountActivity && route != Route.Health && route != Route.Backup && route != Route.Customize && route !is Route.CustomizePage && route !is Route.SettingsPage) {
                         VelaTopBar(
                             routeTitle(route), onBack = if (navigator.canGoBack) ({ navigator.back() }) else null,
                             onSearch = ({ navigator.push(Route.Search()) }),
@@ -295,7 +302,7 @@ private fun AppShellContent(services: AppServices, navigator: Navigator) {
                     val scroll = rememberScrollChrome()
                     LaunchedEffect(route) { scroll.reset() }
                     // The video page owns the whole screen: no tab bar under it, whatever the bar style.
-                    val showBar = route !is Route.Video
+                    val showBar = route !is Route.Video && route !is Route.ShortsPlayer
                     val barOverlays = chrome && showBar && !rail && nav.barStyle != BarStyle.DOCKED
                     var chromeHeightPx by remember { mutableIntStateOf(0) }
                     val density = androidx.compose.ui.platform.LocalDensity.current
@@ -304,7 +311,8 @@ private fun AppShellContent(services: AppServices, navigator: Navigator) {
                     // Keyed by the active account, so switching rebuilds every screen on the new account's data.
                     val activeAccount by services.accounts.active.collectAsState()
                     Box(Modifier.weight(1f).fillMaxWidth().nestedScroll(scroll.connection)) {
-                        CompositionLocalProvider(LocalChromeInset provides inset, com.greenaltambe.vela.ui.nav.LocalPageReveal provides reveal, com.greenaltambe.vela.ui.screens.LocalHomeFeed provides homeFeed, com.greenaltambe.vela.ui.nav.LocalPipPosition provides pipPosition, com.greenaltambe.vela.ui.screens.LocalVideoPageCache provides videoPageCache) {
+                        CompositionLocalProvider(LocalChromeInset provides inset, com.greenaltambe.vela.ui.nav.LocalPageReveal provides reveal, com.greenaltambe.vela.ui.screens.LocalHomeFeed provides homeFeed, com.greenaltambe.vela.ui.nav.LocalPipPosition provides pipPosition, com.greenaltambe.vela.ui.screens.LocalVideoPageCache provides videoPageCache, com.greenaltambe.vela.ui.screens.LocalShortsFeed provides shortsFeed, com.greenaltambe.vela.ui.screens.LocalSearchStore provides searchStore,
+            com.greenaltambe.vela.ui.platform.LocalTextFetcher provides { url -> (services.modules.client.get(url, ttl = kotlin.time.Duration.parse("6h")) as? com.greenaltambe.vela.core.http.ApiResult.Ok)?.body }) {
                             androidx.compose.runtime.key(activeAccount.id) { AnimatedDestination(services, navigator, route, reveal, Modifier.fillMaxSize()) }
                         }
                         if (barOverlays) BottomChrome(
@@ -347,6 +355,8 @@ private fun PipOverlay(mini: MiniState, position: PipPosition, windowW: Float, w
 
 private fun routeTitle(route: Route): String = when (route) {
     Route.Home -> "Vela"
+    Route.Shorts, is Route.ShortsPlayer -> "Shorts"
+    is Route.ChannelPlaylist -> route.title.ifBlank { "Playlist" }
     Route.Subscriptions -> "Subscriptions"
     Route.Library -> "Library"
     Route.Settings -> "Settings"
@@ -356,7 +366,7 @@ private fun routeTitle(route: Route): String = when (route) {
     is Route.Channel -> route.name.ifBlank { "Channel" }
     is Route.Playlist -> "Playlist"
     Route.History -> "History"
-    Route.ManageSubscriptions -> "Subscriptions"
+    Route.ManageSubscriptions -> "All channels"
     Route.Diagnostics -> "Diagnostics"
     Route.Accounts -> "Accounts"
     Route.AccountActivity -> "Account activity"
@@ -437,6 +447,8 @@ private fun AnimatedDestination(services: AppServices, navigator: Navigator, rou
 private fun Destination(services: AppServices, navigator: Navigator, route: Route, modifier: Modifier) {
     when (route) {
         Route.Home -> HomeScreen(services, navigator, modifier)
+        Route.Shorts -> com.greenaltambe.vela.ui.screens.ShortsScreen(services, navigator, modifier)
+        is Route.ShortsPlayer -> com.greenaltambe.vela.ui.screens.ShortsScreen(services, navigator, modifier, start = route.video)
         Route.Subscriptions -> SubscriptionsScreen(services, navigator, modifier)
         Route.Library -> LibraryScreen(services, navigator, modifier)
         Route.Settings -> SettingsHost(services, navigator, modifier)
@@ -445,10 +457,11 @@ private fun Destination(services: AppServices, navigator: Navigator, route: Rout
         is Route.SettingsPage -> com.greenaltambe.vela.ui.screens.SettingsPageScreen(services, navigator, route.pageId, route.highlight, modifier)
         is Route.Search -> SearchScreen(services, navigator, route.query, modifier)
         is Route.Video -> VideoScreen(services, navigator, route.video, route.startSeconds, modifier)
-        is Route.Channel -> ChannelScreen(services, navigator, route.id, route.name, modifier)
+        is Route.ChannelPlaylist -> com.greenaltambe.vela.ui.screens.ChannelPlaylistScreen(services, navigator, route.id, modifier)
+        is Route.Channel -> ChannelScreen(services, navigator, route.id, route.name, modifier, route.viaVideoId)
         is Route.Playlist -> PlaylistScreen(services, navigator, route.id, modifier)
         Route.History -> HistoryScreen(services, navigator, modifier)
-        Route.ManageSubscriptions -> SubscriptionsScreen(services, navigator, modifier)
+        Route.ManageSubscriptions -> com.greenaltambe.vela.ui.screens.AllChannelsScreen(services, navigator, modifier)
         Route.Diagnostics -> DiagnosticsScreen(services.extractor, services.log, services.modules.log, services.downloads, modifier, faults = services.faults, exportLog = services.exportLog, rebuildCaches = services.rebuildCaches)
         Route.Downloads -> DownloadsScreen(services, navigator, modifier)
         Route.DownloadRules -> com.greenaltambe.vela.ui.screens.DownloadRulesScreen(services, navigator, modifier)

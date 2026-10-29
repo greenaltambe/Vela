@@ -105,13 +105,8 @@ fun VideoCollection(
     val open = { v: VideoSummary -> navigator.push(Route.Video(v)) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     // Some listings (shorts, certain search results) carry no channel id; ask the video itself before opening, never open a channel with a blank id.
-    val channel = { v: VideoSummary ->
-        if (v.channelId.isNotBlank()) navigator.push(Route.Channel(v.channelId, v.channelName))
-        else scope.launch {
-            val info = (services.extractor.videoInfo(v.id) as? com.greenaltambe.vela.extractor.ExtractorResult.Success)?.value
-            info?.channelId?.takeIf { it.isNotBlank() }?.let { navigator.push(Route.Channel(it, info.channelName.ifBlank { v.channelName })) }
-        }
-    }
+    // The channel page opens at once; when the listing carries no channel id, the page finds it from the video behind its own loader.
+    val channel = { v: VideoSummary -> navigator.push(Route.Channel(v.channelId, v.channelName, if (v.channelId.isBlank()) v.id else "")) }
 
     if (grid && size != WindowSizeClass.COMPACT) {
         LazyVerticalGrid(

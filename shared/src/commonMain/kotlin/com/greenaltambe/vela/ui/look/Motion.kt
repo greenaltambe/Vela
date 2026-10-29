@@ -12,6 +12,8 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -113,16 +115,27 @@ fun Modifier.pressFeedback(source: MutableInteractionSource): Modifier {
 
 /** A visible ring while an item has keyboard focus (indication is off on pressable items, so without this focus would be invisible). */
 @Composable
-fun Modifier.focusRing(source: MutableInteractionSource): Modifier {
+fun Modifier.focusRing(source: MutableInteractionSource, shape: androidx.compose.ui.graphics.Shape = Vela.mediumShape): Modifier {
     val focused by source.collectIsFocusedAsState()
-    return if (focused) this.border(2.dp, Vela.colors.primary.toColor(), Vela.mediumShape) else this
+    // Only for keyboard focus: a mouse click also focuses what it clicks, and a ring appearing around every clicked item looks like a glitch.
+    return if (focused && InputModality.keyboard) this.border(2.dp, Vela.colors.primary.toColor(), shape) else this
+}
+
+/** Whether the last input was the keyboard (focus rings show) or a pointer (they do not). Set by the app shell. */
+object InputModality { var keyboard by androidx.compose.runtime.mutableStateOf(false) }
+
+/** A faint wash while the mouse is over the item (desktop; there is no hover on a touch screen). */
+@Composable
+fun Modifier.hoverWash(source: MutableInteractionSource): Modifier {
+    val hovered by source.collectIsHoveredAsState()
+    return if (hovered) this.background(Vela.colors.onSurface.toColor().copy(alpha = 0.07f)) else this
 }
 
 /** [clickable] with [pressFeedback]. */
 @Composable
 fun Modifier.pressable(enabled: Boolean = true, role: Role? = null, onClick: () -> Unit): Modifier {
     val source = remember { MutableInteractionSource() }
-    return this.pressFeedback(source).focusRing(source).clickable(interactionSource = source, indication = null, enabled = enabled, role = role, onClick = onClick)
+    return this.pressFeedback(source).focusRing(source).hoverable(source).hoverWash(source).clickable(interactionSource = source, indication = null, enabled = enabled, role = role, onClick = onClick)
 }
 
 /**

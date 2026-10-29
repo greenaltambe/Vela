@@ -10,12 +10,19 @@ import com.greenaltambe.vela.extractor.VideoSummary
 /** Every place the app can show. Top-level destinations are the four in the bottom bar / side rail. */
 sealed interface Route {
     data object Home : Route
+    data object Shorts : Route
     data object Subscriptions : Route
     data object Library : Route
     data object Settings : Route
     data class Search(val query: String = "") : Route
-    data class Video(val video: VideoSummary, val startSeconds: Long? = null) : Route
-    data class Channel(val id: String, val name: String) : Route
+    /** [asVideoPage]: show a Short on the ordinary video page too (the Shorts player's "Open"), instead of in the Shorts player. */
+    data class Video(val video: VideoSummary, val startSeconds: Long? = null, val asVideoPage: Boolean = false) : Route
+    /** A Short opened from a card elsewhere: the Shorts player, starting on it. */
+    data class ShortsPlayer(val video: VideoSummary) : Route
+    /** [viaVideoId]: when the id is not known (a listing that carries none), the channel is found from this video once the page is open, behind a loader. */
+    /** A YouTube playlist from a channel's Playlists tab (not one of the app's own, which are [Playlist]). */
+    data class ChannelPlaylist(val id: String, val title: String) : Route
+    data class Channel(val id: String, val name: String, val viaVideoId: String = "") : Route
     data class Playlist(val id: Long) : Route
     data object History : Route
     data object ManageSubscriptions : Route
@@ -32,11 +39,12 @@ sealed interface Route {
 }
 
 /** Pages that can be tabs (Settings never is: it lives in the profile menu). Used for the direction of the tab transition. */
-val TopLevelRoutes: List<Route> = listOf(Route.Home, Route.Subscriptions, Route.Library, Route.Downloads)
+val TopLevelRoutes: List<Route> = listOf(Route.Home, Route.Shorts, Route.Subscriptions, Route.Library, Route.Downloads)
 
 /** The part of the stack that top-level destination [route] belongs to. */
 fun Route.topLevel(): Route = when (this) {
-    Route.Home, is Route.Video, is Route.Search, is Route.Channel -> Route.Home
+    Route.Home, is Route.Video, is Route.ShortsPlayer, is Route.Search, is Route.Channel, is Route.ChannelPlaylist -> Route.Home
+    Route.Shorts -> Route.Shorts
     Route.Subscriptions, Route.ManageSubscriptions -> Route.Subscriptions
     Route.Library, is Route.Playlist, Route.History, Route.Downloads, Route.DownloadRules -> Route.Library
     Route.Settings, Route.Diagnostics, Route.Accounts, Route.AccountActivity, Route.Health, Route.Backup, Route.Customize, is Route.CustomizePage, is Route.SettingsPage -> Route.Settings
@@ -71,7 +79,11 @@ class Navigator(start: Route = Route.Home) {
         stack[stack.lastIndex] = route
     }
 
+    /** Set by the shell from the Shorts setting: while true, a Short that would open on the video page opens in the Shorts player instead. */
+    var shortsInPlayer: Boolean = false
+
     fun push(route: Route) {
+        if (route is Route.Video && route.video.isShort && shortsInPlayer && !route.asVideoPage) return push(Route.ShortsPlayer(route.video))
         if (route == current) return
         if (route is Route.Video) nowPlaying = route.video
         lastAction = NavAction.PUSH

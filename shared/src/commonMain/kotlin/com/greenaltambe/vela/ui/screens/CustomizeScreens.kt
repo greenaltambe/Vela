@@ -192,7 +192,7 @@ private fun ProgressPreview(style: ProgressStyle) {
     val wake = Vela.look.accent.wake.map { it.toColor() }
     val surface = Vela.colors.surface.toColor()
     val track = Vela.colors.outline.toColor()
-    val phase = com.greenaltambe.vela.ui.components.rememberWavePhase(style == ProgressStyle.WAVE)
+    val phase = com.greenaltambe.vela.ui.components.rememberWavePhase(style == ProgressStyle.WAVE || style == ProgressStyle.RIBBON)
     androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(40.dp)) {
         drawProgress(style, 0.4f, wake, surface, track, track, track, wavePhase = phase)
     }
@@ -268,8 +268,13 @@ private fun TabsChecklist(s: SettingsResolver, toasts: UndoToasts) {
         ordered.forEach { tab ->
             val enabled = tab in on
             Row(Modifier.fillMaxWidth().heightIn(min = Vela.minTouch).testTag("tabs.row.${tab.name}"), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                VelaSwitch(enabled, { checked -> save(if (checked) on + tab else on - tab) }, Modifier.testTag("tabs.toggle.${tab.name}"))
-                Text(navEntries(listOf(tab)).first().label, Modifier.weight(1f), maxLines = 1)
+                // Shorts cannot be a tab while Shorts are hidden in Settings.
+                val unavailable = tab == NavTab.SHORTS && !s.shortsEnabled()
+                VelaSwitch(enabled && !unavailable, { checked -> if (!unavailable) save(if (checked) on + tab else on - tab) }, Modifier.testTag("tabs.toggle.${tab.name}"), enabled = !unavailable)
+                Column(Modifier.weight(1f)) {
+                    Text(navEntries(listOf(tab)).first().label, maxLines = 1)
+                    if (unavailable) Text("Hidden in Settings > Shorts", style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor(), maxLines = 1)
+                }
                 if (enabled) {
                     val i = on.indexOf(tab)
                     TextButton(onClick = { save(on.toMutableList().also { it.add(i - 1, it.removeAt(i)) }) }, enabled = i > 0, modifier = Modifier.testTag("tabs.up.${tab.name}")) { androidx.compose.material3.Icon(com.greenaltambe.vela.ui.look.Vela.icons.arrowUp, "Move up") }

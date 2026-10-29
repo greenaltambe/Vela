@@ -37,6 +37,15 @@ class FeedService(
     private val _failures = MutableStateFlow<Map<String, String>>(emptyMap())
     val failures: StateFlow<Map<String, String>> = _failures
 
+    private var lastRefreshAt: kotlin.time.Instant? = null
+
+    /** Refreshes only if the last refresh is older than [maxAgeMs] (or there was none): coming back to the page must not refetch every channel. */
+    suspend fun refreshIfStale(maxAgeMs: Long = 15 * 60_000L) {
+        val last = lastRefreshAt
+        if (last != null && (clock.now() - last).inWholeMilliseconds < maxAgeMs) return
+        refresh()
+    }
+
     /** Reads the cache again, e.g. after an unsubscribe or an import changed what should show. */
     fun reload() { _entries.value = cache.entries() }
 
@@ -67,6 +76,7 @@ class FeedService(
             cache.replaceAll(merged)
             _entries.value = merged
             _failures.value = failures
+            lastRefreshAt = clock.now()
           }
         } finally {
             _refreshing.value = false

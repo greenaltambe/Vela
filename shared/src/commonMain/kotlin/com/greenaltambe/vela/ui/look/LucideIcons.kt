@@ -16,7 +16,10 @@ import com.composables.icons.lucide.CircleCheck
 import com.composables.icons.lucide.CircleUser
 import com.composables.icons.lucide.Cloud
 import com.composables.icons.lucide.Download
-import com.composables.icons.lucide.EllipsisVertical
+import com.composables.icons.lucide.Clock
+import com.composables.icons.lucide.Ellipsis
+import com.composables.icons.lucide.Languages
+import com.composables.icons.lucide.MessageSquare
 import com.composables.icons.lucide.Eye
 import com.composables.icons.lucide.FastForward
 import com.composables.icons.lucide.Folder
@@ -65,7 +68,10 @@ internal object LucideIcons {
             "search" to Lucide.Search,
             "back" to Lucide.ArrowLeft,
             "close" to Lucide.X,
-            "more" to Lucide.EllipsisVertical,
+            "more" to Lucide.Ellipsis,
+            "watchLater" to Lucide.Clock,
+            "comment" to Lucide.MessageSquare,
+            "audioTrack" to Lucide.Languages,
             "play" to Lucide.Play,
             "pause" to Lucide.Pause,
             "rewind" to Lucide.Rewind,

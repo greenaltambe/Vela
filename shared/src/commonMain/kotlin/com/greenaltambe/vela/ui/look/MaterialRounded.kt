@@ -33,7 +33,10 @@ import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Lock
-import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.Audiotrack
+import androidx.compose.material.icons.rounded.Comment
+import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.material.icons.rounded.WatchLater
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Pause
@@ -65,7 +68,10 @@ internal object MaterialRounded {
             "search" to Icons.Rounded.Search,
             "back" to Icons.AutoMirrored.Rounded.ArrowBack,
             "close" to Icons.Rounded.Close,
-            "more" to Icons.Rounded.MoreVert,
+            "more" to Icons.Rounded.MoreHoriz,
+            "watchLater" to Icons.Rounded.WatchLater,
+            "comment" to Icons.Rounded.Comment,
+            "audioTrack" to Icons.Rounded.Audiotrack,
             "play" to Icons.Rounded.PlayArrow,
             "pause" to Icons.Rounded.Pause,
             "rewind" to Icons.Rounded.FastRewind,

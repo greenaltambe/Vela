@@ -33,7 +33,10 @@ import androidx.compose.material.icons.sharp.Home
 import androidx.compose.material.icons.sharp.Info
 import androidx.compose.material.icons.sharp.Link
 import androidx.compose.material.icons.sharp.Lock
-import androidx.compose.material.icons.sharp.MoreVert
+import androidx.compose.material.icons.sharp.Audiotrack
+import androidx.compose.material.icons.sharp.Comment
+import androidx.compose.material.icons.sharp.MoreHoriz
+import androidx.compose.material.icons.sharp.WatchLater
 import androidx.compose.material.icons.sharp.Notifications
 import androidx.compose.material.icons.sharp.Palette
 import androidx.compose.material.icons.sharp.Pause
@@ -65,7 +68,10 @@ internal object MaterialSharp {
             "search" to Icons.Sharp.Search,
             "back" to Icons.AutoMirrored.Sharp.ArrowBack,
             "close" to Icons.Sharp.Close,
-            "more" to Icons.Sharp.MoreVert,
+            "more" to Icons.Sharp.MoreHoriz,
+            "watchLater" to Icons.Sharp.WatchLater,
+            "comment" to Icons.Sharp.Comment,
+            "audioTrack" to Icons.Sharp.Audiotrack,
             "play" to Icons.Sharp.PlayArrow,
             "pause" to Icons.Sharp.Pause,
             "rewind" to Icons.Sharp.FastRewind,

@@ -84,8 +84,9 @@ fun HomeScreen(services: AppServices, navigator: Navigator, modifier: Modifier =
             (videos.items.size - shown.size).takeIf { it > 0 }?.let { Text("$it hidden by your feed filters (Settings > Feed).", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("home.hiddenByFeed")) }
         },
         // More is fetched by itself as the last card comes into view; the button stays as a fallback if that fetch failed.
-        onEndReached = { if (videos.continuation != null && !loading && state == ListState.Ready) load(more = true) },
-        footer = if (videos.continuation != null) ({ TextButton(onClick = { load(more = true) }, enabled = !loading) { Text("Load more", maxLines = 1) } }) else null,
+        // The account's recommended feed is one page with no continuation: at its end the list carries on with Trending (then Trending's own pages).
+        onEndReached = { if ((videos.continuation != null || showing == "Recommended") && !loading && state == ListState.Ready) load(more = true) },
+        footer = if (videos.continuation != null || showing == "Recommended") ({ TextButton(onClick = { load(more = true) }, enabled = !loading) { Text("Load more", maxLines = 1) } }) else null,
     )
     }
 }

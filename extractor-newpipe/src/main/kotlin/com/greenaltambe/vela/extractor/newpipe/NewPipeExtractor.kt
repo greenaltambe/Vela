@@ -17,6 +17,7 @@ import org.schabi.newpipe.extractor.downloader.Downloader
 import org.schabi.newpipe.extractor.linkhandler.SearchQueryHandler
 import org.schabi.newpipe.extractor.search.SearchInfo
 import org.schabi.newpipe.extractor.services.youtube.linkHandler.YoutubeSearchQueryHandlerFactory
+import org.schabi.newpipe.extractor.playlist.PlaylistInfo
 import org.schabi.newpipe.extractor.stream.StreamInfo
 import org.schabi.newpipe.extractor.Page as NpPage
 
@@ -116,6 +117,34 @@ class NewPipeExtractor(downloader: () -> Downloader = { OkHttpDownloader() }) : 
             val result: ListExtractor.InfoItemsPage<InfoItem> =
                 if (page == null) tab.also { it.fetchPage() }.initialPage else tab.getPage(page)
             result.items.toVideoSummaries() to result.nextPage
+        }.map { (items, next) -> Page(items, next.toTokenOrNull()) }
+
+    override suspend fun channelLive(channelId: String, continuation: String?): ExtractorResult<Page<VideoSummary>> =
+        withPage(continuation) { page ->
+            val tab = youtube.getChannelTabExtractorFromId(channelId, ChannelTabs.LIVESTREAMS)
+            val result: ListExtractor.InfoItemsPage<InfoItem> =
+                if (page == null) tab.also { it.fetchPage() }.initialPage else tab.getPage(page)
+            result.items.toVideoSummaries() to result.nextPage
+        }.map { (items, next) -> Page(items, next.toTokenOrNull()) }
+
+    override suspend fun channelPlaylists(channelId: String, continuation: String?): ExtractorResult<Page<PlaylistRef>> =
+        withPage(continuation) { page ->
+            val tab = youtube.getChannelTabExtractorFromId(channelId, ChannelTabs.PLAYLISTS)
+            val result: ListExtractor.InfoItemsPage<InfoItem> =
+                if (page == null) tab.also { it.fetchPage() }.initialPage else tab.getPage(page)
+            result.items.toPlaylistRefs() to result.nextPage
+        }.map { (items, next) -> Page(items, next.toTokenOrNull()) }
+
+    override suspend fun playlistVideos(playlistId: String, continuation: String?): ExtractorResult<Page<VideoSummary>> =
+        withPage(continuation) { page ->
+            val url = "https://www.youtube.com/playlist?list=$playlistId"
+            if (page == null) {
+                val info = PlaylistInfo.getInfo(youtube, url)
+                info.relatedItems.toVideoSummaries() to info.nextPage
+            } else {
+                val more = PlaylistInfo.getMoreItems(youtube, url, page)
+                more.items.toVideoSummaries() to more.nextPage
+            }
         }.map { (items, next) -> Page(items, next.toTokenOrNull()) }
 
     /**

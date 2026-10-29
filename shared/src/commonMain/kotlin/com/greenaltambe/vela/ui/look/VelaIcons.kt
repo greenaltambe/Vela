@@ -31,7 +31,7 @@ class VelaIconSet(private val icons: Map<String, ImageVector>) {
     val history get() = this["history"]; val playlist get() = this["playlist"]; val notifications get() = this["notifications"]; val account get() = this["account"]
     val palette get() = this["palette"]; val lock get() = this["lock"]; val shield get() = this["shield"]; val folder get() = this["folder"]
     val tune get() = this["tune"]; val arrowUp get() = this["arrowUp"]; val arrowDown get() = this["arrowDown"]; val dislike get() = this["dislike"]
-    val link get() = this["link"]; val cloud get() = this["cloud"]; val visibility get() = this["visibility"]; val bolt get() = this["bolt"]
+    val watchLater get() = this["watchLater"]; val comment get() = this["comment"]; val audioTrack get() = this["audioTrack"]; val link get() = this["link"]; val cloud get() = this["cloud"]; val visibility get() = this["visibility"]; val bolt get() = this["bolt"]
 
     /** Every icon with its name, for tests and the pack previews. */
     val all: List<Pair<String, ImageVector>> get() = IconNames.all.map { it to this[it] }
@@ -43,7 +43,7 @@ object IconNames {
         "home", "subscriptions", "library", "settings", "search", "back", "close", "more", "play", "pause", "rewind", "forward", "fullscreen", "fullscreenExit", "volume", "mute",
         "download", "downloaded", "save", "share", "speed", "timer", "quality", "captions", "like", "refresh", "info",
         "chevronRight", "chevronLeft", "chevronDown", "chevronUp", "check", "add", "delete", "edit", "history", "playlist", "notifications", "account", "palette",
-        "lock", "shield", "folder", "tune", "arrowUp", "arrowDown", "dislike", "link", "cloud", "visibility", "bolt",
+        "lock", "shield", "folder", "tune", "arrowUp", "arrowDown", "dislike", "link", "cloud", "visibility", "bolt", "watchLater", "comment", "audioTrack",
     )
 }
 
@@ -64,7 +64,10 @@ internal object IconPaths {
         "search" to ("M10 3a7 7 0 1 0 4.2 12.6l5.1 5.1 1.4-1.4-5.1-5.1A7 7 0 0 0 10 3zm0 2a5 5 0 1 1 0 10 5 5 0 0 1 0-10z" to true),
         "back" to ("M20 11H7.8l5.6-5.6L12 4l-8 8 8 8 1.4-1.4L7.8 13H20z" to false),
         "close" to ("M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z" to false),
-        "more" to ("M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM12 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" to false),
+        "more" to ("M6 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM12 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM18 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" to false),
+        "audioTrack" to ("M12 3v10.55a4 4 0 1 0 2 3.45V7h4V3z" to false),
+        "comment" to ("M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zM18 14H6v-2h12zm0-3H6V9h12zm0-3H6V6h12z" to true),
+        "watchLater" to ("M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm4.2 14.2L11 13V7h1.5v5.2l4.5 2.7z" to true),
         "play" to ("M8 5v14l11-7z" to false),
         "pause" to ("M6 5h4v14H6zM14 5h4v14h-4z" to false),
         "rewind" to ("M11 6v12l-8-6zM21 6v12l-8-6z" to false),
@@ -119,7 +122,10 @@ internal object IconPaths {
         "search" to listOf(Seg(c(11f, 11f, 6.5f), closed = true), Seg("M16 16l4.5 4.5")),
         "back" to listOf(Seg("M19.5 12h-15M11 5.5 4.5 12 11 18.5")),
         "close" to listOf(Seg("M6 6l12 12M18 6 6 18")),
-        "more" to listOf(Seg(c(12f, 6f, 1.3f) + c(12f, 12f, 1.3f) + c(12f, 18f, 1.3f), dot = true)),
+        "more" to listOf(Seg(c(6f, 12f, 1.3f) + c(12f, 12f, 1.3f) + c(18f, 12f, 1.3f), dot = true)),
+        "audioTrack" to listOf(Seg(c(9f, 17f, 2.6f), closed = true), Seg("M11.6 17V5.5l5.4 1.5V10")),
+        "comment" to listOf(Seg("M5 4.5h14a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H9l-4.5 3.5V6A1.5 1.5 0 0 1 5 4.5z", closed = true)),
+        "watchLater" to listOf(Seg(c(12f, 12f, 8.5f), closed = true), Seg("M12 7.5V12l3 2")),
         "play" to listOf(Seg("M8 5.5v13L19 12z", closed = true)),
         "pause" to listOf(Seg("M7 5.5h3.2v13H7zM13.8 5.5H17v13h-3.2z", closed = true)),
         "rewind" to listOf(Seg("M11 7.5v9L4.5 12zM19.5 7.5v9L13 12z", closed = true)),

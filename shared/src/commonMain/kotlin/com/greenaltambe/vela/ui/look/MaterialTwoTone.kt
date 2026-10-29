@@ -33,7 +33,10 @@ import androidx.compose.material.icons.twotone.Home
 import androidx.compose.material.icons.twotone.Info
 import androidx.compose.material.icons.twotone.Link
 import androidx.compose.material.icons.twotone.Lock
-import androidx.compose.material.icons.twotone.MoreVert
+import androidx.compose.material.icons.twotone.Audiotrack
+import androidx.compose.material.icons.twotone.Comment
+import androidx.compose.material.icons.twotone.MoreHoriz
+import androidx.compose.material.icons.twotone.WatchLater
 import androidx.compose.material.icons.twotone.Notifications
 import androidx.compose.material.icons.twotone.Palette
 import androidx.compose.material.icons.twotone.Pause
@@ -65,7 +68,10 @@ internal object MaterialTwoTone {
             "search" to Icons.TwoTone.Search,
             "back" to Icons.AutoMirrored.TwoTone.ArrowBack,
             "close" to Icons.TwoTone.Close,
-            "more" to Icons.TwoTone.MoreVert,
+            "more" to Icons.TwoTone.MoreHoriz,
+            "watchLater" to Icons.TwoTone.WatchLater,
+            "comment" to Icons.TwoTone.Comment,
+            "audioTrack" to Icons.TwoTone.Audiotrack,
             "play" to Icons.TwoTone.PlayArrow,
             "pause" to Icons.TwoTone.Pause,
             "rewind" to Icons.TwoTone.FastRewind,

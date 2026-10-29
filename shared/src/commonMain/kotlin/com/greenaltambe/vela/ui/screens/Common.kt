@@ -50,7 +50,9 @@ fun VideoMenu(services: AppServices, video: VideoSummary, modifier: Modifier = M
                 val has = remember(open, revision, list.id) { services.playlists.contains(list.id, video.id) }
                 DropdownMenuItem(
                     text = { Text(list.name) },
-                    leadingIcon = if (has) ({ androidx.compose.material3.Icon(com.greenaltambe.vela.ui.look.Vela.icons.check, "In this playlist") }) else null,
+                    // Watch later gets its clock, other playlists the list icon; a tick on the right says it is already in there.
+                    leadingIcon = { androidx.compose.material3.Icon(if (list.isWatchLater) com.greenaltambe.vela.ui.look.Vela.icons.watchLater else com.greenaltambe.vela.ui.look.Vela.icons.playlist, null) },
+                    trailingIcon = if (has) ({ androidx.compose.material3.Icon(com.greenaltambe.vela.ui.look.Vela.icons.check, "In this playlist") }) else null,
                     onClick = {
                         if (has) services.playlists.remove(list.id, video.id) else services.playlists.add(list.id, listOf(video), services.clock.now())
                         revision++

@@ -2,7 +2,10 @@ package com.greenaltambe.vela.ui.components
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
@@ -127,18 +130,21 @@ fun VideoCard(
     val title = if (showOriginal) video.originalTitle ?: video.title else video.title
     val thumbnail = if (showOriginal) video.originalThumbnailUrl ?: video.thumbnailUrl else video.thumbnailUrl
     val source = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-    val click = Modifier.pressFeedback(source).combinedClickable(interactionSource = source, indication = null, onClick = onClick, onLongClick = if (replaced) ({ showOriginal = !showOriginal }) else null)
+    // Mouse over a video (desktop): a palette-gradient outline and a faint wash, rounded like the cards.
+    val hovered by source.collectIsHoveredAsState()
+    val hover = if (hovered) Modifier.border(2.dp, Vela.wake, Vela.mediumShape).background(Vela.colors.onSurface.toColor().copy(alpha = 0.05f), Vela.mediumShape) else Modifier
+    val click = hover.clip(Vela.mediumShape).hoverable(source).pressFeedback(source).combinedClickable(interactionSource = source, indication = null, onClick = onClick, onLongClick = if (replaced) ({ showOriginal = !showOriginal }) else null)
 
     if (style == VideoCardStyle.VERTICAL) {
         Column(modifier.fillMaxWidth().testTag(ComponentIds.VIDEO_CARD).then(click), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
             Thumbnail(video, thumbnail, extras, Modifier.fillMaxWidth().clip(Vela.thumbnailShape))
             Row(horizontalArrangement = Arrangement.spacedBy(Vela.sm), verticalAlignment = Alignment.Top) {
-                Avatar(video.channelName, onChannelClick)
+                Avatar(video.channelName, onChannelClick, url = video.channelAvatarUrl)
                 Column(Modifier.weight(1f)) {
                     Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("card.title"))
                     // Channel on its own line (it can be very long), the numbers under it: neither pushes the other off.
                     if (video.channelName.isNotBlank()) Text(video.channelName, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor(), modifier = Modifier.testTag("card.channel"))
-                    val stats = remember(video.viewCount, video.uploadedAt, extras.badge, showOriginal) { listOfNotNull(formatViews(video.viewCount), formatAge(video.uploadedAt, Clock.System.now()), extras.badge, if (showOriginal) "original" else null).joinToString(" · ") }
+                    val stats = remember(video.viewCount, video.uploadedAt, video.publishedText, extras.badge, showOriginal) { listOfNotNull(formatViews(video.viewCount), (formatAge(video.uploadedAt, Clock.System.now()) ?: video.publishedText), extras.badge, if (showOriginal) "original" else null).joinToString(" · ") }
                     if (stats.isNotEmpty()) Text(stats, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor(), modifier = Modifier.testTag("card.meta"))
                 }
                 trailing?.invoke()
@@ -155,7 +161,7 @@ fun VideoCard(
                     color = Vela.colors.onSurfaceVariant.toColor(),
                     modifier = Modifier.testTag("card.channel"),
                 )
-                val stats = remember(video.viewCount, video.uploadedAt, extras.badge, showOriginal) { listOfNotNull(formatViews(video.viewCount), formatAge(video.uploadedAt, Clock.System.now()), extras.badge, if (showOriginal) "original" else null).joinToString(" · ") }
+                val stats = remember(video.viewCount, video.uploadedAt, video.publishedText, extras.badge, showOriginal) { listOfNotNull(formatViews(video.viewCount), (formatAge(video.uploadedAt, Clock.System.now()) ?: video.publishedText), extras.badge, if (showOriginal) "original" else null).joinToString(" · ") }
                 if (stats.isNotEmpty()) Text(stats, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor(), modifier = Modifier.testTag("card.meta"))
             }
             trailing?.invoke()
@@ -178,7 +184,7 @@ private fun Thumbnail(video: VideoSummary, url: String?, extras: CardExtras, mod
         )
         extras.watched?.takeIf { it > 0f }?.let { w ->
             Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Vela.colors.outline.toColor())) {
-                Box(Modifier.fillMaxWidth(w.coerceIn(0f, 1f)).fillMaxHeight().background(Vela.colors.error.toColor()).testTag("card.watched"))
+                Box(Modifier.fillMaxWidth(w.coerceIn(0f, 1f)).fillMaxHeight().background(Vela.wake).testTag("card.watched"))
             }
         }
     }
@@ -196,8 +202,9 @@ private fun Badge(text: String, background: androidx.compose.ui.graphics.Color, 
 @Composable
 fun Avatar(name: String, onClick: (() -> Unit)? = null, size: Dp = 36.dp, url: String? = null) {
     Box(
-        Modifier.let { if (onClick != null) it.minimumInteractiveComponentSize().clickable(onClick = onClick) else it }
-            .size(size).clip(Vela.pillShape).background(Vela.colors.surfaceVariant.toColor()),
+        // The touch target is the full minimum size, but the press highlight is clipped to the circle (clip comes before clickable).
+        Modifier.let { if (onClick != null) it.minimumInteractiveComponentSize() else it }
+            .size(size).clip(Vela.pillShape).let { if (onClick != null) it.clickable(onClick = onClick) else it }.background(Vela.colors.surfaceVariant.toColor()),
         contentAlignment = Alignment.Center,
     ) {
         if (url != null) AsyncImage(url, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
@@ -208,7 +215,7 @@ fun Avatar(name: String, onClick: (() -> Unit)? = null, size: Dp = 36.dp, url: S
 @Composable
 fun ChannelRow(name: String, subtitle: String?, avatarUrl: String?, onClick: () -> Unit, modifier: Modifier = Modifier, trailing: @Composable (() -> Unit)? = null) {
     Row(
-        modifier.fillMaxWidth().heightIn(min = Vela.minTouch).testTag(ComponentIds.CHANNEL_ROW).clickable(onClick = onClick),
+        modifier.fillMaxWidth().heightIn(min = Vela.minTouch).clip(Vela.mediumShape).testTag(ComponentIds.CHANNEL_ROW).clickable(onClick = onClick).padding(horizontal = Vela.sm),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.md),
     ) {
         Avatar(name, url = avatarUrl, size = 40.dp)
@@ -256,7 +263,7 @@ fun CommentItem(comment: Comment, replies: List<Comment>?, repliesLoading: Boole
 @Composable
 fun ChapterRow(chapter: Chapter, current: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Row(
-        modifier.fillMaxWidth().heightIn(min = Vela.minTouch).testTag(ComponentIds.CHAPTER_ROW).clickable(onClick = onClick),
+        modifier.fillMaxWidth().heightIn(min = Vela.minTouch).clip(Vela.mediumShape).testTag(ComponentIds.CHAPTER_ROW).clickable(onClick = onClick).padding(horizontal = Vela.sm),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.md),
     ) {
         Text(formatTimestamp(chapter.startSeconds), style = MaterialTheme.typography.bodySmall, maxLines = 1, softWrap = false, color = Vela.colors.primary.toColor())
@@ -268,12 +275,13 @@ fun ChapterRow(chapter: Chapter, current: Boolean, onClick: () -> Unit, modifier
 data class NavEntry(val tab: NavTab, val label: String)
 
 fun navEntries(tabs: List<NavTab>) = tabs.map { NavEntry(it, when (it) {
-    NavTab.HOME -> "Home"; NavTab.SUBSCRIPTIONS -> "Subs"; NavTab.LIBRARY -> "Library"; NavTab.SEARCH -> "Search"; NavTab.DOWNLOADS -> "Downloads"
+    NavTab.HOME -> "Home"; NavTab.SHORTS -> "Shorts"; NavTab.SUBSCRIPTIONS -> "Subs"; NavTab.LIBRARY -> "Library"; NavTab.SEARCH -> "Search"; NavTab.DOWNLOADS -> "Downloads"
 }) }
 
 @Composable
 private fun NavEntry.icon(): ImageVector = when (tab) {
     NavTab.HOME -> Vela.icons.home
+    NavTab.SHORTS -> Vela.icons.bolt
     NavTab.SUBSCRIPTIONS -> Vela.icons.subscriptions
     NavTab.LIBRARY -> Vela.icons.library
     NavTab.SEARCH -> Vela.icons.search
@@ -488,6 +496,16 @@ fun PrimaryButton(label: String, onClick: () -> Unit, modifier: Modifier = Modif
     ) { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) }
 }
 
+/** The quieter button next to a [PrimaryButton]: an outline in the Look's button shape, so a row of options all look like one family. */
+@Composable
+fun SecondaryButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+    val source = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    androidx.compose.material3.OutlinedButton(
+        onClick = onClick, modifier = modifier.pressFeedback(source), enabled = enabled, shape = Vela.buttonShape, interactionSource = source,
+        border = androidx.compose.foundation.BorderStroke(1.dp, Vela.colors.outline.toColor()),
+    ) { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+}
+
 /** An icon with a short label under it: the video page's action row (Download, Save, Share). */
 @Composable
 fun ActionChip(icon: ImageVector, label: String, onClick: () -> Unit, modifier: Modifier = Modifier, selected: Boolean = false) {
@@ -506,7 +524,8 @@ fun ActionChip(icon: ImageVector, label: String, onClick: () -> Unit, modifier: 
  */
 @Composable
 fun LinkButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
-    Box(modifier.heightIn(min = Vela.minTouch).widthIn(min = Vela.minTouch).clickable(enabled = enabled, onClick = onClick), contentAlignment = Alignment.CenterStart) {
+    // Clipped to the Look's radius and padded, so the press highlight is a rounded patch around the text, not a bare rectangle.
+    Box(modifier.heightIn(min = Vela.minTouch).widthIn(min = Vela.minTouch).clip(Vela.mediumShape).clickable(enabled = enabled, onClick = onClick).padding(horizontal = Vela.sm), contentAlignment = Alignment.CenterStart) {
         Text(label, style = MaterialTheme.typography.labelLarge, color = (if (enabled) Vela.colors.primary else Vela.colors.onSurfaceVariant).toColor(), maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }

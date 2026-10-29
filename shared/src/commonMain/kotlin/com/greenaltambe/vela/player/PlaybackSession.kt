@@ -161,6 +161,31 @@ class PlaybackSession(
     private fun publishMedia() { _media.value = videoId?.let { MediaInfo(it, title, channelNameShown, artworkUrl) } }
     private var channelId = ""
     private var streams: StreamSet? = null
+    private val _captions = MutableStateFlow<List<com.greenaltambe.vela.extractor.CaptionTrack>>(emptyList())
+    /** The subtitle tracks the current video offers (empty when it has none, or while it is resolving). */
+    val captions: StateFlow<List<com.greenaltambe.vela.extractor.CaptionTrack>> = _captions
+    private val _audioTracks = MutableStateFlow<List<AudioTrackChoice>>(emptyList())
+    /** The audio tracks the video offers when it has more than one (languages / dubs); empty otherwise. */
+    val audioTracks: StateFlow<List<AudioTrackChoice>> = _audioTracks
+    private var audioKeyOverride: String? = null
+    private val _audioKey = MutableStateFlow<String?>(null)
+    /** The key of the audio track in use among [audioTracks], or null for the video's own (original) one. */
+    val audioTrack: StateFlow<String?> = _audioKey
+    /** Switches the soundtrack: the same picture re-planned with that language's audio, resuming where it was. [key] null: the original. */
+    fun selectAudioTrack(key: String?) {
+        if (localPlan != null) return
+        val id = videoId ?: return
+        audioKeyOverride = key; _audioKey.value = key
+        val wasPlaying = controller.state.value.status != PlaybackStatus.PAUSED
+        val position = controller.state.value.positionMs
+        work?.cancel()
+        work = sessionScope.launch { if (needsRefresh() || streams == null) refresh(id, position, wasPlaying) else { persist(); loadPlan(position, wasPlaying) } }
+    }
+    private val _caption = MutableStateFlow<com.greenaltambe.vela.extractor.CaptionTrack?>(null)
+    /** The subtitle track on, or null. Kept across quality changes and re-resolves of the same video. */
+    val activeCaption: StateFlow<com.greenaltambe.vela.extractor.CaptionTrack?> = _caption
+    /** Turns a subtitle track on (null: off). The player screen fetches and draws it; the choice survives quality changes of the same video. */
+    fun selectCaption(track: com.greenaltambe.vela.extractor.CaptionTrack?) { _caption.value = track }
     private var localPlan: PlaybackPlan.Local? = null
     private var maxHeightOverride: Int? = null
     private var speedOverride: Float? = null
@@ -205,7 +230,7 @@ class PlaybackSession(
         title = hint?.title.orEmpty()
         channelId = hint?.channelId.orEmpty()
         channelNameShown = hint?.channelName.orEmpty(); artworkUrl = hint?.thumbnailUrl
-        streams = null
+        streams = null; _captions.value = emptyList(); _caption.value = null; _audioTracks.value = emptyList(); audioKeyOverride = null; _audioKey.value = null
         localPlan = null
         maxHeightOverride = null
         speedOverride = null
@@ -235,7 +260,7 @@ class PlaybackSession(
         this.videoId = videoId
         this.title = title; channelNameShown = ""; artworkUrl = null
         this.channelId = channelId
-        streams = null
+        streams = null; _captions.value = emptyList(); _caption.value = null; _audioTracks.value = emptyList(); audioKeyOverride = null; _audioKey.value = null
         localPlan = plan
         maxHeightOverride = null
         speedOverride = null
@@ -372,7 +397,7 @@ class PlaybackSession(
             is ExtractorResult.Success -> result.value
             is ExtractorResult.Failure -> return fail(id, result.error)
         }
-        streams = set
+        streams = set; _captions.value = set.captions; _audioTracks.value = set.audioChoices()
         val startMs = if (resume) resumePosition(id) else 0L
         leases.awaitAvailable(set)
         loadPlan(startMs, playWhenReady = true)
@@ -384,7 +409,7 @@ class PlaybackSession(
         _state.value = SessionState.Resolving(id, refresh = true)
         when (val result = if (preferOther) extractor.streamsPreferringOther(id) else extractor.streams(id)) {
             is ExtractorResult.Success -> {
-                streams = result.value
+                streams = result.value; _captions.value = result.value.captions; _audioTracks.value = result.value.audioChoices()
                 leases.awaitAvailable(result.value)
                 loadPlan(positionMs, playWhenReady)
             }
@@ -396,7 +421,8 @@ class PlaybackSession(
         val id = videoId ?: return
         val set = streams ?: return
         val device = constraints().copy(network = network.type.value)
-        val prefs = PlaybackPrefs.from(settings, channelId.ifEmpty { null }, id).copy(maxHeight = maxHeightOverride)
+        val base = PlaybackPrefs.from(settings, channelId.ifEmpty { null }, id)
+        val prefs = base.copy(maxHeight = maxHeightOverride, audioLanguage = audioKeyOverride ?: base.audioLanguage)
         val plan = StreamSelector.plan(set, prefs, device)
         if (plan is PlaybackPlan.NothingPlayable) {
             _state.value = SessionState.Failed(id, plan.reason)
@@ -546,4 +572,14 @@ class PlaybackSession(
         /** Playback this far past the (re)load position counts as the reload having worked. */
         private const val PROGRESS_MS = 3_000L
     }
+}
+
+/** One soundtrack the viewer can pick: [key] is its language code (what the stream selector matches on), [label] what the menu shows. */
+data class AudioTrackChoice(val key: String, val label: String, val original: Boolean)
+
+/** The distinct language tracks of a stream set, original first; empty unless there are at least two (a single track is no choice). */
+internal fun StreamSet.audioChoices(): List<AudioTrackChoice> {
+    val tracks = audioStreams.filter { !it.languageCode.isNullOrBlank() }.distinctBy { it.languageCode }
+        .map { AudioTrackChoice(it.languageCode!!, it.trackName ?: it.languageCode!!, it.isOriginalTrack) }
+    return if (tracks.size >= 2) tracks.sortedByDescending { it.original } else emptyList()
 }

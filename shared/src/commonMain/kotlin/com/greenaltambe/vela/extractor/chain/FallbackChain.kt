@@ -69,6 +69,12 @@ class FallbackChain(
     override suspend fun related(videoId: String) = run("related($videoId)", AccountOp.NEVER) { it.related(videoId) }
     override suspend fun channelShorts(channelId: String, continuation: String?) =
         run("channelShorts($channelId${page(continuation)})", AccountOp.CHANNELS) { it.channelShorts(channelId, continuation) }
+    override suspend fun channelLive(channelId: String, continuation: String?) =
+        run("channelLive($channelId${page(continuation)})", AccountOp.CHANNELS) { it.channelLive(channelId, continuation) }
+    override suspend fun channelPlaylists(channelId: String, continuation: String?) =
+        run("channelPlaylists($channelId${page(continuation)})", AccountOp.CHANNELS) { it.channelPlaylists(channelId, continuation) }
+    override suspend fun playlistVideos(playlistId: String, continuation: String?) =
+        run("playlistVideos($playlistId${page(continuation)})", AccountOp.NEVER) { it.playlistVideos(playlistId, continuation) }
     override suspend fun recentUploads(channelId: String) = run("recentUploads($channelId)", AccountOp.NEVER) { it.recentUploads(channelId) }
 
     private fun page(continuation: String?) = if (continuation == null) "" else ", more"

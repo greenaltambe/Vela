@@ -40,6 +40,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import com.greenaltambe.vela.AppServices
+import com.greenaltambe.vela.core.settings.shortsEnabled
 import com.greenaltambe.vela.extractor.ExtractorResult
 import com.greenaltambe.vela.extractor.videoPagedList
 import com.greenaltambe.vela.modules.dearrow.DeArrowSurface
@@ -70,8 +71,10 @@ import androidx.compose.material3.FilterChip
 @Composable
 fun SearchScreen(services: AppServices, navigator: Navigator, query: String, modifier: Modifier = Modifier) {
     var text by remember(query) { mutableStateOf(query) }
-    var results by remember(query) { mutableStateOf(videoPagedList()) }
-    var state by remember(query) { mutableStateOf<ListState>(if (query.isBlank()) ListState.Ready else ListState.Loading) }
+    val store = LocalSearchStore.current
+    val cached = remember(query) { if (query.isBlank()) null else store?.fresh(query, services.clock.now()) }
+    var results by remember(query) { mutableStateOf(cached?.videos ?: videoPagedList()) }
+    var state by remember(query) { mutableStateOf<ListState>(if (query.isBlank() || cached != null) ListState.Ready else ListState.Loading) }
     var loading by remember(query) { mutableStateOf(false) }
     var historyRevision by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
@@ -98,9 +101,12 @@ fun SearchScreen(services: AppServices, navigator: Navigator, query: String, mod
     LaunchedEffect(query) {
         if (query.isNotBlank()) {
             services.searchHistory.add(query, services.clock.now())
-            load(more = false)
+            // Coming back to a search that was just made: its results are already here.
+            if (cached == null) load(more = false)
         } else runCatching { focus.requestFocus() }
     }
+    // Keep what is shown for the next visit; a fresh answer stamps the time.
+    androidx.compose.runtime.SideEffect { if (query.isNotBlank() && results.items.isNotEmpty() && store != null) store.put(query, results, services.clock.now(), refreshedAt = cached == null) }
     // Filters are applied to the loaded results (see SearchFilters): the source's order is "relevance".
     var filters by remember(query) { mutableStateOf(com.greenaltambe.vela.extractor.SearchFilters()) }
     val shownAll = rememberFiltered(services, results.items, DeArrowSurface.SEARCH)
@@ -134,12 +140,12 @@ fun SearchScreen(services: AppServices, navigator: Navigator, query: String, mod
             // The start page: only while nothing is typed. Typing hides it, leaving the field and its suggestions.
             if (text.isBlank()) SearchStart(services, navigator, history, onRemove = { services.searchHistory.remove(it); historyRevision++ }, onClear = { services.searchHistory.clear(); historyRevision++ })
         } else {
-            SearchFilterRow(filters) { filters = it }
+            SearchFilterRow(filters, showShorts = services.settings.shortsEnabled()) { filters = it }
             // Never an unexplained empty list: say when Settings > Feed rules (minimum length, hide watched, keywords) hid results.
             (results.items.size - shownAll.size).takeIf { it > 0 }?.let { Text("$it result${if (it == 1) "" else "s"} hidden by your feed filters (Settings > Feed).", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = Vela.gutter).testTag("search.hiddenByFeed")) }
             if (!filters.isDefault && shown.isEmpty() && shownAll.isNotEmpty()) Text("Nothing in the ${shownAll.size} loaded results matches. Filters apply to loaded results; load more or relax them.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = Vela.gutter).testTag("search.filterEmpty"))
             VideoCollection(
-                services, navigator, shown, state, grid = false, testTag = "search.list",
+                services, navigator, shown, state, grid = false, testTag = "search.list", scroll = store?.scrollFor(query, services.clock.now()),
                 footer = if (results.continuation != null) ({ TextButton(onClick = { load(more = true) }, enabled = !loading, modifier = Modifier.testTag("search.more")) { Text("Load more", maxLines = 1) } }) else null,
             )
         }
@@ -147,10 +153,12 @@ fun SearchScreen(services: AppServices, navigator: Navigator, query: String, mod
 }
 
 @Composable
-private fun SearchFilterRow(filters: com.greenaltambe.vela.extractor.SearchFilters, onChange: (com.greenaltambe.vela.extractor.SearchFilters) -> Unit) {
+private fun SearchFilterRow(filters: com.greenaltambe.vela.extractor.SearchFilters, showShorts: Boolean, onChange: (com.greenaltambe.vela.extractor.SearchFilters) -> Unit) {
     var durationMenu by remember { mutableStateOf(false) }
     var sortMenu by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth().padding(horizontal = Vela.gutter), horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+        // Only offered while Shorts are on in Settings.
+        if (showShorts) FilterChip(selected = filters.shortsOnly, onClick = { onChange(filters.copy(shortsOnly = !filters.shortsOnly)) }, label = { Text("Shorts", maxLines = 1) }, modifier = Modifier.testTag("search.filter.shorts"))
         Box {
             FilterChip(selected = filters.duration != com.greenaltambe.vela.extractor.DurationFilter.ANY, onClick = { durationMenu = true }, label = { Text(filters.duration.label, maxLines = 1) }, modifier = Modifier.testTag("search.filter.duration"))
             DropdownMenu(durationMenu, { durationMenu = false }) {
@@ -196,7 +204,7 @@ private fun SearchStart(services: AppServices, navigator: Navigator, history: Li
         if (watched.isNotEmpty()) item {
             Column(verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
                 SectionHeader("Recently watched")
-                androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(Vela.md), modifier = Modifier.testTag("search.watched")) {
+                com.greenaltambe.vela.ui.components.HScrollRow(Modifier.testTag("search.watched"), Arrangement.spacedBy(Vela.md)) {
                     items(watched, key = { it.id }) { v ->
                         Column(Modifier.width(168.dp).clip(Vela.mediumShape).clickable { navigator.push(Route.Video(v)) }, verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
                             coil3.compose.AsyncImage("https://i.ytimg.com/vi/${v.id}/mqdefault.jpg", null, Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(Vela.thumbnailShape).background(Vela.colors.surfaceVariant.toColor()), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
@@ -209,7 +217,7 @@ private fun SearchStart(services: AppServices, navigator: Navigator, history: Li
         if (channels.isNotEmpty()) item {
             Column(verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
                 SectionHeader("Subscriptions")
-                androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(Vela.md), modifier = Modifier.testTag("search.channels")) {
+                com.greenaltambe.vela.ui.components.HScrollRow(Modifier.testTag("search.channels"), Arrangement.spacedBy(Vela.md)) {
                     items(channels, key = { it.channelId }) { c ->
                         Column(Modifier.width(72.dp).clip(Vela.mediumShape).clickable { navigator.push(Route.Channel(c.channelId, c.name)) }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
                             com.greenaltambe.vela.ui.components.Avatar(c.name, size = 56.dp, url = c.avatarUrl)
