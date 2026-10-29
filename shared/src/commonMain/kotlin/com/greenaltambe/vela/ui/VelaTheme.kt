@@ -42,6 +42,9 @@ fun VelaTheme(look: LookTokens, performanceMode: Boolean = false, content: @Comp
             surfaceVariant = c.surfaceVariant.toColor(), onSurfaceVariant = c.onSurfaceVariant.toColor(),
             primary = c.primary.toColor(), onPrimary = c.onPrimary.toColor(),
             outline = c.outline.toColor(), error = c.error.toColor(),
+            // Menus and dialogs sit on the "raised" surface of the Look, not Material's tinted defaults.
+            surfaceContainerLowest = c.surface.toColor(), surfaceContainerLow = c.surface.toColor(), surfaceContainer = c.surfaceVariant.toColor(),
+            surfaceContainerHigh = c.surfaceVariant.toColor(), surfaceContainerHighest = c.surfaceVariant.toColor(), surfaceTint = androidx.compose.ui.graphics.Color.Transparent,
         )
     }
     val typography = remember(look) { typographyFor(look.typography) }
@@ -50,7 +53,11 @@ fun VelaTheme(look: LookTokens, performanceMode: Boolean = false, content: @Comp
         LocalLook provides look, LocalPerformanceMode provides performanceMode,
         LocalMinimumInteractiveComponentSize provides look.spacing.minTouchDp.dp,
     ) {
-        MaterialTheme(colorScheme = scheme, typography = typography) {
+        // Dropdown menus, dialogs, chips and fields use the one corner-radius setting like everything else.
+        val medium = androidx.compose.foundation.shape.RoundedCornerShape(look.radii.mediumDp.dp)
+        val large = androidx.compose.foundation.shape.RoundedCornerShape(look.radii.largeDp.dp)
+        val shapes = androidx.compose.material3.Shapes(extraSmall = medium, small = medium, medium = medium, large = large, extraLarge = large)
+        MaterialTheme(colorScheme = scheme, typography = typography, shapes = shapes) {
             // Text with no colour of its own takes the content colour, which is black unless a Surface says otherwise.
             Surface(Modifier.fillMaxSize(), color = scheme.background, contentColor = scheme.onBackground, content = content)
         }

@@ -65,6 +65,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import com.greenaltambe.vela.ui.player.playerVerticalSwipe
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
@@ -420,6 +422,8 @@ fun VelaTopBar(
 class MiniState(
     val title: String, val thumbnailUrl: String?, val playing: Boolean, val progress: Float,
     val onToggle: () -> Unit, val onExpand: () -> Unit, val onClose: () -> Unit,
+    /** Draws the playing video into the given box (the mini player shows the live picture, not just the thumbnail); null shows the thumbnail only. */
+    val surface: (@Composable (Modifier) -> Unit)? = null,
 )
 
 /**
@@ -430,26 +434,41 @@ class MiniState(
 @Composable
 fun MiniPlayer(state: MiniState, look: MiniLook, shape: androidx.compose.ui.graphics.Shape, modifier: Modifier = Modifier) {
     when (look) {
-        MiniLook.CARD -> Column(modifier.clip(shape).background(Vela.colors.surfaceVariant.toColor()).testTag(ComponentIds.MINI_PLAYER)) {
-            Box(Modifier.fillMaxWidth().height(2.dp).background(Vela.colors.outline.toColor())) {
-                Box(Modifier.fillMaxWidth(state.progress.coerceIn(0f, 1f)).fillMaxHeight().background(Vela.colors.primary.toColor()))
-            }
+        MiniLook.CARD -> {
+          // Swiping up on the card opens the video page (like a tap, but the card follows the finger a little first).
+          var lift by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+          val openAt = with(androidx.compose.ui.platform.LocalDensity.current) { 40.dp.toPx() }
+          Column(
+            modifier.graphicsLayer { translationY = lift * 0.6f }
+                .playerVerticalSwipe(
+                    onDelta = { dy -> lift = (lift + dy).coerceAtMost(0f) },
+                    onEnd = { total, v -> lift = 0f; if (total < -openAt || v < -900f) state.onExpand() },
+                )
+                .clip(shape).background(Vela.colors.surfaceVariant.toColor()).testTag(ComponentIds.MINI_PLAYER),
+          ) {
             Row(Modifier.fillMaxWidth().clickable(onClick = state.onExpand).padding(start = Vela.sm), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                Box(Modifier.size(width = 64.dp, height = 36.dp).clip(Vela.smallShape).background(Vela.colors.outline.toColor())) {
+                Box(Modifier.size(width = 64.dp, height = 36.dp).clip(Vela.smallShape).background(Vela.colors.mediaBackground.toColor())) {
                     if (state.thumbnailUrl != null) AsyncImage(state.thumbnailUrl, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
+                    state.surface?.invoke(Modifier.matchParentSize())
                 }
                 Text(state.title, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 IconButton(onClick = state.onToggle, modifier = Modifier.testTag("mini.toggle")) { Icon(if (state.playing) Vela.icons.pause else Vela.icons.play, if (state.playing) "Pause" else "Play") }
                 IconButton(onClick = state.onClose, modifier = Modifier.testTag("mini.close")) { Icon(Vela.icons.close, "Close player") }
             }
+            // The progress line is the card's bottom edge.
+            Box(Modifier.fillMaxWidth().height(2.dp).background(Vela.colors.outline.toColor())) {
+                Box(Modifier.fillMaxWidth(state.progress.coerceIn(0f, 1f)).fillMaxHeight().background(Vela.wake))
+            }
+          }
         }
         MiniLook.PIP -> Box(modifier.size(PIP_WIDTH, PIP_WIDTH * 9 / 16).clip(shape).background(Vela.colors.mediaBackground.toColor()).clickable(onClick = state.onExpand).testTag(ComponentIds.MINI_PLAYER)) {
             if (state.thumbnailUrl != null) AsyncImage(state.thumbnailUrl, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
+            state.surface?.invoke(Modifier.matchParentSize())
             Box(Modifier.matchParentSize().background(Vela.colors.mediaScrim.toColor().copy(alpha = 0.35f)))
             IconButton(onClick = state.onToggle, modifier = Modifier.align(Alignment.Center).testTag("mini.toggle")) { Icon(if (state.playing) Vela.icons.pause else Vela.icons.play, if (state.playing) "Pause" else "Play", tint = Vela.colors.onMedia.toColor()) }
             IconButton(onClick = state.onClose, modifier = Modifier.align(Alignment.TopEnd).testTag("mini.close")) { Icon(Vela.icons.close, "Close player", tint = Vela.colors.onMedia.toColor()) }
             Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Vela.colors.outline.toColor().copy(alpha = 0.5f))) {
-                Box(Modifier.fillMaxWidth(state.progress.coerceIn(0f, 1f)).fillMaxHeight().background(Vela.colors.primary.toColor()))
+                Box(Modifier.fillMaxWidth(state.progress.coerceIn(0f, 1f)).fillMaxHeight().background(Vela.wake))
             }
         }
     }
@@ -461,10 +480,10 @@ val PIP_WIDTH = 176.dp
 @Composable
 fun PrimaryButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
     val source = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-    // The palette gradient is the button's fill; the label is black or white, whichever reads better over the worst stop.
-    val onGradient = com.greenaltambe.vela.ui.look.Contrast.onAll(Vela.look.accent.wake).toColor()
+    // The palette gradient is the button's fill, darkened just enough for white text to read on every part of it.
+    val onGradient = Vela.onButton
     Button(
-        onClick = onClick, modifier = modifier.pressFeedback(source).alpha(if (enabled) 1f else 0.4f).background(Vela.wake, Vela.buttonShape), enabled = enabled, shape = Vela.buttonShape, interactionSource = source,
+        onClick = onClick, modifier = modifier.pressFeedback(source).alpha(if (enabled) 1f else 0.4f).background(Vela.buttonFill, Vela.buttonShape), enabled = enabled, shape = Vela.buttonShape, interactionSource = source,
         colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color.Transparent, disabledContainerColor = androidx.compose.ui.graphics.Color.Transparent, contentColor = onGradient, disabledContentColor = onGradient),
     ) { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) }
 }

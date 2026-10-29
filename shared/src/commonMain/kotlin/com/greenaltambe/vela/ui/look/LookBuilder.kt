@@ -15,6 +15,7 @@ data class LookSnapshot(
     val iconStyle: IconStyle = IconStyle.FILLED,
     val iconWeight: IconWeight = IconWeight.REGULAR,
     val iconRounded: Boolean = true,
+    val progress: ProgressStyle = ProgressStyle.BOLD_DOT,
     val glass: Boolean = true,
     val reduceMotion: Boolean = false,
     val performance: Boolean = false,
@@ -25,7 +26,7 @@ data class LookSnapshot(
             palette = s.resolve(LookSettings.palette),
             corners = s.resolve(LookSettings.corners), density = s.resolve(LookSettings.density), textScalePercent = s.resolve(LookSettings.textScale),
             font = s.resolve(LookSettings.font), titleWeight = s.resolve(LookSettings.titleWeight),
-            iconStyle = s.resolve(LookSettings.iconStyle), iconWeight = s.resolve(LookSettings.iconWeight), iconRounded = s.resolve(LookSettings.iconRounded),
+            iconStyle = s.resolve(LookSettings.iconStyle), iconWeight = s.resolve(LookSettings.iconWeight), iconRounded = s.resolve(LookSettings.iconRounded), progress = s.resolve(LookSettings.progressStyle),
             glass = s.resolve(LookSettings.glass), reduceMotion = s.resolve(LookSettings.reduceMotion), performance = s.resolve(Settings.performanceMode),
         )
     }
@@ -65,6 +66,7 @@ object LookBuilder {
             accent = AccentTokens(stops),
             icons = IconTokens(s.iconStyle, s.iconWeight, s.iconRounded),
             motion = MotionTokens(reduced = reduced),
+            progress = s.progress,
         )
     }
 }

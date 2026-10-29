@@ -4,6 +4,9 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -13,6 +16,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -65,6 +69,9 @@ import kotlinx.coroutines.delay
 /** A coloured span of the timeline in milliseconds (a SponsorBlock segment). */
 data class SeekMarker(val startMs: Long, val endMs: Long, val color: Color)
 
+/** The brief "+10 s" / "−10 s" badge a double-tap shows; [token] makes each tap a new one so the badge restarts its timer. */
+private class SeekFlash(val forward: Boolean, val seconds: Int, val token: Int)
+
 private val speeds = listOf(0.25f, 0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f)
 private const val HIDE_AFTER_MS = 3_000L
 
@@ -104,6 +111,9 @@ fun PlayerView(
     isLive: Boolean = false,
     /** Drawn over the picture, above the controls' bottom edge: SponsorBlock's skip prompt and "skipped, Undo" notice. */
     overlay: @Composable () -> Unit = {},
+    /** How far a double-tap (and the skip buttons) jump, in seconds; and the speed while the picture is held. Both are playback settings. */
+    seekStepSeconds: Int = 10,
+    holdSpeed: Float = 2f,
 ) {
     val session = host.session
     val sessionState by session.state.collectAsState()
@@ -133,12 +143,23 @@ fun PlayerView(
     var preview by remember { mutableStateOf<Float?>(null) }
     var menu by remember { mutableStateOf<Menu?>(null) }
     var showStats by remember { mutableStateOf(false) }
-    val showControls = controlsEnabled && (controlsVisible || !playing || menu != null || preview != null)
+    val showControls = controlsEnabled && (controlsVisible || menu != null || preview != null)
+    // Pausing (from anywhere) brings the controls up; after that a tap on the picture hides them again even though it stays paused.
+    LaunchedEffect(player.status) { if (player.status == PlaybackStatus.PAUSED) controlsVisible = true }
 
     LaunchedEffect(controlsVisible, playing, touches, menu, preview) {
         if (controlsVisible && playing && menu == null && preview == null) { delay(HIDE_AFTER_MS); controlsVisible = false }
     }
     fun touch() { touches++; controlsVisible = true }
+
+    // Double-tap a half to jump; hold the picture for fast playback (back to normal on release). The latest position is read when the gesture fires.
+    val positionNow by androidx.compose.runtime.rememberUpdatedState(position)
+    val durationNow by androidx.compose.runtime.rememberUpdatedState(duration)
+    val activeNow by androidx.compose.runtime.rememberUpdatedState(active)
+    var flash by remember { mutableStateOf<SeekFlash?>(null) }
+    var holding by remember { mutableStateOf(false) }
+    LaunchedEffect(flash) { if (flash != null) { delay(650); flash = null } }
+    androidx.compose.runtime.DisposableEffect(video.id) { onDispose { if (holding) session.holdSpeed(null) } }
 
     val boxModifier = if (fullscreen) modifier.fillMaxSize() else modifier.fillMaxWidth().aspectRatio(16f / 9f)
     val onMedia = Vela.colors.onMedia.toColor()
@@ -155,7 +176,34 @@ fun PlayerView(
         // Taps toggle the controls. Under the controls, so their buttons take their own taps.
         Box(
             Modifier.fillMaxSize().testTag("player.surface")
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { controlsVisible = !controlsVisible; touches++ },
+                .pointerInput(video.id, seekStepSeconds, holdSpeed) {
+                    detectTapGestures(
+                        onTap = { controlsVisible = !controlsVisible; touches++ },
+                        onDoubleTap = { at ->
+                            if (!activeNow) return@detectTapGestures
+                            val forward = at.x > size.width / 2f
+                            val target = (positionNow + (if (forward) 1 else -1) * seekStepSeconds * 1000L).coerceAtLeast(0).let { if (durationNow > 0) it.coerceAtMost(durationNow) else it }
+                            session.seekTo(target)
+                            flash = SeekFlash(forward, seekStepSeconds, (flash?.token ?: 0) + 1)
+                        },
+                        onLongPress = { if (activeNow) { holding = true; session.holdSpeed(holdSpeed) } },
+                        onPress = { tryAwaitRelease(); if (holding) { holding = false; session.holdSpeed(null) } },
+                    )
+                },
+        )
+        flash?.let { f ->
+            Row(
+                Modifier.align(if (f.forward) Alignment.CenterEnd else Alignment.CenterStart).padding(horizontal = Vela.lg).clip(Vela.pillShape).background(Vela.colors.mediaScrim.toColor().copy(alpha = 0.55f)).padding(horizontal = Vela.md, vertical = Vela.sm).testTag("player.seekFlash"),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.xs),
+            ) {
+                if (!f.forward) Icon(Vela.icons.rewind, null, tint = onMedia)
+                Text("${if (f.forward) "+" else "−"}${f.seconds} s", color = onMedia, style = MaterialTheme.typography.bodyMedium)
+                if (f.forward) Icon(Vela.icons.forward, null, tint = onMedia)
+            }
+        }
+        if (holding) Text(
+            "${if (holdSpeed == holdSpeed.toInt().toFloat()) holdSpeed.toInt().toString() else holdSpeed.toString()}× speed", color = onMedia, style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = Vela.md).clip(Vela.pillShape).background(Vela.colors.mediaScrim.toColor().copy(alpha = 0.55f)).padding(horizontal = Vela.md, vertical = Vela.xs).testTag("player.holdSpeed"),
         )
 
         if (buffering && failed == null) CircularProgressIndicator(Modifier.align(Alignment.Center).size(40.dp).testTag("player.spinner"), color = onMedia)
@@ -212,12 +260,14 @@ fun PlayerView(
                 }
 
                 // Centre: -10 s, play / pause, +10 s.
-                if (active) Row(Modifier.align(Alignment.Center), horizontalArrangement = Arrangement.spacedBy(Vela.lg), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { touch(); session.seekTo((position - 10_000).coerceAtLeast(0)) }, modifier = Modifier.size(56.dp).testTag("player.back10")) { Icon(Vela.icons.rewind, "Back 10 seconds", tint = onMedia) }
-                    IconButton(onClick = { touch(); if (playing) session.pause() else session.play() }, modifier = Modifier.size(64.dp).testTag("player.playPause")) {
+                // In the small portrait player the seek bar and the buttons share little height: the buttons sit higher and smaller so a press on
+                // pause can never land on the seek bar.
+                if (active) Row(Modifier.align(Alignment.Center).offset(y = if (fullscreen) 0.dp else (-26).dp), horizontalArrangement = Arrangement.spacedBy(if (fullscreen) Vela.lg else Vela.md), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { touch(); session.seekTo((position - seekStepSeconds * 1000L).coerceAtLeast(0)) }, modifier = Modifier.size(if (fullscreen) 56.dp else 48.dp).testTag("player.back10")) { Icon(Vela.icons.rewind, "Back $seekStepSeconds seconds", tint = onMedia) }
+                    IconButton(onClick = { touch(); if (playing) session.pause() else session.play() }, modifier = Modifier.size(if (fullscreen) 64.dp else 56.dp).testTag("player.playPause")) {
                         Icon(if (playing) Vela.icons.pause else Vela.icons.play, if (playing) "Pause" else "Play", Modifier.size(40.dp), tint = onMedia)
                     }
-                    IconButton(onClick = { touch(); session.seekTo((position + 10_000).coerceAtMost(duration.takeIf { it > 0 } ?: Long.MAX_VALUE)) }, modifier = Modifier.size(56.dp).testTag("player.forward10")) { Icon(Vela.icons.forward, "Forward 10 seconds", tint = onMedia) }
+                    IconButton(onClick = { touch(); session.seekTo((position + seekStepSeconds * 1000L).coerceAtMost(duration.takeIf { it > 0 } ?: Long.MAX_VALUE)) }, modifier = Modifier.size(if (fullscreen) 56.dp else 48.dp).testTag("player.forward10")) { Icon(Vela.icons.forward, "Forward $seekStepSeconds seconds", tint = onMedia) }
                 }
 
                 // Bottom: seek bar, time, icon row.
@@ -239,7 +289,7 @@ fun PlayerView(
                         previewLabel = { f -> formatTimestamp((f * duration / 1000).toLong()) },
                         description = "Seek",
                         valueDescription = "${formatTimestamp(shown / 1000)} of ${formatTimestamp(duration / 1000)}",
-                        playedColor = onMedia, trackColor = onMedia.copy(alpha = 0.3f), bufferedColor = onMedia.copy(alpha = 0.5f), tickColor = onMedia,
+                        trackColor = onMedia.copy(alpha = 0.3f), bufferedColor = onMedia.copy(alpha = 0.5f), tickColor = onMedia,
                         modifier = Modifier.testTag("player.seek"),
                     )
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
@@ -249,7 +299,7 @@ fun PlayerView(
                         if (desktop) Scrubber(
                             value = if (muted) 0f else volume, onPreview = { touches++ }, onCommit = { touch(); session.setVolume(it) },
                             modifier = Modifier.widthIn(max = 96.dp).testTag("player.volume"), description = "Volume", valueDescription = "${((if (muted) 0f else volume) * 100).toInt()} percent",
-                            playedColor = onMedia, trackColor = onMedia.copy(alpha = 0.3f), thumbRadius = 6.dp,
+                            trackColor = onMedia.copy(alpha = 0.3f), style = com.greenaltambe.vela.core.settings.ProgressStyle.BOLD_DOT,
                         )
                         Box(Modifier.weight(1f))
                         IconButton(onClick = {}, enabled = false, modifier = Modifier.testTag("player.captions")) { Icon(Vela.icons.captions, "Captions (not available yet)", tint = onMedia.copy(alpha = 0.4f)) }

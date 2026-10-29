@@ -79,7 +79,7 @@ fun SettingRow(settings: SettingsResolver, setting: Setting<*>, revision: Int, h
                 val fraction = (((raw.toDoubleOrNull() ?: range.min) - range.min) / (range.max - range.min)).toFloat().coerceIn(0f, 1f)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
                     Scrubber(
-                        value = fraction, onPreview = {}, modifier = Modifier.weight(1f), description = setting.label, valueDescription = raw,
+                        value = fraction, onPreview = {}, modifier = Modifier.weight(1f), description = setting.label, valueDescription = raw, style = com.greenaltambe.vela.core.settings.ProgressStyle.BOLD_DOT,
                         onCommit = { f ->
                             val v = range.min + f * (range.max - range.min)
                             val snapped = if (step != null) kotlin.math.round((v - range.min) / step) * step + range.min else v
@@ -102,6 +102,8 @@ object SliderWord {
         return when {
             setting.key == "look.corners" -> if (n == 0.0) "Square" else "$text dp"
             setting.key == "look.textScale" -> "$text %"
+            setting.key == "playback.seekSeconds" -> "$text s"
+            setting.key == "playback.holdSpeed" -> "$text×"
             else -> text
         }
     }

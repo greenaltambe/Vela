@@ -1,6 +1,13 @@
 package com.greenaltambe.vela.ui.screens
 
 import androidx.compose.foundation.clickable
+import com.greenaltambe.vela.ui.look.toColor
+import com.greenaltambe.vela.extractor.VideoSummary
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -113,13 +120,7 @@ fun SearchScreen(services: AppServices, navigator: Navigator, query: String, mod
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = { navigator.back() }, modifier = Modifier.testTag("nav.back")) { Icon(Vela.icons.back, "Back") }
-            OutlinedTextField(
-                text, { text = it }, modifier = Modifier.weight(1f).focusRequester(focus).testTag("search.field"), singleLine = true,
-                placeholder = { Text("Search videos", maxLines = 1) },
-                trailingIcon = { if (text.isNotEmpty()) IconButton(onClick = { text = "" }, modifier = Modifier.testTag("search.clear")) { Icon(Vela.icons.close, "Clear") } },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { submit(text) }),
-            )
-            IconButton(onClick = { submit(text) }, enabled = text.isNotBlank(), modifier = Modifier.testTag("search.submit")) { Icon(Vela.icons.search, "Search") }
+            com.greenaltambe.vela.ui.components.VelaSearchField(text, { text = it }, { submit(text) }, Modifier.weight(1f).padding(end = Vela.xs), focusRequester = focus)
         }
         if (suggestions.isNotEmpty() && text.trim() != query) {
             LazyColumn(Modifier.fillMaxSize().testTag("search.suggestions"), contentPadding = Vela.contentPadding) {
@@ -130,20 +131,8 @@ fun SearchScreen(services: AppServices, navigator: Navigator, query: String, mod
                 }
             }
         } else if (query.isBlank()) {
-            LazyColumn(Modifier.fillMaxSize().testTag("search.list"), contentPadding = Vela.contentPadding) {
-                item {
-                    SectionHeader("Recent searches") {
-                        if (history.isNotEmpty()) TextButton(onClick = { services.searchHistory.clear(); historyRevision++ }, modifier = Modifier.testTag("search.clearHistory")) { Text("Clear", maxLines = 1) }
-                    }
-                }
-                if (history.isEmpty()) item { EmptyState("Nothing searched yet.") }
-                items(history, key = { it }) { q ->
-                    Row(Modifier.fillMaxWidth().heightIn(min = Vela.minTouch).clickable { navigator.replace(Route.Search(q)) }, verticalAlignment = Alignment.CenterVertically) {
-                        Text(q, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge)
-                        IconButton(onClick = { services.searchHistory.remove(q); historyRevision++ }) { Icon(Vela.icons.close, "Remove from history") }
-                    }
-                }
-            }
+            // The start page: only while nothing is typed. Typing hides it, leaving the field and its suggestions.
+            if (text.isBlank()) SearchStart(services, navigator, history, onRemove = { services.searchHistory.remove(it); historyRevision++ }, onClear = { services.searchHistory.clear(); historyRevision++ })
         } else {
             SearchFilterRow(filters) { filters = it }
             // Never an unexplained empty list: say when Settings > Feed rules (minimum length, hide watched, keywords) hid results.
@@ -174,5 +163,62 @@ private fun SearchFilterRow(filters: com.greenaltambe.vela.extractor.SearchFilte
                 com.greenaltambe.vela.extractor.SearchSort.entries.forEach { o -> DropdownMenuItem(text = { Text(o.label) }, onClick = { sortMenu = false; onChange(filters.copy(sort = o)) }) }
             }
         }
+    }
+}
+
+/** Before anything is typed: recent searches as pills, recently watched videos, and the channels you subscribe to. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun SearchStart(services: AppServices, navigator: Navigator, history: List<String>, onRemove: (String) -> Unit, onClear: () -> Unit) {
+    val activeId = services.accounts.active.value.id
+    val watched = remember(activeId, history) {
+        services.history.recent(60).distinctBy { it.videoId }.take(12)
+            .map { VideoSummary(it.videoId, it.title, it.channelId, "", null, it.durationMs.takeIf { d -> d > 0 }?.div(1000)) }
+    }
+    val channels = remember(activeId) { services.subscriptions.all().take(24) }
+    LazyColumn(Modifier.fillMaxSize().testTag("search.list"), contentPadding = Vela.contentPadding, verticalArrangement = Arrangement.spacedBy(Vela.md)) {
+        if (history.isNotEmpty()) item {
+            Column(verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
+                SectionHeader("Recent searches") { TextButton(onClick = onClear, modifier = Modifier.testTag("search.clearHistory")) { Text("Clear", maxLines = 1) } }
+                androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(Vela.sm), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
+                    history.forEach { q ->
+                        Row(
+                            Modifier.clip(Vela.pillShape).background(Vela.colors.surfaceVariant.toColor()).clickable { navigator.replace(Route.Search(q)) }.heightIn(min = 36.dp).padding(start = Vela.md, end = Vela.xs).testTag("search.recent"),
+                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.xs),
+                        ) {
+                            Text(q, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.widthIn(max = 220.dp))
+                            IconButton(onClick = { onRemove(q) }, modifier = Modifier.size(28.dp)) { Icon(Vela.icons.close, "Remove from history", Modifier.size(16.dp)) }
+                        }
+                    }
+                }
+            }
+        }
+        if (watched.isNotEmpty()) item {
+            Column(verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
+                SectionHeader("Recently watched")
+                androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(Vela.md), modifier = Modifier.testTag("search.watched")) {
+                    items(watched, key = { it.id }) { v ->
+                        Column(Modifier.width(168.dp).clip(Vela.mediumShape).clickable { navigator.push(Route.Video(v)) }, verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
+                            coil3.compose.AsyncImage("https://i.ytimg.com/vi/${v.id}/mqdefault.jpg", null, Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(Vela.thumbnailShape).background(Vela.colors.surfaceVariant.toColor()), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                            Text(v.title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
+        }
+        if (channels.isNotEmpty()) item {
+            Column(verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
+                SectionHeader("Subscriptions")
+                androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(Vela.md), modifier = Modifier.testTag("search.channels")) {
+                    items(channels, key = { it.channelId }) { c ->
+                        Column(Modifier.width(72.dp).clip(Vela.mediumShape).clickable { navigator.push(Route.Channel(c.channelId, c.name)) }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
+                            com.greenaltambe.vela.ui.components.Avatar(c.name, size = 56.dp, url = c.avatarUrl)
+                            Text(c.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
+        }
+        if (history.isEmpty() && watched.isEmpty() && channels.isEmpty()) item { EmptyState("Search for videos, channels and topics.") }
     }
 }

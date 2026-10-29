@@ -25,6 +25,17 @@ object Contrast {
     /** Black or white, whichever reads better on [bg]. */
     fun onColor(bg: Long): Long = if (ratio(0xFFFFFFFF, bg) >= ratio(0xFF000000, bg)) 0xFFFFFFFF else 0xFF000000
 
+    /** [colour] stepped towards black until white text on it reaches [min]:1 (unchanged if it already does): a fill that white text is readable on. */
+    fun darkenForWhiteText(colour: Long, min: Double = 4.5): Long {
+        var c = colour
+        var guard = 0
+        while (ratio(0xFFFFFFFF, c) < min && guard++ < 40) {
+            fun step(shift: Int): Long { val v = ((c shr shift) and 0xFF); return ((v * 0.94).toLong().coerceIn(0, 255)) shl shift }
+            c = 0xFF000000 or step(16) or step(8) or step(0)
+        }
+        return c
+    }
+
     /** Black or white, whichever reads better on the worst of [backgrounds] (a label over a gradient). */
     fun onAll(backgrounds: List<Long>): Long {
         val white = backgrounds.minOf { ratio(0xFFFFFFFF, it) }; val black = backgrounds.minOf { ratio(0xFF000000, it) }

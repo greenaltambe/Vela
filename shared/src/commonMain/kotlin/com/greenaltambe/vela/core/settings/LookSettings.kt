@@ -11,6 +11,8 @@ enum class TitleWeight { LIGHT, NORMAL, MEDIUM }
  * Ready-made: Material Rounded / Outlined / Sharp / Two-tone and Lucide. Every pack covers every icon in the app.
  */
 enum class IconStyle { FILLED, LINE, DUOTONE, ROUNDED, OUTLINED, SHARP, TWO_TONE, LUCIDE }
+/** How the seek bar is drawn: a hairline or a bold track, each with or without a round marker, spikes (bars) behind the current position, or a wave that moves up to it. */
+enum class ProgressStyle { HAIRLINE, HAIRLINE_DOT, BOLD, BOLD_DOT, SPIKES, WAVE }
 enum class IconWeight { THIN, REGULAR, BOLD }
 enum class NavTab { HOME, SUBSCRIPTIONS, LIBRARY, SEARCH, DOWNLOADS }
 enum class NavLabels { HIDDEN, ALWAYS }
@@ -73,6 +75,12 @@ object LookSettings {
     val iconWeight = pick("look.iconWeight", IconWeight.REGULAR, IconWeight.entries, "Icon line weight", mapOf(IconWeight.THIN to "Thin", IconWeight.REGULAR to "Regular", IconWeight.BOLD to "Bold"), listOf("icons", "weight", "thin", "bold"))
     val iconRounded = flag("look.iconRounded", true, "Rounded icon ends", listOf("icons", "rounded", "ends"))
 
+    val progressStyle = pick(
+        "look.progressStyle", ProgressStyle.BOLD_DOT, ProgressStyle.entries, "Progress bar",
+        mapOf(ProgressStyle.HAIRLINE to "Hairline", ProgressStyle.HAIRLINE_DOT to "Hairline + dot", ProgressStyle.BOLD to "Bold", ProgressStyle.BOLD_DOT to "Bold + dot", ProgressStyle.SPIKES to "Spikes", ProgressStyle.WAVE to "Wave"),
+        listOf("progress", "seek", "bar", "scrubber", "timeline", "spikes", "waves", "hairline", "thumb"),
+        "The player's seek bar. Every style is filled with the colour palette.",
+    )
     val navTabs = Setting(
         key = "look.nav.tabs", default = NavTabs.encode(NavTabs.default), scope = SettingScope.GLOBAL, label = "Tabs in the bar", keywords = listOf("tabs", "bar", "navigation", "order", "home", "shorts", "downloads"),
         codec = SettingCodecs.string, section = SettingSection.APPEARANCE, info = "Which pages get a tab, in order (2 to 5). Settings is never a tab: it lives in the profile menu.",
@@ -94,7 +102,7 @@ object LookSettings {
 
     val all: List<Setting<*>> = listOf(
         theme, palette, corners, density, textScale, font, titleWeight,
-        iconStyle, iconWeight, iconRounded, navTabs, navOpenOn, navLabels, barStyle, navShrink, miniLook, miniPlacement, miniGap, railCollapsed, glass, reduceMotion,
+        iconStyle, iconWeight, iconRounded, progressStyle, navTabs, navOpenOn, navLabels, barStyle, navShrink, miniLook, miniPlacement, miniGap, railCollapsed, glass, reduceMotion,
     )
 }
 

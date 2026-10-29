@@ -1,6 +1,11 @@
 package com.greenaltambe.vela.ui.screens
 
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.Icon
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -93,6 +98,10 @@ import com.greenaltambe.vela.ui.platform.LocalInPictureInPicture
 import com.greenaltambe.vela.ui.platform.LocalWindowControls
 import com.greenaltambe.vela.ui.platform.PlatformBackHandler
 import com.greenaltambe.vela.ui.player.PlayerView
+import com.greenaltambe.vela.ui.player.playerVerticalSwipe
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.graphics.graphicsLayer
 import com.greenaltambe.vela.ui.player.SeekMarker
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -120,12 +129,15 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
 
     // A finished download plays from its file and shows its stored page: no stream, info, comment or related request is made.
     val offline = remember(video.id) { services.downloads?.offline(video.id) }
-    var info by remember(video.id) { mutableStateOf<VideoInfo?>(offline?.let(::storedVideoInfo)) }
+    val pageCache = com.greenaltambe.vela.ui.screens.LocalVideoPageCache.current
+    val cached = remember(video.id) { if (offline == null) pageCache?.get(video.id, services.clock.now()) else null }
+    var info by remember(video.id) { mutableStateOf<VideoInfo?>(offline?.let(::storedVideoInfo) ?: cached?.info) }
     var infoError by remember(video.id) { mutableStateOf<String?>(null) }
-    var related by remember(video.id) { mutableStateOf<List<VideoSummary>>(emptyList()) }
-    var comments by remember(video.id) { mutableStateOf<List<Comment>>(offline?.comments.orEmpty()) }
-    var commentsNext by remember(video.id) { mutableStateOf<String?>(null) }
-    var commentsState by remember(video.id) { mutableStateOf<ListState>(if (offline != null) (if (offline.comments.isEmpty()) ListState.Empty("No saved comments.") else ListState.Ready) else ListState.Loading) }
+    var related by remember(video.id) { mutableStateOf<List<VideoSummary>>(cached?.related.orEmpty()) }
+    var comments by remember(video.id) { mutableStateOf<List<Comment>>(offline?.comments ?: cached?.comments.orEmpty()) }
+    var commentsNext by remember(video.id) { mutableStateOf<String?>(cached?.commentsNext) }
+    var commentsOpen by remember(video.id) { mutableStateOf(false) }
+    var commentsState by remember(video.id) { mutableStateOf<ListState>(if (offline != null) (if (offline.comments.isEmpty()) ListState.Empty("No saved comments.") else ListState.Ready) else if (cached?.comments?.isNotEmpty() == true) ListState.Ready else ListState.Loading) }
     var commentsLoading by remember(video.id) { mutableStateOf(false) }
     var sort by remember(video.id) { mutableStateOf(CommentSort.TOP) }
     var replies by remember(video.id) { mutableStateOf<Map<String, List<Comment>>>(emptyMap()) }
@@ -134,11 +146,30 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
     var downloadDialog by remember(video.id) { mutableStateOf(false) }
     var subscribed by remember(video.id, video.channelId) { mutableStateOf(services.subscriptions.isSubscribed(video.channelId)) }
     var liked by remember(video.id) { mutableStateOf(false) }
+    var disliked by remember(video.id) { mutableStateOf(false) }
     var actionError by remember(video.id) { mutableStateOf<String?>(null) }
     var actionNote by remember(video.id) { mutableStateOf<String?>(null) }
     // Created before any early return so the scroll positions survive fullscreen and Picture-in-Picture.
     val detailsState = rememberLazyListState()
     val sideState = rememberLazyListState()
+    // Pull-down state: how far the page has been dragged down (px). The page shrinks toward the mini player's corner as it grows.
+    var pageHeightPx by remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
+    var dragPx by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    var pageWidthPx by remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    // Release after a pull: past a short distance (or a quick flick) the page is handed to the mini player; otherwise it springs back.
+    val reveal = com.greenaltambe.vela.ui.nav.LocalPageReveal.current
+    fun setDrag(v: Float) { dragPx = v; reveal?.floatValue = (v / (pageHeightPx * 0.5f)).coerceIn(0f, 1f) }
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { reveal?.floatValue = 0f } }
+    suspend fun settlePage(velocityY: Float) {
+        if (dragPx > pageHeightPx * 0.18f || velocityY > 1200f) {
+            androidx.compose.animation.core.animate(dragPx, pageHeightPx * 0.5f, animationSpec = androidx.compose.animation.core.tween(170)) { x, _ -> setDrag(x) }
+            navigator.back()
+        } else androidx.compose.animation.core.animate(dragPx, 0f, animationSpec = androidx.compose.animation.core.spring(stiffness = 500f)) { x, _ -> setDrag(x) }
+    }
+    val seekStep = services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.seekStepSeconds).toInt()
+    val holdSpeedSetting = services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.holdSpeed)
+    val miniOnRight = services.settings.resolve(com.greenaltambe.vela.core.settings.LookSettings.miniLook) == com.greenaltambe.vela.core.settings.MiniLook.PIP
 
     fun loadComments(more: Boolean) {
         if (commentsLoading) return
@@ -172,14 +203,23 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
         if (startSeconds != null) host.session.seekTo(startSeconds * 1000)
     }
     LaunchedEffect(video.id) {
-        if (offline != null) return@LaunchedEffect
+        if (offline != null || cached?.info != null) return@LaunchedEffect
         when (val r = services.extractor.videoInfo(video.id)) {
             is ExtractorResult.Success -> info = r.value
             is ExtractorResult.Failure -> infoError = r.error.message
         }
     }
-    LaunchedEffect(video.id) { if (offline == null) (services.extractor.related(video.id) as? ExtractorResult.Success)?.let { related = it.value } }
-    LaunchedEffect(video.id, sort) { if (offline == null) loadComments(more = false) }
+    LaunchedEffect(video.id) { if (offline == null && related.isEmpty()) (services.extractor.related(video.id) as? ExtractorResult.Success)?.let { related = it.value } }
+    var skipFirstComments by remember(video.id) { mutableStateOf(cached?.comments?.isNotEmpty() == true) }
+    LaunchedEffect(video.id, sort) {
+        if (offline == null) { if (skipFirstComments) skipFirstComments = false else loadComments(more = false) }
+    }
+    // What this page loaded is kept for the next time it is opened (see VideoPageCache).
+    androidx.compose.runtime.SideEffect {
+        if (offline == null && pageCache != null && (info != null || related.isNotEmpty() || comments.isNotEmpty())) pageCache.put(video.id, VideoPageCache.Entry(info, related, comments, commentsNext, services.clock.now()))
+    }
+    // Back closes the comments (to the related videos) before it leaves the page.
+    PlatformBackHandler(enabled = commentsOpen) { commentsOpen = false }
 
     val chapters: List<Chapter> = remember(info) { info?.let { effectiveChapters(it.chapters, it.description, it.durationSeconds) }.orEmpty() }
 
@@ -214,7 +254,23 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
     PlatformBackHandler(enabled = window?.isFullscreen == true) { window?.toggleFullscreen() }
 
     if (host != null && (window?.isFullscreen == true || inPip)) {
-        PlayerView(host, video, chapters, markers, modifier.fillMaxSize(), fullscreen = true, controlsEnabled = !inPip, onBack = if (inPip) null else ({ window?.toggleFullscreen() }))
+        // Swipe down on the picture brings the video back to portrait: it follows the finger, then either leaves or springs back.
+        var fsDrag by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+        val leaveAt = with(density) { 90.dp.toPx() }
+        PlayerView(
+            host, video, chapters, markers,
+            seekStepSeconds = seekStep, holdSpeed = holdSpeedSetting,
+            modifier = modifier.fillMaxSize()
+                .then(if (inPip) Modifier else Modifier.playerVerticalSwipe(
+                    onDelta = { dy -> fsDrag = (fsDrag + dy).coerceAtLeast(0f) },
+                    onEnd = { total, v ->
+                        if (total > leaveAt || v > 1200f) window?.toggleFullscreen()
+                        else scope.launch { androidx.compose.animation.core.animate(fsDrag, 0f) { x, _ -> fsDrag = x } }
+                    },
+                ))
+                .graphicsLayer { translationY = fsDrag; alpha = 1f - (fsDrag / (leaveAt * 4f)).coerceIn(0f, 0.4f) },
+            fullscreen = true, controlsEnabled = !inPip, onBack = if (inPip) null else ({ window?.toggleFullscreen() }),
+        )
         return
     }
 
@@ -238,7 +294,7 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
     val playerBox: @Composable () -> Unit = {
         Box(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)).testTag("video.player")) {
             if (host != null) PlayerView(
-                host, video, chapters, markers, Modifier.fillMaxWidth(), onBack = { navigator.back() },
+                host, video, chapters, markers, Modifier.fillMaxWidth(), onBack = { navigator.back() }, seekStepSeconds = seekStep, holdSpeed = holdSpeedSetting,
                 isLive = info?.isLive == true, resolvingNote = resolvingNote,
                 openAgeSetting = { navigator.selectTab(com.greenaltambe.vela.ui.nav.Route.Settings) },
                 tryAccountNow = services.accounts.active.value.takeIf { it.isSignedIn }?.let { a -> { services.governors.forAccount(a.id).tryNow() } }, showChapterTitle = size != WindowSizeClass.COMPACT,
@@ -284,21 +340,27 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
         item {
             var saveMenu by remember { mutableStateOf(false) }
             val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
-            Row(Modifier.fillMaxWidth().testTag("video.actions"), horizontalArrangement = Arrangement.SpaceEvenly) {
-                if (services.actions != null && services.accounts.active.value.isSignedIn) {
-                    // The viewer's own like (account only); the count next to it stays Return YouTube Dislike's.
-                    ActionChip(Vela.icons.like, votes?.let { compact(it.likes) } ?: "Like", {
-                        val target = if (liked) VideoRating.NONE else VideoRating.LIKE
-                        liked = !liked
-                        scope.launch { (services.actions.rate(video.id, target) as? ActionResult.Failed)?.let { liked = !liked; actionError = "Could not rate on the account: ${it.message}" } }
-                    }, Modifier.weight(1f).testTag("video.votes"), selected = liked)
-                } else votes?.let { ActionChip(Vela.icons.like, compact(it.likes), {}, Modifier.weight(1f).testTag("video.votes")) }
-                if (services.downloads != null) {
-                    if (offline != null) ActionChip(Vela.icons.downloaded, "Saved", {}, Modifier.weight(1f).testTag("video.downloaded"), selected = true)
-                    else ActionChip(Vela.icons.download, "Download", { downloadDialog = true }, Modifier.weight(1f).testTag("video.download"))
+            // Five actions do not fit one phone width at full label size: they keep their natural size and the row scrolls sideways when it must, never clipping one.
+            androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+            // Centred when they fit; when they do not, the row is as wide as it needs and scrolls.
+            Row(Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()).widthIn(min = maxWidth).testTag("video.actions"), horizontalArrangement = Arrangement.spacedBy(Vela.xs, Alignment.CenterHorizontally)) {
+                // The viewer's own like and dislike (account only); the counts next to them are Return YouTube Dislike's. With RYD off or
+                // unreachable there is no count: the like says "Like", the dislike button stays and says "Dislike".
+                val canRate = services.actions != null && services.accounts.active.value.isSignedIn
+                fun rate(target: VideoRating) {
+                    if (!canRate) { actionNote = "Sign in to rate videos"; return }
+                    val (wasLiked, wasDisliked) = liked to disliked
+                    liked = target == VideoRating.LIKE; disliked = target == VideoRating.DISLIKE
+                    scope.launch { (services.actions!!.rate(video.id, target) as? ActionResult.Failed)?.let { liked = wasLiked; disliked = wasDisliked; actionError = "Could not rate on the account: ${it.message}" } }
                 }
-                Box(Modifier.weight(1f)) {
-                    ActionChip(Vela.icons.save, "Save", { saveMenu = true }, Modifier.fillMaxWidth().testTag("video.save"))
+                ActionChip(Vela.icons.like, votes?.let { compact(it.likes) } ?: "Like", { rate(if (liked) VideoRating.NONE else VideoRating.LIKE) }, Modifier.testTag("video.votes"), selected = liked)
+                ActionChip(Vela.icons.dislike, votes?.let { compact(it.dislikes) } ?: "Dislike", { rate(if (disliked) VideoRating.NONE else VideoRating.DISLIKE) }, Modifier.testTag("video.dislike"), selected = disliked)
+                if (services.downloads != null) {
+                    if (offline != null) ActionChip(Vela.icons.downloaded, "Saved", {}, Modifier.testTag("video.downloaded"), selected = true)
+                    else ActionChip(Vela.icons.download, "Download", { downloadDialog = true }, Modifier.testTag("video.download"))
+                }
+                Box {
+                    ActionChip(Vela.icons.save, "Save", { saveMenu = true }, Modifier.testTag("video.save"))
                     DropdownMenu(saveMenu, { saveMenu = false }) {
                         if (services.actions != null && services.accounts.active.value.isSignedIn) DropdownMenuItem(
                             text = { Text("Watch later (YouTube)", maxLines = 1) },
@@ -314,13 +376,19 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
                         }
                     }
                 }
-                ActionChip(Vela.icons.share, "Share", { clipboard.setText(AnnotatedString("https://youtu.be/${video.id}")) }, Modifier.weight(1f).testTag("video.share"))
+                val share = com.greenaltambe.vela.ui.platform.LocalShare.current
+                ActionChip(Vela.icons.share, "Share", {
+                    val link = "https://youtu.be/${video.id}"
+                    if (share != null) share(shownTitle, link) else clipboard.setText(AnnotatedString(link))
+                }, Modifier.testTag("video.share"))
+            }
             }
         }
         info?.takeIf { it.description.isNotBlank() }?.let { d ->
             item {
                 val text = remember(d.description) { descriptionText(parseDescription(d.description)) { seconds -> host?.session?.seekTo(seconds * 1000) } }
-                Column(Modifier.fillMaxWidth()) {
+                // The "more" button is a full touch target tall, so the card gets less padding under it.
+                Column(Modifier.fillMaxWidth().clip(Vela.mediumShape).background(Vela.colors.surface.toColor()).padding(start = Vela.md, end = Vela.md, top = Vela.md, bottom = Vela.xs)) {
                     Text(text, style = MaterialTheme.typography.bodyMedium, maxLines = if (descriptionExpanded) Int.MAX_VALUE else 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("video.description"))
                     LinkButton(if (descriptionExpanded) "Show less" else "more", { descriptionExpanded = !descriptionExpanded }, Modifier.testTag("video.descriptionToggle"))
                 }
@@ -336,17 +404,31 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
     }
 
     val secondary: LazyListScope.() -> Unit = {
-        if (relatedShown.isNotEmpty()) {
-            item { SectionHeader("Related") }
-            items(relatedShown, key = { "rel-${it.id}" }) { v ->
-                // On a phone-sized MEDIUM window the column beside the player is narrow: a thumbnail across its width reads better than a tiny one.
-                VideoCard(v, onClick = { navigator.replaceWithVideo(v) }, style = if (size == WindowSizeClass.MEDIUM) VideoCardStyle.VERTICAL else VideoCardStyle.HORIZONTAL, onChannelClick = { navigator.push(Route.Channel(v.channelId, v.channelName)) }, trailing = { VideoMenu(services, v) })
+        if (!commentsOpen) {
+            // Comments are one wide button; opening it swaps the related videos for the comments.
+            item {
+                Row(
+                    Modifier.fillMaxWidth().clip(Vela.mediumShape).background(Vela.colors.surface.toColor()).clickable { commentsOpen = true }.heightIn(min = Vela.minTouch).padding(horizontal = Vela.md).testTag("video.commentsButton"),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm),
+                ) {
+                    Text("Comments", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, maxLines = 1)
+                    if (comments.isNotEmpty()) Text("${comments.size}${if (commentsNext != null) "+" else ""}", style = MaterialTheme.typography.bodyMedium, color = Vela.colors.onSurfaceVariant.toColor())
+                    Icon(Vela.icons.chevronRight, null, tint = Vela.colors.onSurfaceVariant.toColor())
+                }
             }
-        }
+            if (relatedShown.isNotEmpty()) {
+                item { SectionHeader("Related") }
+                items(relatedShown, key = { "rel-${it.id}" }) { v ->
+                    // On a phone-sized MEDIUM window the column beside the player is narrow: a thumbnail across its width reads better than a tiny one.
+                    VideoCard(v, onClick = { navigator.replaceWithVideo(v) }, style = if (size == WindowSizeClass.MEDIUM) VideoCardStyle.VERTICAL else VideoCardStyle.HORIZONTAL, onChannelClick = { navigator.push(Route.Channel(v.channelId, v.channelName)) }, trailing = { VideoMenu(services, v) })
+                }
+            }
+        } else {
         item {
             SectionHeader("Comments") {
                 // Only offered when the extractor can honour it; otherwise the control would silently do nothing.
                 if (services.extractor.capabilities.supportsCommentSort) TextButton(onClick = { sort = if (sort == CommentSort.TOP) CommentSort.NEWEST else CommentSort.TOP }) { Text(if (sort == CommentSort.TOP) "Top" else "Newest", maxLines = 1) }
+                TextButton(onClick = { commentsOpen = false }, modifier = Modifier.testTag("video.commentsClose")) { Text("Related videos", maxLines = 1) }
             }
         }
         when (val st = commentsState) {
@@ -372,15 +454,54 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
             )
         }
         if (commentsNext != null) item { TextButton(onClick = { loadComments(more = true) }, enabled = !commentsLoading, modifier = Modifier.testTag("video.moreComments")) { Text("Load more comments", maxLines = 1) } }
+        }
     }
 
     if (downloadDialog) DownloadDialog(services, listOf(video), onDismiss = { downloadDialog = false })
 
     val gap = Arrangement.spacedBy(Vela.sm)
     if (size == WindowSizeClass.COMPACT) {
-        Column(modifier.fillMaxSize()) {
-            playerBox()
-            LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("video.list"), state = detailsState, contentPadding = Vela.contentPadding, verticalArrangement = gap) { details(); secondary() }
+        val corner = Vela.look.radii.largeDp
+        val topInsetPx = WindowInsets.safeDrawing.getTop(density)
+        Box(
+            // The gesture sits on this untransformed wrapper (the page below shrinks as it is dragged), and only counts when it starts on the picture.
+            modifier.fillMaxSize().onSizeChanged { pageHeightPx = it.height.toFloat().coerceAtLeast(1f); pageWidthPx = it.width.toFloat() }
+                .playerVerticalSwipe(
+                    startsOn = { at -> dragPx > 0f || at.y < topInsetPx + pageWidthPx * 9f / 16f },
+                    onDelta = { dy -> if (dragPx > 0f || dy > 0f) setDrag((dragPx + dy).coerceAtLeast(0f)) },
+                    onEnd = { total, v ->
+                        if (total < -with(density) { 60.dp.toPx() } || v < -1000f) { setDrag(0f); window?.toggleFullscreen() }   // swipe up: landscape fullscreen
+                        else scope.launch { settlePage(v) }
+                    },
+                ),
+        ) {
+        // Only the picture shrinks, travelling to where the mini player's picture will be; the rest of the page fades away, uncovering the screen behind.
+        val miniPip = miniOnRight
+        val pipPos = com.greenaltambe.vela.ui.nav.LocalPipPosition.current
+        val miniWidthPx = with(density) { (if (miniPip) com.greenaltambe.vela.ui.components.PIP_WIDTH else 64.dp).toPx() }
+        val marginPx = with(density) { 16.dp.toPx() }
+        val bottomClearPx = with(density) { 112.dp.toPx() }
+        Column(Modifier.fillMaxSize()) {
+            Box(
+                Modifier.graphicsLayer {
+                    val p = (dragPx / (pageHeightPx * 0.5f)).coerceIn(0f, 1f)
+                    val k = miniWidthPx / pageWidthPx.coerceAtLeast(1f)               // the mini picture's size as a fraction of the page width
+                    val s = 1f + (k - 1f) * p
+                    val miniH = miniWidthPx * 9f / 16f
+                    val pipAt = pipPos?.pos
+                    val targetLeft = if (miniPip) (pipAt?.x ?: (pageWidthPx - marginPx - miniWidthPx)) else marginPx + with(density) { 8.dp.toPx() }
+                    val targetTop = (if (miniPip) (pipAt?.y ?: (pageHeightPx - bottomClearPx - miniH)) else pageHeightPx - bottomClearPx - miniH) - k * topInsetPx
+                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
+                    scaleX = s; scaleY = s
+                    translationX = targetLeft * p; translationY = targetTop * p
+                    if (p > 0f) { clip = true; shape = androidx.compose.foundation.shape.RoundedCornerShape((corner * p * 0.6f).dp) }
+                },
+            ) { playerBox() }
+            LazyColumn(
+                Modifier.weight(1f).fillMaxWidth().testTag("video.list").graphicsLayer { alpha = (1f - 1.8f * (dragPx / (pageHeightPx * 0.5f))).coerceIn(0f, 1f) },
+                state = detailsState, contentPadding = Vela.contentPadding, verticalArrangement = gap,
+            ) { details(); secondary() }
+        }
         }
     } else {
         Row(modifier.fillMaxSize()) {

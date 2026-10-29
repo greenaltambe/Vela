@@ -68,6 +68,9 @@ fun rememberCardExtras(services: AppServices, videos: List<VideoSummary>): (Vide
  * horizontal rows, which is what search, playlists and history use everywhere). Loading, empty and error states replace
  * the items; [header] and [footer] sit above and below.
  */
+/** A list screen's remembered scroll position (see [VideoCollection]); held by whoever outlives the screen. */
+class ScrollMemory(var index: Int = 0, var offset: Int = 0)
+
 @Composable
 fun VideoCollection(
     services: AppServices,
@@ -82,8 +85,21 @@ fun VideoCollection(
     trailing: @Composable ((VideoSummary) -> Unit)? = { v -> VideoMenu(services, v) },
     /** Called when the last item of [videos] is composed, so a screen can append the next page. */
     onEndReached: (() -> Unit)? = null,
+    /** Where the list was scrolled to last time it was on screen, so coming back to it (after a video, another tab) does not jump to the top. */
+    scroll: ScrollMemory? = null,
 ) {
     val size = LocalWindowSize.current
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState(scroll?.index ?: 0, scroll?.offset ?: 0)
+    val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState(scroll?.index ?: 0, scroll?.offset ?: 0)
+    val useGrid = grid && size != WindowSizeClass.COMPACT
+    androidx.compose.runtime.DisposableEffect(useGrid) {
+        onDispose {
+            if (scroll != null) {
+                if (useGrid) { scroll.index = gridState.firstVisibleItemIndex; scroll.offset = gridState.firstVisibleItemScrollOffset }
+                else { scroll.index = listState.firstVisibleItemIndex; scroll.offset = listState.firstVisibleItemScrollOffset }
+            }
+        }
+    }
     val extras = rememberCardExtras(services, videos)
     val padding = Vela.contentPadding
     val open = { v: VideoSummary -> navigator.push(Route.Video(v)) }
@@ -99,7 +115,7 @@ fun VideoCollection(
 
     if (grid && size != WindowSizeClass.COMPACT) {
         LazyVerticalGrid(
-            GridCells.Adaptive(minSize = 280.dp), modifier.fillMaxSize().testTag(testTag), contentPadding = padding,
+            GridCells.Adaptive(minSize = 280.dp), modifier.fillMaxSize().testTag(testTag), state = gridState, contentPadding = padding,
             horizontalArrangement = Arrangement.spacedBy(Vela.md), verticalArrangement = Arrangement.spacedBy(Vela.lg),
         ) {
             header?.let { h -> item(span = { GridItemSpan(maxLineSpan) }) { h() } }
@@ -115,7 +131,7 @@ fun VideoCollection(
         Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
             LazyColumn(
                 Modifier.widthIn(max = if (vertical) Int.MAX_VALUE.dp else 900.dp).fillMaxSize().testTag(testTag),
-                contentPadding = padding, verticalArrangement = Arrangement.spacedBy(if (vertical) Vela.lg else Vela.md),
+                state = listState, contentPadding = padding, verticalArrangement = Arrangement.spacedBy(if (vertical) Vela.lg else Vela.md),
             ) {
                 header?.let { h -> item { h() } }
                 stateItems(state) { SkeletonCard(vertical = vertical) }

@@ -70,6 +70,19 @@ object Settings {
         range = SettingRange(min = 0.25, max = 4.0, step = 0.25),
     )
 
+    val seekStepSeconds = Setting(
+        key = "playback.seekSeconds", default = 10f, scope = SettingScope.GLOBAL, label = "Double-tap seek",
+        keywords = listOf("seek", "skip", "double tap", "forward", "back", "seconds", "jump"),
+        codec = SettingCodecs.float, section = SettingSection.PLAYBACK, range = SettingRange(min = 5.0, max = 30.0, step = 5.0),
+        info = "How far double-tapping the left or right half of the video jumps, and the skip buttons in the player.",
+    )
+    val holdSpeed = Setting(
+        key = "playback.holdSpeed", default = 2f, scope = SettingScope.GLOBAL, label = "Hold for fast playback",
+        keywords = listOf("hold", "long press", "2x", "fast", "speed", "space"),
+        codec = SettingCodecs.float, section = SettingSection.PLAYBACK, range = SettingRange(min = 1.25, max = 4.0, step = 0.25),
+        info = "The speed while you hold your finger on the video, or the space bar. It goes back when you let go.",
+    )
+
     val maxQualityUnmetered = maxQualitySetting(
         key = "playback.maxQualityWifi", default = MaxQuality.P1080, label = "Maximum quality on Wi-Fi",
         keywords = listOf("quality", "resolution", "wifi", "wi-fi", "unmetered", "1080p", "4k", "cap"),
@@ -548,7 +561,7 @@ object Settings {
     val all: List<Setting<*>> = listOf(
         look, performanceMode, localOnlyHistory, hideWatched, minLengthSeconds, blockKeywords, allowKeywords, keywordsAreRegex,
         debugFrameStats, homeSource, allowAgeRestricted, allowControversial, slowStreamFailover, accountFallbackMode, accountProfilesExperimental, accountUseForChannels, accountUseForDetails, accountDownloadsMayUse, accountKillSwitch, accountTierOrder, remoteConfigUrl, ytDlpAutoUpdate,
-        accountPlaybackPerHour, accountBrowsePerMinute, accountWritesPerHour, shortsMode, defaultPlaybackSpeed, maxQualityUnmetered, maxQualityMetered, preferredCodec, audioOnly, ytDlpPath,
+        accountPlaybackPerHour, accountBrowsePerMinute, accountWritesPerHour, shortsMode, defaultPlaybackSpeed, seekStepSeconds, holdSpeed, maxQualityUnmetered, maxQualityMetered, preferredCodec, audioOnly, ytDlpPath,
         sponsorBlockEnabled, returnYouTubeDislikeEnabled, deArrowEnabled,
         sponsorBlockMinSegmentSeconds, sponsorBlockNotifications, sponsorBlockServer, sponsorBlockUserId, rydInFeed, rydServer,
         deArrowFeed, deArrowSearch, deArrowVideoPage, deArrowPlayerTitle, deArrowTitleCasing, deArrowMinVotes, deArrowGeneratedThumbnails, deArrowThumbnailServer,

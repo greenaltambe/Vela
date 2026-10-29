@@ -41,6 +41,11 @@ object Vela {
     /** The palette's gradient as a horizontal brush: for the few places the app wears it (selected marks, buttons, switches, the profile ring). */
     val wake: androidx.compose.ui.graphics.Brush @Composable @ReadOnlyComposable get() = androidx.compose.ui.graphics.Brush.horizontalGradient(LocalLook.current.accent.wake.map { it.toColor() })
 
+    /** The fill of a filled button: the palette gradient, each stop darkened just enough for white text to be readable on every part of it. */
+    val buttonFill: androidx.compose.ui.graphics.Brush @Composable @ReadOnlyComposable get() = androidx.compose.ui.graphics.Brush.horizontalGradient(LocalLook.current.accent.wake.map { Contrast.darkenForWhiteText(it).toColor() })
+    /** The label colour on [buttonFill]. */
+    val onButton: androidx.compose.ui.graphics.Color @Composable @ReadOnlyComposable get() = 0xFFFFFFFF.toColor()
+
     val motion: MotionTokens @Composable @ReadOnlyComposable get() = LocalLook.current.motion
 
     val xs: Dp @Composable @ReadOnlyComposable get() = LocalLook.current.spacing.xsDp.dpScaled(LocalLook.current.density)

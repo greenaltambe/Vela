@@ -47,6 +47,7 @@ import com.greenaltambe.vela.ui.components.*
 import com.greenaltambe.vela.ui.fontFamilyFor
 import androidx.compose.foundation.layout.width
 import com.greenaltambe.vela.ui.look.*
+import com.greenaltambe.vela.ui.components.drawProgress
 import com.greenaltambe.vela.ui.nav.Navigator
 import com.greenaltambe.vela.ui.nav.Route
 
@@ -55,10 +56,11 @@ object CustomizePages {
     val stubs = mapOf(
         "looks" to "Looks", "home" to "Home & Subscriptions", "feeds" to "Feeds & cards", "video" to "Video page & Player",
     )
-    val titles = mapOf("color" to "Colour palette", "text" to "Text", "icons" to "Icons & shapes", "glass" to "Glass & backgrounds", "tabs" to "Tabs & mini player") + stubs
+    val titles = mapOf("color" to "Colour palette", "progress" to "Progress bar", "text" to "Text", "icons" to "Icons & shapes", "glass" to "Glass & backgrounds", "tabs" to "Tabs & mini player") + stubs
 
     fun pageFor(s: Setting<*>): String = when {
         s.key == "look.palette" -> "color"
+        s.key == "look.progressStyle" -> "progress"
         s.key in setOf("look.font", "look.titleWeight", "look.textScale", "look.density") -> "text"
         s.key in setOf("look.glass", "look.reduceMotion", "appearance.performanceMode") -> "glass"
         s.key.startsWith("look.nav.") || s.key.startsWith("look.mini.") -> "tabs"
@@ -88,59 +90,7 @@ private fun CustomizeFrame(title: String, navigator: Navigator, modifier: Modifi
 }
 private typealias LazyColumnScopeAlias = Unit
 
-/** Three small previews built from the REAL components at about 40 % scale; they update the instant a setting changes. */
-@Composable
-fun PreviewStrip(services: AppServices, modifier: Modifier = Modifier) {
-    val revision by services.settings.revision.collectAsState()
-    val nav = remember(revision) { com.greenaltambe.vela.ui.nav.NavConfig.of(services.settings) }
-    Row(modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).testTag("customize.preview"), horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
-        MiniScreen("Home") {
-            val scroll = remember { com.greenaltambe.vela.ui.nav.ScrollChrome() }
-            Box(Modifier.fillMaxSize().background(Vela.colors.background.toColor())) {
-                Column(Modifier.padding(Vela.md), verticalArrangement = Arrangement.spacedBy(Vela.md)) {
-                    Text("Vela", style = MaterialTheme.typography.titleLarge)
-                    VideoCard(CustomizePages.previewVideo, {}, style = VideoCardStyle.VERTICAL)
-                    VideoCard(CustomizePages.previewVideo.copy(title = "Another video"), {}, style = VideoCardStyle.HORIZONTAL)
-                }
-                // The real bar and mini player, so the bar style, labels, mini look, position and distance show as they are chosen.
-                com.greenaltambe.vela.ui.nav.BottomChrome(nav, navEntries(nav.tabs), nav.tabs.first(), scroll, CustomizePages.sampleMini, {}, Modifier.align(Alignment.BottomCenter))
-            }
-        }
-        MiniScreen("Video page") {
-            Column(Modifier.fillMaxSize().background(Vela.colors.background.toColor())) {
-                Box(Modifier.fillMaxWidth().height(200.dp).background(Vela.colors.mediaBackground.toColor()), contentAlignment = Alignment.Center) { androidx.compose.material3.Icon(Vela.icons.play, null, tint = Vela.colors.onMedia.toColor()) }
-                Column(Modifier.padding(Vela.md), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                    Text(CustomizePages.previewVideo.title, style = MaterialTheme.typography.titleLarge)
-                    Row(horizontalArrangement = Arrangement.spacedBy(Vela.sm)) { ActionChip(Vela.icons.like, "Like", {}, selected = true); ActionChip(Vela.icons.save, "Save", {}); ActionChip(Vela.icons.share, "Share", {}) }
-                }
-            }
-        }
-        MiniScreen("Player") {
-            Column(Modifier.fillMaxSize().background(Vela.colors.background.toColor()), verticalArrangement = Arrangement.Bottom) {
-                Box(Modifier.fillMaxWidth().weight(1f).background(Vela.colors.mediaBackground.toColor()))
-                MiniPlayer(CustomizePages.sampleMini, MiniLook.CARD, Vela.largeShape)
-            }
-        }
-    }
-}
-
-@Composable
-private fun MiniScreen(label: String, content: @Composable () -> Unit) {
-    val scale = 0.4f
-    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
-        // The same components, not pictures of them: laid out at 360 x 640 dp, then drawn at 40 % from the top-left corner.
-        Box(
-            Modifier.clip(Vela.largeShape).background(Vela.colors.surface.toColor()).testTag("customize.preview.$label")
-                .layout { measurable, _ ->
-                    val full = measurable.measure(androidx.compose.ui.unit.Constraints.fixed(360.dp.roundToPx(), 640.dp.roundToPx()))
-                    layout((full.width * scale).toInt(), (full.height * scale).toInt()) { full.placeWithLayer(0, 0) { scaleX = scale; scaleY = scale; transformOrigin = TransformOrigin(0f, 0f) } }
-                }.clearAndSetSemantics { },
-        ) { content() }
-        Text(label, style = MaterialTheme.typography.bodySmall, maxLines = 1)
-    }
-}
-
-/** The Customize hub: the live preview, Theme + Pure black, and one row per part of the look. */
+/** The Customize hub: Theme + Pure black, and one row per part of the look. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CustomizeScreen(services: AppServices, navigator: Navigator, modifier: Modifier = Modifier) {
@@ -148,10 +98,9 @@ fun CustomizeScreen(services: AppServices, navigator: Navigator, modifier: Modif
     val toasts = LocalUndoToasts.current
     CustomizeFrame("Customize Vela", navigator, modifier, "customize.list") {
         Column(verticalArrangement = Arrangement.spacedBy(Vela.md)) {
-            PreviewStrip(services)
             SettingRow(services.settings, LookSettings.theme, revision)
             SettingRow(services.settings, Settings.look, revision)
-            listOf("color", "text", "icons", "glass", "tabs").forEach { id -> CustomizeRow(id, navigator) }
+            listOf("color", "progress", "text", "icons", "glass", "tabs").forEach { id -> CustomizeRow(id, navigator) }
             val all = LookSettings.all + Settings.look
             ResetPageButton(services.settings, all, toasts, "customize.reset")
         }
@@ -181,13 +130,13 @@ fun CustomizePageScreen(services: AppServices, navigator: Navigator, page: Strin
     val s = services.settings
     CustomizeFrame(CustomizePages.titles[page] ?: "Customize", navigator, modifier, "customize.page.$page") {
         Column(verticalArrangement = Arrangement.spacedBy(Vela.md)) {
-            PreviewStrip(services)
             if (page in CustomizePages.stubs) {
                 Text("This part arrives in the next update. Everything it will hold is already stored the same way as the other settings, so nothing you set now is lost.", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("customize.stub"))
                 return@Column
             }
             when (page) {
                 "color" -> PaletteGrid(s.resolve(LookSettings.palette)) { p -> s.setWithUndo(LookSettings.palette, p.name, toasts) { LookSettings.palette.choices.first { c -> c.raw == it }.label } }
+                "progress" -> ProgressGrid(s.resolve(LookSettings.progressStyle)) { st -> s.setWithUndo(LookSettings.progressStyle, st.name, toasts) { LookSettings.progressStyle.choices.first { c -> c.raw == it }.label } }
                 "text" -> {
                     Text("Font", style = MaterialTheme.typography.bodyLarge)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(Vela.sm), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
@@ -214,6 +163,38 @@ fun CustomizePageScreen(services: AppServices, navigator: Navigator, page: Strin
             }
             ResetPageButton(s, CustomizePages.settingsOn(page), toasts, "customize.resetPage")
         }
+    }
+}
+
+/** The seek-bar styles as cards, each with a live preview drawn by the real scrubber's own drawing code, 40 % played. */
+@Composable
+private fun ProgressGrid(current: ProgressStyle, onPick: (ProgressStyle) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(Vela.sm), modifier = Modifier.testTag("progress.styles")) {
+        ProgressStyle.entries.forEach { st ->
+            val label = LookSettings.progressStyle.choices.first { it.raw == st.name }.label
+            val selected = st == current
+            val border = androidx.compose.ui.graphics.Brush.horizontalGradient(Vela.look.accent.wake.map { it.toColor() })
+            Column(
+                Modifier.fillMaxWidth().clip(Vela.mediumShape).background(Vela.colors.surface.toColor())
+                    .then(if (selected) Modifier.border(2.dp, border, Vela.mediumShape) else Modifier)
+                    .semantics { contentDescription = label; this.selected = selected }.pressable(role = androidx.compose.ui.semantics.Role.RadioButton, onClick = { onPick(st) }).padding(Vela.md).testTag("progress.${st.name}"),
+                verticalArrangement = Arrangement.spacedBy(Vela.xs),
+            ) {
+                Text(label, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
+                ProgressPreview(st)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProgressPreview(style: ProgressStyle) {
+    val wake = Vela.look.accent.wake.map { it.toColor() }
+    val surface = Vela.colors.surface.toColor()
+    val track = Vela.colors.outline.toColor()
+    val phase = com.greenaltambe.vela.ui.components.rememberWavePhase(style == ProgressStyle.WAVE)
+    androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(40.dp)) {
+        drawProgress(style, 0.4f, wake, surface, track, track, track, wavePhase = phase)
     }
 }
 

@@ -307,6 +307,12 @@ class PlaybackSession(
     /** Applies [speed] now and for the rest of this session, over what settings say. */
     fun goLive() = controller.goLive()
 
+    /** A temporary speed (holding the screen or space bar): not remembered, and null puts back the viewer's pick or the setting. */
+    fun holdSpeed(speed: Float?) {
+        val id = videoId ?: return
+        controller.setSpeed(speed ?: speedOverride ?: settings.resolve(Settings.defaultPlaybackSpeed, channelId.ifEmpty { null }, id))
+    }
+
     fun setSpeed(speed: Float) {
         speedOverride = speed
         publishOverrides()

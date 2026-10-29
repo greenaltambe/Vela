@@ -67,20 +67,11 @@ class SettingsUiTest {
         assertEquals(Route.CustomizePage("icons"), f.navigator.current)
     }
 
-    @Test fun customizeHubHasTheLivePreviewThemeAndEveryPart() = runDesktopComposeUiTest(400, 900) {
+    @Test fun customizeHubHasThemeAndEveryPart() = runDesktopComposeUiTest(400, 900) {
         val f = buildFixture(withDownloads = false)
         f.navigator.selectTab(Route.Settings); f.navigator.push(Route.Customize)
         setContent { AppUnderTest(f) }; waitForIdle()
-        onNodeWithTag("customize.preview").assertExists()
-        // Each mini screen is 40 % of 360 x 640 and shows real content (the real bottom bar and cards), not an empty box.
-        // (The third one may be partly scrolled out of the strip, so only its height is checked.)
-        for (l in listOf("Home", "Video page", "Player")) {
-            val b = onNodeWithTag("customize.preview.$l", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
-            assertTrue(kotlin.math.abs(b.height - 256f) < 2f && (l == "Player" || kotlin.math.abs(b.width - 144f) < 2f), "$l preview is ${b.width}x${b.height}, expected 144x256")
-        }
-        onNodeWithTag("customize.preview.Home", useUnmergedTree = true).onChildren().assertCountEquals(1)
-        assertTrue(onAllNodesWithTag("component.bottom_nav", useUnmergedTree = true).fetchSemanticsNodes().size >= 2, "the Home preview contains a real bottom bar besides the page's own")
-        for (r in listOf("color", "text", "icons", "glass", "tabs")) onNodeWithTag("customize.row.$r").performScrollTo().assertExists()
+        for (r in listOf("color", "progress", "text", "icons", "glass", "tabs")) onNodeWithTag("customize.row.$r").performScrollTo().assertExists()
         onNodeWithTag("setting.look.theme.pills.2").performScrollTo().performClick(); waitForIdle()
         assertEquals(ThemeMode.DARK, f.settings.resolve(LookSettings.theme))
     }
@@ -91,6 +82,9 @@ class SettingsUiTest {
         setContent { AppUnderTest(f) }; waitForIdle()
         onNodeWithTag("palette.SUNSET").performScrollTo().performClick(); waitForIdle()
         assertEquals(Palette.SUNSET, f.settings.resolve(LookSettings.palette))
+        f.navigator.back(); f.navigator.push(Route.CustomizePage("progress")); waitForIdle()
+        onNodeWithTag("progress.SPIKES").performScrollTo().performClick(); waitForIdle()
+        assertEquals(ProgressStyle.SPIKES, f.settings.resolve(LookSettings.progressStyle))
         f.navigator.back(); f.navigator.push(Route.CustomizePage("text")); waitForIdle()
         onNodeWithTag("font.SERIF").performScrollTo().performClick(); waitForIdle()
         assertEquals(FontChoice.SERIF, f.settings.resolve(LookSettings.font))

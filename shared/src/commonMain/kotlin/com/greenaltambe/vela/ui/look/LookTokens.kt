@@ -24,6 +24,7 @@ data class LookTokens(
     val accent: AccentTokens = AccentTokens(),
     val icons: IconTokens = IconTokens(),
     val motion: MotionTokens = MotionTokens(),
+    val progress: com.greenaltambe.vela.core.settings.ProgressStyle = com.greenaltambe.vela.core.settings.ProgressStyle.BOLD_DOT,
 )
 
 /** The palette's gradient (the "wake"): marks what is selected and tints buttons, switches, sliders and the profile ring. Never body text. */

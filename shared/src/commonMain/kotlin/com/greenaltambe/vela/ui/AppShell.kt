@@ -1,8 +1,11 @@
 package com.greenaltambe.vela.ui
 
+import kotlinx.coroutines.launch
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import com.greenaltambe.vela.ui.components.navEntries
@@ -58,6 +61,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.foundation.gestures.detectDragGestures
+import kotlin.math.roundToInt
+import com.greenaltambe.vela.ui.components.PIP_WIDTH
+import com.greenaltambe.vela.ui.nav.PipPosition
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.KeyEventType
@@ -82,6 +94,7 @@ import com.greenaltambe.vela.ui.platform.LocalInPictureInPicture
 import com.greenaltambe.vela.ui.platform.LocalWindowControls
 import com.greenaltambe.vela.player.SessionState
 import com.greenaltambe.vela.ui.platform.PlatformBackHandler
+import com.greenaltambe.vela.ui.player.ShortcutAction
 import com.greenaltambe.vela.ui.player.applyShortcut
 import com.greenaltambe.vela.ui.player.shortcutFor
 import com.greenaltambe.vela.ui.screens.AccountActivityScreen
@@ -174,6 +187,19 @@ private fun AppShellContent(services: AppServices, navigator: Navigator) {
     // A faint glow of the palette's first and last colours in the top corners, so the whole app wears the palette without any surface being tinted.
     val wake = Vela.look.accent.wake.map { it.toColor() }
     val glowAlpha = if (Vela.look.colors.background.toColor().luminance() < 0.5f) 0.16f else 0.10f
+    val shellScope = androidx.compose.runtime.rememberCoroutineScope()
+    // The last picture of the screen before a video opened (kept while that screen is on top), and how far the video page is pulled down:
+    // pulling reveals that picture behind the page instead of a black backdrop.
+    val prevScreen = androidx.compose.ui.graphics.rememberGraphicsLayer()
+    val reveal = remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    // The recorded picture is turned into a bitmap as the video opens (the old screen is still there for the length of the transition);
+    // a recording alone would point at parts of the old screen that are gone by the time it is drawn again.
+    val pipPosition = remember { com.greenaltambe.vela.ui.nav.PipPosition() }
+    val videoPageCache = remember { com.greenaltambe.vela.ui.screens.VideoPageCache() }
+    val homeFeed = remember { com.greenaltambe.vela.ui.screens.HomeFeedStore() }
+    var prevShot by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+    LaunchedEffect(route is Route.Video) { if (route is Route.Video) prevShot = runCatching { prevScreen.toImageBitmap() }.getOrNull() else prevShot = null }
+    val spaceHold = remember { SpaceHold() }
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
@@ -187,6 +213,22 @@ private fun AppShellContent(services: AppServices, navigator: Navigator) {
             .focusable()
             // onKeyEvent (not preview): a focused text field takes its own keys first, so typing never triggers a shortcut.
             .onKeyEvent { e ->
+                // Space: a tap toggles play, holding it plays fast until it is released (the speed is a playback setting).
+                if (e.key == androidx.compose.ui.input.key.Key.Spacebar && host != null && navigator.nowPlaying != null) {
+                    when (e.type) {
+                        KeyEventType.KeyDown -> if (spaceHold.job == null) spaceHold.job = shellScope.launch {
+                            kotlinx.coroutines.delay(400)
+                            spaceHold.fast = true
+                            host.session.holdSpeed(services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.holdSpeed))
+                        }
+                        KeyEventType.KeyUp -> {
+                            spaceHold.job?.cancel(); spaceHold.job = null
+                            if (spaceHold.fast) { spaceHold.fast = false; host.session.holdSpeed(null) }
+                            else applyShortcut(ShortcutAction.TogglePlay, host.session, host.controllerState.value) { window?.toggleFullscreen() }
+                        }
+                    }
+                    return@onKeyEvent true
+                }
                 if (e.type != KeyEventType.KeyDown) return@onKeyEvent false
                 if (e.key == androidx.compose.ui.input.key.Key.Escape || (e.key == androidx.compose.ui.input.key.Key.DirectionLeft && e.isAltPressed)) {
                     if (window?.isFullscreen == true) { window.toggleFullscreen(); return@onKeyEvent true }
@@ -212,6 +254,9 @@ private fun AppShellContent(services: AppServices, navigator: Navigator) {
             // Looping animations (shimmer) stop while the app is not on screen.
             com.greenaltambe.vela.ui.look.LocalAnimationsActive provides lifecycleState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED),
         ) {
+            val mini = if (chrome) rememberMiniState(services, navigator) else null
+            // The picture-in-picture look floats over the whole window (and can be dragged anywhere), so the bar does not carry it.
+            val pipMini = mini != null && nav.miniLook == MiniLook.PIP
             // One structure for every layout: only the rail, top bar and bottom bar come and go. If the page itself moved
             // between branches, crossing a size-class boundary (rotating, resizing) would rebuild it, losing its state
             // and tearing down the video surface.
@@ -221,7 +266,19 @@ private fun AppShellContent(services: AppServices, navigator: Navigator) {
                     onToggleCollapsed = { services.settings.set(com.greenaltambe.vela.core.settings.LookSettings.railCollapsed, !nav.railCollapsed) },
                     onSelect = navigator::openTab,
                 )
-                Column(Modifier.weight(1f)) {
+                Column(
+                    Modifier.weight(1f).drawWithContent {
+                        if (route is Route.Video) {
+                            val shot = prevShot
+                            if (shot != null && reveal.floatValue > 0f) drawImage(shot, alpha = reveal.floatValue)
+                            drawContent()
+                        } else {
+                            prevScreen.record { this@drawWithContent.drawContent() }
+                            prevScreen.alpha = 1f
+                            drawLayer(prevScreen)
+                        }
+                    },
+                ) {
                     if (chrome && route !is Route.Video && route !is Route.Search && route != Route.Settings && route != Route.Accounts && route != Route.AccountActivity && route != Route.Health && route != Route.Backup && route != Route.Customize && route !is Route.CustomizePage && route !is Route.SettingsPage) {
                         VelaTopBar(
                             routeTitle(route), onBack = if (navigator.canGoBack) ({ navigator.back() }) else null,
@@ -235,10 +292,11 @@ private fun AppShellContent(services: AppServices, navigator: Navigator) {
                     if (chrome) com.greenaltambe.vela.ui.screens.CaptchaBanner(services)
                     SessionCheckEffect(services)
                     HealthStartEffect(services)
-                    val mini = if (chrome) rememberMiniState(services, navigator) else null
                     val scroll = rememberScrollChrome()
                     LaunchedEffect(route) { scroll.reset() }
-                    val barOverlays = chrome && !rail && nav.barStyle != BarStyle.DOCKED
+                    // The video page owns the whole screen: no tab bar under it, whatever the bar style.
+                    val showBar = route !is Route.Video
+                    val barOverlays = chrome && showBar && !rail && nav.barStyle != BarStyle.DOCKED
                     var chromeHeightPx by remember { mutableIntStateOf(0) }
                     val density = androidx.compose.ui.platform.LocalDensity.current
                     // The page leaves room for a bar that floats over it: its full (unshrunk) height, so a shrinking bar never reflows the list.
@@ -246,24 +304,45 @@ private fun AppShellContent(services: AppServices, navigator: Navigator) {
                     // Keyed by the active account, so switching rebuilds every screen on the new account's data.
                     val activeAccount by services.accounts.active.collectAsState()
                     Box(Modifier.weight(1f).fillMaxWidth().nestedScroll(scroll.connection)) {
-                        CompositionLocalProvider(LocalChromeInset provides inset) {
-                            androidx.compose.runtime.key(activeAccount.id) { AnimatedDestination(services, navigator, route, Modifier.fillMaxSize()) }
+                        CompositionLocalProvider(LocalChromeInset provides inset, com.greenaltambe.vela.ui.nav.LocalPageReveal provides reveal, com.greenaltambe.vela.ui.screens.LocalHomeFeed provides homeFeed, com.greenaltambe.vela.ui.nav.LocalPipPosition provides pipPosition, com.greenaltambe.vela.ui.screens.LocalVideoPageCache provides videoPageCache) {
+                            androidx.compose.runtime.key(activeAccount.id) { AnimatedDestination(services, navigator, route, reveal, Modifier.fillMaxSize()) }
                         }
                         if (barOverlays) BottomChrome(
-                            nav, navEntries(nav.tabs), nav.selected(route), scroll, mini, navigator::openTab, Modifier.align(Alignment.BottomCenter),
+                            nav, navEntries(nav.tabs), nav.selected(route), scroll, if (pipMini) null else mini, navigator::openTab, Modifier.align(Alignment.BottomCenter),
                             onHeight = { if (!(nav.shrinkOnScroll && scroll.shrunk)) chromeHeightPx = it },
                         )
                     }
-                    if (chrome && !rail && !barOverlays) BottomChrome(nav, navEntries(nav.tabs), nav.selected(route), scroll, mini, navigator::openTab)
+                    if (chrome && showBar && !rail && !barOverlays) BottomChrome(nav, navEntries(nav.tabs), nav.selected(route), scroll, if (pipMini) null else mini, navigator::openTab)
                     else if (chrome && rail) {
                         // Wide windows: the rail replaces the bar; the mini player sits at the bottom of the page with the same look settings.
-                        if (mini != null) MiniPlayer(mini, nav.miniLook, Vela.largeShape, (if (nav.miniLook == MiniLook.PIP) Modifier.align(Alignment.End) else Modifier.fillMaxWidth()).padding(Vela.md))
+                        if (mini != null && !pipMini) MiniPlayer(mini, nav.miniLook, Vela.largeShape, (if (nav.miniLook == MiniLook.PIP) Modifier.align(Alignment.End) else Modifier.fillMaxWidth()).padding(Vela.md))
                         Spacer(Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)))
                     }
                 }
             }
+            if (pipMini) PipOverlay(mini!!, pipPosition, with(androidx.compose.ui.platform.LocalDensity.current) { maxWidth.toPx() }, with(androidx.compose.ui.platform.LocalDensity.current) { maxHeight.toPx() })
         }
     }
+}
+
+/** The picture-in-picture mini player, free to be dragged anywhere in the window (it stays fully on screen); a tap opens the video. */
+@Composable
+private fun PipOverlay(mini: MiniState, position: PipPosition, windowW: Float, windowH: Float) {
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val w = with(density) { PIP_WIDTH.toPx() }; val h = w * 9f / 16f
+    val topInset = WindowInsets.safeDrawing.getTop(density).toFloat()
+    val bottomClear = with(density) { 112.dp.toPx() }
+    val margin = with(density) { 16.dp.toPx() }
+    fun clamp(o: androidx.compose.ui.geometry.Offset) = androidx.compose.ui.geometry.Offset(o.x.coerceIn(0f, (windowW - w).coerceAtLeast(0f)), o.y.coerceIn(topInset, (windowH - h).coerceAtLeast(topInset)))
+    val at = clamp(position.pos ?: androidx.compose.ui.geometry.Offset(windowW - w - margin, windowH - bottomClear - h))
+    MiniPlayer(
+        mini, MiniLook.PIP, Vela.largeShape,
+        Modifier.offset { androidx.compose.ui.unit.IntOffset(at.x.roundToInt(), at.y.roundToInt()) }
+            .shadow(8.dp, Vela.largeShape)
+            .pointerInput(windowW, windowH) {
+                detectDragGestures { change, drag -> change.consume(); position.pos = clamp((position.pos ?: at) + drag) }
+            },
+    )
 }
 
 private fun routeTitle(route: Route): String = when (route) {
@@ -310,6 +389,7 @@ private fun rememberMiniState(services: AppServices, navigator: Navigator): Mini
             }
         },
         onExpand = navigator::expandNowPlaying,
+        surface = { m -> host.Surface(m) },
         onClose = { host.session.stop(); navigator.clearNowPlaying() },
     )
 }
@@ -320,7 +400,7 @@ private fun rememberMiniState(services: AppServices, navigator: Navigator): Mini
  * just shows the next one, as before), and nothing here animates when motion is reduced beyond a short crossfade.
  */
 @Composable
-private fun AnimatedDestination(services: AppServices, navigator: Navigator, route: Route, modifier: Modifier) {
+private fun AnimatedDestination(services: AppServices, navigator: Navigator, route: Route, reveal: androidx.compose.runtime.MutableFloatState, modifier: Modifier) {
     val m = Vela.motion
     val action = navigator.lastAction
     androidx.compose.animation.AnimatedContent(
@@ -334,6 +414,14 @@ private fun AnimatedDestination(services: AppServices, navigator: Navigator, rou
                 NavAction.PUSH -> 1
                 NavAction.POP -> -1
                 NavAction.REPLACE -> 0
+            }
+            // The video page rises from the bottom and sinks back to it (it minimises into the mini player), rather than sliding sideways.
+            if (!m.reduced && (targetState is Route.Video) != (initialState is Route.Video)) {
+                val opening = targetState is Route.Video
+                // Already pulled down to the mini player's size: just fade, the page must not slide away from under the shrunk picture.
+                val pulled = !opening && reveal.floatValue > 0.5f
+                return@AnimatedContent (fadeIn(fade) + (if (opening) slideInVertically(VelaMotion.tween(m, VelaMotion.Level.STANDARD)) { it / 3 } else androidx.compose.animation.EnterTransition.None))
+                    .togetherWith(fadeOut(VelaMotion.tween(m, VelaMotion.Level.QUICK)) + (if (opening || pulled) androidx.compose.animation.ExitTransition.None else slideOutVertically(VelaMotion.tween(m, VelaMotion.Level.STANDARD)) { it / 4 }))
             }
             val slide = if (action == NavAction.TAB) 14 else 5
             (fadeIn(fade) + slideInHorizontally(VelaMotion.tween(m, VelaMotion.Level.STANDARD)) { toward * it / slide })
@@ -370,3 +458,6 @@ private fun Destination(services: AppServices, navigator: Navigator, route: Rout
         Route.Backup -> com.greenaltambe.vela.ui.screens.BackupScreen(services, navigator, modifier)
     }
 }
+
+/** The space bar's hold state: the pending "start fast playback" timer, and whether fast playback is on. */
+private class SpaceHold { var job: kotlinx.coroutines.Job? = null; var fast = false }

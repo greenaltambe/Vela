@@ -1,5 +1,6 @@
 package com.greenaltambe.vela.ui.components
 
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -35,6 +36,8 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import com.greenaltambe.vela.core.settings.ProgressStyle
 import com.greenaltambe.vela.ui.look.Vela
 import com.greenaltambe.vela.ui.look.toColor
 import kotlin.math.roundToInt
@@ -74,9 +77,7 @@ fun Scrubber(
     previewLabel: ((Float) -> String)? = null,
     description: String = "Seek",
     valueDescription: String? = null,
-    thumbRadius: Dp = 8.dp,
-    trackHeight: Dp = 4.dp,
-    playedColor: Color = Vela.colors.primary.toColor(),
+    style: ProgressStyle = Vela.look.progress,
     trackColor: Color = Vela.colors.outline.toColor(),
     bufferedColor: Color = Vela.colors.onSurfaceVariant.toColor().copy(alpha = 0.5f),
     tickColor: Color = Vela.colors.chapterMarker.toColor(),
@@ -85,7 +86,11 @@ fun Scrubber(
     var dragging by remember { mutableStateOf<Float?>(null) }
     // The thumb grows while it is held, on a snappy spring (a quick fade when motion is reduced).
     val thumbGrow by androidx.compose.animation.core.animateFloatAsState(if (dragging != null) 1.3f else 1f, com.greenaltambe.vela.ui.look.VelaMotion.snappy(Vela.motion), label = "thumbGrow")
-    val thumbPx = with(androidx.compose.ui.platform.LocalDensity.current) { thumbRadius.toPx() }
+    val wavePhase = rememberWavePhase(style == ProgressStyle.WAVE)
+    val metrics = style.metrics()
+    val wake = Vela.look.accent.wake.map { it.toColor() }
+    val surface = Vela.colors.surface.toColor()
+    val thumbPx = with(androidx.compose.ui.platform.LocalDensity.current) { metrics.endInset.toPx() }
     val geometry = ScrubGeometry(widthPx, thumbPx)
     val shown = dragging ?: value.coerceIn(0f, 1f)
 
@@ -117,20 +122,7 @@ fun Scrubber(
         contentAlignment = Alignment.CenterStart,
     ) {
         Canvas(Modifier.fillMaxWidth().height(Vela.minTouch).testTag("scrubber.canvas")) {
-            val g = ScrubGeometry(size.width, thumbRadius.toPx())
-            val cy = size.height / 2
-            val th = trackHeight.toPx()
-            val round = CornerRadius(th / 2, th / 2)
-            drawRoundRect(trackColor, Offset(g.trackStart, cy - th / 2), Size(g.trackWidth, th), round)
-            buffered?.let { b -> drawRoundRect(bufferedColor, Offset(g.trackStart, cy - th / 2), Size((g.xFor(b) - g.trackStart).coerceAtLeast(0f), th), round) }
-            markers.forEach { m ->
-                val x0 = g.xFor(m.start)
-                val x1 = maxOf(g.xFor(m.end), x0 + 2.dp.toPx()).coerceAtMost(g.trackEnd)
-                drawRect(m.color, Offset(x0, cy - th / 2), Size(x1 - x0, th))
-            }
-            drawRoundRect(playedColor, Offset(g.trackStart, cy - th / 2), Size((g.xFor(shown) - g.trackStart).coerceAtLeast(0f), th), round)
-            ticks.forEach { t -> val x = g.xFor(t); drawRect(tickColor, Offset(x - 1.dp.toPx(), cy - th), Size(2.dp.toPx(), th * 2)) }
-            drawCircle(playedColor, thumbRadius.toPx() * thumbGrow, Offset(g.xFor(shown), cy))
+            drawProgress(style, shown, wake, surface, trackColor, bufferedColor, tickColor, buffered, markers, ticks, thumbGrow, wavePhase)
         }
         val label = dragging?.let { f -> previewLabel?.invoke(f) }
         if (label != null) {
@@ -145,4 +137,107 @@ fun Scrubber(
             )
         }
     }
+}
+
+
+/** Track thickness, marker radius (0 = none) and how far in from the box edge the track starts, for each [ProgressStyle]. */
+class ProgressMetrics(val track: Dp, val thumb: Dp, val endInset: Dp)
+
+fun ProgressStyle.metrics(): ProgressMetrics = when (this) {
+    ProgressStyle.HAIRLINE -> ProgressMetrics(2.dp, 0.dp, 4.dp)
+    ProgressStyle.HAIRLINE_DOT -> ProgressMetrics(2.dp, 7.dp, 8.dp)
+    ProgressStyle.BOLD -> ProgressMetrics(6.dp, 0.dp, 4.dp)
+    ProgressStyle.BOLD_DOT -> ProgressMetrics(6.dp, 9.dp, 10.dp)
+    ProgressStyle.SPIKES -> ProgressMetrics(24.dp, 0.dp, 4.dp)
+    ProgressStyle.WAVE -> ProgressMetrics(4.dp, 0.dp, 6.dp)
+}
+
+/** The palette gradient sampled at [fraction] (0..1) of its way across. */
+private fun sample(stops: List<Color>, fraction: Float): Color {
+    if (stops.size == 1) return stops[0]
+    val x = fraction.coerceIn(0f, 1f) * (stops.size - 1)
+    val i = x.toInt().coerceAtMost(stops.size - 2)
+    return androidx.compose.ui.graphics.lerp(stops[i], stops[i + 1], x - i)
+}
+
+/**
+ * Draws a seek bar in [style] across the whole width of this scope, [shown] (0..1) of the way played. The played part is the palette
+ * gradient, laid across the full track so it is revealed as playback moves, not squashed into what has played.
+ * Used by the real scrubber and by the style previews in Customize, so the two can never differ.
+ */
+fun DrawScope.drawProgress(
+    style: ProgressStyle, shown: Float, wake: List<Color>, surface: Color, trackColor: Color, bufferedColor: Color, tickColor: Color,
+    buffered: Float? = null, markers: List<ScrubMarker> = emptyList(), ticks: List<Float> = emptyList(), grow: Float = 1f, wavePhase: Float = 0f,
+) {
+    val m = style.metrics()
+    val g = ScrubGeometry(size.width, m.endInset.toPx())
+    val cy = size.height / 2
+    val brush = androidx.compose.ui.graphics.Brush.horizontalGradient(wake, startX = g.trackStart, endX = g.trackEnd.coerceAtLeast(g.trackStart + 1f))
+    val xNow = g.xFor(shown)
+    if (style == ProgressStyle.SPIKES) {
+        // Bars of a gentle, repeating wave. The ones up to the current position take the gradient, the rest the track colour.
+        val barW = 3.dp.toPx(); val step = 6.dp.toPx(); val maxH = size.height * 0.62f
+        val count = (g.trackWidth / step).toInt().coerceAtLeast(1)
+        for (i in 0..count) {
+            val x = g.trackStart + i * (g.trackWidth / count)
+            val wave = kotlin.math.abs(kotlin.math.sin(i * 0.37f) * kotlin.math.cos(i * 0.113f + 1f))
+            val h = maxH * (0.3f + 0.7f * wave)
+            val frac = if (g.trackWidth > 0f) (x - g.trackStart) / g.trackWidth else 0f
+            val marker = markers.firstOrNull { frac >= it.start && frac <= it.end }
+            val played = x <= xNow
+            when {
+                played -> drawLine(brush, Offset(x, cy - h / 2), Offset(x, cy + h / 2), strokeWidth = barW, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                marker != null -> drawLine(marker.color, Offset(x, cy - h / 2), Offset(x, cy + h / 2), strokeWidth = barW, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                else -> drawLine(if (buffered != null && frac <= buffered) bufferedColor else trackColor, Offset(x, cy - h / 2), Offset(x, cy + h / 2), strokeWidth = barW, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            }
+        }
+        return
+    }
+    if (style == ProgressStyle.WAVE) {
+        // A wiggle up to the current position (it travels along the line), then a still line after it; a small upright handle marks the spot.
+        val th = m.track.toPx(); val amp = 3.dp.toPx(); val k = (2 * Math.PI / 22.dp.toPx()).toFloat()
+        drawLine(trackColor, Offset(xNow, cy), Offset(g.trackEnd, cy), strokeWidth = th * 0.75f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+        if (xNow > g.trackStart) {
+            val path = androidx.compose.ui.graphics.Path()
+            var x = g.trackStart
+            while (x <= xNow) {
+                // Easing the wave to flat at both ends keeps its start tidy and lets it meet the handle on the line.
+                val ease = minOf(1f, (x - g.trackStart) / 12.dp.toPx(), (xNow - x) / 12.dp.toPx()).coerceIn(0f, 1f)
+                val y = cy + amp * ease * kotlin.math.sin(k * (x - g.trackStart) - wavePhase)
+                if (x == g.trackStart) path.moveTo(x, y) else path.lineTo(x, y)
+                x += 2f
+            }
+            path.lineTo(xNow, cy)
+            drawPath(path, brush, style = androidx.compose.ui.graphics.drawscope.Stroke(width = th, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+        }
+        val handleH = 16.dp.toPx() * grow
+        drawLine(sample(wake, shown), Offset(xNow, cy - handleH / 2), Offset(xNow, cy + handleH / 2), strokeWidth = 4.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+        return
+    }
+    val hasThumb = m.thumb > 0.dp
+    val th = m.track.toPx() * (if (hasThumb) 1f else grow)        // without a marker the track itself swells a little while held
+    val round = CornerRadius(th / 2, th / 2)
+    drawRoundRect(trackColor, Offset(g.trackStart, cy - th / 2), Size(g.trackWidth, th), round)
+    buffered?.let { b -> drawRoundRect(bufferedColor, Offset(g.trackStart, cy - th / 2), Size((g.xFor(b) - g.trackStart).coerceAtLeast(0f), th), round) }
+    markers.forEach { mk ->
+        val x0 = g.xFor(mk.start)
+        val x1 = maxOf(g.xFor(mk.end), x0 + 2.dp.toPx()).coerceAtMost(g.trackEnd)
+        drawRect(mk.color, Offset(x0, cy - th / 2), Size(x1 - x0, th))
+    }
+    drawRoundRect(brush, Offset(g.trackStart, cy - th / 2), Size((xNow - g.trackStart).coerceAtLeast(0f), th), round)
+    ticks.forEach { t -> val x = g.xFor(t); drawRect(tickColor, Offset(x - 1.dp.toPx(), cy - th), Size(2.dp.toPx(), th * 2)) }
+    if (hasThumb) {
+        val r = m.thumb.toPx() * grow
+        drawCircle(surface, r + 2.dp.toPx(), Offset(xNow, cy))                 // a ring in the surface colour keeps the marker readable on the track
+        drawCircle(sample(wake, shown), r, Offset(xNow, cy))
+    }
+}
+
+/** The wave's travelling phase (radians), looping; 0 (still) unless [active], while the app is on screen, and when motion is not reduced. */
+@Composable
+fun rememberWavePhase(active: Boolean): Float {
+    if (!active || Vela.motion.reduced || !com.greenaltambe.vela.ui.look.LocalAnimationsActive.current) return 0f
+    val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "wave")
+    val phase by t.animateFloat(0f, (2 * Math.PI).toFloat(), androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1600, easing = androidx.compose.animation.core.LinearEasing)), label = "wavePhase")
+    return phase
 }

@@ -20,11 +20,13 @@ class ContrastTest {
         assertTrue(bad.isEmpty(), "contrast failures (${bad.size}):\n" + bad.distinct().take(15).joinToString("\n"))
     }
 
-    @Test fun aButtonLabelIsReadableOverEveryStopOfEveryPalette() {
+    @Test fun whiteButtonLabelsAreReadableOverEveryStopOfTheButtonFillInEveryPalette() {
         for (p in Palette.entries) {
             val l = LookBuilder.build(LookSnapshot(palette = p), true)
-            val label = Contrast.onAll(l.accent.wake)
-            for (stop in l.accent.wake) assertTrue(Contrast.ratio(label, stop) >= 3.0, "$p: label over ${stop.toString(16)} only ${"%.2f".format(Contrast.ratio(label, stop))}:1")
+            for (stop in l.accent.wake) {
+                val fill = Contrast.darkenForWhiteText(stop)
+                assertTrue(Contrast.ratio(0xFFFFFFFF, fill) >= 4.5, "$p: white over ${fill.toString(16)} only ${"%.2f".format(Contrast.ratio(0xFFFFFFFF, fill))}:1")
+            }
         }
     }
 

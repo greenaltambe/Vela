@@ -170,7 +170,14 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            CompositionLocalProvider(LocalInPictureInPicture provides inPip, LocalWindowControls provides windowControls) { App(services) }
+            CompositionLocalProvider(LocalInPictureInPicture provides inPip, LocalWindowControls provides windowControls, com.greenaltambe.vela.ui.platform.LocalShare provides { title, url ->
+                val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(android.content.Intent.EXTRA_SUBJECT, title)
+                    putExtra(android.content.Intent.EXTRA_TEXT, if (title.isBlank()) url else "$title\n$url")
+                }
+                runCatching { startActivity(android.content.Intent.createChooser(send, null)) }
+            }) { App(services) }
         }
     }
 

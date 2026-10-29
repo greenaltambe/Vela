@@ -17,6 +17,7 @@ data class NavConfig(
     /** The tab that shows as selected on [route], or null (Settings and its pages have none). Downloads is its own tab only when the list has it. */
     fun selected(route: Route): NavTab? {
         if (route == Route.Downloads && NavTab.DOWNLOADS in tabs) return NavTab.DOWNLOADS
+        if (route is Route.Search && NavTab.SEARCH in tabs) return NavTab.SEARCH
         val tab = when (route.topLevel()) {
             Route.Home -> NavTab.HOME
             Route.Subscriptions -> NavTab.SUBSCRIPTIONS
