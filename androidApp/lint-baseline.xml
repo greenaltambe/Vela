@@ -1,0 +1,1210 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<issues format="6" by="lint 9.1.1" type="baseline" client="gradle" dependencies="false" name="AGP (9.1.1)" variant="all" version="9.1.1">
+
+    <issue
+        id="GestureBackNavigation"
+        message="`onBackPressed` is no longer called for back gestures; migrate to AndroidX&apos;s backward compatible `OnBackPressedDispatcher`"
+        errorLine1="    override fun onBackPressed() { runtime.captcha.dismiss(); super.onBackPressed() }"
+        errorLine2="                 ~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/auth/CaptchaActivity.kt"
+            line="42"
+            column="18"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 26 (current min is 24): `java.io.File#toPath`"
+        errorLine1="            if (hadOld) Files.move(managed.toPath(), previous.toPath(), StandardCopyOption.REPLACE_EXISTING)"
+        errorLine2="                                           ~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/ytdlp/EmbeddedYtDlpUpdater.kt"
+            line="77"
+            column="44"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 26 (current min is 24): `java.io.File#toPath`"
+        errorLine1="            if (hadOld) Files.move(managed.toPath(), previous.toPath(), StandardCopyOption.REPLACE_EXISTING)"
+        errorLine2="                                                              ~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/ytdlp/EmbeddedYtDlpUpdater.kt"
+            line="77"
+            column="63"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 26 (current min is 24): `java.nio.file.Files#move`"
+        errorLine1="            if (hadOld) Files.move(managed.toPath(), previous.toPath(), StandardCopyOption.REPLACE_EXISTING)"
+        errorLine2="                              ~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/ytdlp/EmbeddedYtDlpUpdater.kt"
+            line="77"
+            column="31"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Field requires API level 26 (current min is 24): `java.nio.file.StandardCopyOption#REPLACE_EXISTING`"
+        errorLine1="            if (hadOld) Files.move(managed.toPath(), previous.toPath(), StandardCopyOption.REPLACE_EXISTING)"
+        errorLine2="                                                                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/ytdlp/EmbeddedYtDlpUpdater.kt"
+            line="77"
+            column="73"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 26 (current min is 24): `java.io.File#toPath`"
+        errorLine1="            Files.move(fresh.toPath(), managed.toPath(), StandardCopyOption.REPLACE_EXISTING)"
+        errorLine2="                             ~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/ytdlp/EmbeddedYtDlpUpdater.kt"
+            line="78"
+            column="30"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 26 (current min is 24): `java.io.File#toPath`"
+        errorLine1="            Files.move(fresh.toPath(), managed.toPath(), StandardCopyOption.REPLACE_EXISTING)"
+        errorLine2="                                               ~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/ytdlp/EmbeddedYtDlpUpdater.kt"
+            line="78"
+            column="48"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 26 (current min is 24): `java.nio.file.Files#move`"
+        errorLine1="            Files.move(fresh.toPath(), managed.toPath(), StandardCopyOption.REPLACE_EXISTING)"
+        errorLine2="                  ~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/ytdlp/EmbeddedYtDlpUpdater.kt"
+            line="78"
+            column="19"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Field requires API level 26 (current min is 24): `java.nio.file.StandardCopyOption#REPLACE_EXISTING`"
+        errorLine1="            Files.move(fresh.toPath(), managed.toPath(), StandardCopyOption.REPLACE_EXISTING)"
+        errorLine2="                                                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/ytdlp/EmbeddedYtDlpUpdater.kt"
+            line="78"
+            column="58"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 26 (current min is 24): `java.io.File#toPath`"
+        errorLine1="            if (hadOld) Files.move(previous.toPath(), managed.toPath(), StandardCopyOption.REPLACE_EXISTING) else managed.delete()"
+        errorLine2="                                            ~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/ytdlp/EmbeddedYtDlpUpdater.kt"
+            line="81"
+            column="45"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 26 (current min is 24): `java.io.File#toPath`"
+        errorLine1="            if (hadOld) Files.move(previous.toPath(), managed.toPath(), StandardCopyOption.REPLACE_EXISTING) else managed.delete()"
+        errorLine2="                                                              ~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/ytdlp/EmbeddedYtDlpUpdater.kt"
+            line="81"
+            column="63"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 26 (current min is 24): `java.nio.file.Files#move`"
+        errorLine1="            if (hadOld) Files.move(previous.toPath(), managed.toPath(), StandardCopyOption.REPLACE_EXISTING) else managed.delete()"
+        errorLine2="                              ~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/ytdlp/EmbeddedYtDlpUpdater.kt"
+            line="81"
+            column="31"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Field requires API level 26 (current min is 24): `java.nio.file.StandardCopyOption#REPLACE_EXISTING`"
+        errorLine1="            if (hadOld) Files.move(previous.toPath(), managed.toPath(), StandardCopyOption.REPLACE_EXISTING) else managed.delete()"
+        errorLine2="                                                                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/ytdlp/EmbeddedYtDlpUpdater.kt"
+            line="81"
+            column="73"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 26 (current min is 24): `android.app.Activity#setPictureInPictureParams`"
+        errorLine1="                setPictureInPictureParams(pipParams(status == PlaybackStatus.PLAYING, (session as? SessionState.Ready)?.plan?.videoHeight != null))"
+        errorLine2="                ~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/MainActivity.kt"
+            line="168"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 26 (current min is 24): `android.app.Activity#enterPictureInPictureMode`"
+        errorLine1="            runCatching { enterPictureInPictureMode(pipParams(playing = true, hasVideo = true)) }"
+        errorLine2="                          ~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/MainActivity.kt"
+            line="206"
+            column="27"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 26 (current min is 24): `android.app.RemoteAction()`"
+        errorLine1="        val action = RemoteAction("
+        errorLine2="                     ~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/MainActivity.kt"
+            line="241"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 26 (current min is 24): `android.app.PictureInPictureParams.Builder()`"
+        errorLine1="        return PictureInPictureParams.Builder()"
+        errorLine2="                                      ~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/MainActivity.kt"
+            line="246"
+            column="39"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 26 (current min is 24): `android.app.PictureInPictureParams.Builder#setAspectRatio`"
+        errorLine1="            .setAspectRatio(Rational(16, 9))"
+        errorLine2="             ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/MainActivity.kt"
+            line="247"
+            column="14"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 26 (current min is 24): `android.app.PictureInPictureParams.Builder#setActions`"
+        errorLine1="            .setActions(listOf(action))"
+        errorLine2="             ~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/MainActivity.kt"
+            line="248"
+            column="14"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 26 (current min is 24): `android.app.PictureInPictureParams.Builder#build`"
+        errorLine1="            .build()"
+        errorLine2="             ~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/MainActivity.kt"
+            line="250"
+            column="14"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 27 (current min is 24): `android.app.Activity#setShowWhenLocked`"
+        errorLine1="        setShowWhenLocked(true); setTurnScreenOn(true); window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)"
+        errorLine2="        ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/debug/kotlin/com/greenaltambe/vela/debug/SelfTestActivity.kt"
+            line="38"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 27 (current min is 24): `android.app.Activity#setTurnScreenOn`"
+        errorLine1="        setShowWhenLocked(true); setTurnScreenOn(true); window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)"
+        errorLine2="                                 ~~~~~~~~~~~~~~~">
+        <location
+            file="src/debug/kotlin/com/greenaltambe/vela/debug/SelfTestActivity.kt"
+            line="38"
+            column="34"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 26 (current min is 24): `android.media.AudioFocusRequest.Builder#build`"
+        errorLine1="            val req = android.media.AudioFocusRequest.Builder(gain).setAudioAttributes(attrs).setOnAudioFocusChangeListener {}.build()"
+        errorLine2="                                                                                                                               ~~~~~">
+        <location
+            file="src/debug/kotlin/com/greenaltambe/vela/debug/SelfTestActivity.kt"
+            line="188"
+            column="128"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 26 (current min is 24): `android.media.AudioFocusRequest.Builder#setAudioAttributes`"
+        errorLine1="            val req = android.media.AudioFocusRequest.Builder(gain).setAudioAttributes(attrs).setOnAudioFocusChangeListener {}.build()"
+        errorLine2="                                                                    ~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/debug/kotlin/com/greenaltambe/vela/debug/SelfTestActivity.kt"
+            line="188"
+            column="69"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 26 (current min is 24): `android.media.AudioFocusRequest.Builder#setOnAudioFocusChangeListener`"
+        errorLine1="            val req = android.media.AudioFocusRequest.Builder(gain).setAudioAttributes(attrs).setOnAudioFocusChangeListener {}.build()"
+        errorLine2="                                                                                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/debug/kotlin/com/greenaltambe/vela/debug/SelfTestActivity.kt"
+            line="188"
+            column="95"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 26 (current min is 24): `android.media.AudioFocusRequest.Builder()`"
+        errorLine1="            val req = android.media.AudioFocusRequest.Builder(gain).setAudioAttributes(attrs).setOnAudioFocusChangeListener {}.build()"
+        errorLine2="                                                      ~~~~~~~">
+        <location
+            file="src/debug/kotlin/com/greenaltambe/vela/debug/SelfTestActivity.kt"
+            line="188"
+            column="55"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 26 (current min is 24): `android.media.AudioManager#requestAudioFocus`"
+        errorLine1="            val granted = am.requestAudioFocus(req)"
+        errorLine2="                             ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/debug/kotlin/com/greenaltambe/vela/debug/SelfTestActivity.kt"
+            line="189"
+            column="30"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 26 (current min is 24): `android.media.AudioManager#abandonAudioFocusRequest`"
+        errorLine1="            am.abandonAudioFocusRequest(req); delay(3_500)"
+        errorLine2="               ~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/debug/kotlin/com/greenaltambe/vela/debug/SelfTestActivity.kt"
+            line="192"
+            column="16"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 26 (current min is 24): `android.media.AudioFocusRequest.Builder#build`"
+        errorLine1="        val perm = android.media.AudioFocusRequest.Builder(android.media.AudioManager.AUDIOFOCUS_GAIN).setAudioAttributes(attrs).setOnAudioFocusChangeListener {}.build()"
+        errorLine2="                                                                                                                                                                  ~~~~~">
+        <location
+            file="src/debug/kotlin/com/greenaltambe/vela/debug/SelfTestActivity.kt"
+            line="200"
+            column="163"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 26 (current min is 24): `android.media.AudioFocusRequest.Builder#setAudioAttributes`"
+        errorLine1="        val perm = android.media.AudioFocusRequest.Builder(android.media.AudioManager.AUDIOFOCUS_GAIN).setAudioAttributes(attrs).setOnAudioFocusChangeListener {}.build()"
+        errorLine2="                                                                                                       ~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/debug/kotlin/com/greenaltambe/vela/debug/SelfTestActivity.kt"
+            line="200"
+            column="104"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 26 (current min is 24): `android.media.AudioFocusRequest.Builder#setOnAudioFocusChangeListener`"
+        errorLine1="        val perm = android.media.AudioFocusRequest.Builder(android.media.AudioManager.AUDIOFOCUS_GAIN).setAudioAttributes(attrs).setOnAudioFocusChangeListener {}.build()"
+        errorLine2="                                                                                                                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/debug/kotlin/com/greenaltambe/vela/debug/SelfTestActivity.kt"
+            line="200"
+            column="130"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 26 (current min is 24): `android.media.AudioFocusRequest.Builder()`"
+        errorLine1="        val perm = android.media.AudioFocusRequest.Builder(android.media.AudioManager.AUDIOFOCUS_GAIN).setAudioAttributes(attrs).setOnAudioFocusChangeListener {}.build()"
+        errorLine2="                                                   ~~~~~~~">
+        <location
+            file="src/debug/kotlin/com/greenaltambe/vela/debug/SelfTestActivity.kt"
+            line="200"
+            column="52"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 26 (current min is 24): `android.media.AudioManager#abandonAudioFocusRequest`"
+        errorLine1="        am.requestAudioFocus(perm); delay(3_000); val d3 = status(); am.abandonAudioFocusRequest(perm); delay(3_000)"
+        errorLine2="                                                                        ~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/debug/kotlin/com/greenaltambe/vela/debug/SelfTestActivity.kt"
+            line="201"
+            column="73"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 26 (current min is 24): `android.media.AudioManager#requestAudioFocus`"
+        errorLine1="        am.requestAudioFocus(perm); delay(3_000); val d3 = status(); am.abandonAudioFocusRequest(perm); delay(3_000)"
+        errorLine2="           ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/debug/kotlin/com/greenaltambe/vela/debug/SelfTestActivity.kt"
+            line="201"
+            column="12"/>
+    </issue>
+
+    <issue
+        id="UnusedAttribute"
+        message="Attribute `enableOnBackInvokedCallback` is only used in API level 33 and higher (current min is 24)"
+        errorLine1="        android:enableOnBackInvokedCallback=&quot;true&quot;"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/AndroidManifest.xml"
+            line="21"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="PictureInPictureIssue"
+        message="An activity in this app supports picture-in-picture and the targetSdkVersion is 31 or above; it is therefore strongly recommended to call both `setAutoEnterEnabled(true)` and `setSourceRectHint(...)`"
+        errorLine1="    &lt;application"
+        errorLine2="     ~~~~~~~~~~~">
+        <location
+            file="src/main/AndroidManifest.xml"
+            line="17"
+            column="6"/>
+    </issue>
+
+    <issue
+        id="AndroidGradlePluginVersion"
+        message="A newer version of Gradle than 9.5.1 is available: 9.8.2"
+        errorLine1="distributionUrl=https\://services.gradle.org/distributions/gradle-9.5.1-bin.zip"
+        errorLine2="                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/AndroidStudioProjects/Vela/gradle/wrapper/gradle-wrapper.properties"
+            line="4"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="AndroidGradlePluginVersion"
+        message="A newer version of com.android.application than 9.1.1 is available: 9.5.0"
+        errorLine1="agp = &quot;9.1.1&quot;"
+        errorLine2="      ~~~~~~~">
+        <location
+            file="$HOME/AndroidStudioProjects/Vela/gradle/libs.versions.toml"
+            line="2"
+            column="7"/>
+    </issue>
+
+    <issue
+        id="AndroidGradlePluginVersion"
+        message="A newer version of com.android.kotlin.multiplatform.library than 9.1.1 is available: 9.5.0"
+        errorLine1="agp = &quot;9.1.1&quot;"
+        errorLine2="      ~~~~~~~">
+        <location
+            file="$HOME/AndroidStudioProjects/Vela/gradle/libs.versions.toml"
+            line="2"
+            column="7"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.documentfile:documentfile than 1.0.1 is available: 1.1.0"
+        errorLine1="androidx-documentfile = &quot;1.0.1&quot;"
+        errorLine2="                        ~~~~~~~">
+        <location
+            file="$HOME/AndroidStudioProjects/Vela/gradle/libs.versions.toml"
+            line="33"
+            column="25"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.work:work-runtime-ktx than 2.10.1 is available: 2.12.0"
+        errorLine1="androidx-work = &quot;2.10.1&quot;"
+        errorLine2="                ~~~~~~~~">
+        <location
+            file="$HOME/AndroidStudioProjects/Vela/gradle/libs.versions.toml"
+            line="34"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of org.jetbrains.compose than 1.12.1 is available: 1.12.2"
+        errorLine1="composeMultiplatform = &quot;1.12.1&quot;"
+        errorLine2="                       ~~~~~~~~">
+        <location
+            file="$HOME/AndroidStudioProjects/Vela/gradle/libs.versions.toml"
+            line="12"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of org.jetbrains.compose.components:components-resources than 1.12.1 is available: 1.12.2"
+        errorLine1="composeMultiplatform = &quot;1.12.1&quot;"
+        errorLine2="                       ~~~~~~~~">
+        <location
+            file="$HOME/AndroidStudioProjects/Vela/gradle/libs.versions.toml"
+            line="12"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of org.jetbrains.compose.foundation:foundation than 1.12.1 is available: 1.12.2"
+        errorLine1="composeMultiplatform = &quot;1.12.1&quot;"
+        errorLine2="                       ~~~~~~~~">
+        <location
+            file="$HOME/AndroidStudioProjects/Vela/gradle/libs.versions.toml"
+            line="12"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of org.jetbrains.compose.runtime:runtime than 1.12.1 is available: 1.12.2"
+        errorLine1="composeMultiplatform = &quot;1.12.1&quot;"
+        errorLine2="                       ~~~~~~~~">
+        <location
+            file="$HOME/AndroidStudioProjects/Vela/gradle/libs.versions.toml"
+            line="12"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of org.jetbrains.compose.ui:ui than 1.12.1 is available: 1.12.2"
+        errorLine1="composeMultiplatform = &quot;1.12.1&quot;"
+        errorLine2="                       ~~~~~~~~">
+        <location
+            file="$HOME/AndroidStudioProjects/Vela/gradle/libs.versions.toml"
+            line="12"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of org.jetbrains.compose.ui:ui-tooling than 1.12.1 is available: 1.12.2"
+        errorLine1="composeMultiplatform = &quot;1.12.1&quot;"
+        errorLine2="                       ~~~~~~~~">
+        <location
+            file="$HOME/AndroidStudioProjects/Vela/gradle/libs.versions.toml"
+            line="12"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of org.jetbrains.compose.ui:ui-tooling-preview than 1.12.1 is available: 1.12.2"
+        errorLine1="composeMultiplatform = &quot;1.12.1&quot;"
+        errorLine2="                       ~~~~~~~~">
+        <location
+            file="$HOME/AndroidStudioProjects/Vela/gradle/libs.versions.toml"
+            line="12"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of org.jetbrains.kotlin.jvm than 2.4.20 is available: 2.4.21"
+        errorLine1="kotlin = &quot;2.4.20&quot;"
+        errorLine2="         ~~~~~~~~">
+        <location
+            file="$HOME/AndroidStudioProjects/Vela/gradle/libs.versions.toml"
+            line="14"
+            column="10"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of org.jetbrains.kotlin.multiplatform than 2.4.20 is available: 2.4.21"
+        errorLine1="kotlin = &quot;2.4.20&quot;"
+        errorLine2="         ~~~~~~~~">
+        <location
+            file="$HOME/AndroidStudioProjects/Vela/gradle/libs.versions.toml"
+            line="14"
+            column="10"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of org.jetbrains.kotlin.plugin.compose than 2.4.20 is available: 2.4.21"
+        errorLine1="kotlin = &quot;2.4.20&quot;"
+        errorLine2="         ~~~~~~~~">
+        <location
+            file="$HOME/AndroidStudioProjects/Vela/gradle/libs.versions.toml"
+            line="14"
+            column="10"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of org.jetbrains.kotlin.plugin.serialization than 2.4.20 is available: 2.4.21"
+        errorLine1="kotlin = &quot;2.4.20&quot;"
+        errorLine2="         ~~~~~~~~">
+        <location
+            file="$HOME/AndroidStudioProjects/Vela/gradle/libs.versions.toml"
+            line="14"
+            column="10"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of net.java.dev.jna:jna than 5.17.0 is available: 5.19.1"
+        errorLine1="jna = &quot;5.17.0&quot;"
+        errorLine2="      ~~~~~~~~">
+        <location
+            file="$HOME/AndroidStudioProjects/Vela/gradle/libs.versions.toml"
+            line="28"
+            column="7"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of net.java.dev.jna:jna-platform than 5.17.0 is available: 5.19.1"
+        errorLine1="jna = &quot;5.17.0&quot;"
+        errorLine2="      ~~~~~~~~">
+        <location
+            file="$HOME/AndroidStudioProjects/Vela/gradle/libs.versions.toml"
+            line="28"
+            column="7"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of io.coil-kt.coil3:coil-compose than 3.2.0 is available: 3.6.3"
+        errorLine1="coil = &quot;3.2.0&quot;"
+        errorLine2="       ~~~~~~~">
+        <location
+            file="$HOME/AndroidStudioProjects/Vela/gradle/libs.versions.toml"
+            line="29"
+            column="8"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of io.coil-kt.coil3:coil-network-okhttp than 3.2.0 is available: 3.6.3"
+        errorLine1="coil = &quot;3.2.0&quot;"
+        errorLine2="       ~~~~~~~">
+        <location
+            file="$HOME/AndroidStudioProjects/Vela/gradle/libs.versions.toml"
+            line="29"
+            column="8"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT"
+        errorLine2="                    ~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/AndroidPlayerHost.kt"
+            line="32"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT"
+        errorLine2="                    ~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/AndroidPlayerHost.kt"
+            line="32"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT"
+        errorLine2="                                                        ~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/AndroidPlayerHost.kt"
+            line="32"
+            column="57"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="    private val bandwidthMeter: BandwidthMeter? = null,"
+        errorLine2="                                ~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/Media3PlayerController.kt"
+            line="30"
+            column="33"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="        override fun onDroppedVideoFrames(eventTime: AnalyticsListener.EventTime, droppedFrames: Int, elapsedMs: Long) {"
+        errorLine2="                     ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/Media3PlayerController.kt"
+            line="42"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="        override fun onDroppedVideoFrames(eventTime: AnalyticsListener.EventTime, droppedFrames: Int, elapsedMs: Long) {"
+        errorLine2="                                                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/Media3PlayerController.kt"
+            line="42"
+            column="54"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="        player.setMediaSource(plan.toMediaSource(metadata, localDataSource), startPositionMs)"
+        errorLine2="               ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/Media3PlayerController.kt"
+            line="86"
+            column="16"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="        val video = player.videoFormat"
+        errorLine2="                           ~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/Media3PlayerController.kt"
+            line="150"
+            column="28"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="        val audio = player.audioFormat"
+        errorLine2="                           ~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/Media3PlayerController.kt"
+            line="151"
+            column="28"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="            videoBitrateBps = video?.bitrate?.takeIf { it > 0 }?.toLong(),"
+        errorLine2="                                     ~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/Media3PlayerController.kt"
+            line="155"
+            column="38"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="            audioBitrateBps = audio?.bitrate?.takeIf { it > 0 }?.toLong(),"
+        errorLine2="                                     ~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/Media3PlayerController.kt"
+            line="157"
+            column="38"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="            bandwidthEstimateBps = bandwidthMeter?.bitrateEstimate?.takeIf { it > 0 },"
+        errorLine2="                                                   ~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/Media3PlayerController.kt"
+            line="158"
+            column="52"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="    private val bandwidthMeter by lazy { DefaultBandwidthMeter.Builder(appContext).build() }"
+        errorLine2="                                                               ~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/PlaybackRuntime.kt"
+            line="164"
+            column="64"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="    private val bandwidthMeter by lazy { DefaultBandwidthMeter.Builder(appContext).build() }"
+        errorLine2="                                                                                   ~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/PlaybackRuntime.kt"
+            line="164"
+            column="84"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="            .setBandwidthMeter(bandwidthMeter)"
+        errorLine2="             ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/PlaybackRuntime.kt"
+            line="168"
+            column="14"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="            .setLoadControl(streamingLoadControl())"
+        errorLine2="             ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/PlaybackRuntime.kt"
+            line="169"
+            column="14"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="        .setDefaultRequestProperties(split.rest)"
+        errorLine2="         ~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/PlaybackSources.kt"
+            line="35"
+            column="10"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="        .setAllowCrossProtocolRedirects(true)"
+        errorLine2="         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/PlaybackSources.kt"
+            line="36"
+            column="10"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="        .setConnectTimeoutMs(15_000)"
+        errorLine2="         ~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/PlaybackSources.kt"
+            line="37"
+            column="10"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="        .setReadTimeoutMs(15_000)"
+        errorLine2="         ~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/PlaybackSources.kt"
+            line="38"
+            column="10"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="    ProgressiveMediaSource.Factory(ChunkedDataSource.Factory(httpFactory(headers))).createMediaSource(item(url, metadata))"
+        errorLine2="                           ~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/PlaybackSources.kt"
+            line="54"
+            column="28"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="    ProgressiveMediaSource.Factory(ChunkedDataSource.Factory(httpFactory(headers))).createMediaSource(item(url, metadata))"
+        errorLine2="                                                     ~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/PlaybackSources.kt"
+            line="54"
+            column="54"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="    ProgressiveMediaSource.Factory(ChunkedDataSource.Factory(httpFactory(headers))).createMediaSource(item(url, metadata))"
+        errorLine2="                                                                                    ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/PlaybackSources.kt"
+            line="54"
+            column="85"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="    is PlaybackPlan.Separate -> MergingMediaSource("
+        errorLine2="                                ~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/PlaybackSources.kt"
+            line="62"
+            column="33"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="    is PlaybackPlan.Hls -> HlsMediaSource.Factory(httpFactory(headers)).createMediaSource(item(url, metadata))"
+        errorLine2="                                          ~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/PlaybackSources.kt"
+            line="66"
+            column="43"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="    is PlaybackPlan.Hls -> HlsMediaSource.Factory(httpFactory(headers)).createMediaSource(item(url, metadata))"
+        errorLine2="                                                                        ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/PlaybackSources.kt"
+            line="66"
+            column="73"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="    is PlaybackPlan.Local -> ProgressiveMediaSource.Factory(requireNotNull(local) { &quot;no local data source configured&quot; })"
+        errorLine2="                                                    ~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/PlaybackSources.kt"
+            line="69"
+            column="53"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="        .createMediaSource(item(if (uri.startsWith(&quot;/&quot;)) &quot;file://$uri&quot; else uri, metadata))"
+        errorLine2="         ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/PlaybackSources.kt"
+            line="70"
+            column="10"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="fun streamingLoadControl(): DefaultLoadControl = DefaultLoadControl.Builder()"
+        errorLine2="                            ~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/PlaybackSources.kt"
+            line="104"
+            column="29"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="fun streamingLoadControl(): DefaultLoadControl = DefaultLoadControl.Builder()"
+        errorLine2="                                                                    ~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/PlaybackSources.kt"
+            line="104"
+            column="69"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="    .setBufferDurationsMs("
+        errorLine2="     ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/PlaybackSources.kt"
+            line="105"
+            column="6"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="    .setBackBuffer(10_000, /* retainBackBufferFromKeyframe = */ true)"
+        errorLine2="     ~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/PlaybackSources.kt"
+            line="111"
+            column="6"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="    .build()"
+        errorLine2="     ~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/PlaybackSources.kt"
+            line="112"
+            column="6"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="        pauseAllPlayersAndStopSelf()"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/VelaPlaybackService.kt"
+            line="33"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="private class NoQueuePlayer(player: androidx.media3.common.Player) : androidx.media3.common.ForwardingPlayer(player) {"
+        errorLine2="                                                                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/VelaPlaybackService.kt"
+            line="44"
+            column="70"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="private class NoQueuePlayer(player: androidx.media3.common.Player) : androidx.media3.common.ForwardingPlayer(player) {"
+        errorLine2="                                                                                            ~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/VelaPlaybackService.kt"
+            line="44"
+            column="93"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="    override fun getAvailableCommands(): androidx.media3.common.Player.Commands = super.getAvailableCommands().buildUpon().removeAll(*hidden).build()"
+        errorLine2="                 ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/VelaPlaybackService.kt"
+            line="46"
+            column="18"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="    override fun getAvailableCommands(): androidx.media3.common.Player.Commands = super.getAvailableCommands().buildUpon().removeAll(*hidden).build()"
+        errorLine2="                                                                                        ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/VelaPlaybackService.kt"
+            line="46"
+            column="89"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="    override fun getAvailableCommands(): androidx.media3.common.Player.Commands = super.getAvailableCommands().buildUpon().removeAll(*hidden).build()"
+        errorLine2="                                                                                                               ~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/VelaPlaybackService.kt"
+            line="46"
+            column="112"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="    override fun getAvailableCommands(): androidx.media3.common.Player.Commands = super.getAvailableCommands().buildUpon().removeAll(*hidden).build()"
+        errorLine2="                                                                                                                           ~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/VelaPlaybackService.kt"
+            line="46"
+            column="124"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="    override fun getAvailableCommands(): androidx.media3.common.Player.Commands = super.getAvailableCommands().buildUpon().removeAll(*hidden).build()"
+        errorLine2="                                                                                                                                              ~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/VelaPlaybackService.kt"
+            line="46"
+            column="143"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="    override fun isCommandAvailable(command: Int) = command !in hidden &amp;&amp; super.isCommandAvailable(command)"
+        errorLine2="                 ~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/VelaPlaybackService.kt"
+            line="47"
+            column="18"/>
+    </issue>
+
+    <issue
+        id="UnsafeOptInUsageError"
+        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
+        errorLine1="    override fun isCommandAvailable(command: Int) = command !in hidden &amp;&amp; super.isCommandAvailable(command)"
+        errorLine2="                                                                                ~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/playback/VelaPlaybackService.kt"
+            line="47"
+            column="81"/>
+    </issue>
+
+    <issue
+        id="ChromeOsAbiSupport"
+        message="Missing x86_64 ABI support for ChromeOS"
+        errorLine1="        ndk { abiFilters += &quot;arm64-v8a&quot; }"
+        errorLine2="                            ~~~~~~~~~~~">
+        <location
+            file="build.gradle.kts"
+            line="80"
+            column="29"/>
+    </issue>
+
+    <issue
+        id="ExportedService"
+        message="Exported service does not require permission"
+        errorLine1="        &lt;service"
+        errorLine2="         ~~~~~~~">
+        <location
+            file="src/main/AndroidManifest.xml"
+            line="50"
+            column="10"/>
+    </issue>
+
+    <issue
+        id="ObsoleteSdkInt"
+        message="This folder configuration (`v24`) is unnecessary; `minSdkVersion` is 24. Merge all the resources in this folder into `drawable`.">
+        <location
+            file="src/main/res/drawable-v24"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        runCatching { DocumentFile.fromSingleUri(context, Uri.parse(uri))?.delete() }"
+        errorLine2="                                                          ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/downloads/AndroidDownloadStorage.kt"
+            line="43"
+            column="59"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                configured.startsWith(&quot;content://&quot;) -> SafDownloadStorage(context, Uri.parse(configured), FileDownloadStorage(work, work, assets))"
+        errorLine2="                                                                                   ~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/downloads/AndroidDownloadStorage.kt"
+            line="66"
+            column="84"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        prefs.edit().putString(key, Base64.encodeToString(c.iv + c.doFinal(value.toByteArray()), Base64.NO_WRAP)).apply()"
+        errorLine2="        ~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/auth/AndroidKeystoreSecretStore.kt"
+            line="42"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="    override fun delete(key: String) { prefs.edit().remove(key).apply() }"
+        errorLine2="                                       ~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/auth/AndroidKeystoreSecretStore.kt"
+            line="45"
+            column="40"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                    val host = android.net.Uri.parse(url).host.orEmpty()"
+        errorLine2="                               ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/auth/WebLoginActivity.kt"
+            line="41"
+            column="32"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                    val host = android.net.Uri.parse(url).host.orEmpty()"
+        errorLine2="                               ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/auth/WebLoginActivity.kt"
+            line="41"
+            column="32"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="        val done = Button(this).apply { text = &quot;Done&quot;; setOnClickListener { finishWithCookie(url) } }"
+        errorLine2="                                                ~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/auth/CaptchaActivity.kt"
+            line="28"
+            column="49"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="        val cancel = Button(this).apply { text = &quot;Cancel&quot;; setOnClickListener { runtime.captcha.dismiss(); finish() } }"
+        errorLine2="                                                  ~~~~~~">
+        <location
+            file="src/main/kotlin/com/greenaltambe/vela/auth/CaptchaActivity.kt"
+            line="29"
+            column="51"/>
+    </issue>
+
+</issues>

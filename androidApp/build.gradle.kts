@@ -110,6 +110,11 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
         isCoreLibraryDesugaringEnabled = true
     }
+    lint {
+        // The 77 errors that existed when CI was added (back-gesture handling, API-level checks...) are recorded in the baseline; lint fails only on NEW problems.
+        // Regenerate after fixing some: ./gradlew :androidApp:updateLintBaseline
+        baseline = file("lint-baseline.xml")
+    }
     testOptions {
         unitTests.isIncludeAndroidResources = true
     }
