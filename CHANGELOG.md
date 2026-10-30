@@ -33,5 +33,5 @@ First public beta. Android is the primary platform, Linux is supported, Windows 
 ### Packaging
 - Android APK (arm64-v8a), Linux .deb, .rpm and portable tarball, Windows .msi and portable zip (experimental).
 
-[Unreleased]: https://github.com/OWNER/REPO/compare/v0.1.0-beta.1...HEAD
-[0.1.0-beta.1]: https://github.com/OWNER/REPO/releases/tag/v0.1.0-beta.1
+[Unreleased]: https://github.com/gereenaltambe/Vela/compare/v0.1.0-beta.1...HEAD
+[0.1.0-beta.1]: https://github.com/greenaltambe/Vela/tag/v0.1.0-beta.1
