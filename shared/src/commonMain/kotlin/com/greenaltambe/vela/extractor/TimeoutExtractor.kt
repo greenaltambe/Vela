@@ -28,6 +28,8 @@ class TimeoutExtractor(private val inner: Extractor, private val timeout: Durati
     override suspend fun trending(continuation: String?) = bounded("Loading trending") { inner.trending(continuation) }
     override suspend fun related(videoId: String) = bounded("Loading related videos") { inner.related(videoId) }
     override suspend fun channelShorts(channelId: String, continuation: String?) = bounded("Loading shorts") { inner.channelShorts(channelId, continuation) }
+    override suspend fun searchChannels(query: String, continuation: String?) = bounded("Search") { inner.searchChannels(query, continuation) }
+    override suspend fun searchPlaylists(query: String, continuation: String?) = bounded("Search") { inner.searchPlaylists(query, continuation) }
     override suspend fun channelLive(channelId: String, continuation: String?) = bounded("Loading live streams") { inner.channelLive(channelId, continuation) }
     override suspend fun channelPlaylists(channelId: String, continuation: String?) = bounded("Loading playlists") { inner.channelPlaylists(channelId, continuation) }
     override suspend fun playlistVideos(playlistId: String, continuation: String?) = bounded("Loading the playlist") { inner.playlistVideos(playlistId, continuation) }

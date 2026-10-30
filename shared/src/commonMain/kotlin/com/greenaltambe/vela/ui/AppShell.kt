@@ -198,10 +198,23 @@ private fun AppShellContent(services: AppServices, navigator: Navigator) {
     val pipPosition = remember { com.greenaltambe.vela.ui.nav.PipPosition() }
     val videoPageCache = remember { com.greenaltambe.vela.ui.screens.VideoPageCache() }
     val shortsFeed = remember { com.greenaltambe.vela.ui.screens.ShortsFeedStore() }
+    val exploreStore = remember { com.greenaltambe.vela.ui.screens.ExploreStore() }
+    val channelStore = remember { com.greenaltambe.vela.ui.screens.ChannelStore() }
     val searchStore = remember { com.greenaltambe.vela.ui.screens.SearchStore() }
     val homeFeed = remember { com.greenaltambe.vela.ui.screens.HomeFeedStore() }
     var prevShot by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
-    LaunchedEffect(route is Route.Video) { if (route is Route.Video) prevShot = runCatching { prevScreen.toImageBitmap() }.getOrNull() else prevShot = null }
+    // After the video page closes, the picture of the screen behind it stays ON TOP of the rebuilt screen for a moment, then fades out. The real screen
+    // is rebuilt (top bar, banners, lists restoring their place, filters being worked out) and may shift a little as it settles; this hides that.
+    val shotFade = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(route is Route.Video) {
+        if (route is Route.Video) { shotFade.snapTo(0f); prevShot = runCatching { prevScreen.toImageBitmap() }.getOrNull() }
+        else if (navigator.lastAction == NavAction.POP && prevShot != null) {
+            shotFade.snapTo(1f)
+            kotlinx.coroutines.delay(260)
+            shotFade.animateTo(0f, androidx.compose.animation.core.tween(220))
+            prevShot = null
+        } else prevShot = null
+    }
     val spaceHold = remember { SpaceHold() }
     BoxWithConstraints(
         Modifier
@@ -269,7 +282,7 @@ private fun AppShellContent(services: AppServices, navigator: Navigator) {
             // and tearing down the video surface.
             Row(Modifier.fillMaxSize().then(if (chrome) Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)) else Modifier)) {
                 if (chrome && rail) SideRail(
-                    navEntries(nav.tabs), nav.selected(route), nav.railCollapsed,
+                    navEntries(nav.tabs), nav.selected(route), nav.railCollapsed, marker = nav.marker,
                     onToggleCollapsed = { services.settings.set(com.greenaltambe.vela.core.settings.LookSettings.railCollapsed, !nav.railCollapsed) },
                     onSelect = navigator::openTab,
                 )
@@ -283,6 +296,8 @@ private fun AppShellContent(services: AppServices, navigator: Navigator) {
                             prevScreen.record { this@drawWithContent.drawContent() }
                             prevScreen.alpha = 1f
                             drawLayer(prevScreen)
+                            // Coming back from the video page: the old picture over the screen until it has settled.
+                            if (shotFade.value > 0f) prevShot?.let { drawImage(it, alpha = shotFade.value) }
                         }
                     },
                 ) {
@@ -311,7 +326,7 @@ private fun AppShellContent(services: AppServices, navigator: Navigator) {
                     // Keyed by the active account, so switching rebuilds every screen on the new account's data.
                     val activeAccount by services.accounts.active.collectAsState()
                     Box(Modifier.weight(1f).fillMaxWidth().nestedScroll(scroll.connection)) {
-                        CompositionLocalProvider(LocalChromeInset provides inset, com.greenaltambe.vela.ui.nav.LocalPageReveal provides reveal, com.greenaltambe.vela.ui.screens.LocalHomeFeed provides homeFeed, com.greenaltambe.vela.ui.nav.LocalPipPosition provides pipPosition, com.greenaltambe.vela.ui.screens.LocalVideoPageCache provides videoPageCache, com.greenaltambe.vela.ui.screens.LocalShortsFeed provides shortsFeed, com.greenaltambe.vela.ui.screens.LocalSearchStore provides searchStore,
+                        CompositionLocalProvider(LocalChromeInset provides inset, com.greenaltambe.vela.ui.nav.LocalPageReveal provides reveal, com.greenaltambe.vela.ui.screens.LocalHomeFeed provides homeFeed, com.greenaltambe.vela.ui.nav.LocalPipPosition provides pipPosition, com.greenaltambe.vela.ui.screens.LocalVideoPageCache provides videoPageCache, com.greenaltambe.vela.ui.screens.LocalShortsFeed provides shortsFeed, com.greenaltambe.vela.ui.screens.LocalSearchStore provides searchStore, com.greenaltambe.vela.ui.screens.LocalChannelStore provides channelStore, com.greenaltambe.vela.ui.screens.LocalExploreStore provides exploreStore,
             com.greenaltambe.vela.ui.platform.LocalTextFetcher provides { url -> (services.modules.client.get(url, ttl = kotlin.time.Duration.parse("6h")) as? com.greenaltambe.vela.core.http.ApiResult.Ok)?.body }) {
                             androidx.compose.runtime.key(activeAccount.id) { AnimatedDestination(services, navigator, route, reveal, Modifier.fillMaxSize()) }
                         }
@@ -359,6 +374,7 @@ private fun routeTitle(route: Route): String = when (route) {
     is Route.ChannelPlaylist -> route.title.ifBlank { "Playlist" }
     Route.Subscriptions -> "Subscriptions"
     Route.Library -> "Library"
+    Route.Explore -> "Explore"
     Route.Settings -> "Settings"
     Route.Customize -> "Customize Vela"
     is Route.CustomizePage -> "Customize"
@@ -455,6 +471,7 @@ private fun Destination(services: AppServices, navigator: Navigator, route: Rout
         Route.Customize -> com.greenaltambe.vela.ui.screens.CustomizeScreen(services, navigator, modifier)
         is Route.CustomizePage -> com.greenaltambe.vela.ui.screens.CustomizePageScreen(services, navigator, route.page, modifier)
         is Route.SettingsPage -> com.greenaltambe.vela.ui.screens.SettingsPageScreen(services, navigator, route.pageId, route.highlight, modifier)
+        Route.Explore -> com.greenaltambe.vela.ui.screens.ExploreScreen(services, navigator, modifier)
         is Route.Search -> SearchScreen(services, navigator, route.query, modifier)
         is Route.Video -> VideoScreen(services, navigator, route.video, route.startSeconds, modifier)
         is Route.ChannelPlaylist -> com.greenaltambe.vela.ui.screens.ChannelPlaylistScreen(services, navigator, route.id, modifier)

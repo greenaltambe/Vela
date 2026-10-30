@@ -9,6 +9,9 @@ import androidx.compose.material.icons.sharp.Add
 import androidx.compose.material.icons.sharp.ArrowDownward
 import androidx.compose.material.icons.sharp.ArrowUpward
 import androidx.compose.material.icons.sharp.Bolt
+import androidx.compose.material.icons.sharp.Explore
+import androidx.compose.material.icons.sharp.SkipNext
+import androidx.compose.material.icons.sharp.SkipPrevious
 import androidx.compose.material.icons.sharp.Bookmark
 import androidx.compose.material.icons.sharp.Check
 import androidx.compose.material.icons.sharp.ChevronLeft
@@ -115,6 +118,9 @@ internal object MaterialSharp {
             "cloud" to Icons.Sharp.Cloud,
             "visibility" to Icons.Sharp.Visibility,
             "bolt" to Icons.Sharp.Bolt,
+            "explore" to Icons.Sharp.Explore,
+            "skipNext" to Icons.Sharp.SkipNext,
+            "skipPrevious" to Icons.Sharp.SkipPrevious,
         )
     }
 }

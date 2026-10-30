@@ -45,7 +45,8 @@ class OfflineCollector(
         if (info == null) missing += "info"
         val chapters = info?.let { effectiveChapters(it.chapters, it.description, it.durationSeconds) }.orEmpty()
 
-        val thumbnailPath = info?.thumbnailUrl?.let { saveImage(it, "${videoId}.jpg") }
+        // YouTube serves a picture for every id, so a failed video lookup does not leave the download without one.
+        val thumbnailPath = (info?.thumbnailUrl ?: "https://i.ytimg.com/vi/$videoId/mqdefault.jpg").let { saveImage(it, "${videoId}.jpg") }
         if (thumbnailPath == null) missing += "thumbnail"
 
         val segments = try {

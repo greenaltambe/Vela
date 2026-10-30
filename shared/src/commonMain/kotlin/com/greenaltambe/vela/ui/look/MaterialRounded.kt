@@ -9,6 +9,9 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Bolt
+import androidx.compose.material.icons.rounded.Explore
+import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronLeft
@@ -115,6 +118,9 @@ internal object MaterialRounded {
             "cloud" to Icons.Rounded.Cloud,
             "visibility" to Icons.Rounded.Visibility,
             "bolt" to Icons.Rounded.Bolt,
+            "explore" to Icons.Rounded.Explore,
+            "skipNext" to Icons.Rounded.SkipNext,
+            "skipPrevious" to Icons.Rounded.SkipPrevious,
         )
     }
 }

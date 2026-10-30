@@ -135,7 +135,7 @@ fun BottomChrome(
             MiniPlayer(mini, nav.miniLook, miniShape, miniModifier)
             Spacer(Modifier.height(gap))
         }
-        BottomNav(entries, selected, labelsVisible = nav.labels == NavLabels.ALWAYS, shrink = f, shape = barShape, onSelect = onSelect, bottomInset = docked, modifier = Modifier.fillMaxWidth())
+        BottomNav(entries, selected, labelsVisible = nav.labels == NavLabels.ALWAYS, marker = nav.marker, shrink = f, shape = barShape, onSelect = onSelect, bottomInset = docked, modifier = Modifier.fillMaxWidth())
     }
 }
 

@@ -52,8 +52,8 @@ fun ProfileButton(services: AppServices, onClick: () -> Unit) {
 }
 
 /**
- * The Profile menu from the brief: the account card (name, masked handle, avatar, switch, add, sign out), then a few plain lines:
- * Settings, Customize Vela, Downloads, History, Backup & restore, Health & diagnostics, About. Anonymous / local mode shows a
+ * The Profile menu: the account card (name, masked handle, avatar, switch, add, sign out), then Settings and About. The rest used to be repeated
+ * here (Customize, Downloads, History, Backup, Health); they live in Settings and the Library. Anonymous / local mode shows a
  * "Local" card with "Sign in". Each line closes the menu and opens its page on top of the current one (Back returns).
  */
 @Composable
@@ -78,24 +78,20 @@ fun ProfileMenu(services: AppServices, navigator: Navigator, onDismiss: () -> Un
                     Text(if (local) "Nothing is shared: everything stays on this device." else account.maskedEmail ?: account.label, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor())
                 }
             }
-            if (local) MenuLine("Sign in", "profile.signIn") { go(Route.Accounts) }
+            // Account actions only. Everything else (Customize, Downloads, History, Backup, Health) has its own place: the Settings page and the Library tab.
+            if (local) MenuLine("Sign in", "profile.signIn", Vela.icons.account) { go(Route.Accounts) }
             // Switching is offered whenever there is another account to switch to, including from the local profile.
-            if (all.size > 1) MenuLine(if (switching) "Switch account ▴" else "Switch account ▾", "profile.switch") { switching = !switching }
+            if (all.size > 1) MenuLine(if (switching) "Switch account ▴" else "Switch account ▾", "profile.switch", Vela.icons.refresh) { switching = !switching }
             if (switching) all.filter { it.id != account.id }.forEach { a ->
-                MenuLine("   ${if (a.kind == AccountKind.LOCAL) "Local" else a.displayName}", "profile.switchTo") { services.accounts.switchTo(a.id); onDismiss() }
+                MenuLine("   ${if (a.kind == AccountKind.LOCAL) "Local" else a.displayName}", "profile.switchTo", null) { services.accounts.switchTo(a.id); onDismiss() }
             }
             if (!local) {
-                MenuLine("Add account", "profile.add") { go(Route.Accounts) }
-                MenuLine("Sign out", "profile.signOut") { confirmSignOut = true }
+                MenuLine("Add account", "profile.add", Vela.icons.add) { go(Route.Accounts) }
+                MenuLine("Sign out", "profile.signOut", Vela.icons.close) { confirmSignOut = true }
             }
             Divider()
-            MenuLine("Settings", "profile.settings") { go(Route.Settings) }
-            MenuLine("Customize Vela", "profile.customize") { go(Route.Customize) }
-            if (services.downloads != null) MenuLine("Downloads", "profile.downloads") { go(Route.Downloads) }
-            MenuLine("History", "profile.history") { go(Route.History) }
-            MenuLine("Backup & restore", "profile.backup") { go(Route.Backup) }
-            MenuLine("Health & diagnostics", "profile.health") { go(Route.Health) }
-            MenuLine("About", "profile.about") { showAbout = true }
+            MenuLine("Settings", "profile.settings", Vela.icons.settings) { go(Route.Settings) }
+            MenuLine("About", "profile.about", Vela.icons.info) { showAbout = true }
         }
     }
     if (confirmSignOut) AlertDialog(
@@ -109,8 +105,9 @@ fun ProfileMenu(services: AppServices, navigator: Navigator, onDismiss: () -> Un
 }
 
 @Composable
-private fun MenuLine(label: String, tag: String, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().heightIn(min = Vela.minTouch).clip(Vela.mediumShape).pressable(onClick = onClick).padding(horizontal = Vela.sm).testTag(tag), verticalAlignment = Alignment.CenterVertically) {
+private fun MenuLine(label: String, tag: String, icon: androidx.compose.ui.graphics.vector.ImageVector?, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().heightIn(min = Vela.minTouch).clip(Vela.mediumShape).pressable(onClick = onClick).padding(horizontal = Vela.sm).testTag(tag), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.md)) {
+        if (icon != null) androidx.compose.material3.Icon(icon, null, tint = Vela.colors.onSurfaceVariant.toColor())
         Text(label, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }

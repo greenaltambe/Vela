@@ -58,6 +58,8 @@ class CaptchaAwareExtractor(private val inner: Extractor, private val coordinato
     override suspend fun trending(continuation: String?) = guard { inner.trending(continuation) }
     override suspend fun related(videoId: String) = guard { inner.related(videoId) }
     override suspend fun channelShorts(channelId: String, continuation: String?) = guard { inner.channelShorts(channelId, continuation) }
+    override suspend fun searchChannels(query: String, continuation: String?) = guard { inner.searchChannels(query, continuation) }
+    override suspend fun searchPlaylists(query: String, continuation: String?) = guard { inner.searchPlaylists(query, continuation) }
     override suspend fun channelLive(channelId: String, continuation: String?) = guard { inner.channelLive(channelId, continuation) }
     override suspend fun channelPlaylists(channelId: String, continuation: String?) = guard { inner.channelPlaylists(channelId, continuation) }
     override suspend fun playlistVideos(playlistId: String, continuation: String?) = guard { inner.playlistVideos(playlistId, continuation) }

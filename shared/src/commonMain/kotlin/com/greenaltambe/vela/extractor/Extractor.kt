@@ -44,6 +44,10 @@ interface Extractor {
     /** The channel's Live tab (current and past streams). */
     suspend fun channelLive(channelId: String, continuation: String? = null): ExtractorResult<Page<VideoSummary>> = notSupported()
 
+    /** Search restricted to channels / playlists; tiers that cannot do it answer not-supported and the chain moves on. */
+    suspend fun searchChannels(query: String, continuation: String? = null): ExtractorResult<Page<ChannelRef>> = notSupported()
+    suspend fun searchPlaylists(query: String, continuation: String? = null): ExtractorResult<Page<PlaylistRef>> = notSupported()
+
     /** The channel's Playlists tab. */
     suspend fun channelPlaylists(channelId: String, continuation: String? = null): ExtractorResult<Page<PlaylistRef>> = notSupported()
 

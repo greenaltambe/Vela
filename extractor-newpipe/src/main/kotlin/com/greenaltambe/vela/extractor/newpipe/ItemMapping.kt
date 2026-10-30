@@ -1,6 +1,7 @@
 package com.greenaltambe.vela.extractor.newpipe
 
 import com.greenaltambe.vela.extractor.ChannelPage
+import com.greenaltambe.vela.extractor.ChannelRef
 import com.greenaltambe.vela.extractor.Comment
 import com.greenaltambe.vela.extractor.PlaylistRef
 import com.greenaltambe.vela.extractor.VideoSummary
@@ -31,6 +32,11 @@ internal fun StreamInfoItem.toVideoSummary(): VideoSummary? {
 internal fun List<InfoItem>.toPlaylistRefs(): List<PlaylistRef> = filterIsInstance<org.schabi.newpipe.extractor.playlist.PlaylistInfoItem>().mapNotNull { p ->
     val id = queryParam(p.url.orEmpty(), "list") ?: return@mapNotNull null
     PlaylistRef(id, p.name.orEmpty(), p.thumbnails.bestUrl(), p.streamCount.takeIf { it >= 0 }, p.uploaderName.orEmpty())
+}
+
+internal fun List<InfoItem>.toChannelRefs(): List<ChannelRef> = filterIsInstance<org.schabi.newpipe.extractor.channel.ChannelInfoItem>().mapNotNull { c ->
+    val id = channelIdFromUrl(c.url) ?: return@mapNotNull null
+    ChannelRef(id, c.name.orEmpty(), c.thumbnails.bestUrl(), c.subscriberCount.takeIf { it >= 0 }, c.description.orEmpty())
 }
 
 internal fun List<InfoItem>.toVideoSummaries(): List<VideoSummary> =

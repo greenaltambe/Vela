@@ -1,6 +1,13 @@
 package com.greenaltambe.vela.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Box
@@ -119,18 +126,26 @@ fun DownloadsScreen(services: AppServices, navigator: Navigator, modifier: Modif
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         LazyColumn(Modifier.widthIn(max = 900.dp).fillMaxSize().testTag("downloads.list"), contentPadding = Vela.contentPadding, verticalArrangement = Arrangement.spacedBy(Vela.md)) {
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
-                    Text("Folder: ${storage.description}", style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("downloads.folder"))
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                        OutlinedButton(onClick = { navigator.push(com.greenaltambe.vela.ui.nav.Route.DownloadRules) }, modifier = Modifier.testTag("downloads.rules")) { Text("Automatic downloads", maxLines = 1) }
-                        OutlinedButton(onClick = chooseFolder, modifier = Modifier.testTag("downloads.chooseFolder")) { Text("Change folder", maxLines = 1) }
-                        OutlinedButton(onClick = { services.settings.set(Settings.downloadsFolder, "") }, enabled = services.settings.resolve(Settings.downloadsFolder).isNotEmpty()) { Text("Use default", maxLines = 1) }
+                val total = used + (free ?: 0L)
+                val fraction = if (cap > 0) used / (cap * 1024.0 * 1024 * 1024) else if (total > 0) used.toDouble() / total else 0.0
+                Column(Modifier.fillMaxWidth().clip(Vela.largeShape).background(Vela.colors.surface.toColor()).padding(Vela.md), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+                        androidx.compose.material3.Icon(Vela.icons.folder, null, tint = Vela.colors.onSurfaceVariant.toColor())
+                        Text(storage.description, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor(), modifier = Modifier.weight(1f).testTag("downloads.folder"))
+                    }
+                    Box(Modifier.fillMaxWidth().height(6.dp).clip(Vela.pillShape).background(Vela.colors.surfaceVariant.toColor())) {
+                        Box(Modifier.fillMaxWidth(fraction.toFloat().coerceIn(0.02f, 1f)).height(6.dp).background(Vela.wake))
                     }
                     Text(
-                        "Used: ${formatBytes(used)}" + (free?.let { " · free: ${formatBytes(it)}" } ?: "") +
-                            if (cap > 0) " · cap: ${cap.toInt()} GB" + (if (used > cap * 1024L * 1024 * 1024) " (over)" else "") else "",
+                        "${formatBytes(used)} used" + (free?.let { " · ${formatBytes(it)} free" } ?: "") +
+                            if (cap > 0) " · cap ${cap.toInt()} GB" + (if (used > cap * 1024L * 1024 * 1024) " (over)" else "") else "",
                         style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("downloads.storage"),
                     )
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(Vela.xs)) {
+                        TextButton(onClick = { navigator.push(com.greenaltambe.vela.ui.nav.Route.DownloadRules) }, modifier = Modifier.testTag("downloads.rules")) { Text("Automatic downloads", maxLines = 1) }
+                        TextButton(onClick = chooseFolder, modifier = Modifier.testTag("downloads.chooseFolder")) { Text("Change folder", maxLines = 1) }
+                        if (services.settings.resolve(Settings.downloadsFolder).isNotEmpty()) TextButton(onClick = { services.settings.set(Settings.downloadsFolder, "") }) { Text("Use default", maxLines = 1) }
+                    }
                     waiting?.let { Text(it, style = MaterialTheme.typography.bodyMedium, maxLines = 1, modifier = Modifier.testTag("downloads.waiting")) }
                 }
             }
@@ -150,27 +165,59 @@ fun DownloadsScreen(services: AppServices, navigator: Navigator, modifier: Modif
     }
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun DownloadRow(services: AppServices, navigator: Navigator, item: DownloadItem, onDelete: () -> Unit) {
     val manager = services.downloads!!.manager
-    Column(Modifier.fillMaxWidth().testTag("downloads.row"), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
-        Text(item.title, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        if (item.state == DownloadState.FAILED) Text(statusLine(item), style = MaterialTheme.typography.bodySmall, maxLines = 3, overflow = TextOverflow.Ellipsis, color = Vela.colors.error.toColor(), modifier = Modifier.testTag("downloads.status"))
-        else Text(statusLine(item), style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor(), modifier = Modifier.testTag("downloads.status"))
-        if (item.state == DownloadState.DOWNLOADING || item.state == DownloadState.QUEUED || item.state == DownloadState.PAUSED || item.state == DownloadState.MERGING) {
-            val p = item.progress
-            if (p != null && item.state != DownloadState.MERGING) LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth())
-            else LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(Vela.xs)) {
-            when (item.state) {
-                DownloadState.QUEUED, DownloadState.DOWNLOADING -> TextButton(onClick = { manager.pause(item.id) }, modifier = Modifier.testTag("downloads.pause")) { Text("Pause", maxLines = 1) }
-                DownloadState.PAUSED -> TextButton(onClick = { manager.resume(item.id) }, modifier = Modifier.testTag("downloads.resume")) { Text("Resume", maxLines = 1) }
-                DownloadState.FAILED -> TextButton(onClick = { manager.retry(item.id) }, modifier = Modifier.testTag("downloads.retry")) { Text("Retry", maxLines = 1) }
-                DownloadState.COMPLETED -> TextButton(onClick = { navigator.push(Route.Video(VideoSummary(item.videoId, item.title, item.channelId, ""))) }, modifier = Modifier.testTag("downloads.play")) { Text("Play", maxLines = 1) }
-                DownloadState.MERGING -> {}
+    // Delete is behind a swipe (asks first, then the row snaps back) or the ⋮ menu; nothing destructive sits on the row itself.
+    val swipe = androidx.compose.material3.rememberSwipeToDismissBoxState(confirmValueChange = { v ->
+        if (v == androidx.compose.material3.SwipeToDismissBoxValue.EndToStart && item.state != DownloadState.MERGING) onDelete()
+        false
+    })
+    androidx.compose.material3.SwipeToDismissBox(
+        swipe, enableDismissFromStartToEnd = false, modifier = Modifier.testTag("downloads.row"),
+        backgroundContent = {
+            // Drawn only while the row is being pulled, with the same corner radius as the row, so no red shows around its corners at rest.
+            if (swipe.dismissDirection != androidx.compose.material3.SwipeToDismissBoxValue.Settled) Box(Modifier.fillMaxSize().clip(Vela.largeShape).background(Vela.colors.error.toColor()).padding(horizontal = Vela.lg), contentAlignment = Alignment.CenterEnd) {
+                androidx.compose.material3.Icon(Vela.icons.delete, "Delete", tint = Vela.colors.onPrimary.toColor())
             }
-            if (item.state != DownloadState.MERGING) TextButton(onClick = onDelete, modifier = Modifier.testTag("downloads.delete")) { Text(if (item.state == DownloadState.COMPLETED) "Delete" else "Cancel", maxLines = 1) }
+        },
+    ) {
+        val stored = remember(item.id, item.state) { if (item.state == DownloadState.COMPLETED) services.downloads.repo.offlineData(item.id)?.thumbnailPath else null }
+        // The saved copy when there is one (works offline), otherwise YouTube's picture for the id.
+        val picture = stored?.let { if (it.startsWith("/")) "file://$it" else it } ?: "https://i.ytimg.com/vi/${item.videoId}/mqdefault.jpg"
+        val playable = item.state == DownloadState.COMPLETED
+        Row(
+            Modifier.fillMaxWidth().clip(Vela.largeShape).background(Vela.colors.surface.toColor())
+                .then(if (playable) Modifier.clickable { navigator.push(Route.Video(VideoSummary(item.videoId, item.title, item.channelId, ""))) } else Modifier)
+                .padding(Vela.sm),
+            horizontalArrangement = Arrangement.spacedBy(Vela.md), verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(Modifier.width(132.dp).aspectRatio(16f / 9f).clip(Vela.thumbnailShape).background(Vela.colors.surfaceVariant.toColor())) {
+                coil3.compose.AsyncImage(picture, null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                if (!playable) Box(Modifier.fillMaxSize().background(Vela.colors.background.toColor().copy(alpha = 0.35f)))
+                when (item.state) {
+                    DownloadState.DOWNLOADING, DownloadState.QUEUED, DownloadState.MERGING, DownloadState.PAUSED -> {
+                        val p = item.progress
+                        if (p != null && item.state != DownloadState.MERGING) LinearProgressIndicator(progress = { p }, modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth(), color = Vela.colors.primary.toColor())
+                        else LinearProgressIndicator(modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth(), color = Vela.colors.primary.toColor())
+                    }
+                    else -> {}
+                }
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(item.title, style = MaterialTheme.typography.bodyMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(statusLine(item), style = MaterialTheme.typography.bodySmall, maxLines = if (item.state == DownloadState.FAILED) 3 else 2, overflow = TextOverflow.Ellipsis,
+                    color = if (item.state == DownloadState.FAILED) Vela.colors.error.toColor() else Vela.colors.onSurfaceVariant.toColor(), modifier = Modifier.testTag("downloads.status"))
+            }
+            // The one action that fits the state; delete is the swipe, Play is a tap on the row.
+            val action: Triple<androidx.compose.ui.graphics.vector.ImageVector, String, () -> Unit>? = when (item.state) {
+                DownloadState.QUEUED, DownloadState.DOWNLOADING -> Triple(Vela.icons.pause, "Pause") { manager.pause(item.id) }
+                DownloadState.PAUSED -> Triple(Vela.icons.play, "Resume") { manager.resume(item.id) }
+                DownloadState.FAILED -> Triple(Vela.icons.refresh, "Retry") { manager.retry(item.id) }
+                else -> null
+            }
+            action?.let { (icon, label, run) -> androidx.compose.material3.IconButton(onClick = run, modifier = Modifier.testTag("downloads.${label.lowercase()}")) { androidx.compose.material3.Icon(icon, label) } }
         }
     }
 }

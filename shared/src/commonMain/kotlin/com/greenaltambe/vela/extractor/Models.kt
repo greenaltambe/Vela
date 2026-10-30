@@ -48,6 +48,7 @@ data class VideoInfo(
     val uploadDate: Instant? = null,
     val isShort: Boolean = false,
     val ageRestricted: Boolean = false,
+    val channelAvatarUrl: String? = null,
 )
 
 data class VideoStream(
@@ -145,6 +146,9 @@ data class Comment(
     /** Pass to [Extractor.replies] to load this comment's replies; null when it has none (or the tier can't list them). */
     val repliesContinuation: String? = null,
 )
+
+/** A channel as a search lists it. */
+data class ChannelRef(val id: String, val name: String, val avatarUrl: String?, val subscriberCount: Long?, val description: String = "")
 
 /** A playlist as a channel page lists it. */
 data class PlaylistRef(val id: String, val title: String, val thumbnailUrl: String?, val videoCount: Long?, val channelName: String = "")

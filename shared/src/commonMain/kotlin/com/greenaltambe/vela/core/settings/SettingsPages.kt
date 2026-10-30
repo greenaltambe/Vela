@@ -48,6 +48,42 @@ object SettingsPages {
     fun settingsOf(page: SettingsPage, registry: List<Setting<*>> = Settings.all): List<Setting<*>> =
         registry.filter { s -> all.firstOrNull { it.owns(s) } === page }
 
+    /** One titled block of a page: related settings together, so a long page reads as a few small cards instead of one list. */
+    class Section(val title: String, val settings: List<Setting<*>>)
+
+    /** The title of the block [s] sits in on [page]; blank for a page that is one block. */
+    fun sectionOf(page: SettingsPage, s: Setting<*>): String = when (page.id) {
+        "extras" -> when {
+            s.key.startsWith("sponsorblock.") -> "SponsorBlock"
+            s.key.startsWith("ryd.") -> "Return YouTube Dislike"
+            s.key.startsWith("dearrow.") -> "DeArrow"
+            else -> "Modules"
+        }
+        "playback" -> when (s.key) {
+            "playback.speed", "playback.autoplayNext", "playback.seekSeconds", "playback.holdSpeed" -> "Playing"
+            "playback.maxQualityWifi", "playback.maxQualityCellular", "playback.preferredCodec", "playback.audioOnly" -> "Quality and data"
+            else -> "Reliability"
+        }
+        "downloads" -> when (s.key) {
+            "downloads.defaultQuality", "downloads.audioOnlyDefault", "downloads.preferAvc", "downloads.keepOriginalAudio" -> "What to download"
+            "downloads.wifiOnly", "downloads.concurrent" -> "Network and queue"
+            else -> "Saved with a download"
+        }
+        "safety" -> when {
+            s.key.startsWith("account.budget.") -> "Request limits"
+            s.key.startsWith("playback.allow") -> "Content"
+            s.key in setOf("account.reportActivity", "account.profilesExperimental", "session.nowPlaying") -> "Reporting"
+            else -> "When the account is used"
+        }
+        "feed" -> if (s.key.startsWith("feed.hide") || s.key.startsWith("feed.min")) "Hide videos" else "Keyword rules"
+        "updates" -> if (s.key.startsWith("ytdlp.")) "yt-dlp" else "Remote settings"
+        else -> ""
+    }
+
+    /** [settingsOf] split into the page's blocks, in the order they first appear. */
+    fun sectionsOf(page: SettingsPage, registry: List<Setting<*>> = Settings.all): List<Section> =
+        settingsOf(page, registry).groupBy { sectionOf(page, it) }.map { (t, list) -> Section(t, list) }
+
     /** The page that shows [setting], or null if none does (a test makes sure that never happens). */
     fun pageOf(setting: Setting<*>): SettingsPage? = all.firstOrNull { it.owns(setting) }
 

@@ -35,7 +35,7 @@ class NavigationUiTest {
         setContent { AppUnderTest(f) }; waitForIdle()
         onNodeWithTag("profile.button").performClick(); waitForIdle()
         onNodeWithTag("profile.menu").assertExists(); onNodeWithTag("profile.name").assertTextEquals("Local")
-        for (t in listOf("profile.signIn", "profile.settings", "profile.customize", "profile.downloads", "profile.history", "profile.backup", "profile.health", "profile.about")) onNodeWithTag(t).assertExists()
+        for (t in listOf("profile.signIn", "profile.settings", "profile.about")) onNodeWithTag(t).assertExists()
         onNodeWithTag("profile.signOut").assertDoesNotExist()
         onNodeWithTag("profile.settings").performClick(); waitForIdle()
         assertEquals(Route.Settings, f.navigator.current); onNodeWithTag("profile.menu").assertDoesNotExist()

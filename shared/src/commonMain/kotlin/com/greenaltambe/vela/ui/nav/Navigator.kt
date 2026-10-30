@@ -13,6 +13,7 @@ sealed interface Route {
     data object Shorts : Route
     data object Subscriptions : Route
     data object Library : Route
+    data object Explore : Route
     data object Settings : Route
     data class Search(val query: String = "") : Route
     /** [asVideoPage]: show a Short on the ordinary video page too (the Shorts player's "Open"), instead of in the Shorts player. */
@@ -39,12 +40,13 @@ sealed interface Route {
 }
 
 /** Pages that can be tabs (Settings never is: it lives in the profile menu). Used for the direction of the tab transition. */
-val TopLevelRoutes: List<Route> = listOf(Route.Home, Route.Shorts, Route.Subscriptions, Route.Library, Route.Downloads)
+val TopLevelRoutes: List<Route> = listOf(Route.Home, Route.Explore, Route.Shorts, Route.Subscriptions, Route.Library, Route.Downloads)
 
 /** The part of the stack that top-level destination [route] belongs to. */
 fun Route.topLevel(): Route = when (this) {
     Route.Home, is Route.Video, is Route.ShortsPlayer, is Route.Search, is Route.Channel, is Route.ChannelPlaylist -> Route.Home
     Route.Shorts -> Route.Shorts
+    Route.Explore -> Route.Explore
     Route.Subscriptions, Route.ManageSubscriptions -> Route.Subscriptions
     Route.Library, is Route.Playlist, Route.History, Route.Downloads, Route.DownloadRules -> Route.Library
     Route.Settings, Route.Diagnostics, Route.Accounts, Route.AccountActivity, Route.Health, Route.Backup, Route.Customize, is Route.CustomizePage, is Route.SettingsPage -> Route.Settings
@@ -72,9 +74,18 @@ class Navigator(start: Route = Route.Home) {
     var queue: List<VideoSummary> by mutableStateOf(emptyList())
         private set
 
+    /** Videos played before [nowPlaying], most recent last, for the player's Previous button. */
+    var played: List<VideoSummary> by mutableStateOf(emptyList())
+        private set
+
+    private fun remember(next: VideoSummary) {
+        val now = nowPlaying
+        if (now != null && now.id != next.id) played = (played + now).takeLast(30)
+    }
+
     /** Swaps the current screen for [route] (a search view re-searching), so Back does not step through every query. */
     fun replace(route: Route) {
-        if (route is Route.Video) nowPlaying = route.video
+        if (route is Route.Video) { remember(route.video); nowPlaying = route.video }
         lastAction = NavAction.REPLACE
         stack[stack.lastIndex] = route
     }
@@ -85,7 +96,7 @@ class Navigator(start: Route = Route.Home) {
     fun push(route: Route) {
         if (route is Route.Video && route.video.isShort && shortsInPlayer && !route.asVideoPage) return push(Route.ShortsPlayer(route.video))
         if (route == current) return
-        if (route is Route.Video) nowPlaying = route.video
+        if (route is Route.Video) { remember(route.video); nowPlaying = route.video }
         lastAction = NavAction.PUSH
         stack.add(route)
     }
@@ -108,6 +119,7 @@ class Navigator(start: Route = Route.Home) {
 
     /** Replaces the current video page with another (related videos, queue advance) so Back does not walk through them all. */
     fun replaceWithVideo(video: VideoSummary, startSeconds: Long? = null) {
+        remember(video)
         nowPlaying = video
         lastAction = if (current is Route.Video) NavAction.REPLACE else NavAction.PUSH
         if (current is Route.Video) stack[stack.lastIndex] = Route.Video(video, startSeconds) else stack.add(Route.Video(video, startSeconds))
@@ -127,12 +139,23 @@ class Navigator(start: Route = Route.Home) {
         return next
     }
 
+    /** The video played before this one, or null. Goes back to it without adding the current one to the history again. */
+    fun playPrevious(): VideoSummary? {
+        val prev = played.lastOrNull() ?: return null
+        played = played.dropLast(1)
+        nowPlaying = prev
+        lastAction = if (current is Route.Video) NavAction.REPLACE else NavAction.PUSH
+        if (current is Route.Video) stack[stack.lastIndex] = Route.Video(prev) else stack.add(Route.Video(prev))
+        return prev
+    }
+
     /** Puts a video back in the mini player after a restart; it does nothing if something is already there. The player stays idle until the viewer presses play. */
     fun restore(video: VideoSummary) { if (nowPlaying == null) nowPlaying = video }
 
     fun clearNowPlaying() {
         nowPlaying = null
         queue = emptyList()
+        played = emptyList()
     }
 
     /** For the mini player: reopens the page of what is playing. */

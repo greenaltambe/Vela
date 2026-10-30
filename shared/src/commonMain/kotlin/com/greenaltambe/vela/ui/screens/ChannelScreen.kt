@@ -56,17 +56,8 @@ import com.greenaltambe.vela.ui.nav.Route
 import coil3.compose.AsyncImage
 
 enum class ChannelTab(val label: String) { HOME("Home"), VIDEOS("Videos"), SHORTS("Shorts"), LIVE("Live"), PLAYLISTS("Playlists"), ABOUT("About") }
-private enum class ChannelSort(val label: String) { LATEST("Latest"), POPULAR("Popular"), OLDEST("Oldest") }
-private enum class PlaylistSort(val label: String) { RECENT("Recently added"), AZ("A to Z") }
-
-/** One tab's loaded items, the next-page token, and its loading state. */
-private class TabFeed<T> {
-    var items by mutableStateOf<List<T>>(emptyList())
-    var next by mutableStateOf<String?>(null)
-    var state by mutableStateOf<ListState>(ListState.Loading)
-    var loaded by mutableStateOf(false)
-    var loading by mutableStateOf(false)
-}
+enum class ChannelSort(val label: String) { LATEST("Latest"), POPULAR("Popular"), OLDEST("Oldest") }
+enum class PlaylistSort(val label: String) { RECENT("Recently added"), AZ("A to Z") }
 
 /** The sort applies to what is loaded so far; the source's own order is newest first. */
 private fun List<VideoSummary>.sortedBy(sort: ChannelSort): List<VideoSummary> = when (sort) {
@@ -84,18 +75,20 @@ fun ChannelScreen(services: AppServices, navigator: Navigator, routeChannelId: S
     // A listing without a channel id: the id is found from the video while the page already shows its loader.
     var resolvedId by remember(routeChannelId, viaVideoId) { mutableStateOf(routeChannelId) }
     val channelId = resolvedId
-    var page by remember(channelId) { mutableStateOf<ChannelPage?>(null) }
+    val store = LocalChannelStore.current
+    val st = remember(channelId) { if (channelId.isBlank()) ChannelState(services.clock.now()) else store?.stateFor(channelId, services.clock.now()) ?: ChannelState(services.clock.now()) }
+    var page by st::page
     var subscribed by remember(channelId) { mutableStateOf(services.subscriptions.isSubscribed(channelId)) }
     val scope = rememberCoroutineScope()
     val shortsOn = services.settings.shortsEnabled()
     val tabs = remember(shortsOn) { ChannelTab.entries.filter { shortsOn || it != ChannelTab.SHORTS } }
-    var tab by remember(channelId) { mutableStateOf(ChannelTab.HOME) }
-    var sort by remember(channelId, tab) { mutableStateOf(ChannelSort.LATEST) }
-    var playlistSort by remember(channelId) { mutableStateOf(PlaylistSort.RECENT) }
-    val videos = remember(channelId) { TabFeed<VideoSummary>() }
-    val shorts = remember(channelId) { TabFeed<VideoSummary>() }
-    val live = remember(channelId) { TabFeed<VideoSummary>() }
-    val playlists = remember(channelId) { TabFeed<PlaylistRef>() }
+    var tab by st::tab
+    var sort by st::sort
+    var playlistSort by st::playlistSort
+    val videos = st.videos
+    val shorts = st.shorts
+    val live = st.live
+    val playlists = st.playlists
 
     fun first() {
         videos.state = ListState.Loading
@@ -110,7 +103,7 @@ fun ChannelScreen(services: AppServices, navigator: Navigator, routeChannelId: S
         }
     }
     LaunchedEffect(channelId, viaVideoId) {
-        if (channelId.isNotBlank()) { first(); return@LaunchedEffect }
+        if (channelId.isNotBlank()) { if (!videos.loaded) first(); return@LaunchedEffect }
         videos.state = ListState.Loading
         val info = if (viaVideoId.isBlank()) null else (services.extractor.videoInfo(viaVideoId) as? ExtractorResult.Success)?.value
         if (info != null && info.channelId.isNotBlank()) resolvedId = info.channelId
@@ -173,7 +166,7 @@ fun ChannelScreen(services: AppServices, navigator: Navigator, routeChannelId: S
                 }
             }
             HScrollRow(Modifier.testTag("channel.tabs")) {
-                items(tabs) { t -> FilterChip(selected = tab == t, onClick = { tab = t }, label = { Text(t.label, maxLines = 1) }, modifier = Modifier.testTag("channel.tab.${t.name}")) }
+                items(tabs) { t -> FilterChip(selected = tab == t, onClick = { tab = t; sort = ChannelSort.LATEST }, label = { Text(t.label, maxLines = 1) }, modifier = Modifier.testTag("channel.tab.${t.name}")) }
             }
             when (tab) {
                 ChannelTab.VIDEOS, ChannelTab.SHORTS, ChannelTab.LIVE -> {
@@ -192,7 +185,7 @@ fun ChannelScreen(services: AppServices, navigator: Navigator, routeChannelId: S
 
     when (tab) {
         ChannelTab.HOME -> VideoCollection(
-            services, navigator, videos.items.take(12), videos.state, testTag = "channel.list",
+            services, navigator, videos.items.take(12), videos.state, testTag = "channel.list", showChannelAvatar = false, scroll = st.scrollFor(ChannelTab.HOME),
             header = {
                 Column(verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
                     header()
@@ -203,21 +196,24 @@ fun ChannelScreen(services: AppServices, navigator: Navigator, routeChannelId: S
             footer = if (videos.items.size > 12 || videos.next != null) ({ TextButton(onClick = { tab = ChannelTab.VIDEOS }, modifier = Modifier.testTag("channel.seeAll")) { Text("See all videos", maxLines = 1) } }) else null,
         )
         ChannelTab.VIDEOS -> VideoCollection(
-            services, navigator, videos.items.sortedBy(sort), videos.state, testTag = "channel.list", header = header,
+            services, navigator, videos.items.sortedBy(sort), videos.state, testTag = "channel.list", showChannelAvatar = false, header = header, scroll = st.scrollFor(ChannelTab.VIDEOS),
             onEndReached = if (videos.next != null) ({ moreVideos() }) else null,
             footer = if (videos.next != null) ({ TextButton(onClick = ::moreVideos, enabled = !videos.loading) { Text("Load more", maxLines = 1) } }) else null,
         )
         ChannelTab.SHORTS -> VideoCollection(
-            services, navigator, shorts.items.sortedBy(sort), shorts.state, testTag = "channel.list", header = header,
+            services, navigator, shorts.items.sortedBy(sort), shorts.state, testTag = "channel.list", showChannelAvatar = false, header = header, scroll = st.scrollFor(ChannelTab.SHORTS),
             onEndReached = if (shorts.next != null) ({ load(shorts, true, "No Shorts on this channel.", { it.id }) { services.extractor.channelShorts(channelId, it) } }) else null,
         )
         ChannelTab.LIVE -> VideoCollection(
-            services, navigator, live.items.sortedBy(sort), live.state, testTag = "channel.list", header = header,
+            services, navigator, live.items.sortedBy(sort), live.state, testTag = "channel.list", showChannelAvatar = false, header = header, scroll = st.scrollFor(ChannelTab.LIVE),
             onEndReached = if (live.next != null) ({ load(live, true, "No live streams on this channel.", { it.id }) { services.extractor.channelLive(channelId, it) } }) else null,
         )
         ChannelTab.PLAYLISTS -> {
             val shown = remember(playlists.items, playlistSort) { if (playlistSort == PlaylistSort.AZ) playlists.items.sortedBy { it.title.lowercase() } else playlists.items }
-            LazyColumn(Modifier.fillMaxSize().testTag("channel.playlists"), contentPadding = Vela.contentPadding, verticalArrangement = Arrangement.spacedBy(Vela.md)) {
+            val mem = st.scrollFor(ChannelTab.PLAYLISTS)
+            val plState = androidx.compose.foundation.lazy.rememberLazyListState(mem.index, mem.offset)
+            androidx.compose.runtime.DisposableEffect(Unit) { onDispose { mem.index = plState.firstVisibleItemIndex; mem.offset = plState.firstVisibleItemScrollOffset } }
+            LazyColumn(Modifier.fillMaxSize().testTag("channel.playlists"), state = plState, contentPadding = Vela.contentPadding, verticalArrangement = Arrangement.spacedBy(Vela.md)) {
                 item { header() }
                 when (val st = playlists.state) {
                     ListState.Loading -> item { SectionHeader("Loading playlists…") }
@@ -225,17 +221,7 @@ fun ChannelScreen(services: AppServices, navigator: Navigator, routeChannelId: S
                     is ListState.Error -> item { ErrorRow(st.message, st.onRetry) }
                     ListState.Ready -> {}
                 }
-                items(shown, key = { "pl-${it.id}" }) { p ->
-                    Row(Modifier.fillMaxWidth().clip(Vela.mediumShape).clickable { navigator.push(Route.ChannelPlaylist(p.id, p.title)) }.testTag("channel.playlist"), horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                        Box(Modifier.width(140.dp).aspectRatio(16f / 9f).clip(Vela.thumbnailShape).background(Vela.colors.surfaceVariant.toColor())) {
-                            p.thumbnailUrl?.let { AsyncImage(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
-                        }
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
-                            Text(p.title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            p.videoCount?.let { Text("$it video${if (it == 1L) "" else "s"}", style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor()) }
-                        }
-                    }
-                }
+                items(shown, key = { "pl-${it.id}" }) { p -> PlaylistRow(p) { navigator.push(Route.ChannelPlaylist(p.id, p.title)) } }
                 if (playlists.next != null) item { TextButton(onClick = { load(playlists, true, "No playlists on this channel.", { it.id }) { services.extractor.channelPlaylists(channelId, it) } }, enabled = !playlists.loading) { Text("Load more", maxLines = 1) } }
             }
         }
@@ -250,6 +236,26 @@ fun ChannelScreen(services: AppServices, navigator: Navigator, routeChannelId: S
                     formatCount(page?.subscriberCount)?.let { Text("$it subscribers", style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor()) }
                 }
             }
+        }
+    }
+}
+
+/** A playlist as a row: thumbnail, title, video count. */
+@Composable
+internal fun PlaylistRow(p: PlaylistRef, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clip(Vela.mediumShape).clickable(onClick = onClick).testTag("channel.playlist"), horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+        Box(Modifier.width(140.dp).aspectRatio(16f / 9f).clip(Vela.thumbnailShape).background(Vela.colors.surfaceVariant.toColor())) {
+            p.thumbnailUrl?.let { AsyncImage(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+            // Marks it as a playlist, not a video: the icon of the chosen icon pack on the thumbnail's corner.
+            Row(Modifier.align(Alignment.BottomEnd).padding(Vela.xs).clip(Vela.pillShape).background(Vela.colors.surface.toColor().copy(alpha = 0.85f)).padding(horizontal = Vela.xs, vertical = 2.dp).testTag("playlist.badge"), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                androidx.compose.material3.Icon(Vela.icons.playlist, null, Modifier.size(16.dp), tint = Vela.colors.onSurface.toColor())
+                p.videoCount?.let { Text("$it", style = MaterialTheme.typography.labelSmall, maxLines = 1, color = Vela.colors.onSurface.toColor()) }
+            }
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
+            Text(p.title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (p.channelName.isNotBlank()) Text(p.channelName, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor())
+            p.videoCount?.let { Text("$it video${if (it == 1L) "" else "s"}", style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor()) }
         }
     }
 }

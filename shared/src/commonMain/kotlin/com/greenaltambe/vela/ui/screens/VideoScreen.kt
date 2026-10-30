@@ -146,6 +146,7 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
     var descriptionExpanded by remember(video.id) { mutableStateOf(false) }
     var downloadDialog by remember(video.id) { mutableStateOf(false) }
     var subscribed by remember(video.id, video.channelId) { mutableStateOf(services.subscriptions.isSubscribed(video.channelId)) }
+    LaunchedEffect(info?.channelId) { info?.channelId?.takeIf { it.startsWith("UC") }?.let { subscribed = services.subscriptions.isSubscribed(it) } }
     var liked by remember(video.id) { mutableStateOf(false) }
     var disliked by remember(video.id) { mutableStateOf(false) }
     var actionError by remember(video.id) { mutableStateOf<String?>(null) }
@@ -248,6 +249,10 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
     val titleReplaced = brandedTitle != originalTitle
     val votes = remember(votesRevision) { modules.ryd.cached(video.id) }
     val relatedShown = rememberFiltered(services, related, DeArrowSurface.VIDEO_PAGE)
+    // Previous: the video played before this one (none: starts this one over). Next: the queue's next, else the first related video.
+    val nextRelated = relatedShown.firstOrNull { it.id != video.id && !it.isShort }
+    val onNextVideo: (() -> Unit)? = if (navigator.queue.isNotEmpty() || nextRelated != null) ({ if (navigator.playNext() == null) nextRelated?.let { navigator.replaceWithVideo(it) } }) else null
+    val onPreviousVideo: () -> Unit = { if (navigator.playPrevious() == null) host?.session?.seekTo(0) }
     var submitting by remember(video.id) { mutableStateOf<String?>(null) }
 
     PlatformBackHandler(enabled = window?.isFullscreen == true) { window?.toggleFullscreen() }
@@ -258,7 +263,7 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
         val leaveAt = with(density) { 90.dp.toPx() }
         PlayerView(
             host, video, chapters, markers,
-            seekStepSeconds = seekStep, holdSpeed = holdSpeedSetting,
+            seekStepSeconds = seekStep, holdSpeed = holdSpeedSetting, onPrevious = onPreviousVideo, onNext = onNextVideo,
             modifier = modifier.fillMaxSize()
                 .then(if (inPip) Modifier else Modifier.playerVerticalSwipe(
                     onDelta = { dy -> fsDrag = (fsDrag + dy).coerceAtLeast(0f) },
@@ -293,7 +298,7 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
     val playerBox: @Composable () -> Unit = {
         Box(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)).testTag("video.player")) {
             if (host != null) PlayerView(
-                host, video, chapters, markers, Modifier.fillMaxWidth(), onBack = { navigator.back() }, seekStepSeconds = seekStep, holdSpeed = holdSpeedSetting,
+                host, video, chapters, markers, Modifier.fillMaxWidth(), onBack = { navigator.back() }, seekStepSeconds = seekStep, holdSpeed = holdSpeedSetting, onPrevious = onPreviousVideo, onNext = onNextVideo,
                 isLive = info?.isLive == true, resolvingNote = resolvingNote,
                 openAgeSetting = { navigator.selectTab(com.greenaltambe.vela.ui.nav.Route.Settings) },
                 tryAccountNow = services.accounts.active.value.takeIf { it.isSignedIn }?.let { a -> { services.governors.forAccount(a.id).tryNow() } }, showChapterTitle = size != WindowSizeClass.COMPACT,
@@ -307,7 +312,9 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
     val details: LazyListScope.() -> Unit = {
         item {
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
-                Text(shownTitle, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Medium, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("video.title"))
+                // A long title is cut at three lines; tapping it shows all of it, tapping again folds it back.
+                var titleOpen by remember(video.id) { mutableStateOf(false) }
+                Text(shownTitle, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Medium, maxLines = if (titleOpen) Int.MAX_VALUE else 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.clickable { titleOpen = !titleOpen }.testTag("video.title"))
                 if (titleReplaced) LinkButton(if (showOriginalTitle) "Original title · use DeArrow" else "DeArrow title · show original", { showOriginalTitle = !showOriginalTitle }, Modifier.testTag("video.toggleOriginal"))
                 val meta = listOfNotNull(formatViews(info?.viewCount ?: video.viewCount), info?.likeCount?.let { "${compact(it)} likes" }).joinToString(" · ")
                 if (meta.isNotEmpty()) Text(meta, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor())
@@ -317,16 +324,21 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
         item {
             Row(Modifier.fillMaxWidth().clip(Vela.mediumShape).clickableChannel { (info?.channelId?.takeIf { it.isNotBlank() } ?: video.channelId).let { id -> navigator.push(Route.Channel(id, info?.channelName?.takeIf { it.isNotBlank() } ?: video.channelName, if (id.isBlank()) video.id else "")) } }.padding(horizontal = Vela.xs), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
                 val channelName = info?.channelName?.takeIf { it.isNotBlank() } ?: video.channelName
-                Avatar(channelName, url = video.channelAvatarUrl)
+                // The picture: the one the listing carried, else the video's own details, else the channel's picture from your subscriptions (a library or history entry has none).
+                val avatarUrl = video.channelAvatarUrl ?: info?.channelAvatarUrl ?: remember(info?.channelId, video.channelId) { services.subscriptions.all().firstOrNull { it.channelId == (info?.channelId?.takeIf { c -> c.isNotBlank() } ?: video.channelId) }?.avatarUrl }
+                Avatar(channelName, url = avatarUrl)
                 Text(channelName, Modifier.weight(1f).testTag("video.channel"), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                // The channel id the video's own details give (a real UC… id) beats what a listing carried, which can be empty or a @handle: the account
+                // rejects those with HTTP 400.
+                val chId = info?.channelId?.takeIf { it.startsWith("UC") } ?: video.channelId
                 // Optimistic: the local table and the button change at once; the account call follows, and a failure puts both back and says why.
                 if (subscribed) OutlinedButton(onClick = {
-                    services.subscriptions.unsubscribe(video.channelId); subscribed = false
-                    scope.launch { (services.actions?.unsubscribe(video.channelId) as? ActionResult.Failed)?.let { services.subscriptions.subscribe(video.channelId, video.channelName, video.channelAvatarUrl, services.clock.now()); subscribed = true; actionError = "Could not unsubscribe on the account: ${it.message}" } }
+                    services.subscriptions.unsubscribe(chId); subscribed = false
+                    scope.launch { (services.actions?.unsubscribe(chId) as? ActionResult.Failed)?.let { services.subscriptions.subscribe(chId, video.channelName, video.channelAvatarUrl ?: info?.channelAvatarUrl, services.clock.now()); subscribed = true; actionError = "Could not unsubscribe on the account: ${it.message}" } }
                 }, modifier = Modifier.testTag("video.subscribe")) { Text("Subscribed", maxLines = 1) }
                 else PrimaryButton("Subscribe", onClick = {
-                    services.subscriptions.subscribe(video.channelId, video.channelName, video.channelAvatarUrl, services.clock.now()); subscribed = true
-                    scope.launch { (services.actions?.subscribe(video.channelId) as? ActionResult.Failed)?.let { services.subscriptions.unsubscribe(video.channelId); subscribed = false; actionError = "Could not subscribe on the account: ${it.message}" } }
+                    services.subscriptions.subscribe(chId, video.channelName, video.channelAvatarUrl ?: info?.channelAvatarUrl, services.clock.now()); subscribed = true
+                    scope.launch { (services.actions?.subscribe(chId) as? ActionResult.Failed)?.let { services.subscriptions.unsubscribe(chId); subscribed = false; actionError = "Could not subscribe on the account: ${it.message}" } }
                 }, modifier = Modifier.testTag("video.subscribe"))
             }
         }
@@ -409,9 +421,26 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
         }
     }
 
+    // Autoplay: off unless switched on (here or in Settings). When this video ends, the queue's next video plays, else the first related one.
+    val settingsRevision by services.settings.revision.collectAsState()
+    val autoplay = remember(settingsRevision) { services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.autoplayNext) }
+    var autoplayed by remember(video.id) { mutableStateOf(false) }
+    LaunchedEffect(player?.status, autoplay) {
+        if (!autoplay || autoplayed || offline != null || player?.status != com.greenaltambe.vela.player.PlaybackStatus.ENDED) return@LaunchedEffect
+        autoplayed = true
+        if (navigator.playNext() == null) relatedShown.firstOrNull { it.id != video.id && !it.isShort }?.let { navigator.replaceWithVideo(it) }
+    }
+
     val secondary: LazyListScope.() -> Unit = {
         if (relatedShown.isNotEmpty()) {
-            item { SectionHeader("Related") }
+            item {
+                SectionHeader("Related") {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+                        Text("Autoplay", style = MaterialTheme.typography.bodyMedium, maxLines = 1)
+                        com.greenaltambe.vela.ui.look.VelaSwitch(autoplay, { services.settings.set(com.greenaltambe.vela.core.settings.Settings.autoplayNext, it) }, Modifier.testTag("video.autoplay"))
+                    }
+                }
+            }
             items(relatedShown, key = { "rel-${it.id}" }) { v ->
                 // On a phone-sized MEDIUM window the column beside the player is narrow: a thumbnail across its width reads better than a tiny one.
                 VideoCard(v, onClick = { navigator.replaceWithVideo(v) }, style = if (size == WindowSizeClass.MEDIUM) VideoCardStyle.VERTICAL else VideoCardStyle.HORIZONTAL, onChannelClick = { navigator.push(Route.Channel(v.channelId, v.channelName)) }, trailing = { VideoMenu(services, v) })
@@ -450,6 +479,8 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
     val gap = Arrangement.spacedBy(Vela.sm)
     // Two columns (related videos beside the player) only in a really wide window; narrower ones, desktop windows included, stack like the phone.
     val twoColumn = LocalWindowWidthDp.current >= 1000f
+    var fromRest by remember { mutableStateOf(true) }
+    var pulledDown by remember { mutableStateOf(false) }
     if (!twoColumn) {
         val corner = Vela.look.radii.largeDp
         val topInsetPx = WindowInsets.safeDrawing.getTop(density)
@@ -457,10 +488,12 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
             // The gesture sits on this untransformed wrapper (the page below shrinks as it is dragged), and only counts when it starts on the picture.
             modifier.fillMaxSize().onSizeChanged { pageHeightPx = it.height.toFloat().coerceAtLeast(1f); pageWidthPx = it.width.toFloat() }
                 .playerVerticalSwipe(
-                    startsOn = { at -> dragPx > 0f || at.y < topInsetPx + pageWidthPx * 9f / 16f },
-                    onDelta = { dy -> if (dragPx > 0f || dy > 0f) setDrag((dragPx + dy).coerceAtLeast(0f)) },
+                    // A swipe up opens fullscreen only when it starts on a page at full size and never pulled it down first: changing your mind
+                    // halfway through minimising just puts the page back.
+                    startsOn = { at -> fromRest = dragPx <= 0f; pulledDown = false; dragPx > 0f || at.y < topInsetPx + pageWidthPx * 9f / 16f },
+                    onDelta = { dy -> if (dy > 0f) pulledDown = true; if (dragPx > 0f || dy > 0f) setDrag((dragPx + dy).coerceAtLeast(0f)) },
                     onEnd = { total, v ->
-                        if (total < -with(density) { 60.dp.toPx() } || v < -1000f) { setDrag(0f); window?.toggleFullscreen() }   // swipe up: landscape fullscreen
+                        if (fromRest && !pulledDown && (total < -with(density) { 60.dp.toPx() } || v < -1000f)) { setDrag(0f); window?.toggleFullscreen() }   // swipe up: landscape fullscreen
                         else scope.launch { settlePage(v) }
                     },
                 ),

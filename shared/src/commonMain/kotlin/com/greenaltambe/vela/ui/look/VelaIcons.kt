@@ -31,7 +31,7 @@ class VelaIconSet(private val icons: Map<String, ImageVector>) {
     val history get() = this["history"]; val playlist get() = this["playlist"]; val notifications get() = this["notifications"]; val account get() = this["account"]
     val palette get() = this["palette"]; val lock get() = this["lock"]; val shield get() = this["shield"]; val folder get() = this["folder"]
     val tune get() = this["tune"]; val arrowUp get() = this["arrowUp"]; val arrowDown get() = this["arrowDown"]; val dislike get() = this["dislike"]
-    val watchLater get() = this["watchLater"]; val comment get() = this["comment"]; val audioTrack get() = this["audioTrack"]; val link get() = this["link"]; val cloud get() = this["cloud"]; val visibility get() = this["visibility"]; val bolt get() = this["bolt"]
+    val watchLater get() = this["watchLater"]; val comment get() = this["comment"]; val audioTrack get() = this["audioTrack"]; val link get() = this["link"]; val cloud get() = this["cloud"]; val visibility get() = this["visibility"]; val bolt get() = this["bolt"]; val explore get() = this["explore"]; val skipNext get() = this["skipNext"]; val skipPrevious get() = this["skipPrevious"]
 
     /** Every icon with its name, for tests and the pack previews. */
     val all: List<Pair<String, ImageVector>> get() = IconNames.all.map { it to this[it] }
@@ -43,7 +43,7 @@ object IconNames {
         "home", "subscriptions", "library", "settings", "search", "back", "close", "more", "play", "pause", "rewind", "forward", "fullscreen", "fullscreenExit", "volume", "mute",
         "download", "downloaded", "save", "share", "speed", "timer", "quality", "captions", "like", "refresh", "info",
         "chevronRight", "chevronLeft", "chevronDown", "chevronUp", "check", "add", "delete", "edit", "history", "playlist", "notifications", "account", "palette",
-        "lock", "shield", "folder", "tune", "arrowUp", "arrowDown", "dislike", "link", "cloud", "visibility", "bolt", "watchLater", "comment", "audioTrack",
+        "lock", "shield", "folder", "tune", "arrowUp", "arrowDown", "dislike", "link", "cloud", "visibility", "bolt", "explore", "skipNext", "skipPrevious", "watchLater", "comment", "audioTrack",
     )
 }
 
@@ -111,6 +111,9 @@ internal object IconPaths {
         "cloud" to ("M6.5 19a4.5 4.5 0 0 1-.5-8.97A6 6 0 0 1 17.7 10.3 4.4 4.4 0 0 1 17.5 19z" to false),
         "visibility" to ("M12 5C7 5 2.7 8.1 1 12.5 2.7 16.9 7 20 12 20s9.3-3.1 11-7.5C21.3 8.1 17 5 12 5zm0 12.5a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z" to true),
         "bolt" to ("M13 2 4 14h6l-1 8 9-12h-6z" to false),
+        "skipNext" to ("M6 18l8.5-6L6 6zM16 6h2v12h-2z" to false),
+        "skipPrevious" to ("M6 6h2v12H6zM9.5 12l8.5 6V6z" to false),
+        "explore" to ("M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm4.5 5.5-2.3 6.7-6.7 2.3 2.3-6.7z" to true),
     )
 
     /** The Line / Duotone packs: the same icons drawn as fine strokes. */
@@ -172,6 +175,9 @@ internal object IconPaths {
         "cloud" to listOf(Seg("M8 18.5a3.8 3.8 0 0 1-.4-7.5 5.2 5.2 0 0 1 9.8-.8 3.7 3.7 0 0 1-.6 8.3z", closed = true)),
         "visibility" to listOf(Seg("M2.8 12C4.6 8 8 5.8 12 5.8S19.4 8 21.2 12C19.4 16 16 18.2 12 18.2S4.6 16 2.8 12z", closed = true), Seg(c(12f, 12f, 2.8f), closed = true)),
         "bolt" to listOf(Seg("M13 3.5 5.5 13.5H11l-1 7 7.5-10H12z", closed = true)),
+        "skipNext" to listOf(Seg("M6.5 6.5v11l8-5.5z", closed = true), Seg("M17.5 6.5v11")),
+        "skipPrevious" to listOf(Seg("M17.5 6.5v11l-8-5.5z", closed = true), Seg("M6.5 6.5v11")),
+        "explore" to listOf(Seg(c(12f, 12f, 8.5f), closed = true), Seg("M15.6 8.4 13.8 13.8 8.4 15.6 10.2 10.2z", closed = true)),
     )
 }
 

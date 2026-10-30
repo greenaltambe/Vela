@@ -124,6 +124,8 @@ fun VideoCard(
     extras: CardExtras = CardExtras(),
     onChannelClick: (() -> Unit)? = null,
     trailing: @Composable (() -> Unit)? = null,
+    /** False on a channel's own page, where every video is by that channel. */
+    showChannelAvatar: Boolean = true,
 ) {
     var showOriginal by remember(video.id) { mutableStateOf(false) }
     val replaced = video.originalTitle != null || video.originalThumbnailUrl != null
@@ -139,7 +141,7 @@ fun VideoCard(
         Column(modifier.fillMaxWidth().testTag(ComponentIds.VIDEO_CARD).then(click), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
             Thumbnail(video, thumbnail, extras, Modifier.fillMaxWidth().clip(Vela.thumbnailShape))
             Row(horizontalArrangement = Arrangement.spacedBy(Vela.sm), verticalAlignment = Alignment.Top) {
-                Avatar(video.channelName, onChannelClick, url = video.channelAvatarUrl)
+                if (showChannelAvatar) Avatar(video.channelName, onChannelClick, url = video.channelAvatarUrl)
                 Column(Modifier.weight(1f)) {
                     Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("card.title"))
                     // Channel on its own line (it can be very long), the numbers under it: neither pushes the other off.
@@ -275,7 +277,7 @@ fun ChapterRow(chapter: Chapter, current: Boolean, onClick: () -> Unit, modifier
 data class NavEntry(val tab: NavTab, val label: String)
 
 fun navEntries(tabs: List<NavTab>) = tabs.map { NavEntry(it, when (it) {
-    NavTab.HOME -> "Home"; NavTab.SHORTS -> "Shorts"; NavTab.SUBSCRIPTIONS -> "Subs"; NavTab.LIBRARY -> "Library"; NavTab.SEARCH -> "Search"; NavTab.DOWNLOADS -> "Downloads"
+    NavTab.HOME -> "Home"; NavTab.SHORTS -> "Shorts"; NavTab.SUBSCRIPTIONS -> "Subs"; NavTab.LIBRARY -> "Library"; NavTab.SEARCH -> "Search"; NavTab.DOWNLOADS -> "Downloads"; NavTab.EXPLORE -> "Explore"
 }) }
 
 @Composable
@@ -286,6 +288,7 @@ private fun NavEntry.icon(): ImageVector = when (tab) {
     NavTab.LIBRARY -> Vela.icons.library
     NavTab.SEARCH -> Vela.icons.search
     NavTab.DOWNLOADS -> Vela.icons.download
+    NavTab.EXPLORE -> Vela.icons.explore
 }
 
 /** The line that marks the selected tab: the palette gradient. */
@@ -302,7 +305,7 @@ private fun SelectedMarker(modifier: Modifier = Modifier) {
  * opacity when glass is on), so page text never reads through it.
  */
 @Composable
-fun BottomNav(entries: List<NavEntry>, selected: NavTab?, labelsVisible: Boolean, shrink: Float, shape: androidx.compose.ui.graphics.Shape, onSelect: (NavTab) -> Unit, modifier: Modifier = Modifier, bottomInset: Boolean = false) {
+fun BottomNav(entries: List<NavEntry>, selected: NavTab?, labelsVisible: Boolean, marker: Boolean = true, shrink: Float, shape: androidx.compose.ui.graphics.Shape, onSelect: (NavTab) -> Unit, modifier: Modifier = Modifier, bottomInset: Boolean = false) {
     val tint = if (glassEnabled()) Vela.look.effects.barTintAlpha else 1f
     val surface = Vela.colors.surface.toColor().copy(alpha = tint)
     val n = entries.size.coerceAtLeast(1)
@@ -336,7 +339,7 @@ fun BottomNav(entries: List<NavEntry>, selected: NavTab?, labelsVisible: Boolean
                     if (labelsVisible && f < 0.99f) Box(Modifier.height(NAV_LABEL_HEIGHT * (1f - f)).alpha(1f - f), contentAlignment = Alignment.TopCenter) {
                         Text(e.label, maxLines = 1, softWrap = false, style = MaterialTheme.typography.bodySmall, color = if (isSelected) Vela.colors.onSurface.toColor() else Vela.colors.onSurfaceVariant.toColor(), modifier = Modifier.wrapContentHeight(unbounded = true, align = Alignment.Top).testTag("nav.label"))
                     }
-                    if (isSelected) SelectedMarker() else Spacer(Modifier.height(2.dp))
+                    if (marker) { if (isSelected) SelectedMarker() else Spacer(Modifier.height(2.dp)) }
                 }
             }
         }
@@ -352,7 +355,7 @@ private val NAV_LABEL_HEIGHT = 18.dp
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SideRail(entries: List<NavEntry>, selected: NavTab?, collapsed: Boolean, onToggleCollapsed: () -> Unit, onSelect: (NavTab) -> Unit, modifier: Modifier = Modifier) {
+fun SideRail(entries: List<NavEntry>, selected: NavTab?, collapsed: Boolean, marker: Boolean = true, onToggleCollapsed: () -> Unit, onSelect: (NavTab) -> Unit, modifier: Modifier = Modifier) {
     val width by androidx.compose.animation.core.animateDpAsState(if (collapsed) 72.dp else 176.dp, VelaMotion.standard(Vela.motion), label = "railWidth")
     Column(
         modifier.fillMaxHeight().width(width).background(Vela.colors.surface.toColor()).windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Vertical + WindowInsetsSides.Start))
@@ -374,9 +377,10 @@ fun SideRail(entries: List<NavEntry>, selected: NavTab?, collapsed: Boolean, onT
                         .semantics { contentDescription = e.label; this.selected = isSelected }.pressable(role = Role.Tab) { onSelect(e.tab) }.padding(horizontal = Vela.sm).testTag("rail.tab.${e.tab.name}"),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm),
                 ) {
+                    // A short upright gradient bar at the row's left edge (a horizontal line does not fit a side rail); the space is kept when off or unselected.
+                    if (marker) Box(Modifier.width(3.dp).height(20.dp).clip(Vela.pillShape).then(if (isSelected) Modifier.background(Vela.wake).testTag("nav.marker") else Modifier))
                     Icon(e.icon(), null, tint = if (isSelected) Vela.colors.onSurface.toColor() else Vela.colors.onSurfaceVariant.toColor())
                     if (!collapsed) Text(e.label, maxLines = 1, softWrap = false, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f, fill = false).testTag("nav.label"))
-                    if (isSelected && !collapsed) SelectedMarker()
                 }
             }
         }

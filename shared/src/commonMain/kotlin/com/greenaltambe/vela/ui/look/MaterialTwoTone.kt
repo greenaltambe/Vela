@@ -9,6 +9,9 @@ import androidx.compose.material.icons.twotone.Add
 import androidx.compose.material.icons.twotone.ArrowDownward
 import androidx.compose.material.icons.twotone.ArrowUpward
 import androidx.compose.material.icons.twotone.Bolt
+import androidx.compose.material.icons.twotone.Explore
+import androidx.compose.material.icons.twotone.SkipNext
+import androidx.compose.material.icons.twotone.SkipPrevious
 import androidx.compose.material.icons.twotone.Bookmark
 import androidx.compose.material.icons.twotone.Check
 import androidx.compose.material.icons.twotone.ChevronLeft
@@ -115,6 +118,9 @@ internal object MaterialTwoTone {
             "cloud" to Icons.TwoTone.Cloud,
             "visibility" to Icons.TwoTone.Visibility,
             "bolt" to Icons.TwoTone.Bolt,
+            "explore" to Icons.TwoTone.Explore,
+            "skipNext" to Icons.TwoTone.SkipNext,
+            "skipPrevious" to Icons.TwoTone.SkipPrevious,
         )
     }
 }

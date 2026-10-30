@@ -9,6 +9,8 @@ data class NavConfig(
     val barStyle: BarStyle = BarStyle.FLOATING,
     val railCollapsed: Boolean = false,
     val shrinkOnScroll: Boolean = false,
+    /** The gradient mark on the selected tab. */
+    val marker: Boolean = true,
     val miniLook: MiniLook = MiniLook.CARD,
     val miniPlacement: MiniPlacement = MiniPlacement.ATTACHED,
     val miniGapDp: Float = 8f,
@@ -21,6 +23,7 @@ data class NavConfig(
         val tab = when (route.topLevel()) {
             Route.Home -> NavTab.HOME
             Route.Shorts -> NavTab.SHORTS
+            Route.Explore -> NavTab.EXPLORE
             Route.Subscriptions -> NavTab.SUBSCRIPTIONS
             Route.Library -> NavTab.LIBRARY
             else -> return null
@@ -33,7 +36,7 @@ data class NavConfig(
             // The Shorts tab only exists while Shorts are on.
             tabs = NavTabs.parse(s.resolve(LookSettings.navTabs)).filter { it != NavTab.SHORTS || s.shortsEnabled() }.let { if (it.size >= 2) it else NavTabs.default.filter { t -> t != NavTab.SHORTS || s.shortsEnabled() } }, labels = s.resolve(LookSettings.navLabels),
             barStyle = s.resolve(LookSettings.barStyle), railCollapsed = s.resolve(LookSettings.railCollapsed), openOn = s.resolve(LookSettings.navOpenOn),
-            shrinkOnScroll = s.resolve(LookSettings.navShrink), miniLook = s.resolve(LookSettings.miniLook), miniPlacement = s.resolve(LookSettings.miniPlacement), miniGapDp = s.resolve(LookSettings.miniGap),
+            shrinkOnScroll = s.resolve(LookSettings.navShrink), marker = s.resolve(LookSettings.navMarker), miniLook = s.resolve(LookSettings.miniLook), miniPlacement = s.resolve(LookSettings.miniPlacement), miniGapDp = s.resolve(LookSettings.miniGap),
         )
     }
 }
@@ -42,6 +45,7 @@ data class NavConfig(
 fun NavTab.route(): Route = when (this) {
     NavTab.HOME -> Route.Home
     NavTab.SHORTS -> Route.Shorts
+    NavTab.EXPLORE -> Route.Explore
     NavTab.SUBSCRIPTIONS -> Route.Subscriptions
     NavTab.LIBRARY -> Route.Library
     NavTab.DOWNLOADS -> Route.Downloads

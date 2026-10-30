@@ -1,6 +1,13 @@
 package com.greenaltambe.vela.ui.screens
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -75,32 +82,54 @@ fun LibraryScreen(services: AppServices, navigator: Navigator, modifier: Modifie
     var libraryError by remember { mutableStateOf<String?>(null) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
 
+    // Recently watched, for the row under the shortcuts: read off the main thread, a skeleton-less empty row until it answers.
+    val recent: List<WatchRecord> = rememberAsync(revision, keepWhileLoading = true, first = { emptyList<WatchRecord>() }, compute = { services.history.recent(60).distinctBy { it.videoId }.take(14) })
+    val progress = rememberAsync(revision, keepWhileLoading = true, first = { emptyMap<String, Float>() }, compute = { services.history.progress() })
+
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-        LazyColumn(Modifier.widthIn(max = 900.dp).fillMaxSize().testTag("library.list"), contentPadding = Vela.contentPadding) {
-            item { ListRow("History", subtitle = "What you watched on this device", onClick = { navigator.push(Route.History) }, modifier = Modifier.testTag("library.history")) }
-            if (services.downloads != null) item { ListRow("Downloads", subtitle = "Saved for offline", onClick = { navigator.push(Route.Downloads) }, modifier = Modifier.testTag("library.downloads")) }
-            if (services.reads != null && services.accounts.active.value.isSignedIn) item {
-                ListRow("Sync account playlists", subtitle = syncNote ?: "Copy Watch later, Liked videos and playlists from your YouTube account (adds only, never deletes)", onClick = {
+        androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+            androidx.compose.foundation.lazy.grid.GridCells.Adaptive(minSize = 156.dp), Modifier.widthIn(max = 900.dp).fillMaxSize().testTag("library.list"), contentPadding = Vela.contentPadding,
+            horizontalArrangement = Arrangement.spacedBy(Vela.md), verticalArrangement = Arrangement.spacedBy(Vela.md),
+        ) {
+            item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Vela.md)) {
+                    ShortcutTile("History", "On this device", Vela.icons.history, { navigator.push(Route.History) }, Modifier.weight(1f).testTag("library.history"))
+                    if (services.downloads != null) ShortcutTile("Downloads", "Saved offline", Vela.icons.downloaded, { navigator.push(Route.Downloads) }, Modifier.weight(1f).testTag("library.downloads"))
+                }
+            }
+            if (services.reads != null && services.accounts.active.value.isSignedIn) item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                ShortcutTile("Sync account playlists", syncNote ?: "Copies Watch later, Liked videos and playlists from your YouTube account (adds only, never deletes)", Vela.icons.cloud, {
                     syncNote = "Syncing…"
                     scope.launch { val r = AccountLibrarySync(services.reads, { services.playlists }, services.clock).sync(); syncNote = r.failure ?: "Added ${r.added}, already had ${r.alreadyHad}"; revision++ }
-                }, modifier = Modifier.testTag("library.syncAccount"))
+                }, Modifier.fillMaxWidth().testTag("library.syncAccount"))
             }
-            item { SectionHeader("Playlists") { TextButton(onClick = { creating = true }, modifier = Modifier.testTag("library.newPlaylist")) { Text("New playlist", maxLines = 1) } } }
-            items(playlists, key = { it.id }) { p ->
-                ListRow(
-                    p.name, subtitle = (if (p.isMirror) "YouTube account · " else "") + "${p.itemCount} video${if (p.itemCount == 1) "" else "s"}", onClick = { navigator.push(Route.Playlist(p.id)) },
-                    modifier = Modifier.testTag(ComponentIds.PLAYLIST_ROW),
-                    trailing = if (!p.isWatchLater && (!p.isMirror || (p.remoteId != null && p.remoteId != "WL" && p.remoteId != "LL" && services.actions != null))) ({
-                        var menu by remember { mutableStateOf(false) }
-                        Box {
-                            IconButton(onClick = { menu = true }) { Icon(Vela.icons.more, "Playlist options") }
-                            DropdownMenu(menu, { menu = false }) {
-                                DropdownMenuItem(text = { Text("Rename") }, onClick = { menu = false; renaming = p })
-                                DropdownMenuItem(text = { Text("Delete") }, onClick = { menu = false; deleting = p })
+            if (recent.isNotEmpty()) item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                Column(verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
+                    SectionHeader("Recently watched") { TextButton(onClick = { navigator.push(Route.History) }, modifier = Modifier.testTag("library.historyAll")) { Text("See all", maxLines = 1) } }
+                    com.greenaltambe.vela.ui.components.HScrollRow(Modifier.testTag("library.recent"), Arrangement.spacedBy(Vela.md)) {
+                        items(recent, key = { it.videoId }) { r ->
+                            val v = VideoSummary(r.videoId, r.title, r.channelId, "", durationSeconds = r.durationMs.takeIf { it > 0 }?.div(1000))
+                            Column(Modifier.width(176.dp).clip(Vela.mediumShape).clickable { navigator.push(Route.Video(v)) }, verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
+                                Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(Vela.thumbnailShape).background(Vela.colors.surfaceVariant.toColor())) {
+                                    coil3.compose.AsyncImage("https://i.ytimg.com/vi/${r.videoId}/mqdefault.jpg", null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                                    progress[r.videoId]?.takeIf { it > 0f }?.let { p ->
+                                        Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Vela.colors.background.toColor().copy(alpha = 0.5f))) {
+                                            Box(Modifier.fillMaxWidth(p.coerceIn(0f, 1f)).height(3.dp).background(Vela.wake))
+                                        }
+                                    }
+                                }
+                                Text(r.title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
                             }
                         }
-                    }) else null,
-                )
+                    }
+                }
+            }
+            item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) { SectionHeader("Playlists") { TextButton(onClick = { creating = true }, modifier = Modifier.testTag("library.newPlaylist")) { Text("New playlist", maxLines = 1) } } }
+            gridItems(playlists, key = { it.id }) { p ->
+                val editable = !p.isWatchLater && (!p.isMirror || (p.remoteId != null && p.remoteId != "WL" && p.remoteId != "LL" && services.actions != null))
+                // The cover is the first video's picture; an empty playlist gets the palette gradient and its icon.
+                val cover = remember(p.id, revision) { services.playlists.items(p.id).firstOrNull()?.videoId }
+                PlaylistCard(p, cover, editable, onOpen = { navigator.push(Route.Playlist(p.id)) }, onRename = { renaming = p }, onDelete = { deleting = p })
             }
         }
     }
@@ -163,30 +192,70 @@ fun PlaylistScreen(services: AppServices, navigator: Navigator, playlistId: Long
     val extras = rememberCardExtras(services, videos)
 
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-        LazyColumn(Modifier.widthIn(max = 900.dp).fillMaxSize().testTag("playlist.list"), contentPadding = Vela.contentPadding, verticalArrangement = Arrangement.spacedBy(Vela.md)) {
+        LazyColumn(Modifier.widthIn(max = 900.dp).fillMaxSize().testTag("playlist.list"), contentPadding = Vela.contentPadding, verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
             item {
-                SectionHeader(summary?.name ?: "Playlist") {
-                    Row(horizontalArrangement = Arrangement.spacedBy(Vela.xs)) {
-                        if (services.downloads != null) TextButton(onClick = { downloadAll = true }, enabled = videos.isNotEmpty(), modifier = Modifier.testTag("playlist.downloadAll")) { Text("Download all", maxLines = 1) }
+                // The playlist as a card: its cover, name and count, then Play all and Download all.
+                Column(Modifier.fillMaxWidth().clip(Vela.largeShape).background(Vela.colors.surface.toColor()).padding(Vela.md), verticalArrangement = Arrangement.spacedBy(Vela.md)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(Vela.md), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.width(120.dp).aspectRatio(16f / 10f).clip(Vela.mediumShape).background(Vela.wake), contentAlignment = Alignment.Center) {
+                            if (videos.isNotEmpty()) coil3.compose.AsyncImage("https://i.ytimg.com/vi/${videos.first().id}/mqdefault.jpg", null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                            else Icon(Vela.icons.playlist, null, tint = Vela.colors.onPrimary.toColor())
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text(summary?.name ?: "Playlist", style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text("${videos.size} video${if (videos.size == 1) "" else "s"}", style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor())
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(Vela.sm), verticalAlignment = Alignment.CenterVertically) {
                         PrimaryButton("Play all", onClick = { navigator.playAll(videos) }, enabled = videos.isNotEmpty(), modifier = Modifier.testTag("playlist.playAll"))
+                        if (services.downloads != null) androidx.compose.material3.OutlinedButton(onClick = { downloadAll = true }, enabled = videos.isNotEmpty(), modifier = Modifier.testTag("playlist.downloadAll")) { Text("Download all", maxLines = 1) }
                     }
                 }
             }
             if (items.isEmpty()) item { EmptyState("This playlist is empty. Add videos from the ⋮ menu on any video.") }
             items(items.size, key = { items[it].videoId }) { index ->
-                val v = videos[index]
-                VideoCard(
-                    v, onClick = { navigator.push(Route.Video(v)) }, style = VideoCardStyle.HORIZONTAL, extras = extras(v),
-                    trailing = {
-                        Column {
-                            IconButton(onClick = { services.playlists.move(playlistId, index, index - 1); revision++ }, enabled = index > 0) { androidx.compose.material3.Icon(com.greenaltambe.vela.ui.look.Vela.icons.arrowUp, "Move up") }
-                            IconButton(onClick = { services.playlists.move(playlistId, index, index + 1); revision++ }, enabled = index < items.lastIndex) { androidx.compose.material3.Icon(com.greenaltambe.vela.ui.look.Vela.icons.arrowDown, "Move down") }
-                            IconButton(onClick = { services.playlists.remove(playlistId, v.id); revision++ }) { Icon(com.greenaltambe.vela.ui.look.Vela.icons.close, "Remove from playlist") }
-                        }
-                    },
+                PlaylistVideoRow(
+                    videos[index], extras = extras(videos[index]), index = index, lastIndex = items.lastIndex,
+                    onOpen = { navigator.push(Route.Video(videos[index])) },
+                    onMove = { to -> services.playlists.move(playlistId, index, to); revision++ },
+                    onRemove = { services.playlists.remove(playlistId, videos[index].id); revision++ },
                 )
             }
         }
+    }
+}
+
+/** One video of a playlist. Swiping it away removes it; the ⋮ menu reorders it (and also removes). */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun PlaylistVideoRow(v: VideoSummary, extras: CardExtras, index: Int, lastIndex: Int, onOpen: () -> Unit, onMove: (Int) -> Unit, onRemove: () -> Unit) {
+    val swipe = androidx.compose.material3.rememberSwipeToDismissBoxState(confirmValueChange = { it == androidx.compose.material3.SwipeToDismissBoxValue.EndToStart })
+    if (swipe.currentValue == androidx.compose.material3.SwipeToDismissBoxValue.EndToStart) androidx.compose.runtime.LaunchedEffect(v.id) { onRemove() }
+    androidx.compose.material3.SwipeToDismissBox(
+        swipe, enableDismissFromStartToEnd = false,
+        backgroundContent = {
+            // Only while being pulled, with the app's corner radius.
+            if (swipe.dismissDirection != androidx.compose.material3.SwipeToDismissBoxValue.Settled) Box(Modifier.fillMaxSize().clip(Vela.largeShape).background(Vela.colors.error.toColor()).padding(horizontal = Vela.lg), contentAlignment = Alignment.CenterEnd) {
+                Icon(Vela.icons.delete, "Remove from playlist", tint = Vela.colors.onPrimary.toColor())
+            }
+        },
+    ) {
+        VideoCard(
+            v, onClick = onOpen, style = VideoCardStyle.HORIZONTAL, extras = extras,
+            modifier = Modifier.clip(Vela.largeShape).background(Vela.colors.background.toColor()),
+            trailing = {
+                var menu by remember { mutableStateOf(false) }
+                Box {
+                    IconButton(onClick = { menu = true }, modifier = Modifier.testTag("playlist.itemMenu")) { Icon(Vela.icons.more, "Reorder or remove") }
+                    DropdownMenu(menu, { menu = false }) {
+                        if (index > 1) DropdownMenuItem(text = { Text("Move to top") }, leadingIcon = { Icon(Vela.icons.arrowUp, null) }, onClick = { menu = false; onMove(0) })
+                        if (index > 0) DropdownMenuItem(text = { Text("Move up") }, leadingIcon = { Icon(Vela.icons.arrowUp, null) }, onClick = { menu = false; onMove(index - 1) })
+                        if (index < lastIndex) DropdownMenuItem(text = { Text("Move down") }, leadingIcon = { Icon(Vela.icons.arrowDown, null) }, onClick = { menu = false; onMove(index + 1) })
+                        DropdownMenuItem(text = { Text("Remove from playlist") }, leadingIcon = { Icon(Vela.icons.delete, null) }, onClick = { menu = false; onRemove() })
+                    }
+                }
+            },
+        )
     }
 }
 
@@ -250,4 +319,48 @@ fun HistoryScreen(services: AppServices, navigator: Navigator, modifier: Modifie
         confirmButton = { TextButton(onClick = { services.history.clear(); revision++; confirmClear = false }) { Text("Clear") } },
         dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } },
     )
+}
+
+/** A big rounded shortcut (History, Downloads, ...): an icon on the palette gradient, a title and a line under it. */
+@Composable
+private fun ShortcutTile(title: String, subtitle: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier.clip(Vela.largeShape).background(Vela.colors.surface.toColor()).clickable(onClick = onClick).padding(Vela.md),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.md),
+    ) {
+        Box(Modifier.size(44.dp).clip(Vela.pillShape).background(Vela.wake), contentAlignment = Alignment.Center) { Icon(icon, null, tint = Vela.colors.onPrimary.toColor()) }
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor())
+        }
+    }
+}
+
+/** A playlist as a large rounded card: the cover picture (or the palette gradient) on top, name and count on the card's own surface underneath, options in the corner. */
+@Composable
+private fun PlaylistCard(p: PlaylistSummary, coverVideoId: String?, editable: Boolean, onOpen: () -> Unit, onRename: () -> Unit, onDelete: () -> Unit) {
+    val surface = Vela.colors.surface.toColor()
+    Column(Modifier.fillMaxWidth().clip(Vela.largeShape).background(surface).clickable(onClick = onOpen).testTag(ComponentIds.PLAYLIST_ROW)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(16f / 10f).background(Vela.wake)) {
+            if (coverVideoId != null) coil3.compose.AsyncImage("https://i.ytimg.com/vi/$coverVideoId/mqdefault.jpg", null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+            else Icon(if (p.isWatchLater) Vela.icons.watchLater else Vela.icons.playlist, null, Modifier.align(Alignment.Center).size(48.dp), tint = Vela.colors.onPrimary.toColor())
+            if (editable) {
+                var menu by remember { mutableStateOf(false) }
+                Box(Modifier.align(Alignment.TopEnd).padding(Vela.xs)) {
+                    IconButton(onClick = { menu = true }, modifier = Modifier.clip(Vela.pillShape).background(surface.copy(alpha = 0.85f))) { Icon(Vela.icons.more, "Playlist options", tint = Vela.colors.onSurface.toColor()) }
+                    DropdownMenu(menu, { menu = false }) {
+                        DropdownMenuItem(text = { Text("Rename") }, onClick = { menu = false; onRename() })
+                        DropdownMenuItem(text = { Text("Delete") }, onClick = { menu = false; onDelete() })
+                    }
+                }
+            }
+        }
+        Column(Modifier.fillMaxWidth().padding(Vela.md), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(p.name, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurface.toColor())
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.xs)) {
+                if (p.isMirror) Icon(Vela.icons.cloud, "YouTube account", Modifier.size(14.dp), tint = Vela.colors.onSurfaceVariant.toColor())
+                Text("${p.itemCount} video${if (p.itemCount == 1) "" else "s"}", style = MaterialTheme.typography.bodySmall, maxLines = 1, color = Vela.colors.onSurfaceVariant.toColor())
+            }
+        }
+    }
 }

@@ -8,6 +8,9 @@ import com.composables.icons.lucide.Bell
 import com.composables.icons.lucide.Bookmark
 import com.composables.icons.lucide.Captions
 import com.composables.icons.lucide.Check
+import com.composables.icons.lucide.Compass
+import com.composables.icons.lucide.SkipBack
+import com.composables.icons.lucide.SkipForward
 import com.composables.icons.lucide.ChevronDown
 import com.composables.icons.lucide.ChevronLeft
 import com.composables.icons.lucide.ChevronRight
@@ -115,6 +118,9 @@ internal object LucideIcons {
             "cloud" to Lucide.Cloud,
             "visibility" to Lucide.Eye,
             "bolt" to Lucide.Zap,
+            "explore" to Lucide.Compass,
+            "skipNext" to Lucide.SkipForward,
+            "skipPrevious" to Lucide.SkipBack,
         )
     }
 }

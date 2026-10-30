@@ -74,13 +74,18 @@ fun CommentsPanel(
             ),
         ) {
         Box(Modifier.align(Alignment.CenterHorizontally).padding(top = Vela.xs).width(36.dp).height(4.dp).clip(Vela.pillShape).background(Vela.colors.outline.toColor()))
-        Row(Modifier.fillMaxWidth().padding(start = Vela.gutter, end = Vela.xs, top = Vela.xs), verticalAlignment = Alignment.CenterVertically) {
-            Text("Comments", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-            if (canSort) TextButton(onClick = onToggleSort, modifier = Modifier.testTag("comments.sort")) { Text(if (newestFirst) "Newest" else "Top", maxLines = 1) }
+        Row(Modifier.fillMaxWidth().padding(start = Vela.gutter, end = Vela.xs, top = Vela.xs), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+            Text("Comments", style = MaterialTheme.typography.titleMedium)
+            if (comments.isNotEmpty()) Text(comments.size.toString() + if (hasMore) "+" else "", Modifier.clip(Vela.pillShape).background(Vela.colors.surfaceVariant.toColor()).padding(horizontal = Vela.sm, vertical = 2.dp).testTag("comments.count"), style = MaterialTheme.typography.labelMedium, color = Vela.colors.onSurfaceVariant.toColor())
+            androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
             androidx.compose.material3.IconButton(onClick = onDismiss, modifier = Modifier.testTag("comments.close")) { Icon(Vela.icons.close, "Close comments") }
         }
+        if (canSort) Row(Modifier.padding(horizontal = Vela.gutter), horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+            androidx.compose.material3.FilterChip(selected = !newestFirst, onClick = { if (newestFirst) onToggleSort() }, label = { Text("Top", maxLines = 1) }, modifier = Modifier.testTag("comments.sort"))
+            androidx.compose.material3.FilterChip(selected = newestFirst, onClick = { if (!newestFirst) onToggleSort() }, label = { Text("Newest", maxLines = 1) }, modifier = Modifier.testTag("comments.sort.newest"))
         }
-        LazyColumn(Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(start = Vela.gutter, end = Vela.gutter, top = Vela.sm, bottom = Vela.lg), verticalArrangement = Arrangement.spacedBy(Vela.md)) {
+        }
+        LazyColumn(Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(start = Vela.gutter, end = Vela.gutter, top = Vela.sm, bottom = Vela.lg), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
             when (state) {
                 ListState.Loading -> items(4) { SkeletonCard(vertical = false) }
                 is ListState.Empty -> item { Text(state.message, Modifier.testTag("video.commentsStatus"), style = MaterialTheme.typography.bodyMedium, color = Vela.colors.onSurfaceVariant.toColor()) }
@@ -95,26 +100,26 @@ fun CommentsPanel(
 
 @Composable
 private fun CommentThread(comment: Comment, replies: List<Comment>?, loadingReplies: Boolean, onSeek: (Long) -> Unit, onToggleReplies: () -> Unit) {
-    Column(Modifier.fillMaxWidth().testTag("comment.item"), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
-        CommentBlock(comment, avatar = 32.dp, onSeek = onSeek)
+    // Each comment is a card on the sheet; its replies open inside it, set in by a line in the palette gradient.
+    Column(Modifier.fillMaxWidth().clip(Vela.mediumShape).background(Vela.colors.background.toColor()).padding(Vela.md).testTag("comment.item"), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
+        CommentBlock(comment, avatar = 36.dp, onSeek = onSeek)
         if (comment.replyCount > 0 && comment.repliesContinuation != null) {
             Row(
-                Modifier.padding(start = 32.dp + Vela.sm).clip(Vela.mediumShape).clickable(onClick = onToggleReplies).heightIn(min = 32.dp).padding(horizontal = Vela.sm).testTag("comment.repliesToggle"),
+                Modifier.padding(start = 36.dp + Vela.sm).clip(Vela.pillShape).background(Vela.colors.surface.toColor()).clickable(onClick = onToggleReplies).heightIn(min = 32.dp).padding(horizontal = Vela.md).testTag("comment.repliesToggle"),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.xs),
             ) {
                 Text(
                     if (replies != null) "Hide replies" else if (loadingReplies) "Loading replies…" else "${comment.replyCount} ${if (comment.replyCount == 1) "reply" else "replies"}",
-                    style = MaterialTheme.typography.bodySmall, color = Vela.colors.primary.toColor(), maxLines = 1,
+                    style = MaterialTheme.typography.labelMedium, color = Vela.colors.primary.toColor(), maxLines = 1,
                 )
                 Icon(if (replies != null) Vela.icons.chevronUp else Vela.icons.chevronDown, null, Modifier.height(16.dp), tint = Vela.colors.primary.toColor())
             }
         }
         if (!replies.isNullOrEmpty()) {
-            // The thread: a gradient line the height of the replies, then the replies.
-            Row(Modifier.padding(start = 16.dp).height(IntrinsicSize.Min)) {
+            Row(Modifier.padding(start = 18.dp).height(IntrinsicSize.Min)) {
                 Box(Modifier.width(2.dp).fillMaxHeight().clip(Vela.pillShape).background(androidx.compose.ui.graphics.Brush.verticalGradient(Vela.look.accent.wake.map { it.toColor() })).testTag("comment.threadLine"))
                 Column(Modifier.padding(start = Vela.md), verticalArrangement = Arrangement.spacedBy(Vela.md)) {
-                    replies.forEach { r -> CommentBlock(r, avatar = 24.dp, onSeek = onSeek) }
+                    replies.forEach { r -> CommentBlock(r, avatar = 26.dp, onSeek = onSeek) }
                 }
             }
         }
@@ -125,16 +130,21 @@ private fun CommentThread(comment: Comment, replies: List<Comment>?, loadingRepl
 private fun CommentBlock(c: Comment, avatar: androidx.compose.ui.unit.Dp, onSeek: (Long) -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
         Avatar(c.author.removePrefix("@"), size = avatar)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
             Row(horizontalArrangement = Arrangement.spacedBy(Vela.xs), verticalAlignment = Alignment.CenterVertically) {
-                Text(c.author, Modifier.weight(1f, fill = false), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (c.publishedText.isNotEmpty()) Text("· ${c.publishedText}", style = MaterialTheme.typography.bodySmall, maxLines = 1, softWrap = false, color = Vela.colors.onSurfaceVariant.toColor())
-                if (c.isPinned) Text("Pinned", style = MaterialTheme.typography.bodySmall, maxLines = 1, softWrap = false, color = Vela.colors.primary.toColor())
+                Text(c.author.removePrefix("@"), Modifier.weight(1f, fill = false), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (c.publishedText.isNotEmpty()) Text(c.publishedText, style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false, color = Vela.colors.onSurfaceVariant.toColor())
+                if (c.isPinned) Text("Pinned", Modifier.clip(Vela.pillShape).background(Vela.wake).padding(horizontal = Vela.sm, vertical = 1.dp), style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false, color = Vela.colors.onPrimary.toColor())
             }
             // Links open and timestamps seek the video, as in the description.
             val linkColor = Vela.colors.primary.toColor()
             Text(androidx.compose.runtime.remember(c.text, linkColor) { linkedText(c.text, linkColor, onSeek) }, style = MaterialTheme.typography.bodyMedium, maxLines = 12, overflow = TextOverflow.Ellipsis)
-            formatCount(c.likeCount.takeIf { it > 0 })?.let { Text("$it likes", style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor(), maxLines = 1) }
+            formatCount(c.likeCount.takeIf { it > 0 })?.let {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Icon(Vela.icons.like, null, Modifier.height(14.dp), tint = Vela.colors.onSurfaceVariant.toColor())
+                    Text(it, style = MaterialTheme.typography.labelSmall, color = Vela.colors.onSurfaceVariant.toColor(), maxLines = 1)
+                }
+            }
         }
     }
 }

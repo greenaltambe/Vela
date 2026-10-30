@@ -32,7 +32,6 @@ fun HomeScreen(services: AppServices, navigator: Navigator, modifier: Modifier =
     var showing by remember { mutableStateOf(if (cached) store!!.showing else "Trending") }
     var note by remember { mutableStateOf<String?>(if (cached) store!!.note else null) }
     val scope = rememberCoroutineScope()
-
     fun load(more: Boolean) {
         if (loading) return
         loading = true

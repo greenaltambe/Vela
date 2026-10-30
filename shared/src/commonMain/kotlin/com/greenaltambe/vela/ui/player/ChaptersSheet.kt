@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.isSpecified
 import com.greenaltambe.vela.extractor.Chapter
 import com.greenaltambe.vela.library.formatTimestamp
 import com.greenaltambe.vela.ui.look.Vela
@@ -35,8 +36,12 @@ import com.greenaltambe.vela.ui.look.toColor
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChaptersSheet(chapters: List<Chapter>, positionMs: Long, onSeek: (Long) -> Unit, onDismiss: () -> Unit) {
+fun ChaptersSheet(chapters: List<Chapter>, positionMs: Long, keepClearTopPx: Float = 0f, onSeek: (Long) -> Unit, onDismiss: () -> Unit) {
     val current = com.greenaltambe.vela.library.currentChapter(chapters, positionMs)
+    // Portrait: the sheet may only use the space below the video. (The drag handle takes about 36 dp.)
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val windowPx = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize.height
+    val maxContent = if (keepClearTopPx <= 0f) androidx.compose.ui.unit.Dp.Unspecified else with(density) { ((windowPx - keepClearTopPx).toDp() - 36.dp).coerceAtLeast(120.dp) }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         shape = RoundedCornerShape(topStart = Vela.look.radii.largeDp.dp, topEnd = Vela.look.radii.largeDp.dp),
@@ -45,7 +50,7 @@ fun ChaptersSheet(chapters: List<Chapter>, positionMs: Long, onSeek: (Long) -> U
         modifier = Modifier.testTag("chapters.sheet"),
     ) {
         Text("Chapters", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = Vela.gutter, vertical = Vela.xs))
-        LazyColumn(Modifier.fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = Vela.sm, vertical = Vela.xs), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
+        LazyColumn(Modifier.fillMaxWidth().then(if (maxContent.isSpecified) Modifier.heightIn(max = maxContent - 40.dp) else Modifier), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = Vela.sm, vertical = Vela.xs), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
             items(chapters, key = { "sheet-${it.startSeconds}" }) { c ->
                 val isCurrent = c == current
                 Row(

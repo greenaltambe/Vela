@@ -14,7 +14,7 @@ enum class IconStyle { FILLED, LINE, DUOTONE, ROUNDED, OUTLINED, SHARP, TWO_TONE
 /** How the seek bar is drawn: a hairline or a bold track, each with or without a round marker, a ribbon (bold with a dot, thin silky ribbons lifting off the watched part), or a wave that moves up to the current position. */
 enum class ProgressStyle { HAIRLINE, HAIRLINE_DOT, BOLD, BOLD_DOT, RIBBON, WAVE }
 enum class IconWeight { THIN, REGULAR, BOLD }
-enum class NavTab { HOME, SHORTS, SUBSCRIPTIONS, LIBRARY, SEARCH, DOWNLOADS }
+enum class NavTab { HOME, SHORTS, SUBSCRIPTIONS, LIBRARY, SEARCH, DOWNLOADS, EXPLORE }
 enum class NavLabels { HIDDEN, ALWAYS }
 enum class BarStyle { FLOATING, DOCKED, MINIMAL }
 /** The mini player: a bar-wide card, or a small picture-in-picture style card. */
@@ -85,7 +85,7 @@ object LookSettings {
         key = "look.nav.tabs", default = NavTabs.encode(NavTabs.default), scope = SettingScope.GLOBAL, label = "Tabs in the bar", keywords = listOf("tabs", "bar", "navigation", "order", "home", "shorts", "downloads"),
         codec = SettingCodecs.string, section = SettingSection.APPEARANCE, info = "Which pages get a tab, in order (2 to 5). Settings is never a tab: it lives in the profile menu.",
     )
-    val navOpenOn = pick("look.nav.openOn", NavTab.HOME, NavTab.entries.filter { it != NavTab.SEARCH }, "Open on", mapOf(NavTab.HOME to "Home", NavTab.SHORTS to "Shorts", NavTab.SUBSCRIPTIONS to "Subscriptions", NavTab.LIBRARY to "Library", NavTab.DOWNLOADS to "Downloads"), listOf("start", "open", "launch", "first"))
+    val navOpenOn = pick("look.nav.openOn", NavTab.HOME, NavTab.entries.filter { it != NavTab.SEARCH }, "Open on", mapOf(NavTab.HOME to "Home", NavTab.SHORTS to "Shorts", NavTab.SUBSCRIPTIONS to "Subscriptions", NavTab.LIBRARY to "Library", NavTab.DOWNLOADS to "Downloads", NavTab.EXPLORE to "Explore"), listOf("start", "open", "launch", "first"))
     val navLabels = pick("look.nav.labels", NavLabels.ALWAYS, NavLabels.entries, "Tab labels", mapOf(NavLabels.HIDDEN to "Hidden", NavLabels.ALWAYS to "Always visible"), listOf("labels", "tabs", "text", "hide"), "Labels also hide while the bar is shrunk (see Shrink the bar while scrolling).")
     val barStyle = pick("look.nav.barStyle", BarStyle.FLOATING, BarStyle.entries, "Bar style", mapOf(BarStyle.FLOATING to "Floating", BarStyle.DOCKED to "Docked", BarStyle.MINIMAL to "Minimal"), listOf("bar", "floating", "docked", "pill", "minimal", "dock"), "Floating runs over the page (the page scrolls behind it). Docked sits below the page. Minimal is a small icon-only pill that also floats.")
     val navShrink = flag("look.nav.shrinkOnScroll", false, "Shrink the bar while scrolling", listOf("shrink", "scroll", "collapse", "bar", "dock"), "Scrolling down contracts the bar into a small icon pill (the labels hide); scrolling up brings it back. The mini player moves with it.")
@@ -95,6 +95,7 @@ object LookSettings {
         key = "look.mini.gap", default = 8f, scope = SettingScope.GLOBAL, label = "Mini player distance from the bar (dp)", keywords = listOf("mini", "player", "gap", "distance", "space"),
         codec = SettingCodecs.float, section = SettingSection.APPEARANCE, range = SettingRange(0.0, 32.0, 2.0), info = "Used when the mini player is apart from the bar.",
     )
+    val navMarker = flag("look.nav.marker", true, "Gradient mark on the selected tab", listOf("marker", "indicator", "underline", "gradient", "selected", "tab", "bar"), "A small palette-gradient line marks the selected tab: under its icon in the bottom bar, at its left edge in the side rail.")
     val railCollapsed = flag("look.nav.railCollapsed", false, "Collapse the side rail to icons", listOf("rail", "sidebar", "collapse", "icons"), "Wide windows and Linux: the left rail shows icons only.")
 
     val glass = flag("look.glass", true, "Frosted glass bars", listOf("glass", "blur", "frosted", "translucent"), "Bars blur what is behind them, with enough tint that their labels stay readable. Performance mode turns this off.")
@@ -102,7 +103,7 @@ object LookSettings {
 
     val all: List<Setting<*>> = listOf(
         theme, palette, corners, density, textScale, font, titleWeight,
-        iconStyle, iconWeight, iconRounded, progressStyle, navTabs, navOpenOn, navLabels, barStyle, navShrink, miniLook, miniPlacement, miniGap, railCollapsed, glass, reduceMotion,
+        iconStyle, iconWeight, iconRounded, progressStyle, navTabs, navOpenOn, navLabels, barStyle, navShrink, navMarker, miniLook, miniPlacement, miniGap, railCollapsed, glass, reduceMotion,
     )
 }
 

@@ -49,6 +49,19 @@ class NewPipeExtractor(downloader: () -> Downloader = { OkHttpDownloader() }) : 
             }
         }.map { (items, next) -> Page(items, next.toTokenOrNull()) }
 
+    override suspend fun searchChannels(query: String, continuation: String?): ExtractorResult<Page<ChannelRef>> =
+        searchOf(query, continuation, YoutubeSearchQueryHandlerFactory.CHANNELS) { it.toChannelRefs() }
+
+    override suspend fun searchPlaylists(query: String, continuation: String?): ExtractorResult<Page<PlaylistRef>> =
+        searchOf(query, continuation, YoutubeSearchQueryHandlerFactory.PLAYLISTS) { it.toPlaylistRefs() }
+
+    private suspend fun <T> searchOf(query: String, continuation: String?, filter: String, map: (List<InfoItem>) -> List<T>): ExtractorResult<Page<T>> =
+        withPage(continuation) { page ->
+            val handler: SearchQueryHandler = youtube.searchQHFactory.fromQuery(query, listOf(filter), "")
+            if (page == null) SearchInfo.getInfo(youtube, handler).let { map(it.relatedItems) to it.nextPage }
+            else SearchInfo.getMoreItems(youtube, handler, page).let { map(it.items) to it.nextPage }
+        }.map { (items, next) -> Page(items, next.toTokenOrNull()) }
+
     override suspend fun suggestions(query: String): ExtractorResult<List<String>> = guarded { youtube.suggestionExtractor.suggestionList(query).take(8) }
 
     override suspend fun videoInfo(videoId: String): ExtractorResult<VideoInfo> = guarded {

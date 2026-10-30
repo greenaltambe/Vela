@@ -108,6 +108,7 @@ internal fun StreamInfo.toVideoInfo() = VideoInfo(
     uploadDate = uploadDate?.instant?.let { Instant.fromEpochMilliseconds(it.toEpochMilli()) },
     isShort = isShortFormContent,
     ageRestricted = ageLimit != StreamExtractor.NO_AGE_LIMIT,
+    channelAvatarUrl = uploaderAvatars.bestUrl(),
 )
 
 /** The largest image; images with unknown size lose to ones with a known size. */

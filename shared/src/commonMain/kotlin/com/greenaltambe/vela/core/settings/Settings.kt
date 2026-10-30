@@ -70,6 +70,13 @@ object Settings {
         range = SettingRange(min = 0.25, max = 4.0, step = 0.25),
     )
 
+    val autoplayNext = Setting(
+        key = "playback.autoplayNext", default = false, scope = SettingScope.GLOBAL, label = "Autoplay next video",
+        keywords = listOf("autoplay", "next", "continue", "related", "queue"),
+        codec = SettingCodecs.boolean, section = SettingSection.PLAYBACK,
+        info = "When a video ends, play the next one in the queue, or the first related video. Off unless you switch it on (also next to Related on the video page).",
+    )
+
     val seekStepSeconds = Setting(
         key = "playback.seekSeconds", default = 10f, scope = SettingScope.GLOBAL, label = "Double-tap seek",
         keywords = listOf("seek", "skip", "double tap", "forward", "back", "seconds", "jump"),
@@ -569,7 +576,7 @@ object Settings {
     val all: List<Setting<*>> = listOf(
         look, performanceMode, localOnlyHistory, hideWatched, minLengthSeconds, blockKeywords, allowKeywords, keywordsAreRegex,
         debugFrameStats, homeSource, allowAgeRestricted, allowControversial, slowStreamFailover, accountFallbackMode, accountProfilesExperimental, accountUseForChannels, accountUseForDetails, accountDownloadsMayUse, accountKillSwitch, accountTierOrder, remoteConfigUrl, ytDlpAutoUpdate,
-        accountPlaybackPerHour, accountBrowsePerMinute, accountWritesPerHour, shortsMode, defaultPlaybackSpeed, seekStepSeconds, holdSpeed, maxQualityUnmetered, maxQualityMetered, preferredCodec, audioOnly, ytDlpPath,
+        accountPlaybackPerHour, accountBrowsePerMinute, accountWritesPerHour, shortsMode, defaultPlaybackSpeed, autoplayNext, seekStepSeconds, holdSpeed, maxQualityUnmetered, maxQualityMetered, preferredCodec, audioOnly, ytDlpPath,
         sponsorBlockEnabled, returnYouTubeDislikeEnabled, deArrowEnabled,
         sponsorBlockMinSegmentSeconds, sponsorBlockNotifications, showContribute, sponsorBlockServer, sponsorBlockUserId, rydInFeed, rydServer,
         deArrowFeed, deArrowSearch, deArrowVideoPage, deArrowPlayerTitle, deArrowTitleCasing, deArrowMinVotes, deArrowGeneratedThumbnails, deArrowThumbnailServer,

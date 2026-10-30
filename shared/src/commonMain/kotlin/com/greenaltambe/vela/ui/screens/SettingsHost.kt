@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -145,23 +146,69 @@ fun SettingsHost(services: AppServices, navigator: Navigator, modifier: Modifier
     }
 }
 
-/** A page's own settings (generated rows), a link row to the screen it also leads to, and "Reset this page" at the end. */
+/** A block of related settings: a small header with a palette-gradient mark, then one rounded card whose rows are told apart by hairlines. */
+@Composable
+internal fun SettingsBlock(title: String, content: @Composable () -> Unit) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
+        if (title.isNotBlank()) Row(Modifier.padding(start = Vela.xs, top = Vela.sm), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.xs)) {
+            Box(Modifier.size(width = 4.dp, height = 14.dp).clip(Vela.pillShape).background(Vela.wake))
+            Text(title.uppercase(), style = MaterialTheme.typography.labelMedium, color = Vela.colors.onSurfaceVariant.toColor(), maxLines = 1)
+        }
+        Column(Modifier.fillMaxWidth().clip(Vela.largeShape).background(Vela.colors.surface.toColor()).padding(horizontal = Vela.md, vertical = Vela.xs)) { content() }
+    }
+}
+
+@Composable
+internal fun SettingsDivider() {
+    Box(Modifier.fillMaxWidth().height(1.dp).background(Vela.colors.outline.toColor().copy(alpha = 0.35f)))
+}
+
+/**
+ * A page's own settings in titled cards (see [SettingsPages.sectionsOf]), a tile to the screen it also leads to, and "Reset this page" at the end.
+ * The cards are composed once the page has finished sliding in: building many controls while it moves is what made opening a page stutter.
+ */
 @Composable
 fun SettingsPageScreen(services: AppServices, navigator: Navigator, pageId: String, highlight: String?, modifier: Modifier = Modifier) {
     val page = SettingsPages.byId(pageId)
     val revision by services.settings.revision.collectAsState()
     val toasts = LocalUndoToasts.current
+    var ready by remember(pageId) { mutableStateOf(false) }
+    val m = Vela.motion
+    androidx.compose.runtime.LaunchedEffect(pageId) {
+        kotlinx.coroutines.delay(if (m.reduced) 0L else VelaMotion.durationMs(m, VelaMotion.Level.STANDARD).toLong())
+        ready = true
+    }
     Column(modifier.fillMaxSize()) {
         VelaTopBar(page?.title ?: "Settings", onBack = { navigator.back() })
         if (page == null) { EmptyState("This settings page does not exist."); return@Column }
-        val settings = remember(page) { SettingsPages.settingsOf(page) }
+        val sections = remember(page) { SettingsPages.sectionsOf(page) }
+        val settings = remember(sections) { sections.flatMap { it.settings } }
         Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
             LazyColumn(Modifier.widthIn(max = 720.dp).fillMaxSize().testTag("settings.pageList"), contentPadding = Vela.contentPadding, verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                if (page.link != SettingsLink.NONE) item {
-                    TextButton(onClick = { navigator.push(page.linkRoute()) }, modifier = Modifier.testTag("settings.openLinked")) { Text("Open ${page.title}", maxLines = 1) }
+                if (page.link != SettingsLink.NONE) item(key = "linked") {
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(Vela.largeShape).background(Vela.colors.surface.toColor()).pressable { navigator.push(page.linkRoute()) }.padding(horizontal = Vela.md).testTag("settings.openLinked"),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.md),
+                    ) {
+                        IconTile(page)
+                        Text("Open ${page.title}", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Icon(Vela.icons.chevronRight, null, tint = Vela.colors.onSurfaceVariant.toColor())
+                    }
                 }
-                items(settings, key = { it.key }) { s -> SettingRow(services.settings, s, revision, highlighted = s.key == highlight) }
-                item(key = "reset") { ResetPageButton(services.settings, settings, toasts, "settings.resetPage") }
+                if (!ready) {
+                    // Placeholders of the cards' size until the page has settled.
+                    items(3, key = { "ph-$it" }) { Box(Modifier.fillMaxWidth().height(96.dp).clip(Vela.largeShape).background(Vela.colors.surface.toColor())) }
+                } else {
+                    items(sections, key = { "sec-${it.title}" }) { sec ->
+                        SettingsBlock(sec.title) {
+                            sec.settings.forEachIndexed { i, s ->
+                                if (i > 0) SettingsDivider()
+                                SettingRow(services.settings, s, revision, highlighted = s.key == highlight)
+                            }
+                        }
+                    }
+                    item(key = "reset") { ResetPageButton(services.settings, settings, toasts, "settings.resetPage") }
+                }
             }
         }
     }

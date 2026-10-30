@@ -54,6 +54,10 @@ class FallbackChain(
 
     override suspend fun search(query: String, continuation: String?) =
         run("search($query${page(continuation)})", AccountOp.NEVER) { it.search(query, continuation) }
+    override suspend fun searchChannels(query: String, continuation: String?) =
+        run("searchChannels($query${page(continuation)})", AccountOp.NEVER) { it.searchChannels(query, continuation) }
+    override suspend fun searchPlaylists(query: String, continuation: String?) =
+        run("searchPlaylists($query${page(continuation)})", AccountOp.NEVER) { it.searchPlaylists(query, continuation) }
     override suspend fun videoInfo(videoId: String) = run("videoInfo($videoId)", AccountOp.DETAILS) { it.videoInfo(videoId) }
     override suspend fun streams(videoId: String) = run("streams($videoId)", AccountOp.PLAYBACK) { it.streams(videoId) }
     override suspend fun channel(channelId: String) = run("channel($channelId)", AccountOp.CHANNELS) { it.channel(channelId) }

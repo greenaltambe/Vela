@@ -34,6 +34,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
@@ -42,6 +43,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import com.greenaltambe.vela.AppServices
 import com.greenaltambe.vela.core.settings.shortsEnabled
 import com.greenaltambe.vela.extractor.ExtractorResult
+import com.greenaltambe.vela.extractor.ChannelRef
+import com.greenaltambe.vela.extractor.PlaylistRef
 import com.greenaltambe.vela.extractor.videoPagedList
 import com.greenaltambe.vela.modules.dearrow.DeArrowSurface
 import com.greenaltambe.vela.ui.components.SectionHeader
@@ -81,6 +84,9 @@ fun SearchScreen(services: AppServices, navigator: Navigator, query: String, mod
     val focus = remember { FocusRequester() }
     val history = remember(historyRevision, query) { if (query.isBlank()) services.searchHistory.recent() else emptyList() }
 
+    var type by remember(query) { mutableStateOf(SearchType.ALL) }
+    val channelFeed = remember(query) { TabFeed<ChannelRef>() }
+    val playlistFeed = remember(query) { TabFeed<PlaylistRef>() }
     fun submit(q: String) { if (q.isNotBlank()) navigator.replace(Route.Search(q.trim())) }
 
     fun load(more: Boolean) {
@@ -97,6 +103,30 @@ fun SearchScreen(services: AppServices, navigator: Navigator, query: String, mod
             }
             loading = false
         }
+    }
+    /** Channel and playlist results are searched when their pill is first chosen, and paged like the videos. */
+    fun <T> loadKind(feed: TabFeed<T>, more: Boolean, empty: String, idOf: (T) -> String, fetch: suspend (String?) -> ExtractorResult<com.greenaltambe.vela.extractor.Page<T>>) {
+        if (feed.loading) return
+        feed.loading = true
+        if (!more) feed.state = ListState.Loading
+        scope.launch {
+            when (val r = fetch(feed.next.takeIf { more })) {
+                is ExtractorResult.Success -> {
+                    feed.items = if (more) (feed.items + r.value.items).distinctBy(idOf) else r.value.items
+                    feed.next = r.value.continuation; feed.loaded = true
+                    feed.state = if (feed.items.isEmpty()) ListState.Empty(empty) else ListState.Ready
+                }
+                is ExtractorResult.Failure -> if (feed.items.isEmpty()) feed.state = ListState.Error("Search failed: ${r.error.message}") { feed.loading = false; loadKind(feed, false, empty, idOf, fetch) }
+            }
+            feed.loading = false
+        }
+    }
+    fun moreChannels(more: Boolean) = loadKind(channelFeed, more, "No channels for \"$query\".", { it.id }) { services.extractor.searchChannels(query, it) }
+    fun morePlaylists(more: Boolean) = loadKind(playlistFeed, more, "No playlists for \"$query\".", { it.id }) { services.extractor.searchPlaylists(query, it) }
+    LaunchedEffect(type, query) {
+        if (query.isBlank()) return@LaunchedEffect
+        if (type == SearchType.CHANNELS && !channelFeed.loaded) moreChannels(false)
+        if (type == SearchType.PLAYLISTS && !playlistFeed.loaded) morePlaylists(false)
     }
     LaunchedEffect(query) {
         if (query.isNotBlank()) {
@@ -133,6 +163,8 @@ fun SearchScreen(services: AppServices, navigator: Navigator, query: String, mod
                 items(suggestions, key = { it }) { q ->
                     Row(Modifier.fillMaxWidth().heightIn(min = Vela.minTouch).clickable { submit(q) }, verticalAlignment = Alignment.CenterVertically) {
                         Icon(Vela.icons.search, null); Spacer(Modifier.width(Vela.sm)); Text(q, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge)
+                        // The arrow copies the suggestion into the field to keep typing after it, without searching.
+                        IconButton(onClick = { text = "$q " }, modifier = Modifier.testTag("search.suggestion.fill")) { Icon(Vela.icons.arrowUp, "Use \"$q\" in the search field", Modifier.graphicsLayer { rotationZ = -45f }) }
                     }
                 }
             }
@@ -140,7 +172,20 @@ fun SearchScreen(services: AppServices, navigator: Navigator, query: String, mod
             // The start page: only while nothing is typed. Typing hides it, leaving the field and its suggestions.
             if (text.isBlank()) SearchStart(services, navigator, history, onRemove = { services.searchHistory.remove(it); historyRevision++ }, onClear = { services.searchHistory.clear(); historyRevision++ })
         } else {
-            SearchFilterRow(filters, showShorts = services.settings.shortsEnabled()) { filters = it }
+            SearchFilterRow(filters, type, showShorts = services.settings.shortsEnabled(), onType = { type = it }) { filters = it }
+            when (type) {
+                SearchType.CHANNELS -> SearchKindList(channelFeed, "search.channels.list", { moreChannels(true) }) { c ->
+                    Row(Modifier.fillMaxWidth().clip(Vela.mediumShape).clickable { navigator.push(Route.Channel(c.id, c.name)) }.padding(vertical = Vela.xs).testTag("search.channel"), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.md)) {
+                        com.greenaltambe.vela.ui.components.Avatar(c.name, size = 64.dp, url = c.avatarUrl)
+                        Column(Modifier.weight(1f)) {
+                            Text(c.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            com.greenaltambe.vela.ui.components.formatCount(c.subscriberCount)?.let { Text("$it subscribers", style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor()) }
+                            if (c.description.isNotBlank()) Text(c.description, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor())
+                        }
+                    }
+                }
+                SearchType.PLAYLISTS -> SearchKindList(playlistFeed, "search.playlists.list", { morePlaylists(true) }) { p -> PlaylistRow(p) { navigator.push(Route.ChannelPlaylist(p.id, p.title)) } }
+                SearchType.ALL -> {
             // Never an unexplained empty list: say when Settings > Feed rules (minimum length, hide watched, keywords) hid results.
             (results.items.size - shownAll.size).takeIf { it > 0 }?.let { Text("$it result${if (it == 1) "" else "s"} hidden by your feed filters (Settings > Feed).", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = Vela.gutter).testTag("search.hiddenByFeed")) }
             if (!filters.isDefault && shown.isEmpty() && shownAll.isNotEmpty()) Text("Nothing in the ${shownAll.size} loaded results matches. Filters apply to loaded results; load more or relax them.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = Vela.gutter).testTag("search.filterEmpty"))
@@ -148,29 +193,53 @@ fun SearchScreen(services: AppServices, navigator: Navigator, query: String, mod
                 services, navigator, shown, state, grid = false, testTag = "search.list", scroll = store?.scrollFor(query, services.clock.now()),
                 footer = if (results.continuation != null) ({ TextButton(onClick = { load(more = true) }, enabled = !loading, modifier = Modifier.testTag("search.more")) { Text("Load more", maxLines = 1) } }) else null,
             )
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun SearchFilterRow(filters: com.greenaltambe.vela.extractor.SearchFilters, showShorts: Boolean, onChange: (com.greenaltambe.vela.extractor.SearchFilters) -> Unit) {
+private fun SearchFilterRow(filters: com.greenaltambe.vela.extractor.SearchFilters, type: SearchType, showShorts: Boolean, onType: (SearchType) -> Unit, onChange: (com.greenaltambe.vela.extractor.SearchFilters) -> Unit) {
     var durationMenu by remember { mutableStateOf(false) }
     var sortMenu by remember { mutableStateOf(false) }
-    Row(Modifier.fillMaxWidth().padding(horizontal = Vela.gutter), horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+    com.greenaltambe.vela.ui.components.HScrollRow(Modifier.padding(horizontal = Vela.gutter).testTag("search.filters"), Arrangement.spacedBy(Vela.sm)) {
+        item { FilterChip(selected = type == SearchType.ALL, onClick = { onType(SearchType.ALL) }, label = { Text("Videos", maxLines = 1) }, modifier = Modifier.testTag("search.filter.videos")) }
+        item { FilterChip(selected = type == SearchType.CHANNELS, onClick = { onType(SearchType.CHANNELS) }, label = { Text("Channels", maxLines = 1) }, modifier = Modifier.testTag("search.filter.channels")) }
+        item { FilterChip(selected = type == SearchType.PLAYLISTS, onClick = { onType(SearchType.PLAYLISTS) }, label = { Text("Playlists", maxLines = 1) }, modifier = Modifier.testTag("search.filter.playlists")) }
+        // Video-only narrowing makes no sense for channels and playlists.
+        if (type != SearchType.ALL) return@HScrollRow
         // Only offered while Shorts are on in Settings.
-        if (showShorts) FilterChip(selected = filters.shortsOnly, onClick = { onChange(filters.copy(shortsOnly = !filters.shortsOnly)) }, label = { Text("Shorts", maxLines = 1) }, modifier = Modifier.testTag("search.filter.shorts"))
-        Box {
+        if (showShorts) item { FilterChip(selected = filters.shortsOnly, onClick = { onChange(filters.copy(shortsOnly = !filters.shortsOnly)) }, label = { Text("Shorts", maxLines = 1) }, modifier = Modifier.testTag("search.filter.shorts")) }
+        item { Box {
             FilterChip(selected = filters.duration != com.greenaltambe.vela.extractor.DurationFilter.ANY, onClick = { durationMenu = true }, label = { Text(filters.duration.label, maxLines = 1) }, modifier = Modifier.testTag("search.filter.duration"))
             DropdownMenu(durationMenu, { durationMenu = false }) {
                 com.greenaltambe.vela.extractor.DurationFilter.entries.forEach { d -> DropdownMenuItem(text = { Text(d.label) }, onClick = { durationMenu = false; onChange(filters.copy(duration = d)) }) }
             }
-        }
-        Box {
+        } }
+        item { Box {
             FilterChip(selected = filters.sort != com.greenaltambe.vela.extractor.SearchSort.RELEVANCE, onClick = { sortMenu = true }, label = { Text(filters.sort.label, maxLines = 1) }, modifier = Modifier.testTag("search.filter.sort"))
             DropdownMenu(sortMenu, { sortMenu = false }) {
                 com.greenaltambe.vela.extractor.SearchSort.entries.forEach { o -> DropdownMenuItem(text = { Text(o.label) }, onClick = { sortMenu = false; onChange(filters.copy(sort = o)) }) }
             }
+        } }
+    }
+}
+
+enum class SearchType { ALL, CHANNELS, PLAYLISTS }
+
+/** A page of channel or playlist results with its loading state and a Load more button. */
+@Composable
+private fun <T> SearchKindList(feed: TabFeed<T>, tag: String, onMore: () -> Unit, row: @Composable (T) -> Unit) {
+    LazyColumn(Modifier.fillMaxSize().testTag(tag), contentPadding = Vela.contentPadding, verticalArrangement = Arrangement.spacedBy(Vela.md)) {
+        when (val st = feed.state) {
+            ListState.Loading -> item { SectionHeader("Searching…") }
+            is ListState.Empty -> item { EmptyState(st.message) }
+            is ListState.Error -> item { com.greenaltambe.vela.ui.components.ErrorRow(st.message, st.onRetry) }
+            ListState.Ready -> {}
         }
+        items(feed.items) { row(it) }
+        if (feed.next != null) item { TextButton(onClick = onMore, enabled = !feed.loading) { Text("Load more", maxLines = 1) } }
     }
 }
 

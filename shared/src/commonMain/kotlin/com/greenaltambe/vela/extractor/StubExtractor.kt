@@ -33,6 +33,8 @@ class StubExtractor(private val error: ExtractorError? = null) : Extractor {
     override suspend fun related(videoId: String) = respond { emptyList<VideoSummary>() }
 
     override suspend fun channelShorts(channelId: String, continuation: String?) = respond { Page<VideoSummary>(emptyList()) }
+    override suspend fun searchChannels(query: String, continuation: String?) = respond { Page<ChannelRef>(emptyList()) }
+    override suspend fun searchPlaylists(query: String, continuation: String?) = respond { Page<PlaylistRef>(emptyList()) }
     override suspend fun channelLive(channelId: String, continuation: String?) = respond { Page<VideoSummary>(emptyList()) }
     override suspend fun channelPlaylists(channelId: String, continuation: String?) = respond { Page<PlaylistRef>(emptyList()) }
     override suspend fun playlistVideos(playlistId: String, continuation: String?) = respond { Page<VideoSummary>(emptyList()) }
