@@ -22,6 +22,7 @@ apply(from = rootProject.file("gradle/live-test.gradle.kts"))
 dependencies {
     api(project(":shared"))
     api(libs.newpipe.extractor)
+    implementation(libs.newpipe.nanojson)
     implementation(libs.okhttp)
     implementation(libs.kotlinx.coroutinesCore)
     implementation(libs.kotlinx.serializationJson)

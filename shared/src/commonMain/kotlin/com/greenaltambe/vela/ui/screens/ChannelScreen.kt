@@ -59,7 +59,13 @@ enum class ChannelTab(val label: String) { HOME("Home"), VIDEOS("Videos"), SHORT
 enum class ChannelSort(val label: String) { LATEST("Latest"), POPULAR("Popular"), OLDEST("Oldest") }
 enum class PlaylistSort(val label: String) { RECENT("Recently added"), AZ("A to Z") }
 
-/** The sort applies to what is loaded so far; the source's own order is newest first. */
+/** The local fallback: sorts what is loaded so far (the source's own order is newest first). Videos normally gets YouTube's order for the whole channel instead. */
+private fun ChannelSort.api() = when (this) {
+    ChannelSort.LATEST -> com.greenaltambe.vela.extractor.ChannelVideoSort.LATEST
+    ChannelSort.POPULAR -> com.greenaltambe.vela.extractor.ChannelVideoSort.POPULAR
+    ChannelSort.OLDEST -> com.greenaltambe.vela.extractor.ChannelVideoSort.OLDEST
+}
+
 private fun List<VideoSummary>.sortedBy(sort: ChannelSort): List<VideoSummary> = when (sort) {
     ChannelSort.LATEST -> this
     ChannelSort.POPULAR -> sortedByDescending { it.viewCount ?: -1 }
@@ -127,7 +133,23 @@ fun ChannelScreen(services: AppServices, navigator: Navigator, routeChannelId: S
             feed.loading = false
         }
     }
-    fun moreVideos() = load(videos, true, "This channel has no videos.", { it.id }) { services.extractor.channelVideos(channelId, it) }
+    fun moreVideos() = load(videos, true, "This channel has no videos.", { it.id }) { services.extractor.channelVideosSorted(channelId, st.videosSort.api(), it) }
+    // A sort pill on Videos asks YouTube for that order over ALL the channel's videos (like the site); if the source cannot, the loaded ones are sorted here.
+    LaunchedEffect(sort, tab, channelId, videos.loaded) {
+        if (channelId.isBlank() || !videos.loaded || (tab != ChannelTab.VIDEOS && tab != ChannelTab.HOME) || sort == st.videosSort || sort == st.sortFailed || videos.loading) return@LaunchedEffect
+        val target = sort
+        videos.loading = true
+        val before = videos.state
+        videos.state = ListState.Loading
+        when (val r = services.extractor.channelVideosSorted(channelId, target.api(), null)) {
+            is ExtractorResult.Success -> {
+                videos.items = r.value.items; videos.next = r.value.continuation; st.videosSort = target
+                videos.state = if (videos.items.isEmpty()) ListState.Empty("This channel has no videos.") else ListState.Ready
+            }
+            is ExtractorResult.Failure -> { st.sortFailed = target; videos.state = before }
+        }
+        videos.loading = false
+    }
     LaunchedEffect(tab, channelId) {
         if (channelId.isBlank()) return@LaunchedEffect
         when (tab) {
@@ -171,9 +193,9 @@ fun ChannelScreen(services: AppServices, navigator: Navigator, routeChannelId: S
             when (tab) {
                 ChannelTab.VIDEOS, ChannelTab.SHORTS, ChannelTab.LIVE -> {
                     HScrollRow(Modifier.testTag("channel.sort")) {
-                        items(ChannelSort.entries) { o -> FilterChip(selected = sort == o, onClick = { sort = o }, label = { Text(o.label, maxLines = 1) }, modifier = Modifier.testTag("channel.sort.${o.name}")) }
+                        items(ChannelSort.entries) { o -> FilterChip(selected = sort == o, onClick = { st.sortFailed = null; sort = o }, label = { Text(o.label, maxLines = 1) }, modifier = Modifier.testTag("channel.sort.${o.name}")) }
                     }
-                    if (sort != ChannelSort.LATEST) Text("Sorted among the videos loaded so far.", style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor())
+                    if (sort != ChannelSort.LATEST && (tab != ChannelTab.VIDEOS || (sort != st.videosSort && !videos.loading))) Text("Sorted among the videos loaded so far.", style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor())
                 }
                 ChannelTab.PLAYLISTS -> HScrollRow(Modifier.testTag("channel.sort")) {
                     items(PlaylistSort.entries) { o -> FilterChip(selected = playlistSort == o, onClick = { playlistSort = o }, label = { Text(o.label, maxLines = 1) }, modifier = Modifier.testTag("channel.sort.${o.name}")) }
@@ -196,7 +218,7 @@ fun ChannelScreen(services: AppServices, navigator: Navigator, routeChannelId: S
             footer = if (videos.items.size > 12 || videos.next != null) ({ TextButton(onClick = { tab = ChannelTab.VIDEOS }, modifier = Modifier.testTag("channel.seeAll")) { Text("See all videos", maxLines = 1) } }) else null,
         )
         ChannelTab.VIDEOS -> VideoCollection(
-            services, navigator, videos.items.sortedBy(sort), videos.state, testTag = "channel.list", showChannelAvatar = false, header = header, scroll = st.scrollFor(ChannelTab.VIDEOS),
+            services, navigator, (if (sort == st.videosSort) videos.items else videos.items.sortedBy(sort)), videos.state, testTag = "channel.list", showChannelAvatar = false, header = header, scroll = st.scrollFor(ChannelTab.VIDEOS),
             onEndReached = if (videos.next != null) ({ moreVideos() }) else null,
             footer = if (videos.next != null) ({ TextButton(onClick = ::moreVideos, enabled = !videos.loading) { Text("Load more", maxLines = 1) } }) else null,
         )

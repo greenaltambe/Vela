@@ -22,6 +22,10 @@ class TabFeed<T> {
 class ChannelState(var at: Instant) {
     var tab by mutableStateOf(ChannelTab.HOME)
     var sort by mutableStateOf(ChannelSort.LATEST)
+    /** The order the Videos list actually holds, as YouTube sorted it for the whole channel; a different pill then sorts what is loaded. */
+    var videosSort by mutableStateOf(ChannelSort.LATEST)
+    /** A pill YouTube could not sort by this time (so the page does not keep asking). */
+    var sortFailed by mutableStateOf<ChannelSort?>(null)
     var playlistSort by mutableStateOf(PlaylistSort.RECENT)
     var page by mutableStateOf<ChannelPage?>(null)
     val videos = TabFeed<VideoSummary>()

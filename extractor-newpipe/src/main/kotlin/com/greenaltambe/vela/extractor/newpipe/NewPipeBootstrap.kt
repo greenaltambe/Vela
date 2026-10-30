@@ -15,4 +15,12 @@ internal object NewPipeBootstrap {
         NewPipe.init(downloader(), Localization("en", "US"), ContentCountry("US"))
         initialised = true
     }
+
+    /** Sets the content country (trending, recommendations) when it differs from the current one; the language stays English. */
+    @Synchronized
+    fun applyRegion(code: String) {
+        val cc = code.uppercase().takeIf { it.length == 2 } ?: "US"
+        if (NewPipe.getPreferredContentCountry().countryCode == cc) return
+        NewPipe.setupLocalization(Localization("en", cc), ContentCountry(cc))
+    }
 }

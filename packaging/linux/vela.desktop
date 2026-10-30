@@ -2,7 +2,7 @@
 Name=Vela
 GenericName=YouTube client
 Comment=APPLICATION_DESCRIPTION
-Exec=APPLICATION_LAUNCHER
+Exec=APPLICATION_LAUNCHER %U
 Icon=APPLICATION_ICON
 Terminal=false
 Type=Application

@@ -60,6 +60,8 @@ enum class NavAction { TAB, PUSH, POP, REPLACE }
 class Navigator(start: Route = Route.Home) {
     private val stack = mutableStateListOf(start)
 
+    /** Set when the video page opens from the mini player: the page then grows out of the mini player's picture (read once by the page). */
+    var growFromMini = false
     var lastAction: NavAction by mutableStateOf(NavAction.TAB)
         private set
 
@@ -167,9 +169,21 @@ class Navigator(start: Route = Route.Home) {
         played = emptyList()
     }
 
+    /** Opens what a YouTube address points at (a video, a playlist, a channel); false when [text] holds no such address. */
+    fun openYoutubeLink(text: String): Boolean {
+        val link = com.greenaltambe.vela.library.YoutubeLinks.find(text) ?: return false
+        when (link) {
+            // Only the id is known: the page loads the title and the rest itself.
+            is com.greenaltambe.vela.library.YoutubeLink.Video -> push(Route.Video(com.greenaltambe.vela.extractor.VideoSummary(link.id, "", "", ""), link.startSeconds))
+            is com.greenaltambe.vela.library.YoutubeLink.Playlist -> push(Route.ChannelPlaylist(link.id, "Playlist"))
+            is com.greenaltambe.vela.library.YoutubeLink.Channel -> push(Route.Channel(link.id, ""))
+        }
+        return true
+    }
+
     /** For the mini player: reopens the page of what is playing. */
     fun expandNowPlaying() {
-        nowPlaying?.let { if (current !is Route.Video) push(Route.Video(it)) }
+        nowPlaying?.let { if (current !is Route.Video) { growFromMini = true; push(Route.Video(it)) } }
     }
 }
 

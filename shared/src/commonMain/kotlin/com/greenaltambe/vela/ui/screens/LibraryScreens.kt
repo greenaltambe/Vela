@@ -248,6 +248,7 @@ private fun PlaylistVideoRow(v: VideoSummary, extras: CardExtras, index: Int, la
                 Box {
                     IconButton(onClick = { menu = true }, modifier = Modifier.testTag("playlist.itemMenu")) { Icon(Vela.icons.more, "Reorder or remove") }
                     DropdownMenu(menu, { menu = false }) {
+                        ShareMenuItem(v, onDone = { menu = false })
                         if (index > 1) DropdownMenuItem(text = { Text("Move to top") }, leadingIcon = { Icon(Vela.icons.arrowUp, null) }, onClick = { menu = false; onMove(0) })
                         if (index > 0) DropdownMenuItem(text = { Text("Move up") }, leadingIcon = { Icon(Vela.icons.arrowUp, null) }, onClick = { menu = false; onMove(index - 1) })
                         if (index < lastIndex) DropdownMenuItem(text = { Text("Move down") }, leadingIcon = { Icon(Vela.icons.arrowDown, null) }, onClick = { menu = false; onMove(index + 1) })

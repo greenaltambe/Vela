@@ -62,6 +62,19 @@ class LiveNewPipeTest {
     }
 
     @Test
+    fun channelVideosSortedAcrossAllVideos() = runBlocking {
+        val latest = extractor.channelVideosSorted(channelId, com.greenaltambe.vela.extractor.ChannelVideoSort.LATEST).value()
+        for (sort in listOf(com.greenaltambe.vela.extractor.ChannelVideoSort.POPULAR, com.greenaltambe.vela.extractor.ChannelVideoSort.OLDEST)) {
+            val first = extractor.channelVideosSorted(channelId, sort).value()
+            val second = extractor.channelVideosSorted(channelId, sort, assertNotNull(first.continuation)).value()
+            println("sorted $sort: page1=${first.items.size} (first=${first.items.firstOrNull()?.title?.take(40)} views=${first.items.firstOrNull()?.viewCount}, published=${first.items.firstOrNull()?.publishedText}), page2=${second.items.size}; latest first=${latest.items.firstOrNull()?.title?.take(40)}")
+            assertTrue(first.items.isNotEmpty() && second.items.isNotEmpty())
+            assertTrue(first.items.first().id != latest.items.first().id, "$sort starts with the same video as Latest")
+            assertTrue(first.items.map { it.id }.intersect(second.items.map { it.id }.toSet()).isEmpty(), "pages overlap")
+        }
+    }
+
+    @Test
     fun commentsPagingAndReplies() = runBlocking {
         val first = extractor.comments(videoId).value()
         val second = extractor.comments(videoId, continuation = assertNotNull(first.continuation)).value()
