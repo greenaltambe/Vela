@@ -10,3 +10,9 @@ description = "Fake credentials used by the redaction and account-store tests"
 paths = [
   '''(^|/)src/(test|commonTest|jvmTest|androidHostTest|liveTest)/''',
 ]
+
+[[allowlists]]
+description = "Reports that describe the fake credentials of the tests (prose, no real secret)"
+paths = [
+  '''docs/reports/46-publish-prep\.md''',
+]

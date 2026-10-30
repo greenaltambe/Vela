@@ -65,12 +65,12 @@ jobs:
       - name: Verify the signature (signed builds only)
         run: |
           set -euo pipefail
-          apk=$(ls androidApp/build/release/*.apk)
+          apk=$(find androidApp/build/release -maxdepth 1 -name '*.apk' | head -1)
           echo "built: $apk"
           case "$apk" in
             *-unsigned.apk) echo "UNSIGNED build (no signing secrets): nothing to verify" ;;
             *)
-              apksigner=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+              apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
               "$apksigner" verify --print-certs "$apk"
               ;;
           esac
@@ -198,7 +198,7 @@ jobs:
           set -euo pipefail
           mkdir release
           find artifacts -type f \( -name '*.apk' -o -name '*.deb' -o -name '*.rpm' -o -name '*.msi' -o -name '*.zip' -o -name '*.tar.gz' -o -name 'LIBMPV-SOURCE.txt' \) -exec cp {} release/ \;
-          (cd release && sha256sum * > SHA256SUMS && cat SHA256SUMS)
+          (cd release && sha256sum -- * > SHA256SUMS && cat SHA256SUMS)
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: release/*

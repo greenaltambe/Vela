@@ -85,7 +85,16 @@ tasks.register("checkThirdPartyNotices") {
         val text = noticesFile.readText()
         val a = text.indexOf(beginMark); val b = text.indexOf(endMark)
         require(a >= 0 && b > a) { "THIRD_PARTY_NOTICES.md has no generated block markers" }
-        val current = text.substring(a, b + endMark.length)
-        if (current != newBlock(project.dependencyTable())) throw GradleException("THIRD_PARTY_NOTICES.md is out of date: run ./gradlew generateThirdPartyNotices and commit the result")
+        // Compare WHICH artifacts at WHICH versions ship; the licence column comes from POM lookups and is only informative, so a lookup that differs
+        // between machines must not fail the check. On a mismatch the differences are printed.
+        fun keys(block: String) = block.lineSequence().filter { it.startsWith("| ") && !it.startsWith("| Artifact") && !it.startsWith("|---") }
+            .map { row -> row.split("|").map { it.trim() }.let { c -> "${c[1]} ${c[2]}" } }.toSortedSet()
+        val committed = keys(text.substring(a, b))
+        val actual = keys(project.dependencyTable())
+        if (committed != actual) {
+            val missing = (actual - committed).joinToString("\n  ") { "+ $it" }
+            val extra = (committed - actual).joinToString("\n  ") { "- $it" }
+            throw GradleException("THIRD_PARTY_NOTICES.md is out of date (+ ships but is not listed, - listed but not shipped):\n  $missing\n  $extra\nRun ./gradlew generateThirdPartyNotices and commit the result")
+        }
     }
 }

@@ -15,7 +15,7 @@ Scanner: gitleaks/trufflehog not installed and not runnable here, so a script sc
 | `docs/reports/21-screens/*.png` (10 files, 43268f8) | Device captures with the real watch history, real live-chat messages | MEDIUM | same |
 | `docs/tasks/assets/12-phone-{1,2,3}-*.jpg` (f539376) | Owner's phone screenshots: a real search query, the real subscription feed, status bar | MEDIUM | same |
 | `docs/reports/22-android-age-restricted.md`, `23-design-foundation.md` (dc9126d) | The throwaway account label `google:xxxxxx` | LOW | replaced by `google:xxxxxx` |
-| tests (`AuthCoreTest`, `RedactionTest`, `SecretStore` tests, account tests) | Fake cookie/token strings (`SAPISID=abc123def456`, `Bearer tok999...`) and `@example.com` / `test.person@gmail.com` addresses used to prove redaction | none (fake) | left; `.gitleaks.toml` allow-lists test source sets |
+| tests (`AuthCoreTest`, `RedactionTest`, `SecretStore` tests, account tests) | Fake cookie and token strings, and `@example.com` / gmail-style test addresses, used to prove that redaction works | none (fake) | left; `.gitleaks.toml` allow-lists test source sets |
 | `innertube-auth/src/test/resources/fixtures/*.json` | Captured account responses | none: scrubbed by `capture_fixtures.py` (checked: only `Test Person`, `test.person@example.com`, `UCscrubbed*`) | left |
 | git author lines | `greenaltambe <...@users.noreply.github.com>` on all 19 commits | none (GitHub noreply address) | left |
 | package id `com.greenaltambe.vela` | the owner's handle in the application id | note | the owner decides whether to keep it (changing it later breaks updates) |

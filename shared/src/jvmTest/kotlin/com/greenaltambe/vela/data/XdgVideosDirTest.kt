@@ -19,7 +19,8 @@ class XdgVideosDirTest {
     @Test fun readsTheConfiguredFolderExpandingHome() =
         assertEquals(File(home, "Filme"), withDirs("# comment\nXDG_DOWNLOAD_DIR=\"\$HOME/Downloads\"\nXDG_VIDEOS_DIR=\"\$HOME/Filme\"\n"))
 
-    @Test fun anAbsolutePathIsUsedAsIs() = assertEquals(File("/mnt/media/Videos"), withDirs("XDG_VIDEOS_DIR=\"/mnt/media/Videos\"\n"))
+    // "/mnt/..." has no drive letter, so it is not an absolute path on Windows.
+    @Test fun anAbsolutePathIsUsedAsIs() = if (com.greenaltambe.vela.data.isWindows) Unit else assertEquals(File("/mnt/media/Videos"), withDirs("XDG_VIDEOS_DIR=\"/mnt/media/Videos\"\n"))
 
     @Test fun fallsBackToVideosWhenNothingIsConfigured() {
         assertEquals(File(home, "Videos"), withDirs(null))

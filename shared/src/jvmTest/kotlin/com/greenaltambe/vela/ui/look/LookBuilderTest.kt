@@ -63,7 +63,7 @@ class LookBuilderTest {
         val allowed = setOf("look", "debug")                     // the token definitions themselves, and the debug overlay
         val allowedFiles = setOf("VelaTheme.kt")
         val banned = listOf(Regex("""Color\(0x"""), Regex("""RoundedCornerShape\(\s*\d"""), Regex("""CircleShape"""), Regex("""fontSize\s*=\s*\d"""), Regex("""\d\.sp\b"""), Regex("""Color\.(White|Black|Red|Green|Blue|Gray|Yellow)\b"""))
-        val offenders = root.walkTopDown().filter { it.extension == "kt" && it.name !in allowedFiles && it.relativeTo(root).path.substringBefore('/') !in allowed }
+        val offenders = root.walkTopDown().filter { it.extension == "kt" && it.name !in allowedFiles && it.relativeTo(root).invariantSeparatorsPath.substringBefore('/') !in allowed }
             .flatMap { f -> f.readLines().withIndex().filter { (_, line) -> banned.any { it.containsMatchIn(line) } }.map { "${f.relativeTo(root)}:${it.index + 1}: ${it.value.trim().take(90)}" } }.toList()
         assertTrue(offenders.isEmpty(), "raw styling outside the theme:\n" + offenders.joinToString("\n"))
     }

@@ -20,6 +20,7 @@ class LinuxSecretStoresTest {
     }
 
     @Test fun filesAreOwnerOnly() {
+        org.junit.Assume.assumeFalse("POSIX permissions do not exist on Windows (the Windows store is DPAPI)", com.greenaltambe.vela.data.isWindows)
         EncryptedFileSecretStore(dir).put("k", "v")
         listOf("secrets.key", "secrets.enc").forEach {
             assertEquals("rw-------", PosixFilePermissions.toString(Files.getPosixFilePermissions(File(dir, it).toPath())), it)

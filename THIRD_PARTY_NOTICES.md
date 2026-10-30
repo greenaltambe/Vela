@@ -236,6 +236,7 @@ The Vela icon and the app's own line/filled icon set (`VelaIcons`) are original 
 | io.github.junkfood02.youtubedl-android:common | 0.18.1 | GPL-3.0 license |
 | io.github.junkfood02.youtubedl-android:library | 0.18.1 | GPL-3.0 license |
 | net.java.dev.jna:jna | 5.17.0 | LGPL-2.1-or-later; Apache-2.0 |
+| net.java.dev.jna:jna-platform | 5.17.0 | LGPL-2.1-or-later; Apache-2.0 |
 | org.apache.commons:commons-compress | 1.12 | Apache License, Version 2.0 |
 | org.jetbrains.androidx.lifecycle:lifecycle-common | 2.11.0 | The Apache Software License, Version 2.0 |
 | org.jetbrains.androidx.lifecycle:lifecycle-common-jvm | 2.11.0 | The Apache Software License, Version 2.0 |

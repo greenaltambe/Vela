@@ -11,14 +11,14 @@ object XdgPaths {
      * `$XDG_DATA_HOME/vela`, or `~/.local/share/vela` when that variable is unset, empty or not an absolute path
      * (the spec says relative values are invalid and must be ignored). Created if missing.
      */
-    fun dataDir(env: (String) -> String? = System::getenv, home: String = System.getProperty("user.home")): File {
+    fun dataDir(env: (String) -> String? = System::getenv, home: String = System.getProperty("user.home"), windows: Boolean = isWindows): File {
         val base = env("XDG_DATA_HOME")?.takeIf { it.isNotBlank() && File(it).isAbsolute }
-            ?: if (isWindows) (env("LOCALAPPDATA")?.takeIf { it.isNotBlank() } ?: File(home, "AppData/Local").path) else File(home, ".local/share").path
+            ?: if (windows) (env("LOCALAPPDATA")?.takeIf { it.isNotBlank() } ?: File(home, "AppData/Local").path) else File(home, ".local/share").path
         return File(base, "vela").also { it.mkdirs() }
     }
 
-    fun databaseFile(env: (String) -> String? = System::getenv, home: String = System.getProperty("user.home")): File =
-        File(dataDir(env, home), "vela.db")
+    fun databaseFile(env: (String) -> String? = System::getenv, home: String = System.getProperty("user.home"), windows: Boolean = isWindows): File =
+        File(dataDir(env, home, windows), "vela.db")
 
     /** The user's videos folder: `XDG_VIDEOS_DIR` from `user-dirs.dirs` (as `$HOME/Videos` or an absolute path), else `~/Videos`. Not created. */
     fun videosDir(env: (String) -> String? = System::getenv, home: String = System.getProperty("user.home")): File {

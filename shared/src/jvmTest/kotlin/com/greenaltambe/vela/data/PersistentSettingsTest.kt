@@ -48,14 +48,20 @@ class PersistentSettingsTest {
     }
 
     @Test fun withoutXdgDataHomeItIsUnderTheHomeDirectory() {
-        val file = XdgPaths.databaseFile({ null }, dir.path)
+        val file = XdgPaths.databaseFile({ null }, dir.path, windows = false)
         assertEquals(java.io.File("${dir.path}/.local/share/vela/vela.db"), file)
         assertTrue(file.parentFile.isDirectory)
     }
 
+    @Test fun windowsKeepsItsDataUnderLocalAppData() {
+        val file = XdgPaths.databaseFile({ if (it == "LOCALAPPDATA") "${dir.path}/AppData/Local" else null }, dir.path, windows = true)
+        assertEquals(java.io.File("${dir.path}/AppData/Local/vela/vela.db"), file)
+        assertEquals(java.io.File("${dir.path}/AppData/Local/vela/vela.db"), XdgPaths.databaseFile({ null }, dir.path, windows = true), "without LOCALAPPDATA: under the home's AppData/Local")
+    }
+
     @Test fun anEmptyOrRelativeXdgDataHomeIsIgnoredPerTheSpec() {
         listOf("", "  ", "relative/dir").forEach { bad ->
-            assertEquals(java.io.File("${dir.path}/.local/share/vela/vela.db"), XdgPaths.databaseFile({ bad }, dir.path), "'$bad'")
+            assertEquals(java.io.File("${dir.path}/.local/share/vela/vela.db"), XdgPaths.databaseFile({ bad }, dir.path, windows = false), "'$bad'")
         }
     }
 }
