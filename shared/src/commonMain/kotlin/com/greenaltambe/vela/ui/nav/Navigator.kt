@@ -66,6 +66,15 @@ class Navigator(start: Route = Route.Home) {
     val current: Route get() = stack.last()
     val canGoBack: Boolean get() = stack.size > 1
 
+    /**
+     * The screen the app shows UNDER the video page: [current] itself, or, while the video page is on top, the route beneath it. The shell keeps this
+     * screen composed the whole time, so closing the video reveals it as it was instead of rebuilding it.
+     */
+    /** Whether the screen under the video page has somewhere to go Back to (its own top bar shows Back or the app mark). */
+    val baseCanGoBack: Boolean get() = if (current is Route.Video) stack.dropLast(1).size > 1 else canGoBack
+
+    val baseRoute: Route get() = if (current is Route.Video) stack.dropLast(1).lastOrNull { it !is Route.Video } ?: Route.Home else current
+
     /** The video the player is on (the mini player shows it when [current] is not its page). */
     var nowPlaying: VideoSummary? by mutableStateOf(null)
         private set
