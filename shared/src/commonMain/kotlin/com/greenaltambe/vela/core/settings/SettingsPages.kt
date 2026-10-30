@@ -28,7 +28,7 @@ object SettingsPages {
         SettingsPage("customize", "Customize Vela", SettingsGroup.MAKE_IT_YOURS, 0, SettingsLink.CUSTOMIZE) { LookKeys.isLookKey(it.key) },
         SettingsPage("playback", "Playback & quality", SettingsGroup.WATCHING, 1) { it.key.startsWith("playback.") && it.key !in safetyKeys },
         SettingsPage("extras", "SponsorBlock & extras", SettingsGroup.WATCHING, 2, owns = prefix("sponsorblock.", "ryd.", "dearrow.", "modules.")),
-        SettingsPage("home", "Home", SettingsGroup.YOUR_FEED, 3, owns = keys("home.source")),
+        SettingsPage("home", "Home", SettingsGroup.YOUR_FEED, 3, owns = keys("home.source", "content.region")),
         SettingsPage("feed", "Subscriptions & feed filters", SettingsGroup.YOUR_FEED, 4, owns = prefix("feed.hide", "feed.min", "feed.block", "feed.allow", "feed.keywords")),
         SettingsPage("shorts", "Shorts", SettingsGroup.YOUR_FEED, 5, owns = keys("feed.shortsMode")),
         SettingsPage("accounts", "Accounts", SettingsGroup.ACCOUNT_AND_SAFETY, 6, SettingsLink.ACCOUNTS),
@@ -105,7 +105,7 @@ object SettingsSummaries {
         "customize" -> "${s.label(LookSettings.theme)}${if (s.v(Settings.look) == LookChoice.PURE_BLACK) " · pure black" else ""} · ${s.label(LookSettings.barStyle)} · ${NavTabs.parse(s.v(LookSettings.navTabs)).size} tabs"
         "playback" -> "${s.label(Settings.maxQualityUnmetered)} on Wi-Fi · ${num(s.v(Settings.defaultPlaybackSpeed))}x${if (s.v(Settings.audioOnly)) " · audio only" else ""}"
         "extras" -> "SponsorBlock ${onOff(s.v(Settings.sponsorBlockEnabled))} · RYD ${onOff(s.v(Settings.returnYouTubeDislikeEnabled))} · DeArrow ${onOff(s.v(Settings.deArrowEnabled))}"
-        "home" -> s.label(Settings.homeSource)
+        "home" -> "${s.label(Settings.homeSource)} · ${s.label(Settings.contentRegion)}"
         "feed" -> buildList {
             add(if (s.v(Settings.hideWatched)) "hide watched" else "show watched")
             s.v(Settings.minLengthSeconds).takeIf { it > 0 }?.let { add("min ${(it / 60).toInt().coerceAtLeast(1)} min") }

@@ -16,7 +16,7 @@ class ForeignContinuationTest {
     private val noNetwork = object : Downloader() {
         override fun execute(request: Request): Response = throw AssertionError("no request may be made: ${request.url()}")
     }
-    private val extractor = NewPipeExtractor { noNetwork }
+    private val extractor = NewPipeExtractor(downloader = { noNetwork })
     private val foreign = "ytdlp:21"
 
     private fun assertForeign(result: ExtractorResult<*>) {
@@ -27,6 +27,7 @@ class ForeignContinuationTest {
 
     @Test fun search() = runTest { assertForeign(extractor.search("q", foreign)) }
     @Test fun channelVideos() = runTest { assertForeign(extractor.channelVideos("UC1", foreign)) }
+    @Test fun channelVideosSorted() = runTest { assertForeign(extractor.channelVideosSorted("UC1", com.greenaltambe.vela.extractor.ChannelVideoSort.POPULAR, foreign)) }
     @Test fun comments() = runTest { assertForeign(extractor.comments("v", continuation = foreign)) }
     @Test fun replies() = runTest { assertForeign(extractor.replies("v", "c", foreign)) }
     @Test fun garbage() = runTest { assertForeign(extractor.search("q", "not even a token")) }

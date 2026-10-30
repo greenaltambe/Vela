@@ -44,6 +44,7 @@ fun VideoMenu(services: AppServices, video: VideoSummary, modifier: Modifier = M
                 leadingIcon = { androidx.compose.material3.Icon(if (services.downloads.isDownloaded(video.id)) com.greenaltambe.vela.ui.look.Vela.icons.downloaded else com.greenaltambe.vela.ui.look.Vela.icons.download, null) },
                 onClick = { open = false; download = true },
             )
+            ShareMenuItem(video, onDone = { open = false })
             // Re-read on every open so the checkmarks reflect the database.
             val lists = remember(open, revision) { services.playlists.all() }
             lists.forEach { list ->
@@ -62,6 +63,23 @@ fun VideoMenu(services: AppServices, video: VideoSummary, modifier: Modifier = M
             }
         }
     }
+}
+
+/** A menu entry that opens the share sheet where the platform has one; on desktop (none) it copies the video's link instead. */
+@Composable
+fun ShareMenuItem(video: VideoSummary, onDone: () -> Unit) {
+    val share = com.greenaltambe.vela.ui.platform.LocalShare.current
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    DropdownMenuItem(
+        text = { Text(if (share != null) "Share" else "Copy link") },
+        leadingIcon = { androidx.compose.material3.Icon(com.greenaltambe.vela.ui.look.Vela.icons.share, null) },
+        onClick = {
+            onDone()
+            val link = "https://youtu.be/${video.id}"
+            if (share != null) share(video.title, link) else clipboard.setText(androidx.compose.ui.text.AnnotatedString(link))
+        },
+        modifier = Modifier.testTag("video.menu.share"),
+    )
 }
 
 /** The standard feed pipeline (Shorts, watched, length, keywords) and then DeArrow for [surface], applied to a list. */

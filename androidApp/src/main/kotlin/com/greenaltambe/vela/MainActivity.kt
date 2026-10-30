@@ -162,6 +162,8 @@ class MainActivity : ComponentActivity() {
         explainBatteryOptimisationOnce()
         ContextCompat.registerReceiver(this, pipToggle, IntentFilter(ACTION_PIP_TOGGLE), ContextCompat.RECEIVER_NOT_EXPORTED)
 
+        if (savedInstanceState == null) openLinkFrom(intent)
+
         // Keeps the PiP window's play/pause action in step, and (API 31+) lets the system enter PiP on its own when the user leaves.
         scope.launch {
             combine(runtime.controller.state, runtime.session.state) { player, session -> player.status to session }.collect { (status, session) ->
@@ -177,8 +179,26 @@ class MainActivity : ComponentActivity() {
                     putExtra(android.content.Intent.EXTRA_TEXT, if (title.isBlank()) url else "$title\n$url")
                 }
                 runCatching { startActivity(android.content.Intent.createChooser(send, null)) }
-            }) { App(services) }
+            }) { App(services, navigator) }
         }
+    }
+
+    private val navigator = com.greenaltambe.vela.ui.nav.Navigator()
+
+    /** A YouTube address from "Open with" (VIEW) or a shared message (SEND) opens in the app. */
+    private fun openLinkFrom(intent: Intent?) {
+        val text = when (intent?.action) {
+            Intent.ACTION_VIEW -> intent.dataString
+            Intent.ACTION_SEND -> intent.getStringExtra(Intent.EXTRA_TEXT)
+            else -> null
+        } ?: return
+        navigator.openYoutubeLink(text)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        openLinkFrom(intent)
     }
 
     override fun onDestroy() {

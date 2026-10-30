@@ -87,7 +87,8 @@ fun SearchScreen(services: AppServices, navigator: Navigator, query: String, mod
     var type by remember(query) { mutableStateOf(SearchType.ALL) }
     val channelFeed = remember(query) { TabFeed<ChannelRef>() }
     val playlistFeed = remember(query) { TabFeed<PlaylistRef>() }
-    fun submit(q: String) { if (q.isNotBlank()) navigator.replace(Route.Search(q.trim())) }
+    // A pasted YouTube address opens what it points at instead of being searched for.
+    fun submit(q: String) { if (q.isNotBlank() && !navigator.openYoutubeLink(q)) navigator.replace(Route.Search(q.trim())) }
 
     fun load(more: Boolean) {
         if (loading || query.isBlank()) return

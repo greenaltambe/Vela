@@ -444,7 +444,7 @@ private fun VideoLayer(services: AppServices, navigator: Navigator, route: Route
     val quick = VelaMotion.tween<Float>(m, VelaMotion.Level.QUICK)
     androidx.compose.animation.AnimatedVisibility(
         visible = route is Route.Video && shown != null, modifier = modifier,
-        enter = if (m.reduced) androidx.compose.animation.fadeIn(quick) else androidx.compose.animation.fadeIn(VelaMotion.tween(m, VelaMotion.Level.STANDARD)) + slideInVertically(VelaMotion.tween(m, VelaMotion.Level.STANDARD)) { it / 3 },
+        enter = if (m.reduced || navigator.growFromMini) androidx.compose.animation.fadeIn(quick) else androidx.compose.animation.fadeIn(VelaMotion.tween(m, VelaMotion.Level.STANDARD)) + slideInVertically(VelaMotion.tween(m, VelaMotion.Level.STANDARD)) { it / 3 },
         // Already pulled down to the mini player's size, or leaving for another page: just fade; sliding would pull the page away from under the shrunk picture.
         exit = if (m.reduced || pulled || !closing) androidx.compose.animation.fadeOut(quick) else androidx.compose.animation.fadeOut(quick) + slideOutVertically(VelaMotion.tween(m, VelaMotion.Level.STANDARD)) { it / 4 },
     ) {

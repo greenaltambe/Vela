@@ -23,6 +23,7 @@ class WrappersForwardEverythingTest {
         override suspend fun replies(videoId: String, commentId: String, continuation: String?) = hit<CommentsPage>("replies")
         override suspend fun trending(continuation: String?) = hit<Page<VideoSummary>>("trending")
         override suspend fun related(videoId: String) = hit<List<VideoSummary>>("related")
+        override suspend fun channelVideosSorted(channelId: String, sort: ChannelVideoSort, continuation: String?) = hit<Page<VideoSummary>>("channelVideosSorted")
         override suspend fun channelShorts(channelId: String, continuation: String?) = hit<Page<VideoSummary>>("channelShorts")
         override suspend fun channelLive(channelId: String, continuation: String?) = hit<Page<VideoSummary>>("channelLive")
         override suspend fun channelPlaylists(channelId: String, continuation: String?) = hit<Page<PlaylistRef>>("channelPlaylists")
@@ -31,10 +32,10 @@ class WrappersForwardEverythingTest {
         override suspend fun recentUploads(channelId: String) = hit<List<VideoSummary>>("recentUploads")
     }
 
-    private val all = setOf("search", "videoInfo", "streams", "streamsPreferringOther", "channel", "channelVideos", "comments", "replies", "trending", "related", "channelShorts", "channelLive", "channelPlaylists", "playlistVideos", "suggestions", "recentUploads")
+    private val all = setOf("search", "videoInfo", "streams", "streamsPreferringOther", "channel", "channelVideos", "channelVideosSorted", "comments", "replies", "trending", "related", "channelShorts", "channelLive", "channelPlaylists", "playlistVideos", "suggestions", "recentUploads")
 
     private suspend fun callAll(x: Extractor) {
-        x.search("q"); x.videoInfo("v"); x.streams("v"); x.streamsPreferringOther("v"); x.channel("c"); x.channelVideos("c"); x.comments("v"); x.replies("v", "id")
+        x.search("q"); x.videoInfo("v"); x.streams("v"); x.streamsPreferringOther("v"); x.channel("c"); x.channelVideos("c"); x.channelVideosSorted("c", ChannelVideoSort.POPULAR); x.comments("v"); x.replies("v", "id")
         x.trending(); x.related("v"); x.channelShorts("c"); x.channelLive("c"); x.channelPlaylists("c"); x.playlistVideos("p"); x.suggestions("q"); x.recentUploads("c")
     }
 

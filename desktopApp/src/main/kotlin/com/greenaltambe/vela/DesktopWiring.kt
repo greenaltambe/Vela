@@ -133,7 +133,7 @@ fun buildDesktopWiring(
     }
     // Chain order: ANONYMOUS (NewPipe), AUTHENTICATED (yt-dlp --cookies as the active account), ALT_CLIENT (iOS/Android player), YT_DLP.
     val tiers = (listOfNotNull(
-        ExtractorTier(TierId.ANONYMOUS, PacedExtractor(NewPipeExtractor()), "NewPipeExtractor ${com.greenaltambe.vela.health.NewPipeVersion.VERSION}"),
+        ExtractorTier(TierId.ANONYMOUS, PacedExtractor(NewPipeExtractor(region = { settings.resolve(Settings.contentRegion) })), "NewPipeExtractor ${com.greenaltambe.vela.health.NewPipeVersion.VERSION}"),
         accountTier?.let { ExtractorTier(TierId.AUTHENTICATED, it, ytDlpLabel) },
         ExtractorTier(TierId.ALT_CLIENT, AltClientExtractor(profiles = { remote?.profiles(com.greenaltambe.vela.innertube.ClientProfile.load()) ?: com.greenaltambe.vela.innertube.ClientProfile.load() }, onProfile = { line -> note("alt client", TierId.ALT_CLIENT, line) }, contentChecks = { settings.resolve(Settings.allowControversial) }), "innertube-profiles.json"),
         ytDlp?.let { ExtractorTier(TierId.YT_DLP, PacedExtractor(it.extractor), ytDlpLabel) },

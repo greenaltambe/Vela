@@ -106,6 +106,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import com.greenaltambe.vela.ui.player.SeekMarker
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 private fun SessionState.videoIdOrNull(): String? = when (this) {
@@ -156,13 +157,23 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
     val sideState = rememberLazyListState()
     // Pull-down state: how far the page has been dragged down (px). The page shrinks toward the mini player's corner as it grows.
     var pageHeightPx by remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
-    var dragPx by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    // Opened from the mini player (tap or swipe up): the page starts in the pulled-down state, with the picture where the mini player's picture is, and grows from there.
+    val growAllowed = LocalWindowWidthDp.current < 1000f && !Vela.motion.reduced
+    val growFromMini = remember { (navigator.growFromMini && growAllowed).also { navigator.growFromMini = false } }
+    var dragPx by remember { androidx.compose.runtime.mutableFloatStateOf(if (growFromMini) Float.MAX_VALUE / 4 else 0f) }
     var pageWidthPx by remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
     val density = androidx.compose.ui.platform.LocalDensity.current
     // Release after a pull: past a short distance (or a quick flick) the page is handed to the mini player; otherwise it springs back.
     val reveal = com.greenaltambe.vela.ui.nav.LocalPageReveal.current
     fun setDrag(v: Float) { dragPx = v; reveal?.floatValue = (v / (pageHeightPx * 0.5f)).coerceIn(0f, 1f) }
     androidx.compose.runtime.DisposableEffect(Unit) { onDispose { reveal?.floatValue = 0f } }
+    val growSpec = com.greenaltambe.vela.ui.look.VelaMotion.tween<Float>(Vela.motion, com.greenaltambe.vela.ui.look.VelaMotion.Level.STANDARD)
+    LaunchedEffect(growFromMini) {
+        if (!growFromMini) return@LaunchedEffect
+        androidx.compose.runtime.snapshotFlow { pageHeightPx }.first { it > 1f }
+        setDrag(pageHeightPx * 0.5f)
+        androidx.compose.animation.core.animate(dragPx, 0f, animationSpec = growSpec) { x, _ -> setDrag(x) }
+    }
     suspend fun settlePage(velocityY: Float) {
         if (dragPx > pageHeightPx * 0.18f || velocityY > 1200f) {
             androidx.compose.animation.core.animate(dragPx, pageHeightPx * 0.5f, animationSpec = androidx.compose.animation.core.tween(170)) { x, _ -> setDrag(x) }
@@ -389,7 +400,7 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
                 val share = com.greenaltambe.vela.ui.platform.LocalShare.current
                 ActionChip(Vela.icons.share, "Share", {
                     val link = "https://youtu.be/${video.id}"
-                    if (share != null) share(shownTitle, link) else clipboard.setText(AnnotatedString(link))
+                    if (share != null) share(shownTitle, link) else { clipboard.setText(AnnotatedString(link)); actionError = null; actionNote = "Link copied: $link" }
                 }, Modifier.testTag("video.share"))
             }
             }

@@ -344,7 +344,8 @@ fun PlayerView(
                 // Centre: previous video, play / pause, next video (seeking is the double tap).
                 // In the small portrait player the seek bar and the buttons share little height: the buttons sit higher and smaller so a press on
                 // pause can never land on the seek bar.
-                if (active) Row(Modifier.align(Alignment.Center).offset(y = if (compact) (-4).dp else 0.dp), horizontalArrangement = Arrangement.spacedBy(if (fullscreen) Vela.lg else Vela.md), verticalAlignment = Alignment.CenterVertically) {
+                // While buffering the spinner takes the centre; the buttons would be drawn on top of it.
+                if (active && !buffering) Row(Modifier.align(Alignment.Center).offset(y = if (compact) (-4).dp else 0.dp), horizontalArrangement = Arrangement.spacedBy(if (fullscreen) Vela.lg else Vela.md), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { touch(); onPrevious?.invoke() }, enabled = onPrevious != null, modifier = Modifier.size(if (fullscreen) 56.dp else 48.dp).testTag("player.previous")) { Icon(Vela.icons.skipPrevious, "Previous video", tint = onMedia.copy(alpha = if (onPrevious != null) 1f else 0.35f)) }
                     IconButton(onClick = { touch(); if (playing) session.pause() else session.play() }, modifier = Modifier.size(if (fullscreen) 64.dp else 56.dp).testTag("player.playPause")) {
                         Icon(if (playing) Vela.icons.pause else Vela.icons.play, if (playing) "Pause" else "Play", Modifier.size(40.dp), tint = onMedia)
@@ -389,7 +390,8 @@ fun PlayerView(
                         trackColor = onMedia.copy(alpha = 0.3f), bufferedColor = onMedia.copy(alpha = 0.5f), tickColor = onMedia,
                         modifier = Modifier.testTag("player.seek"),
                     )
-                    if (fullscreen) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                    // Fullscreen and the desktop window (not compact) keep the menu buttons here; only the small phone player moves them to the top bar.
+                    if (!compact) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                         menuButtons(true)
                         if (window != null) IconButton(onClick = { touch(); window.toggleFullscreen() }, modifier = Modifier.testTag("player.fullscreen")) {
                             Icon(if (window.isFullscreen) Vela.icons.fullscreenExit else Vela.icons.fullscreen, if (window.isFullscreen) "Exit fullscreen" else "Fullscreen", tint = onMedia)

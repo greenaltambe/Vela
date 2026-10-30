@@ -111,7 +111,7 @@ class PlaybackRuntime private constructor(context: Context) {
         if (appContext.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) com.greenaltambe.vela.extractor.chain.FaultInjector() else null
     private val tiers by lazy {
         listOfNotNull(
-            ExtractorTier(TierId.ANONYMOUS, PacedExtractor(NewPipeExtractor({ com.greenaltambe.vela.extractor.newpipe.OkHttpDownloader(exemptionCookie = exemption::headerFor) })), "NewPipeExtractor ${com.greenaltambe.vela.health.NewPipeVersion.VERSION}"),
+            ExtractorTier(TierId.ANONYMOUS, PacedExtractor(NewPipeExtractor({ com.greenaltambe.vela.extractor.newpipe.OkHttpDownloader(exemptionCookie = exemption::headerFor) }, region = { settings.resolve(Settings.contentRegion) })), "NewPipeExtractor ${com.greenaltambe.vela.health.NewPipeVersion.VERSION}"),
             ExtractorTier(TierId.ALT_CLIENT, AltClientExtractor(profiles = { remote.profiles(com.greenaltambe.vela.innertube.ClientProfile.load()) }, onProfile = { line ->
                 log.record(TierAttempt("alt client", TierId.ALT_CLIENT, AttemptOutcome.NOTE, null, line, Duration.ZERO, Clock.System.now()))
             }, contentChecks = { settings.resolve(Settings.allowControversial) }), "innertube-profiles.json"),

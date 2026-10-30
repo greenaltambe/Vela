@@ -62,9 +62,15 @@ import kotlinx.coroutines.runBlocking
 fun main(args: Array<String>) {
     // `--smoke-test`: start the real runtime without a window, report what was found, exit 0 (see SmokeTest).
     if ("--smoke-test" in args) kotlin.system.exitProcess(SmokeTest.run())
+    // `vela <youtube link>`: opens that link; if Vela is already running the link goes to it and this process ends (see SingleInstance).
+    val links = kotlinx.coroutines.channels.Channel<String>(kotlinx.coroutines.channels.Channel.UNLIMITED)
+    val startLink = args.firstOrNull { it.startsWith("http://") || it.startsWith("https://") }
+    if (!SingleInstance.claim(XdgPaths.dataDir(), startLink) { links.trySend(it) }) return
+    startLink?.let { links.trySend(it) }
     // The window class on X11 / XWayland is "Vela" (the menu entry's StartupWMClass), not the Java main class; best effort, needs --add-opens (set in the build).
     if (System.getProperty("os.name").orEmpty().startsWith("Linux")) runCatching {
-        val toolkit = Class.forName("sun.awt.X11.XToolkit")
+        // The toolkit instance must exist first: setting the field on a class that is only loaded is overwritten (measured: WM_CLASS stayed the main class, so the dock showed the generic Java icon).
+        val toolkit = java.awt.Toolkit.getDefaultToolkit().javaClass
         toolkit.getDeclaredField("awtAppClassName").apply { isAccessible = true }.set(null, "Vela")
     }
     // Settings and history live in $XDG_DATA_HOME/vela/vela.db; if that cannot be opened, run with an in-memory
@@ -168,6 +174,12 @@ fun main(args: Array<String>) {
         }
 
         val navigator = remember { com.greenaltambe.vela.ui.nav.Navigator() }
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            for (link in links) {
+                if (link.isNotBlank()) navigator.openYoutubeLink(link)
+                java.awt.Frame.getFrames().firstOrNull { it.isVisible }?.let { f -> f.extendedState = f.extendedState and java.awt.Frame.ICONIFIED.inv(); f.toFront() }
+            }
+        }
         // Media keys and the desktop's media widgets (GNOME/KDE) through MPRIS on the session bus; absent without a bus or without a player.
         androidx.compose.runtime.DisposableEffect(host) {
             // MPRIS is the Linux D-Bus media interface; other systems run without it.
@@ -193,9 +205,16 @@ fun main(args: Array<String>) {
             title = "Vela",
             icon = velaWindowIcon,
         ) {
+            // Every size goes to the window manager (_NET_WM_ICON), which picks the sharpest for the dock and the switcher.
+            remember(window) { window.iconImages = velaWindowImages }
             CompositionLocalProvider(LocalWindowControls provides windowControls, LocalVolumeSlider provides true) { App(services, navigator) }
         }
     }
+}
+
+private val velaWindowImages: List<java.awt.Image> by lazy {
+    val loader = Thread.currentThread().contextClassLoader
+    listOf(256, 128, 64, 48).mapNotNull { size -> loader.getResourceAsStream("icons/vela-$size.png")?.use { javax.imageio.ImageIO.read(it) } }
 }
 
 /** The window / taskbar icon: the launcher art (docs/icon), a few sizes so the shell picks a sharp one. */

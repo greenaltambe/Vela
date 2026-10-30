@@ -19,6 +19,15 @@ import org.schabi.newpipe.extractor.search.SearchInfo
 import org.schabi.newpipe.extractor.services.youtube.linkHandler.YoutubeSearchQueryHandlerFactory
 import org.schabi.newpipe.extractor.playlist.PlaylistInfo
 import org.schabi.newpipe.extractor.stream.StreamInfo
+import com.grack.nanojson.JsonArray
+import com.grack.nanojson.JsonObject
+import com.grack.nanojson.JsonWriter
+import org.schabi.newpipe.extractor.exceptions.ParsingException
+import org.schabi.newpipe.extractor.services.youtube.YoutubeChannelHelper
+import org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper
+import org.schabi.newpipe.extractor.services.youtube.extractors.YoutubeStreamInfoItemExtractor
+import org.schabi.newpipe.extractor.services.youtube.extractors.YoutubeStreamInfoItemLockupExtractor
+import org.schabi.newpipe.extractor.stream.StreamInfoItemsCollector
 import org.schabi.newpipe.extractor.Page as NpPage
 
 /**
@@ -29,12 +38,13 @@ import org.schabi.newpipe.extractor.Page as NpPage
  * Comment sorting is not supported: NewPipeExtractor v0.26.5 has no sort option for YouTube comments, so
  * [CommentSort.NEWEST] is ignored and [capabilities] says so.
  */
-class NewPipeExtractor(downloader: () -> Downloader = { OkHttpDownloader() }) : Extractor {
+class NewPipeExtractor(downloader: () -> Downloader = { OkHttpDownloader() }, private val region: () -> String = { "US" }) : Extractor {
     init {
         NewPipeBootstrap.ensureInitialised(downloader)
     }
 
-    private val youtube get() = ServiceList.YouTube
+    // The region setting is read on every call (a static in NewPipe), so a change applies from the next request on.
+    private val youtube get() = ServiceList.YouTube.also { NewPipeBootstrap.applyRegion(region()) }
 
     override val capabilities = ExtractorCapabilities(supportsCommentSort = false)
 
@@ -86,6 +96,69 @@ class NewPipeExtractor(downloader: () -> Downloader = { OkHttpDownloader() }) : 
                 if (page == null) tab.also { it.fetchPage() }.initialPage else tab.getPage(page)
             result.items.toVideoSummaries() to result.nextPage
         }.map { (items, next) -> Page(items, next.toTokenOrNull()) }
+
+    override suspend fun channelVideosSorted(channelId: String, sort: ChannelVideoSort, continuation: String?): ExtractorResult<Page<VideoSummary>> {
+        if (sort == ChannelVideoSort.LATEST) return channelVideos(channelId, continuation)
+        return withPage(continuation) { page ->
+            if (page != null) {
+                // Later pages are ordinary append-continuations: the tab extractor reads them (the token already carries the order).
+                val result = youtube.getChannelTabExtractorFromId(channelId, ChannelTabs.VIDEOS).getPage(page)
+                result.items.toVideoSummaries() to result.nextPage
+            } else sortedFirstPage(channelId, sort)
+        }.map { (items, next) -> Page(items, next.toTokenOrNull()) }
+    }
+
+    /**
+     * The first page in [sort] order: the Videos tab carries one "chip" per order, each with a continuation token; posting that token returns the
+     * list already sorted by YouTube (as a reload command, which NewPipe's own paging does not read, hence the parsing here).
+     */
+    private fun sortedFirstPage(channelId: String, sort: ChannelVideoSort): Pair<List<VideoSummary>, NpPage?> {
+        val loc = NewPipe.getPreferredLocalization(); val country = NewPipe.getPreferredContentCountry()
+        val id = YoutubeChannelHelper.resolveChannelId(channelId)
+        val tab = YoutubeChannelHelper.getChannelResponse(id, VIDEOS_TAB_PARAMS, loc, country).jsonResponse
+            .getObject("contents").getObject("twoColumnBrowseResultsRenderer").getArray("tabs").filterIsInstance<JsonObject>()
+            .map { it.getObject("tabRenderer") }.firstOrNull { it.getObject("endpoint").getObject("commandMetadata").getObject("webCommandMetadata").getString("url", "").endsWith("/videos") }
+            ?: throw ParsingException("The Videos tab was not found")
+        val chips = tab.getObject("content").getObject("richGridRenderer").getObject("header").getObject("chipBarViewModel").getArray("chips")
+        // YouTube's order of the chips: Latest, Popular, Oldest (checked against the labels when they are in English).
+        val chip = chips.getObject(sort.ordinal).getObject("chipViewModel")
+        val label = chip.getString("text", "")
+        if (label.isNotEmpty() && !label.equals(sort.name, ignoreCase = true) && !label.equals(if (sort == ChannelVideoSort.LATEST) "Latest" else sort.name, ignoreCase = true)) throw ParsingException("Unexpected sort chip \"$label\"")
+        val token = chip.getObject("tapCommand").getObject("innertubeCommand").getObject("continuationCommand").getString("token")
+        if (token.isNullOrEmpty()) throw ParsingException("No $sort sort on this channel")
+        val body = continuationBody(token, loc, country)
+        val response = YoutubeParsingHelper.getJsonPostResponse("browse", body, loc)
+        val items = response.getArray("onResponseReceivedActions").filterIsInstance<JsonObject>()
+            .mapNotNull { a -> (a.getObject("reloadContinuationItemsCommand").takeIf { it.has("continuationItems") } ?: a.getObject("appendContinuationItemsAction").takeIf { it.has("continuationItems") }) }
+            // The response holds two reload commands (the chip bar, then the list): the list is the one with videos in it.
+            .map { it.getArray("continuationItems") }.lastOrNull { l -> l.filterIsInstance<JsonObject>().any { it.has("richItemRenderer") } } ?: throw ParsingException("The sorted list was empty")
+        return parseSortedItems(items, loc, country)
+    }
+
+    private fun continuationBody(token: String, loc: org.schabi.newpipe.extractor.localization.Localization, country: org.schabi.newpipe.extractor.localization.ContentCountry): ByteArray =
+        JsonWriter.string(YoutubeParsingHelper.prepareDesktopJsonBuilder(loc, country).value("continuation", token).done()).toByteArray(Charsets.UTF_8)
+
+    private fun parseSortedItems(items: JsonArray, loc: org.schabi.newpipe.extractor.localization.Localization, country: org.schabi.newpipe.extractor.localization.ContentCountry): Pair<List<VideoSummary>, NpPage?> {
+        val ago = youtube.getTimeAgoParser(loc)
+        val collector = StreamInfoItemsCollector(youtube.serviceId)
+        var next: NpPage? = null
+        items.filterIsInstance<JsonObject>().forEach { item ->
+            val content = item.getObject("richItemRenderer").getObject("content")
+            when {
+                content.has("videoRenderer") -> collector.commit(YoutubeStreamInfoItemExtractor(content.getObject("videoRenderer"), ago))
+                content.getObject("lockupViewModel").getString("contentType") == "LOCKUP_CONTENT_TYPE_VIDEO" ->
+                    collector.commit(object : YoutubeStreamInfoItemLockupExtractor(content.getObject("lockupViewModel"), ago) {
+                        override fun isChannelOrCoursePlaylistLockupItem() = true
+                        override fun getUploaderAvatars() = emptyList<org.schabi.newpipe.extractor.Image>()
+                    })
+            }
+            item.getObject("continuationItemRenderer").takeIf { it.isNotEmpty() }?.let { c ->
+                val t = c.getObject("continuationEndpoint").getObject("continuationCommand").getString("token")
+                if (!t.isNullOrEmpty()) next = NpPage("https://www.youtube.com/youtubei/v1/browse?prettyPrint=false", null, emptyList(), null, continuationBody(t, loc, country))
+            }
+        }
+        return collector.items.toVideoSummaries() to next
+    }
 
     override suspend fun comments(videoId: String, sort: CommentSort, continuation: String?): ExtractorResult<CommentsPage> =
         withPage(continuation) { page ->
@@ -197,3 +270,6 @@ private inline fun <T, R> ExtractorResult<T>.map(transform: (T) -> R): Extractor
     is ExtractorResult.Success -> ExtractorResult.Success(transform(value))
     is ExtractorResult.Failure -> this
 }
+
+/** The `params` of the Videos tab in a browse request (the same value the channel page itself sends). */
+private const val VIDEOS_TAB_PARAMS = "EgZ2aWRlb3PyBgQKAjoA"

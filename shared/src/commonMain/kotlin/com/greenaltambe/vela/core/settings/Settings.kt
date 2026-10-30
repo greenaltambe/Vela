@@ -492,6 +492,24 @@ object Settings {
         codec = SettingCodecs.enum(HomeSource.entries), section = SettingSection.FEED,
     )
 
+    /** Countries YouTube serves its own trending / recommendations for (ISO 3166-1 alpha-2). */
+    private val regions = listOf(
+        "US" to "United States", "GB" to "United Kingdom", "CA" to "Canada", "AU" to "Australia", "NZ" to "New Zealand", "IE" to "Ireland", "IN" to "India", "PK" to "Pakistan", "BD" to "Bangladesh", "LK" to "Sri Lanka",
+        "DE" to "Germany", "FR" to "France", "ES" to "Spain", "IT" to "Italy", "NL" to "Netherlands", "BE" to "Belgium", "CH" to "Switzerland", "AT" to "Austria", "SE" to "Sweden", "NO" to "Norway",
+        "DK" to "Denmark", "FI" to "Finland", "PL" to "Poland", "CZ" to "Czechia", "PT" to "Portugal", "GR" to "Greece", "TR" to "Türkiye", "UA" to "Ukraine", "RU" to "Russia", "IL" to "Israel",
+        "AE" to "United Arab Emirates", "SA" to "Saudi Arabia", "EG" to "Egypt", "ZA" to "South Africa", "NG" to "Nigeria", "KE" to "Kenya", "BR" to "Brazil", "MX" to "Mexico", "AR" to "Argentina", "CL" to "Chile",
+        "CO" to "Colombia", "PE" to "Peru", "JP" to "Japan", "KR" to "South Korea", "TW" to "Taiwan", "HK" to "Hong Kong", "SG" to "Singapore", "MY" to "Malaysia", "TH" to "Thailand", "VN" to "Vietnam",
+        "ID" to "Indonesia", "PH" to "Philippines",
+    )
+
+    val contentRegion = Setting(
+        key = "content.region", default = "US", scope = SettingScope.GLOBAL, label = "Region for content",
+        keywords = listOf("region", "country", "location", "trending", "geo", "content"),
+        codec = SettingCodecs.string, section = SettingSection.FEED,
+        choices = regions.map { (code, name) -> SettingChoice(code, name) },
+        info = "Which country's trending videos and recommendations YouTube shows when you are not signed in. It does not change what a video's owner has blocked in your real location.",
+    )
+
     val allowAgeRestricted = Setting(
         key = "playback.allowAgeRestricted", default = false, scope = SettingScope.GLOBAL,
         label = "Allow age-restricted videos (off by default; when on, they play through yt-dlp, which can take about 20 s to start; if that fails and your account may be used, through the account)",
@@ -575,7 +593,7 @@ object Settings {
 
     val all: List<Setting<*>> = listOf(
         look, performanceMode, localOnlyHistory, hideWatched, minLengthSeconds, blockKeywords, allowKeywords, keywordsAreRegex,
-        debugFrameStats, homeSource, allowAgeRestricted, allowControversial, slowStreamFailover, accountFallbackMode, accountProfilesExperimental, accountUseForChannels, accountUseForDetails, accountDownloadsMayUse, accountKillSwitch, accountTierOrder, remoteConfigUrl, ytDlpAutoUpdate,
+        debugFrameStats, homeSource, contentRegion, allowAgeRestricted, allowControversial, slowStreamFailover, accountFallbackMode, accountProfilesExperimental, accountUseForChannels, accountUseForDetails, accountDownloadsMayUse, accountKillSwitch, accountTierOrder, remoteConfigUrl, ytDlpAutoUpdate,
         accountPlaybackPerHour, accountBrowsePerMinute, accountWritesPerHour, shortsMode, defaultPlaybackSpeed, autoplayNext, seekStepSeconds, holdSpeed, maxQualityUnmetered, maxQualityMetered, preferredCodec, audioOnly, ytDlpPath,
         sponsorBlockEnabled, returnYouTubeDislikeEnabled, deArrowEnabled,
         sponsorBlockMinSegmentSeconds, sponsorBlockNotifications, showContribute, sponsorBlockServer, sponsorBlockUserId, rydInFeed, rydServer,

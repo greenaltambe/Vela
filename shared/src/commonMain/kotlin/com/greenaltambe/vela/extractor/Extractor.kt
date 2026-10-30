@@ -6,6 +6,9 @@ package com.greenaltambe.vela.extractor
  * Continuation tokens are opaque and only valid with the tier that issued them; a tier handed a token from another
  * tier fails with [ExtractorError.Unplayable] ([ContinuationToken.FOREIGN_MESSAGE]) rather than guessing.
  */
+/** The orders YouTube offers for a channel's videos. */
+enum class ChannelVideoSort { LATEST, POPULAR, OLDEST }
+
 interface Extractor {
     val capabilities: ExtractorCapabilities get() = ExtractorCapabilities()
 
@@ -19,6 +22,13 @@ interface Extractor {
     /** The channel header plus its first page of videos; use [channelVideos] for the following pages. */
     suspend fun channel(channelId: String): ExtractorResult<ChannelPage>
     suspend fun channelVideos(channelId: String, continuation: String? = null): ExtractorResult<Page<VideoSummary>>
+
+    /**
+     * The channel's Videos tab in [sort] order across ALL its videos (YouTube sorts them, as on the site), not just the ones loaded so far.
+     * Tiers that cannot do it answer not-supported; the page then sorts what it has. Tokens are only valid with the same [sort].
+     */
+    suspend fun channelVideosSorted(channelId: String, sort: ChannelVideoSort, continuation: String? = null): ExtractorResult<Page<VideoSummary>> =
+        if (sort == ChannelVideoSort.LATEST) channelVideos(channelId, continuation) else notSupported()
 
     suspend fun comments(
         videoId: String,
