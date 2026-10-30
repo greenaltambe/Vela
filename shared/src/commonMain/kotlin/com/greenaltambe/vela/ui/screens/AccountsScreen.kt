@@ -101,7 +101,7 @@ fun AccountsScreen(services: AppServices, navigator: Navigator, modifier: Modifi
                 }
                 SectionHeader("Add a Google account")
                 if (login == null) {
-                    Text("Signing in is not available on this platform yet.", style = MaterialTheme.typography.bodyMedium)
+                    Text("Signing in is not available here: this platform has no safe place for account credentials yet.", style = MaterialTheme.typography.bodyMedium)
                 } else {
                     Text(
                         "Export your YouTube cookies from a PRIVATE (incognito) window where you are signed in, close that window right away, then pick the cookies.txt file. " +

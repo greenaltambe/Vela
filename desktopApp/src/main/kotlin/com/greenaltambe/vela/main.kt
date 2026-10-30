@@ -34,7 +34,8 @@ import com.greenaltambe.vela.health.ExtractorHealth
 import com.greenaltambe.vela.innertube.OkHttpStreamProbe
 import com.greenaltambe.vela.extractor.chain.downloadAccountMode
 import com.greenaltambe.vela.auth.CredentialStore
-import com.greenaltambe.vela.auth.linuxSecretStore
+import com.greenaltambe.vela.auth.desktopSecretStore
+import com.greenaltambe.vela.auth.accountsAvailable
 import com.greenaltambe.vela.extractor.chain.AccountOp
 import com.greenaltambe.vela.extractor.chain.AttemptOutcome
 import com.greenaltambe.vela.extractor.chain.ExtractorTier
@@ -58,7 +59,14 @@ import com.greenaltambe.vela.playback.DesktopPlayerHost
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
-fun main() {
+fun main(args: Array<String>) {
+    // `--smoke-test`: start the real runtime without a window, report what was found, exit 0 (see SmokeTest).
+    if ("--smoke-test" in args) kotlin.system.exitProcess(SmokeTest.run())
+    // The window class on X11 / XWayland is "Vela" (the menu entry's StartupWMClass), not the Java main class; best effort, needs --add-opens (set in the build).
+    if (System.getProperty("os.name").orEmpty().startsWith("Linux")) runCatching {
+        val toolkit = Class.forName("sun.awt.X11.XToolkit")
+        toolkit.getDeclaredField("awtAppClassName").apply { isAccessible = true }.set(null, "Vela")
+    }
     // Settings and history live in $XDG_DATA_HOME/vela/vela.db; if that cannot be opened, run with an in-memory
     // database rather than not at all.
     fun openDatabase(): com.greenaltambe.vela.data.db.VelaDatabase = createDatabase(JvmDatabaseDriverFactory(XdgPaths.databaseFile().path))
@@ -89,7 +97,8 @@ fun main() {
     // Simulated failures exist only when started with VELA_DEBUG=1 (e.g. `VELA_DEBUG=1 ./gradlew :desktopApp:run`).
     val faults = if (System.getenv("VELA_DEBUG") == "1") com.greenaltambe.vela.extractor.chain.FaultInjector() else null
     val remote = com.greenaltambe.vela.config.createRemoteConfig({ settings.resolve(Settings.remoteConfigUrl) }, SqlDelightSettingsStore(database))
-    val wiring = buildDesktopWiring(database, settings, linuxSecretStore(XdgPaths.dataDir()), SystemProcessRunner(), log, logSink = logFile, remote = remote, managedDir = java.io.File(XdgPaths.dataDir(), "bin"), faults = faults)
+    val secretStore = desktopSecretStore(XdgPaths.dataDir())
+    val wiring = buildDesktopWiring(database, settings, secretStore, SystemProcessRunner(), log, logSink = logFile, remote = remote, managedDir = java.io.File(XdgPaths.dataDir(), "bin"), faults = faults)
     // Fetched in the background at start; failures only change the status line (and keep the last good config).
     kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
         remote.refresh()
@@ -153,7 +162,7 @@ fun main() {
             }
         }
         val services = remember(host) {
-            AppServices(chain, settings, log, database, host, utcOffsetMinutes = { TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 60_000 }, modules = modules, downloads = downloads, accounts = accounts, login = InnertubeAccountLogin(accounts, governors), sync = InnertubeAccountSync(accounts, governors, database, profiles = profileStore), actions = com.greenaltambe.vela.innertube.InnertubeAccountActions(accounts, governors, profiles = profileStore), reads = com.greenaltambe.vela.innertube.InnertubeAccountReads(accounts, governors, profiles = profileStore), profiles = com.greenaltambe.vela.innertube.InnertubeAccountProfiles(accounts, governors, profileStore), audit = audit, governors = governors, health = health, releases = releases, managedYtDlp = wiring.ytDlpUpdater, faults = faults,
+            AppServices(chain, settings, log, database, host, utcOffsetMinutes = { TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 60_000 }, modules = modules, downloads = downloads, accounts = accounts, login = if (accountsAvailable(secretStore)) InnertubeAccountLogin(accounts, governors) else null, sync = InnertubeAccountSync(accounts, governors, database, profiles = profileStore), actions = com.greenaltambe.vela.innertube.InnertubeAccountActions(accounts, governors, profiles = profileStore), reads = com.greenaltambe.vela.innertube.InnertubeAccountReads(accounts, governors, profiles = profileStore), profiles = com.greenaltambe.vela.innertube.InnertubeAccountProfiles(accounts, governors, profileStore), audit = audit, governors = governors, health = health, releases = releases, managedYtDlp = wiring.ytDlpUpdater, faults = faults,
                 backupFiles = AwtBackupFiles(), liveChat = com.greenaltambe.vela.innertube.LiveChatClient(), autoDownloader = autoDownloader,
                 exportLog = { val dir = java.io.File(System.getProperty("user.home"), "Downloads").takeIf { it.isDirectory } ?: java.io.File(System.getProperty("user.home")); val out = java.io.File(dir, "vela-log-${System.currentTimeMillis() / 1000}.txt"); out.writeText(logFile.readAll()); out.path })
         }
@@ -161,7 +170,8 @@ fun main() {
         val navigator = remember { com.greenaltambe.vela.ui.nav.Navigator() }
         // Media keys and the desktop's media widgets (GNOME/KDE) through MPRIS on the session bus; absent without a bus or without a player.
         androidx.compose.runtime.DisposableEffect(host) {
-            val mpris = host?.let { h ->
+            // MPRIS is the Linux D-Bus media interface; other systems run without it.
+            val mpris = host?.takeIf { !com.greenaltambe.vela.data.isWindows }?.let { h ->
                 val sess = h.session
                 com.greenaltambe.vela.mpris.MprisService.start(h.controllerState, sess.media, com.greenaltambe.vela.mpris.MprisCommands(
                     play = { sess.play() }, pause = { sess.pause() },

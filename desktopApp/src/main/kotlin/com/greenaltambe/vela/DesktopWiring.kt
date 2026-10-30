@@ -86,12 +86,12 @@ fun buildDesktopWiring(
 
     // Programs are found by an explicit lookup (setting, PATH, common locations) because a launcher's PATH is short.
     val configured = settings.resolve(Settings.ytDlpPath).trim()
-    val explicit = configured.contains('/') || configured != Settings.ytDlpPath.default
+    val explicit = configured.contains('/') || configured.contains('\\') || configured != Settings.ytDlpPath.default
     // yt-dlp is often installed twice (distro package + pip) and the two differ by months; the newest one wins unless the user named one.
     val (chosen, probed) = if (explicit) {
         locator.locate("yt-dlp", configured).takeIf { it.found }?.let { runBlocking { chooseYtDlp(runner, listOf(it)) } } ?: (null to emptyList())
     } else runBlocking {
-        val managed = managedDir?.let { java.io.File(it, "yt-dlp") }?.takeIf { it.isFile && it.canExecute() }?.let { FoundBinary("yt-dlp", it.path, "managed by Vela") }
+        val managed = managedDir?.let { java.io.File(it, com.greenaltambe.vela.extractor.ytdlp.YtDlpUpdater.managedFileName()) }?.takeIf { it.isFile && it.canExecute() }?.let { FoundBinary("yt-dlp", it.path, "managed by Vela") }
         chooseYtDlp(runner, listOfNotNull(managed) + locator.locateAll("yt-dlp").filter { it.path != managed?.path })
     }
     val ytDlpFound = chosen?.binary ?: locator.locate("yt-dlp", configured).let { if (it.found) FoundBinary("yt-dlp", null, "${it.path} does not run") else it }

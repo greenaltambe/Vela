@@ -197,7 +197,7 @@ fun SettingsPageScreen(services: AppServices, navigator: Navigator, pageId: Stri
                 }
                 if (!ready) {
                     // Placeholders of the cards' size until the page has settled.
-                    items(3, key = { "ph-$it" }) { Box(Modifier.fillMaxWidth().height(96.dp).clip(Vela.largeShape).background(Vela.colors.surface.toColor())) }
+                    items(3, key = { "ph-$it" }) { Box(Modifier.fillMaxWidth().height(96.dp).clip(Vela.largeShape).background(Vela.colors.surface.toColor()).testTag("settings.placeholder")) }
                 } else {
                     items(sections, key = { "sec-${it.title}" }) { sec ->
                         SettingsBlock(sec.title) {

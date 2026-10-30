@@ -55,8 +55,10 @@ class YtDlpUpdater(
     private val healthCheck: suspend (binary: String) -> Boolean,
     private val asset: String = defaultAsset(),
     private val baseUrl: String = "https://github.com/yt-dlp/yt-dlp/releases/download",
+    /** Which file name the app's own copy has (`yt-dlp.exe` on Windows); tests pass it to check both. */
+    private val windows: Boolean = isWindows(),
 ) {
-    val managed: File get() = File(dir, "yt-dlp")
+    val managed: File get() = File(dir, managedFileName(windows))
     val previous: File get() = File(dir, "yt-dlp.previous")
     private val _status = MutableStateFlow("")
     val status: StateFlow<String> = _status
@@ -104,7 +106,16 @@ class YtDlpUpdater(
     }
 
     companion object {
-        fun defaultAsset(arch: String = System.getProperty("os.arch").orEmpty()) = if (arch == "aarch64" || arch == "arm64") "yt-dlp_linux_aarch64" else "yt-dlp_linux"
+        fun isWindows() = System.getProperty("os.name").orEmpty().startsWith("Windows", ignoreCase = true)
+
+        /** The name of the app's own copy: `yt-dlp.exe` on Windows (the file Windows will run), `yt-dlp` elsewhere. */
+        fun managedFileName(windows: Boolean = isWindows()) = if (windows) "yt-dlp.exe" else "yt-dlp"
+
+        /** The release asset of this platform (checked against SHA2-256SUMS before it is used). */
+        fun defaultAsset(arch: String = System.getProperty("os.arch").orEmpty(), windows: Boolean = isWindows()): String {
+            val arm = arch == "aarch64" || arch == "arm64"
+            return if (windows) (if (arm) "yt-dlp_arm64.exe" else "yt-dlp.exe") else if (arm) "yt-dlp_linux_aarch64" else "yt-dlp_linux"
+        }
 
         /** `<sha256>  <file>` lines (sha256sum format, optional `*` before the name). */
         fun parseSums(text: String, name: String): String? = text.lineSequence().map { it.trim().split(Regex("\\s+"), 2) }

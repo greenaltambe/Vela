@@ -151,6 +151,8 @@ class Fixture(val services: AppServices, val navigator: Navigator, val settings:
 
 fun buildFixture(pureBlack: Boolean = false, withDownloads: Boolean = true, login: ((AccountManager) -> com.greenaltambe.vela.auth.AccountLogin)? = null, actions: com.greenaltambe.vela.auth.AccountActions? = null, reads: com.greenaltambe.vela.auth.AccountReads? = null, extractorOverride: Extractor? = null, backupFiles: com.greenaltambe.vela.backup.BackupFiles? = null, liveChat: com.greenaltambe.vela.extractor.LiveChatSource? = null, wrapDriver: ((app.cash.sqldelight.db.SqlDriver) -> app.cash.sqldelight.db.SqlDriver)? = null): Fixture {
     val settings = SettingsResolver(InMemorySettingsStore())
+    // The layout tests were written for the three-tab bar (Home, Subs, Library); the app now also offers Shorts by default.
+    settings.set(com.greenaltambe.vela.core.settings.LookSettings.navTabs, "HOME,SUBSCRIPTIONS,LIBRARY")
     if (pureBlack) settings.set(Settings.look, LookChoice.PURE_BLACK)
     val database = createDatabase(if (wrapDriver == null) JvmDatabaseDriverFactory() else object : com.greenaltambe.vela.data.DatabaseDriverFactory { override fun create() = wrapDriver(JvmDatabaseDriverFactory().create()) })
     val extractor = extractorOverride ?: FakeExtractor()
@@ -206,6 +208,13 @@ val Screens = listOf(
     Screen("320x640", 320, 640), Screen("360x800", 360, 800), Screen("412x915", 412, 915),
     Screen("800x1280", 800, 1280), Screen("1280x800", 1280, 800), Screen("800x360", 800, 360),
 )
+
+/**
+ * Where a test's screenshots go: `docs/reports/<sub>` when run locally (the reports link them), or `build/screens/<sub>` when the environment
+ * variable CI is set, so a CI run never dirties the working tree nor depends on the docs folder. Null when neither can be used.
+ */
+fun screensDir(sub: String): File? =
+    (if (System.getenv("CI") != null) File("build/screens/$sub") else File("../docs/reports/$sub").takeIf { File("../docs/reports").isDirectory })?.also { it.mkdirs() }
 
 /** Writes the current window as a PNG under the screens directory (only when the build set it), and returns the file. */
 fun DesktopComposeUiTest.screenshot(name: String): File? {

@@ -358,8 +358,8 @@ private fun PlaylistCard(p: PlaylistSummary, coverVideoId: String?, editable: Bo
         Column(Modifier.fillMaxWidth().padding(Vela.md), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(p.name, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurface.toColor())
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.xs)) {
-                if (p.isMirror) Icon(Vela.icons.cloud, "YouTube account", Modifier.size(14.dp), tint = Vela.colors.onSurfaceVariant.toColor())
-                Text("${p.itemCount} video${if (p.itemCount == 1) "" else "s"}", style = MaterialTheme.typography.bodySmall, maxLines = 1, color = Vela.colors.onSurfaceVariant.toColor())
+                if (p.isMirror) Icon(Vela.icons.cloud, null, Modifier.size(14.dp), tint = Vela.colors.onSurfaceVariant.toColor())
+                Text((if (p.isMirror) "YouTube account · " else "") + "${p.itemCount} video${if (p.itemCount == 1) "" else "s"}", style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor())
             }
         }
     }

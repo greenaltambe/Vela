@@ -1,0 +1,40 @@
+name: Bug report
+description: Something does not work (a video will not play, a screen is wrong, a crash).
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **NEVER paste cookies, tokens, `Authorization` headers, your e-mail address or your account name** into this issue. If a log contains any, remove it first.
+        Vela masks account details in its own reports, but check before you paste.
+  - type: input
+    id: version
+    attributes:
+      label: Vela version and platform
+      description: For example "0.1.0-beta.1, Android 15 arm64" or "0.1.0-beta.1 deb on Ubuntu 24.04".
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: If a particular video is involved, give its link (public videos only).
+  - type: textarea
+    id: health
+    attributes:
+      label: Health / Diagnostics report
+      description: Open Settings > Health & diagnostics, run the checks, and copy what it shows (the tier log of the failing action is the most useful part). It is built to leave out cookies and account details.
+      render: text
+  - type: checkboxes
+    id: safe
+    attributes:
+      label: Before you send
+      options:
+        - label: I removed any cookie, token, e-mail address or account name from everything I pasted.
+          required: true

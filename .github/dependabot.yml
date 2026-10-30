@@ -1,0 +1,19 @@
+version: 2
+updates:
+  - package-ecosystem: gradle
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      # Bumped deliberately with scripts/bump-newpipe.sh (offline and live tests, staleness date), never by a bot.
+      - dependency-name: "com.github.TeamNewPipe:*"
+      - dependency-name: "io.github.junkfood02.youtubedl-android:*"
+    open-pull-requests-limit: 5
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5

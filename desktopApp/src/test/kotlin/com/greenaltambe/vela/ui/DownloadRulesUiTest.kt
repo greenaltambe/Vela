@@ -32,6 +32,8 @@ class DownloadRulesUiTest {
 
     @Test fun theChannelPageSwitchCreatesARuleThatStartsNow() = runDesktopComposeUiTest(800, 1000) {
         val f = buildFixture()
+        // The switch is offered on channels you subscribe to.
+        f.services.subscriptions.subscribe("UCswitch", "Switch channel", null, kotlin.time.Clock.System.now())
         f.navigator.push(Route.Channel("UCswitch", "Switch channel"))
         setContent { AppUnderTest(f) }; waitForIdle()
         waitUntil(timeoutMillis = 3_000) { runCatching { onNodeWithTag("channel.autoDownload").assertIsDisplayed() }.isSuccess }

@@ -1,6 +1,6 @@
 # Task 22: age-restricted and account playback on Android
 
-Phone: OPPO CPH2707, Android 16, 4 KB pages, arm64. Throwaway account `google:7773f2` (owner confirmed). Nothing was committed.
+Phone: OPPO CPH2707, Android 16, 4 KB pages, arm64. Throwaway account `google:xxxxxx` (owner confirmed). Nothing was committed.
 
 ## 1. Summary
 
@@ -20,7 +20,7 @@ Spike B worked, so Spike A (WebView PO token) was not attempted. yt-dlp now runs
 | 7 | Age-restricted, yt-dlp 2026.10.26, anonymous | resolves: 19 video (best 1080p) + 8 audio + HLS, GET video 206 audio 206, 16.5 s | phone |
 | 8 | **Age-restricted plays** (setting ON, through the chain + ExoPlayer) | tiers: ANONYMOUS FAILED(UNPLAYABLE) 0.7 s, ALT_CLIENT FAILED(SIGN_IN_REQUIRED) 0.4 s, YT_DLP SUCCESS 16.5 s; playback starts, +19.6 s in 20 s, seek, pause, resume | phone (self-test `playage`) |
 | 9 | Setting OFF (default) | `AgeRestrictedDisabled`, only ANONYMOUS was tried, neither yt-dlp nor the account was called | phone (self-test `ageoff`) |
-| 10 | Account tier (last), throwaway | HtVdAasjOgU via yt-dlp `--cookies` as `google:7773f2`: 19 video, GET 206, 17 s, **governor audit +1**, cookie file (mode `rw-------`, app-private `no_backup/ytdlp-cookies`) gone afterwards | phone (self-test `ytdlpauth --ez throwaway true`) |
+| 10 | Account tier (last), throwaway | HtVdAasjOgU via yt-dlp `--cookies` as `google:xxxxxx`: 19 video, GET 206, 17 s, **governor audit +1**, cookie file (mode `rw-------`, app-private `no_backup/ytdlp-cookies`) gone afterwards | phone (self-test `ytdlpauth --ez throwaway true`) |
 | 11 | Cookie file after a **process kill** | killed mid-call: the file is left (`vela-<uuid>.cookies.txt`), and it is deleted when the process starts again. **Found and fixed**: the sweep first ran only when the tier was first built, so a restart that resolved nothing left it; it now runs at runtime start | phone (adb force-stop) |
 | 12 | Cookie cleanup, crash/timeout/cancel | file deleted after: yt-dlp failure, runner exception, timeout, start failure, cancellation | JVM tests (`AuthenticatedYtDlpExtractorTest`, 9 tests) |
 | 13 | Leak audit | Android yt-dlp code contains no `Log.`/`println`; cookie values never on a command line (existing test); `CredentialLeakAuditTest` green; no cookie file is created outside the app-private dir | JVM tests |

@@ -52,7 +52,7 @@ class LayoutInvariantsTest {
     private fun insidePlayer(n: SemanticsNode): Boolean {
         // Text on the video, or on a badge, sits on its own background rather than the page.
         var p: SemanticsNode? = n
-        while (p != null) { val t = p.config.getOrNull(SemanticsProperties.TestTag); if (t?.startsWith("player.") == true || t == "card.thumbnail") return true; p = p.parent }
+        while (p != null) { val t = p.config.getOrNull(SemanticsProperties.TestTag); if (t?.startsWith("player.") == true || t == "card.thumbnail" || t == "subs.short") return true; p = p.parent }
         return false
     }
 

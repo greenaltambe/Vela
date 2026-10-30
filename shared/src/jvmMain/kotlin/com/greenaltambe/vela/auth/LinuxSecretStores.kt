@@ -115,3 +115,72 @@ class SecretToolStore(private val runner: CommandRunner = SystemCommandRunner) :
 /** The Linux store: libsecret when it works, else the encrypted file, whose weaker protection is stated in [SecretStore.description]. */
 fun linuxSecretStore(dir: File, runner: CommandRunner = SystemCommandRunner): SecretStore =
     if (SecretToolStore.works(runner)) SecretToolStore(runner) else EncryptedFileSecretStore(dir)
+
+/**
+ * Windows: the secrets map is protected with DPAPI (`CryptProtectData`, current-user scope) and kept in one file; another Windows user, or a copy of
+ * the file on another machine, cannot read it. There is no plaintext fallback: when DPAPI is unavailable [works] is false and the caller refuses to
+ * store account credentials.
+ */
+class WindowsDpapiSecretStore(private val dir: File) : SecretStore {
+    override val description = "Windows DPAPI (protected for this Windows user)"
+    private val dataFile = File(dir, "secrets.dpapi")
+    private val entropy = "vela-secrets-v1".toByteArray()
+
+    init { dir.mkdirs() }
+
+    @Synchronized private fun load(): MutableMap<String, String> {
+        if (!dataFile.exists()) return LinkedHashMap()
+        return try {
+            decodeSecrets(com.sun.jna.platform.win32.Crypt32Util.cryptUnprotectData(dataFile.readBytes(), entropy, 0, null))
+        } catch (e: Exception) { LinkedHashMap() } // another user's file or a damaged one: empty, never plaintext
+    }
+
+    @Synchronized private fun save(map: Map<String, String>) {
+        dataFile.writeBytes(com.sun.jna.platform.win32.Crypt32Util.cryptProtectData(encodeSecrets(map), entropy, 0, "Vela", null))
+    }
+
+    override fun get(key: String) = load()[key]
+    override fun put(key: String, value: String) = save(load().also { it[key] = value })
+    override fun delete(key: String) = save(load().also { it.remove(key) })
+    override fun keys(): Set<String> = load().keys.toSet()
+
+    companion object {
+        /** True when a protect/unprotect round trip works on this machine. */
+        fun works(): Boolean = try {
+            val probe = "dpapi-probe".toByteArray()
+            com.sun.jna.platform.win32.Crypt32Util.cryptUnprotectData(com.sun.jna.platform.win32.Crypt32Util.cryptProtectData(probe)).contentEquals(probe)
+        } catch (_: Throwable) { false }
+    }
+}
+
+/** Shown instead of a store where none is safe: nothing is written; account sign-in is refused with the reason. */
+class UnavailableSecretStore(val reason: String) : SecretStore {
+    override val description = "unavailable: $reason"
+    override fun get(key: String): String? = null
+    override fun put(key: String, value: String) = throw IllegalStateException(reason)
+    override fun delete(key: String) {}
+    override fun keys(): Set<String> = emptySet()
+}
+
+/**
+ * The store for this desktop: libsecret or the encrypted file on Linux; DPAPI on Windows, and on Windows NEVER a plaintext or beside-the-key file:
+ * without DPAPI the store is [UnavailableSecretStore] and signing in to an account is refused (see [accountsAvailable]).
+ */
+fun desktopSecretStore(dir: File, windows: Boolean = com.greenaltambe.vela.data.isWindows): SecretStore = when {
+    !windows -> linuxSecretStore(dir)
+    WindowsDpapiSecretStore.works() -> WindowsDpapiSecretStore(dir)
+    else -> UnavailableSecretStore("Windows data protection (DPAPI) is not available, so Vela will not store account credentials")
+}
+
+/** False when account sign-in must be disabled because no safe store exists on this machine. */
+fun accountsAvailable(store: SecretStore): Boolean = store !is UnavailableSecretStore
+
+internal fun encodeSecrets(map: Map<String, String>): ByteArray = java.io.ByteArrayOutputStream().also { out ->
+    java.io.DataOutputStream(out).apply { writeInt(map.size); map.forEach { (k, v) -> writeUTF(k); val b = v.toByteArray(); writeInt(b.size); write(b) } }
+}.toByteArray()
+
+internal fun decodeSecrets(bytes: ByteArray): MutableMap<String, String> {
+    val inp = java.io.DataInputStream(bytes.inputStream()); val out = LinkedHashMap<String, String>()
+    repeat(inp.readInt()) { val k = inp.readUTF(); val b = ByteArray(inp.readInt()); inp.readFully(b); out[k] = String(b) }
+    return out
+}

@@ -28,7 +28,7 @@ class SettingsUiTest {
     @Test fun aChangeRaisesAnUndoToastAndUndoPutsItBack() = runDesktopComposeUiTest(400, 900) {
         val f = buildFixture(withDownloads = false)
         f.navigator.selectTab(Route.Settings); f.navigator.push(Route.SettingsPage("extras"))
-        setContent { AppUnderTest(f) }; waitForIdle()
+        setContent { AppUnderTest(f) }; waitForIdle(); waitUntil(timeoutMillis = 5000) { onAllNodesWithTag("settings.placeholder").fetchSemanticsNodes().isEmpty() }
         assertTrue(f.settings.resolve(Settings.sponsorBlockEnabled))
         onNodeWithTag("setting.modules.sponsorblock.enabled.switch").performScrollTo().performClick(); waitForIdle()
         assertTrue(!f.settings.resolve(Settings.sponsorBlockEnabled))
@@ -41,7 +41,7 @@ class SettingsUiTest {
         val f = buildFixture(withDownloads = false)
         f.settings.set(Settings.deArrowEnabled, true); f.settings.set(Settings.returnYouTubeDislikeEnabled, false)
         f.navigator.selectTab(Route.Settings); f.navigator.push(Route.SettingsPage("extras"))
-        setContent { AppUnderTest(f) }; waitForIdle()
+        setContent { AppUnderTest(f) }; waitForIdle(); waitUntil(timeoutMillis = 5000) { onAllNodesWithTag("settings.placeholder").fetchSemanticsNodes().isEmpty() }
         onNodeWithTag("settings.pageList").performScrollToNode(hasTestTag("settings.resetPage")); onNodeWithTag("settings.resetPage").performClick(); waitForIdle()
         assertTrue(!f.settings.resolve(Settings.deArrowEnabled) && f.settings.resolve(Settings.returnYouTubeDislikeEnabled))
         onNodeWithTag("undo.action").performClick(); waitForIdle()

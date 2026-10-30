@@ -1,0 +1,14 @@
+name: Feature request
+description: An idea for Vela.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like, and why?
+    validations:
+      required: true
+  - type: textarea
+    id: alt
+    attributes:
+      label: Anything you do today instead?

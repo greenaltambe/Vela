@@ -13,7 +13,7 @@ import java.io.File
 
 /** Screenshots of the new pages (task 23) at phone and desktop size, into docs/reports/23-screens/ (nothing is written unless the property below resolves). */
 class Task23ScreensTest {
-    private val dir = File("../docs/reports/23-screens").takeIf { File("../docs/reports").isDirectory }
+    private val dir = screensDir("23-screens")
     private val sizes = listOf(Screen("360x800", 360, 800), Screen("1280x800", 1280, 800))
 
     private fun shot(name: String, openProfile: Boolean = false, setup: (Fixture) -> Unit) {

@@ -1,6 +1,6 @@
 # Task 23: design foundation
 
-Phone: OPPO CPH2707, Android 16, 90 Hz render rate (11.1 ms frame budget), arm64. Throwaway account `google:7773f2`. Nothing was committed. Screenshots: `docs/reports/23-screens/` (phone: `phone-*.png`, desktop 360x800 and 1280x800: `desktop-*.png`).
+Phone: OPPO CPH2707, Android 16, 90 Hz render rate (11.1 ms frame budget), arm64. Throwaway account `google:xxxxxx`. Nothing was committed. Screenshots: `docs/reports/23-screens/` (phone: `phone-*.png`, desktop 360x800 and 1280x800: `desktop-*.png`).
 
 ## 1. Summary
 

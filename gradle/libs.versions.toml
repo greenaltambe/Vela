@@ -77,6 +77,7 @@ lucide-icons = { module = "com.composables:icons-lucide-cmp", version.ref = "luc
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 coil-networkOkhttp = { module = "io.coil-kt.coil3:coil-network-okhttp", version.ref = "coil" }
 jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
+jna-platform = { module = "net.java.dev.jna:jna-platform", version.ref = "jna" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

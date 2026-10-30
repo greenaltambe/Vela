@@ -87,7 +87,7 @@ class IconPacksTest {
     /** Contact sheets (3x) of the three packs, into docs/reports/23-screens/, for looking at the drawing. */
     @OptIn(ExperimentalLayoutApi::class)
     @Test fun contactSheets() {
-        val out = File("../docs/reports/23-screens").takeIf { File("../docs/reports").isDirectory } ?: return
+        val out = screensDir("23-screens") ?: return
         for ((label, style) in listOf("filled" to IconStyle.FILLED, "line" to IconStyle.LINE, "duotone" to IconStyle.DUOTONE, "rounded" to IconStyle.ROUNDED, "outlined" to IconStyle.OUTLINED, "sharp" to IconStyle.SHARP, "twotone" to IconStyle.TWO_TONE, "lucide" to IconStyle.LUCIDE)) for (weight in listOf(IconWeight.THIN, IconWeight.REGULAR)) {
             if ((style == IconStyle.FILLED || style !in listOf(IconStyle.LINE, IconStyle.DUOTONE)) && weight == IconWeight.THIN) continue
             runDesktopComposeUiTest(900, 760) {

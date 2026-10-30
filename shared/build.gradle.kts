@@ -61,6 +61,8 @@ kotlin {
         }
         jvmMain.dependencies {
             implementation(libs.sqldelight.sqliteDriver)
+            // DPAPI (Crypt32) for the Windows secret store.
+            implementation(libs.jna.platform)
             implementation(libs.coil.networkOkhttp)
         }
         commonMain.dependencies {

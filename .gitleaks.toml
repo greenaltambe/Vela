@@ -1,0 +1,12 @@
+# gitleaks configuration (CI job "secret-scan"). The default rules stay on; only test code is allow-listed, because the unit tests deliberately
+# contain fake cookie / token strings to prove that redaction removes them. Real secrets never belong in the repository (see SECURITY.md).
+title = "Vela"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Fake credentials used by the redaction and account-store tests"
+paths = [
+  '''(^|/)src/(test|commonTest|jvmTest|androidHostTest|liveTest)/''',
+]

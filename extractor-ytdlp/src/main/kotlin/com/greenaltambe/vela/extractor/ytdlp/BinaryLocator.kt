@@ -19,9 +19,18 @@ class BinaryLocator(
     private val home: String = System.getProperty("user.home").orEmpty(),
     private val isExecutable: (String) -> Boolean = { File(it).let { f -> f.isFile && f.canExecute() } },
     private val listDirs: (String) -> List<String> = { File(it).list()?.sorted()?.map { n -> "$it/$n" }.orEmpty() },
+    /** Windows: programs are `<name>.exe`, paths may use backslashes, and the common places are the per-user shims of winget, scoop and chocolatey. */
+    private val windows: Boolean = System.getProperty("os.name").orEmpty().startsWith("Windows", ignoreCase = true),
+    private val localAppData: String = System.getenv("LOCALAPPDATA").orEmpty(),
 ) : PathLookup {
+    private fun exe(name: String) = if (windows && !name.endsWith(".exe", ignoreCase = true)) "$name.exe" else name
+    private fun isPath(s: String) = s.contains('/') || (windows && s.contains('\\'))
     /** Directories checked after PATH, in order (user installs first, then system, then Flatpak and snap exports). */
-    val commonDirs: List<String> get() = buildList {
+    val commonDirs: List<String> get() = if (windows) buildList {
+        if (localAppData.isNotEmpty()) add("$localAppData/Microsoft/WinGet/Links")
+        if (home.isNotEmpty()) { add("$home/scoop/shims"); add("$home/.local/bin"); add("$home/bin") }
+        add("C:/ProgramData/chocolatey/bin")
+    } else buildList {
         if (home.isNotEmpty()) {
             add("$home/.local/bin"); add("$home/bin"); add("$home/.deno/bin"); add("$home/.bun/bin"); add("$home/.volta/bin")
             add("$home/.local/share/pnpm"); add("$home/.local/share/flatpak/exports/bin"); add("$home/.nix-profile/bin")
@@ -34,11 +43,11 @@ class BinaryLocator(
     fun locate(name: String, configured: String? = null): FoundBinary {
         val setting = configured?.trim().orEmpty()
         // A configured value with a slash is a path and nothing else; a bare name that differs from the default is looked up as that name.
-        if (setting.contains('/')) {
+        if (isPath(setting)) {
             return if (isExecutable(setting)) FoundBinary(name, setting, "setting")
             else FoundBinary(name, null, "the configured path $setting is not an executable file")
         }
-        val wanted = setting.ifEmpty { name }
+        val wanted = exe(setting.ifEmpty { name })
         pathEnv().split(File.pathSeparator).filter { it.isNotEmpty() }.map { "$it/$wanted" }.firstOrNull(isExecutable)
             ?.let { return FoundBinary(name, it, "PATH") }
         commonDirs.map { "$it/$wanted" }.firstOrNull(isExecutable)
@@ -52,8 +61,8 @@ class BinaryLocator(
      */
     fun locateAll(name: String): List<FoundBinary> {
         val seen = HashSet<String>()
-        val onPath = pathEnv().split(File.pathSeparator).filter { it.isNotEmpty() }.map { "$it/$name" }
-        return (onPath.map { it to "PATH" } + commonDirs.map { "$it/$name" }.map { it to "common location" })
+        val onPath = pathEnv().split(File.pathSeparator).filter { it.isNotEmpty() }.map { "$it/${exe(name)}" }
+        return (onPath.map { it to "PATH" } + commonDirs.map { "$it/${exe(name)}" }.map { it to "common location" })
             .filter { (path, _) -> isExecutable(path) && seen.add(runCatching { File(path).canonicalPath }.getOrDefault(path)) }
             .map { (path, source) -> FoundBinary(name, path, source) }
     }

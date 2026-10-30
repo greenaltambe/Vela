@@ -1,23 +1,68 @@
-*.iml
-.kotlin
-.gradle
+# ---- Gradle / Kotlin / build outputs -------------------------------------------------------------
+.gradle/
+.kotlin/
 **/build/
-xcuserdata
 !src/**/build/
+/out/
+*.class
 local.properties
-.idea
-.DS_Store
-captures
-.externalNativeBuild
-.cxx
-*.xcodeproj/*
-!*.xcodeproj/project.pbxproj
-!*.xcodeproj/xcshareddata/
-!*.xcodeproj/project.xcworkspace/
-!*.xcworkspace/contents.xcworkspacedata
-**/xcshareddata/WorkspaceSettings.xcsettings
-node_modules/
 
-# Secrets and test credentials
+# ---- Android Studio / JetBrains ------------------------------------------------------------------
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+
+# ---- VS Code / other editors ---------------------------------------------------------------------
+.vscode/
+*.swp
+*~
+
+# ---- OS junk -------------------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Native / crash / log files ------------------------------------------------------------------
+hs_err_pid*
+replay_pid*
+*.hprof
+*.log
+
+# ---- Packaging outputs ---------------------------------------------------------------------------
+*.apk
+*.aab
+*.deb
+*.rpm
+*.msi
+*.exe
+*.dmg
+*.AppImage
+dist/
+
+# ---- Secrets and test credentials (never commit) -------------------------------------------------
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+keystore.properties
+.env
+.env.*
 *.cookies.txt
 .vela-test/
+google-services.json
+
+# ---- Python caches (scripts) ---------------------------------------------------------------------
+__pycache__/
+*.pyc
+.venv/
+
+# ---- Claude Code local state (CLAUDE.md IS tracked) ----------------------------------------------
+.claude/
+
+# ---- Test output outside docs --------------------------------------------------------------------
+/tmp/
+screens-out/
+node_modules/

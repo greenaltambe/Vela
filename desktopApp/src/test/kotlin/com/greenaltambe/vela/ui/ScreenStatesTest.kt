@@ -45,7 +45,8 @@ class ScreenStatesTest {
         "search" to { f -> f.navigator.push(Route.Search("lofi")) },
         "channel" to { f -> f.navigator.push(Route.Channel("UC1", "A channel")) },
         "subscriptions feed" to { f -> f.navigator.selectTab(Route.Subscriptions) },
-        "video (comments)" to { f -> f.navigator.push(Route.Video(FakeData.videos[0])) },
+        // The video page is a layer over the screen below it, so that screen must be one that does no network work (Library); the comments error shows once the panel is opened.
+        "video (comments)" to { f -> f.navigator.selectTab(Route.Library); f.navigator.push(Route.Video(FakeData.videos[0])) },
     )
 
     private fun errorShown() = true
@@ -56,11 +57,15 @@ class ScreenStatesTest {
             val f = buildFixture(withDownloads = false, extractorOverride = TimeoutExtractor(flaky, 1.seconds))
             open(f)
             setContent { AppUnderTest(f) }
-            waitUntil(timeoutMillis = 10_000) { onAllNodesWithTagExists("error.retry") }
+            if (name.startsWith("video")) {
+                waitUntil(timeoutMillis = 10_000) { onAllNodesWithTagExists("video.commentsButton") }
+                onNodeWithTag("video.commentsButton", useUnmergedTree = true).performClick()
+            }
+            waitUntil("an error with Retry on $name after $mode", 10_000) { onAllNodesWithTagExists("error.retry") }
             onNodeWithTag("error.retry", useUnmergedTree = true).assertIsDisplayed()
             flaky.mode = Mode.OK
             onNodeWithTag("error.retry", useUnmergedTree = true).performClick()
-            waitUntil(timeoutMillis = 10_000) { !onAllNodesWithTagExists("error.retry") }
+            waitUntil("the error is gone after Retry on $name after $mode", 10_000) { !onAllNodesWithTagExists("error.retry") }
             assertTrue(true, "$name after $mode")
         }
     }

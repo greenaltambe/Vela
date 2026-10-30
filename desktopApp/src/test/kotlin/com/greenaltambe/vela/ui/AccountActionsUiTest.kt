@@ -4,6 +4,7 @@ package com.greenaltambe.vela.ui
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runDesktopComposeUiTest
@@ -75,8 +76,11 @@ class AccountActionsUiTest {
         f.navigator.push(Route.Video(video))
         setContent { AppUnderTest(f) }
         waitForIdle()
+        // The page waits for the video's own details first: the channel id they give (a real UC... id) is the one that is stored and sent.
+        waitUntil(timeoutMillis = 5_000) { onAllNodesWithTag("video.subscribe", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+        val before = f.services.subscriptions.isSubscribed("UC1")   // the fixture may already follow it: the button then unsubscribes
         onNodeWithTag("video.subscribe", useUnmergedTree = true).performClick(); waitForIdle()
-        assertTrue(f.services.subscriptions.isSubscribed(video.channelId))
+        assertTrue(f.services.subscriptions.isSubscribed("UC1") != before, "the local subscription changed without any account")
         // The actions object is asked, but a local account answers LocalOnly in the real implementation; the UI treats it as success.
     }
 }

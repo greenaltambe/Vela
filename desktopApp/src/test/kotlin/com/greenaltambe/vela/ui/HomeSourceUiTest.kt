@@ -29,7 +29,7 @@ class HomeSourceUiTest {
         val reads = Reads(rec); val f = buildFixture(withDownloads = false, reads = reads); signIn(f)
         setContent { AppUnderTest(f) }; waitForIdle()
         waitUntil(timeoutMillis = 3_000) { runCatching { onNodeWithText("A recommended one").assertIsDisplayed() }.isSuccess }
-        onNodeWithText("Recommended").assertIsDisplayed()
+        // (Home no longer prints a "Recommended" heading; the account's video being shown is the evidence.)
     }
 
     @Test fun aFailedOrEmptyAccountFeedFallsBackToTrendingWithANote() = runDesktopComposeUiTest(800, 1000) {
@@ -37,7 +37,7 @@ class HomeSourceUiTest {
             val reads = Reads(answer); val f = buildFixture(withDownloads = false, reads = reads); signIn(f)
             setContent { AppUnderTest(f) }; waitForIdle()
             waitUntil(timeoutMillis = 3_000) { runCatching { onNodeWithTag("home.note", useUnmergedTree = true).assertIsDisplayed() }.isSuccess }
-            onNodeWithText("Trending").assertIsDisplayed()
+            onNodeWithText(FakeData.videos.first().title, substring = true).assertExists()   // the fallback is Trending, which the fake extractor answers
             assertTrue(reads.calls >= 1)
         }
     }

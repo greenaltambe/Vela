@@ -2,14 +2,18 @@ package com.greenaltambe.vela.data
 
 import java.io.File
 
-/** Where the desktop app keeps its data, per the XDG Base Directory spec. */
+/** True on Windows (the experimental desktop target). */
+val isWindows: Boolean get() = System.getProperty("os.name").orEmpty().startsWith("Windows", ignoreCase = true)
+
+/** Where the desktop app keeps its data: per the XDG Base Directory spec on Linux, `%LOCALAPPDATA%\vela` on Windows. */
 object XdgPaths {
     /**
      * `$XDG_DATA_HOME/vela`, or `~/.local/share/vela` when that variable is unset, empty or not an absolute path
      * (the spec says relative values are invalid and must be ignored). Created if missing.
      */
     fun dataDir(env: (String) -> String? = System::getenv, home: String = System.getProperty("user.home")): File {
-        val base = env("XDG_DATA_HOME")?.takeIf { it.isNotBlank() && File(it).isAbsolute } ?: File(home, ".local/share").path
+        val base = env("XDG_DATA_HOME")?.takeIf { it.isNotBlank() && File(it).isAbsolute }
+            ?: if (isWindows) (env("LOCALAPPDATA")?.takeIf { it.isNotBlank() } ?: File(home, "AppData/Local").path) else File(home, ".local/share").path
         return File(base, "vela").also { it.mkdirs() }
     }
 

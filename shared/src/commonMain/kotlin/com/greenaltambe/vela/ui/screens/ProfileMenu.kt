@@ -128,7 +128,8 @@ fun AboutDialog(onDismiss: () -> Unit) {
             Column(verticalArrangement = Arrangement.spacedBy(Vela.xs), modifier = Modifier.testTag("about.text")) {
                 Text("A YouTube client that keeps working: several sources for every video, your data on your device.", style = MaterialTheme.typography.bodyMedium)
                 Text("NewPipeExtractor ${com.greenaltambe.vela.health.NewPipeVersion.VERSION}; yt-dlp (checked ${com.greenaltambe.vela.health.GeneratedVersions.YTDLP_VERIFIED}).", style = MaterialTheme.typography.bodySmall)
-                Text("Open-source parts include NewPipeExtractor and youtubedl-android (GPL-3.0), yt-dlp (Unlicense), Python and QuickJS. A full list of licences is not written yet.", style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor())
+                Text("Vela is free software under the GNU General Public License v3.0 or later. It is an independent project, not affiliated with or endorsed by YouTube or Google.", style = MaterialTheme.typography.bodySmall)
+                Text("Open-source parts include NewPipeExtractor and youtubedl-android (GPL-3.0), yt-dlp (Unlicense), Python and QuickJS, libmpv (GPL/LGPL), AndroidX, Compose, OkHttp, SQLDelight and Coil (Apache-2.0), Lucide icons (ISC). The full list with licences is THIRD_PARTY_NOTICES.md in the source repository.", style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor())
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } },
