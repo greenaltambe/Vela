@@ -3,7 +3,7 @@
 A YouTube client for Android and the desktop that keeps working. Every video can come from several sources, tried in order (anonymous first, your account last),
 your subscriptions, history, playlists and downloads stay on your device, and the whole look (colours, icons, shapes, bars) is yours to change.
 
-> **Beta (0.1.0-beta.2).** Android is the primary platform and Linux is supported. **Windows is experimental** (see below).
+> **Beta (0.1.0-beta.3).** Android is the primary platform and Linux is supported. **Windows is experimental** (see below).
 
 | | | |
 |---|---|---|
