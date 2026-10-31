@@ -5,7 +5,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
-## [0.1.0-beta.3]
+## [0.1.1-beta.3]
 
 ### Added
 - Keyboard: `j` / `l` seek 10 s back / forward, `k` play/pause, `c` captions (with the existing `m`, `f`, Escape, space and arrows).
@@ -15,6 +15,8 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 ### Fixed
 - The Linux .rpm/.deb carried the default Java icon (jpackage replaced it); it now ships the Vela icon.
 - Keyboard shortcuts keep working after the player's buttons fade out (focus is taken back).
+- Desktop: the playback keys (Space, j/k/l, m, c, f, arrows) only act on the video page, not while the mini player or PiP is showing over another page.
+- Desktop fullscreen: the controls hide again after a moment and a tap toggles them (the hidden pointer made Compose replay a hover event that showed them again).
 - Desktop fullscreen: the mouse pointer hides together with the controls and returns when the mouse moves.
 - Desktop: holding Space for fast playback works in fullscreen and on the video page (a clicked button no longer takes the key; X11's key-repeat release/press pairs no longer end the hold), and "2× speed" shows while it is held, for the keyboard as for a screen hold.
 
@@ -62,7 +64,7 @@ First public beta. Android is the primary platform, Linux is supported, Windows 
 ### Packaging
 - Android APK (arm64-v8a), Linux .deb, .rpm and portable tarball, Windows .msi and portable zip (experimental).
 
-[Unreleased]: https://github.com/greenaltambe/Vela/compare/v0.1.0-beta.3...HEAD
-[0.1.0-beta.3]: https://github.com/greenaltambe/Vela/compare/v0.1.0-beta.2...v0.1.0-beta.3
+[Unreleased]: https://github.com/greenaltambe/Vela/compare/v0.1.1-beta.3...HEAD
+[0.1.1-beta.3]: https://github.com/greenaltambe/Vela/compare/v0.1.0-beta.2...v0.1.1-beta.3
 [0.1.0-beta.2]: https://github.com/greenaltambe/Vela/compare/v0.1.0-beta.1...v0.1.0-beta.2
 [0.1.0-beta.1]: https://github.com/greenaltambe/Vela/tag/v0.1.0-beta.1

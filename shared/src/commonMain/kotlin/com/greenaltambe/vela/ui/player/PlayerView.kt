@@ -1,6 +1,7 @@
 package com.greenaltambe.vela.ui.player
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -183,11 +184,16 @@ fun PlayerView(
     // Desktop: the mouse over the picture brings the controls up (they stay while it moves, and go after it rests for a few seconds); leaving hides them.
     val hoverModifier = if (!desktop) Modifier else Modifier.pointerInput(video.id) {
         awaitPointerEventScope {
+            // Only a pointer that really moved counts: Compose replays hover events when something changes under a resting pointer.
+            var last: androidx.compose.ui.geometry.Offset? = null
             while (true) {
                 val event = awaitPointerEvent()
                 when (event.type) {
-                    androidx.compose.ui.input.pointer.PointerEventType.Enter, androidx.compose.ui.input.pointer.PointerEventType.Move -> { controlsVisible = true; touches++ }
-                    androidx.compose.ui.input.pointer.PointerEventType.Exit -> controlsVisible = false
+                    androidx.compose.ui.input.pointer.PointerEventType.Enter, androidx.compose.ui.input.pointer.PointerEventType.Move -> {
+                        val at = event.changes.firstOrNull()?.position
+                        if (at != last) { last = at; controlsVisible = true; touches++ }
+                    }
+                    androidx.compose.ui.input.pointer.PointerEventType.Exit -> { controlsVisible = false; last = null }
                     else -> {}
                 }
             }
@@ -195,7 +201,8 @@ fun PlayerView(
     }
     // Fullscreen on desktop: the pointer goes with the controls (it comes back when the mouse moves, as the controls do).
     val blank = com.greenaltambe.vela.ui.platform.LocalBlankPointer.current
-    val cursorModifier = if (fullscreen && blank != null && !showControls) Modifier.pointerHoverIcon(blank) else Modifier
+    // Always attached, only its icon changes: adding / removing the modifier under a resting pointer made Compose replay a hover event, which showed the controls again.
+    val cursorModifier = if (blank != null) Modifier.pointerHoverIcon(if (fullscreen && !showControls) blank else PointerIcon.Default) else Modifier
     Box(boxModifier.then(hoverModifier).then(cursorModifier).background(Vela.colors.mediaBackground.toColor()).androidx_onPos { videoBottomPx = it }.testTag("player.view")) {
         host.Surface(Modifier.fillMaxSize())
 

@@ -210,7 +210,8 @@ private fun AppShellContent(services: AppServices, navigator: Navigator) {
         if (e.type == KeyEventType.KeyDown && e.key in setOf(androidx.compose.ui.input.key.Key.Tab, androidx.compose.ui.input.key.Key.DirectionLeft, androidx.compose.ui.input.key.Key.DirectionRight, androidx.compose.ui.input.key.Key.DirectionUp, androidx.compose.ui.input.key.Key.DirectionDown, androidx.compose.ui.input.key.Key.Enter)) com.greenaltambe.vela.ui.look.InputModality.keyboard = true
         // Space: a tap toggles play, holding it plays fast until it is released (the speed is a playback setting). X11 reports a held key as release+press pairs,
         // so a release only counts when no press follows within a moment.
-        if (e.key == androidx.compose.ui.input.key.Key.Spacebar && host != null && navigator.nowPlaying != null) {
+        // The playback keys belong to the video page; with the mini player (or PiP) showing, other pages keep Space and the letters for themselves.
+        if (e.key == androidx.compose.ui.input.key.Key.Spacebar && host != null && navigator.nowPlaying != null && route is Route.Video) {
             when (e.type) {
                 KeyEventType.KeyDown -> if (spaceHold.release != null) { spaceHold.release?.cancel(); spaceHold.release = null }
                     else if (spaceHold.job == null) spaceHold.job = shellScope.launch {
@@ -235,7 +236,7 @@ private fun AppShellContent(services: AppServices, navigator: Navigator) {
             return@onKey navigator.back()
         }
         val action = shortcutFor(e.key, e.isShiftPressed)
-        if (host == null || action == null || navigator.nowPlaying == null) return@onKey false
+        if (host == null || action == null || navigator.nowPlaying == null || route !is Route.Video) return@onKey false
         applyShortcut(action, host.session, host.controllerState.value) { window?.toggleFullscreen() }
         true
     }
