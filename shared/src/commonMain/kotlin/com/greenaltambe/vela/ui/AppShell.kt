@@ -73,8 +73,12 @@ import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
@@ -184,6 +188,8 @@ private fun AppShellContent(services: AppServices, navigator: Navigator) {
     }
     // Shortcuts need the page to hold focus; a text field the user used earlier must not keep it after navigating.
     LaunchedEffect(route) { if (route !is Route.Search) runCatching { focus.requestFocus() } }
+    var rootFocused by remember { mutableStateOf(true) }
+    LaunchedEffect(rootFocused, route) { if (!rootFocused && route !is Route.Search) { kotlinx.coroutines.delay(60); runCatching { focus.requestFocus() } } }
 
     // A faint glow of the palette's first and last colours in the top corners, so the whole app wears the palette without any surface being tinted.
     val wake = Vela.look.accent.wake.map { it.toColor() }
@@ -199,6 +205,40 @@ private fun AppShellContent(services: AppServices, navigator: Navigator) {
     val searchStore = remember { com.greenaltambe.vela.ui.screens.SearchStore() }
     val homeFeed = remember { com.greenaltambe.vela.ui.screens.HomeFeedStore() }
     val spaceHold = remember { SpaceHold() }
+    val refreshHandle = remember { com.greenaltambe.vela.ui.components.RefreshHandle() }
+    val onKey: (androidx.compose.ui.input.key.KeyEvent) -> Boolean = onKey@{ e ->
+        if (e.type == KeyEventType.KeyDown && e.key in setOf(androidx.compose.ui.input.key.Key.Tab, androidx.compose.ui.input.key.Key.DirectionLeft, androidx.compose.ui.input.key.Key.DirectionRight, androidx.compose.ui.input.key.Key.DirectionUp, androidx.compose.ui.input.key.Key.DirectionDown, androidx.compose.ui.input.key.Key.Enter)) com.greenaltambe.vela.ui.look.InputModality.keyboard = true
+        // Space: a tap toggles play, holding it plays fast until it is released (the speed is a playback setting). X11 reports a held key as release+press pairs,
+        // so a release only counts when no press follows within a moment.
+        if (e.key == androidx.compose.ui.input.key.Key.Spacebar && host != null && navigator.nowPlaying != null) {
+            when (e.type) {
+                KeyEventType.KeyDown -> if (spaceHold.release != null) { spaceHold.release?.cancel(); spaceHold.release = null }
+                    else if (spaceHold.job == null) spaceHold.job = shellScope.launch {
+                        kotlinx.coroutines.delay(400)
+                        spaceHold.fast = true
+                        host.session.holdSpeed(services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.holdSpeed))
+                    }
+                KeyEventType.KeyUp -> if (spaceHold.job != null && spaceHold.release == null) spaceHold.release = shellScope.launch {
+                    kotlinx.coroutines.delay(90)
+                    spaceHold.job?.cancel(); spaceHold.job = null; spaceHold.release = null
+                    if (spaceHold.fast) { spaceHold.fast = false; host.session.holdSpeed(null) }
+                    else applyShortcut(ShortcutAction.TogglePlay, host.session, host.controllerState.value) { window?.toggleFullscreen() }
+                }
+            }
+            return@onKey true
+        }
+        if (e.type != KeyEventType.KeyDown) return@onKey false
+        // Ctrl+R: refresh the page that is showing (desktop has no pull to refresh).
+        if (e.key == androidx.compose.ui.input.key.Key.R && (e.isCtrlPressed || e.isMetaPressed)) return@onKey refreshHandle.action?.let { it(); true } ?: false
+        if (e.key == androidx.compose.ui.input.key.Key.Escape || (e.key == androidx.compose.ui.input.key.Key.DirectionLeft && e.isAltPressed)) {
+            if (window?.isFullscreen == true) { window.toggleFullscreen(); return@onKey true }
+            return@onKey navigator.back()
+        }
+        val action = shortcutFor(e.key, e.isShiftPressed)
+        if (host == null || action == null || navigator.nowPlaying == null) return@onKey false
+        applyShortcut(action, host.session, host.controllerState.value) { window?.toggleFullscreen() }
+        true
+    }
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
@@ -210,37 +250,14 @@ private fun AppShellContent(services: AppServices, navigator: Navigator) {
             }
             // A pointer press means "not keyboard navigation" (focus rings hide); a navigation key means the opposite.
             .pointerInput(Unit) { awaitPointerEventScope { while (true) { val e = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial); if (e.type == androidx.compose.ui.input.pointer.PointerEventType.Press) com.greenaltambe.vela.ui.look.InputModality.keyboard = false } } }
+            // When the focused control goes away (the player's buttons fade out after a click) nothing holds focus and the keys would stop: the page takes it back.
+            .onFocusChanged { rootFocused = it.hasFocus }
             .focusRequester(focus)
             .focusable()
-            // onKeyEvent (not preview): a focused text field takes its own keys first, so typing never triggers a shortcut.
-            .onKeyEvent { e ->
-                if (e.type == KeyEventType.KeyDown && e.key in setOf(androidx.compose.ui.input.key.Key.Tab, androidx.compose.ui.input.key.Key.DirectionLeft, androidx.compose.ui.input.key.Key.DirectionRight, androidx.compose.ui.input.key.Key.DirectionUp, androidx.compose.ui.input.key.Key.DirectionDown, androidx.compose.ui.input.key.Key.Enter)) com.greenaltambe.vela.ui.look.InputModality.keyboard = true
-                // Space: a tap toggles play, holding it plays fast until it is released (the speed is a playback setting).
-                if (e.key == androidx.compose.ui.input.key.Key.Spacebar && host != null && navigator.nowPlaying != null) {
-                    when (e.type) {
-                        KeyEventType.KeyDown -> if (spaceHold.job == null) spaceHold.job = shellScope.launch {
-                            kotlinx.coroutines.delay(400)
-                            spaceHold.fast = true
-                            host.session.holdSpeed(services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.holdSpeed))
-                        }
-                        KeyEventType.KeyUp -> {
-                            spaceHold.job?.cancel(); spaceHold.job = null
-                            if (spaceHold.fast) { spaceHold.fast = false; host.session.holdSpeed(null) }
-                            else applyShortcut(ShortcutAction.TogglePlay, host.session, host.controllerState.value) { window?.toggleFullscreen() }
-                        }
-                    }
-                    return@onKeyEvent true
-                }
-                if (e.type != KeyEventType.KeyDown) return@onKeyEvent false
-                if (e.key == androidx.compose.ui.input.key.Key.Escape || (e.key == androidx.compose.ui.input.key.Key.DirectionLeft && e.isAltPressed)) {
-                    if (window?.isFullscreen == true) { window.toggleFullscreen(); return@onKeyEvent true }
-                    return@onKeyEvent navigator.back()
-                }
-                val action = shortcutFor(e.key, e.isShiftPressed)
-                if (host == null || action == null || navigator.nowPlaying == null) return@onKeyEvent false
-                applyShortcut(action, host.session, host.controllerState.value) { window?.toggleFullscreen() }
-                true
-            },
+            // On the video page the keys are taken before a focused button can use them (Space would press the button the mouse last clicked). Elsewhere onKeyEvent
+            // (not preview): a focused text field takes its own keys first, so typing never triggers a shortcut.
+            .onPreviewKeyEvent { if (route is Route.Video) onKey(it) else false }
+            .onKeyEvent { onKey(it) },
     ) {
         val revision by services.settings.revision.collectAsState()
         val nav = remember(revision) { NavConfig.of(services.settings) }
@@ -298,7 +315,7 @@ private fun AppShellContent(services: AppServices, navigator: Navigator) {
                     // Keyed by the active account, so switching rebuilds every screen on the new account's data.
                     val activeAccount by services.accounts.active.collectAsState()
                     Box(Modifier.weight(1f).fillMaxWidth().nestedScroll(scroll.connection)) {
-                        CompositionLocalProvider(LocalChromeInset provides inset, com.greenaltambe.vela.ui.nav.LocalPageReveal provides reveal, com.greenaltambe.vela.ui.screens.LocalHomeFeed provides homeFeed, com.greenaltambe.vela.ui.nav.LocalPipPosition provides pipPosition, com.greenaltambe.vela.ui.screens.LocalVideoPageCache provides videoPageCache, com.greenaltambe.vela.ui.screens.LocalShortsFeed provides shortsFeed, com.greenaltambe.vela.ui.screens.LocalSearchStore provides searchStore, com.greenaltambe.vela.ui.screens.LocalChannelStore provides channelStore, com.greenaltambe.vela.ui.screens.LocalExploreStore provides exploreStore,
+                        CompositionLocalProvider(com.greenaltambe.vela.ui.components.LocalRefreshHandle provides refreshHandle, LocalChromeInset provides inset, com.greenaltambe.vela.ui.nav.LocalPageReveal provides reveal, com.greenaltambe.vela.ui.screens.LocalHomeFeed provides homeFeed, com.greenaltambe.vela.ui.nav.LocalPipPosition provides pipPosition, com.greenaltambe.vela.ui.screens.LocalVideoPageCache provides videoPageCache, com.greenaltambe.vela.ui.screens.LocalShortsFeed provides shortsFeed, com.greenaltambe.vela.ui.screens.LocalSearchStore provides searchStore, com.greenaltambe.vela.ui.screens.LocalChannelStore provides channelStore, com.greenaltambe.vela.ui.screens.LocalExploreStore provides exploreStore,
             com.greenaltambe.vela.ui.platform.LocalTextFetcher provides { url -> (services.modules.client.get(url, ttl = kotlin.time.Duration.parse("6h")) as? com.greenaltambe.vela.core.http.ApiResult.Ok)?.body }) {
                             androidx.compose.runtime.key(activeAccount.id) { AnimatedDestination(services, navigator, uiRoute, reveal, Modifier.fillMaxSize()) }
                         }
@@ -377,7 +394,9 @@ private fun routeTitle(route: Route): String = when (route) {
 private fun rememberMiniState(services: AppServices, navigator: Navigator): MiniState? {
     val playing = navigator.nowPlaying ?: return null
     val host = services.player ?: return null
-    if (navigator.current is Route.Video) return null
+    // While a finger drags the mini player up its page is already open underneath: the card stays (it is what the finger holds), without the picture (the page has it).
+    val dragging = navigator.expandDrive >= 0f
+    if (navigator.current is Route.Video && !dragging) return null
     val state by host.controllerState.collectAsState()
     return MiniState(
         title = playing.title,
@@ -393,7 +412,10 @@ private fun rememberMiniState(services: AppServices, navigator: Navigator): Mini
             }
         },
         onExpand = navigator::expandNowPlaying,
-        surface = { m -> host.Surface(m) },
+        surface = if (dragging) null else ({ m -> host.Surface(m) }),
+        onPictureBounds = { navigator.miniPicture = it },
+        onExpandDrag = navigator::driveExpand,
+        onExpandRelease = navigator::finishExpand,
         onClose = { host.session.stop(); navigator.clearNowPlaying() },
     )
 }
@@ -486,4 +508,4 @@ private fun Destination(services: AppServices, navigator: Navigator, route: Rout
 }
 
 /** The space bar's hold state: the pending "start fast playback" timer, and whether fast playback is on. */
-private class SpaceHold { var job: kotlinx.coroutines.Job? = null; var fast = false }
+private class SpaceHold { var job: kotlinx.coroutines.Job? = null; var release: kotlinx.coroutines.Job? = null; var fast = false }

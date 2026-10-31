@@ -63,6 +63,9 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -436,6 +439,11 @@ class MiniState(
     val onToggle: () -> Unit, val onExpand: () -> Unit, val onClose: () -> Unit,
     /** Draws the playing video into the given box (the mini player shows the live picture, not just the thumbnail); null shows the thumbnail only. */
     val surface: (@Composable (Modifier) -> Unit)? = null,
+    /** Dragging the card up: the page grows out of it as [progress] (0..1) rises; null where that is not supported. [onExpandRelease] ends it (true: keep the page open). */
+    val onExpandDrag: ((progress: Float) -> Unit)? = null,
+    val onExpandRelease: (open: Boolean) -> Unit = {},
+    /** Where the mini player's picture is in the window, so the page's picture can start from and return to exactly that place. */
+    val onPictureBounds: (androidx.compose.ui.geometry.Rect) -> Unit = {},
 )
 
 /**
@@ -447,19 +455,40 @@ class MiniState(
 fun MiniPlayer(state: MiniState, look: MiniLook, shape: androidx.compose.ui.graphics.Shape, modifier: Modifier = Modifier) {
     when (look) {
         MiniLook.CARD -> {
-          // Swiping up on the card opens the video page (like a tap, but the card follows the finger a little first).
+          // Dragging the card up pulls the video page up out of it: the card follows the finger while the page's picture grows from the card's, and on release it
+          // either completes (past a third of the way, or a quick flick) or sinks back. A short flick that never started the drag opens it like a tap.
           var lift by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
-          val openAt = with(androidx.compose.ui.platform.LocalDensity.current) { 40.dp.toPx() }
+          var topPx by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+          var started by remember { mutableStateOf(false) }
+          val scope = androidx.compose.runtime.rememberCoroutineScope()
+          val density = androidx.compose.ui.platform.LocalDensity.current
+          val startAt = with(density) { 8.dp.toPx() }
+          val distance = maxOf(topPx * 0.8f, with(density) { 300.dp.toPx() })
+          fun progress() = (-lift / distance).coerceIn(0f, 1f)
           Column(
-            modifier.graphicsLayer { translationY = lift * 0.6f }
+            modifier.onGloballyPositioned { topPx = it.boundsInWindow().top }
+                .graphicsLayer { alpha = (1f - 2f * progress()).coerceIn(0f, 1f) }
                 .playerVerticalSwipe(
-                    onDelta = { dy -> lift = (lift + dy).coerceAtMost(0f) },
-                    onEnd = { total, v -> lift = 0f; if (total < -openAt || v < -900f) state.onExpand() },
+                    onDelta = { dy ->
+                        lift = (lift + dy).coerceAtMost(0f)
+                        if (state.onExpandDrag != null && -lift > startAt) { started = true; state.onExpandDrag.invoke(progress()) }
+                    },
+                    onEnd = { total, v ->
+                        if (!started) { lift = 0f; if (total < -startAt || v < -900f) state.onExpand(); return@playerVerticalSwipe }
+                        val open = progress() > 0.33f || v < -900f
+                        scope.launch {
+                            androidx.compose.animation.core.animate(progress(), if (open) 1f else 0f, animationSpec = androidx.compose.animation.core.tween(160)) { x, _ -> lift = -x * distance; state.onExpandDrag?.invoke(x) }
+                            started = false
+                            state.onExpandRelease(open)
+                            lift = 0f
+                        }
+                    },
                 )
                 .clip(shape).background(Vela.colors.surfaceVariant.toColor()).testTag(ComponentIds.MINI_PLAYER),
           ) {
             Row(Modifier.fillMaxWidth().clickable(onClick = state.onExpand).padding(start = Vela.sm), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                Box(Modifier.size(width = 64.dp, height = 36.dp).clip(Vela.smallShape).background(Vela.colors.mediaBackground.toColor())) {
+                // While the page is being dragged out of the card, this picture is the page's: the card keeps only its frame (and fades), so there is one picture, not two.
+                Box(Modifier.size(width = 64.dp, height = 36.dp).onGloballyPositioned { state.onPictureBounds(it.boundsInWindow()) }.graphicsLayer { alpha = if (started) 0f else 1f }.clip(Vela.smallShape).background(Vela.colors.mediaBackground.toColor())) {
                     if (state.thumbnailUrl != null) AsyncImage(state.thumbnailUrl, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
                     state.surface?.invoke(Modifier.matchParentSize())
                 }
@@ -473,7 +502,7 @@ fun MiniPlayer(state: MiniState, look: MiniLook, shape: androidx.compose.ui.grap
             }
           }
         }
-        MiniLook.PIP -> Box(modifier.size(PIP_WIDTH, PIP_WIDTH * 9 / 16).clip(shape).background(Vela.colors.mediaBackground.toColor()).clickable(onClick = state.onExpand).testTag(ComponentIds.MINI_PLAYER)) {
+        MiniLook.PIP -> Box(modifier.size(PIP_WIDTH, PIP_WIDTH * 9 / 16).onGloballyPositioned { state.onPictureBounds(it.boundsInWindow()) }.clip(shape).background(Vela.colors.mediaBackground.toColor()).clickable(onClick = state.onExpand).testTag(ComponentIds.MINI_PLAYER)) {
             if (state.thumbnailUrl != null) AsyncImage(state.thumbnailUrl, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
             state.surface?.invoke(Modifier.matchParentSize())
             Box(Modifier.matchParentSize().background(Vela.colors.mediaScrim.toColor().copy(alpha = 0.35f)))

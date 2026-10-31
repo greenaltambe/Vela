@@ -207,7 +207,7 @@ fun main(args: Array<String>) {
         ) {
             // Every size goes to the window manager (_NET_WM_ICON), which picks the sharpest for the dock and the switcher.
             remember(window) { window.iconImages = velaWindowImages }
-            CompositionLocalProvider(LocalWindowControls provides windowControls, LocalVolumeSlider provides true) { App(services, navigator) }
+            CompositionLocalProvider(LocalWindowControls provides windowControls, LocalVolumeSlider provides true, com.greenaltambe.vela.ui.platform.LocalBlankPointer provides blankPointer) { App(services, navigator) }
         }
     }
 }
@@ -216,6 +216,11 @@ private val velaWindowImages: List<java.awt.Image> by lazy {
     val loader = Thread.currentThread().contextClassLoader
     listOf(256, 128, 64, 48).mapNotNull { size -> loader.getResourceAsStream("icons/vela-$size.png")?.use { javax.imageio.ImageIO.read(it) } }
 }
+
+/** A fully transparent pointer, for fullscreen video once the controls are hidden. */
+private val blankPointer = androidx.compose.ui.input.pointer.PointerIcon(
+    java.awt.Toolkit.getDefaultToolkit().createCustomCursor(java.awt.image.BufferedImage(16, 16, java.awt.image.BufferedImage.TYPE_INT_ARGB), java.awt.Point(0, 0), "vela-blank"),
+)
 
 /** The window / taskbar icon: the launcher art (docs/icon), a few sizes so the shell picks a sharp one. */
 private val velaWindowIcon: androidx.compose.ui.graphics.painter.Painter by lazy {

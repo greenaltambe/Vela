@@ -28,6 +28,9 @@ val LocalShare = staticCompositionLocalOf<((title: String, url: String) -> Unit)
 /** Fetches the text at an address (a caption file), or null when it could not be read. Provided by the app shell. */
 val LocalTextFetcher = staticCompositionLocalOf<(suspend (String) -> String?)?> { null }
 
+/** An invisible mouse pointer (desktop), shown over the picture in fullscreen once the controls have hidden; null where there is no pointer. */
+val LocalBlankPointer = staticCompositionLocalOf<androidx.compose.ui.input.pointer.PointerIcon?> { null }
+
 /** True where the app has its own volume control (desktop); Android leaves volume to the system buttons and shows only mute. */
 val LocalVolumeSlider = staticCompositionLocalOf { false }
 

@@ -104,9 +104,12 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.graphics.graphicsLayer
 import com.greenaltambe.vela.ui.player.SeekMarker
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.launch
 
 private fun SessionState.videoIdOrNull(): String? = when (this) {
@@ -161,6 +164,7 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
     val growAllowed = LocalWindowWidthDp.current < 1000f && !Vela.motion.reduced
     val growFromMini = remember { (navigator.growFromMini && growAllowed).also { navigator.growFromMini = false } }
     var dragPx by remember { androidx.compose.runtime.mutableFloatStateOf(if (growFromMini) Float.MAX_VALUE / 4 else 0f) }
+    var pageOrigin by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
     var pageWidthPx by remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
     val density = androidx.compose.ui.platform.LocalDensity.current
     // Release after a pull: past a short distance (or a quick flick) the page is handed to the mini player; otherwise it springs back.
@@ -171,6 +175,11 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
     LaunchedEffect(growFromMini) {
         if (!growFromMini) return@LaunchedEffect
         androidx.compose.runtime.snapshotFlow { pageHeightPx }.first { it > 1f }
+        // Dragged up from the mini player: the finger sets how far the page has grown until it lets go.
+        if (navigator.expandDrive >= 0f) {
+            androidx.compose.runtime.snapshotFlow { navigator.expandDrive }.takeWhile { it >= 0f }.collect { q -> setDrag(pageHeightPx * 0.5f * (1f - q)) }
+            return@LaunchedEffect
+        }
         setDrag(pageHeightPx * 0.5f)
         androidx.compose.animation.core.animate(dragPx, 0f, animationSpec = growSpec) { x, _ -> setDrag(x) }
     }
@@ -497,7 +506,7 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
         val topInsetPx = WindowInsets.safeDrawing.getTop(density)
         Box(
             // The gesture sits on this untransformed wrapper (the page below shrinks as it is dragged), and only counts when it starts on the picture.
-            modifier.fillMaxSize().onSizeChanged { pageHeightPx = it.height.toFloat().coerceAtLeast(1f); pageWidthPx = it.width.toFloat() }
+            modifier.fillMaxSize().onGloballyPositioned { pageOrigin = it.positionInWindow() }.onSizeChanged { pageHeightPx = it.height.toFloat().coerceAtLeast(1f); pageWidthPx = it.width.toFloat() }
                 .playerVerticalSwipe(
                     // A swipe up opens fullscreen only when it starts on a page at full size and never pulled it down first: changing your mind
                     // halfway through minimising just puts the page back.
@@ -512,19 +521,22 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
         // Only the picture shrinks, travelling to where the mini player's picture will be; the rest of the page fades away, uncovering the screen behind.
         val miniPip = miniOnRight
         val pipPos = com.greenaltambe.vela.ui.nav.LocalPipPosition.current
-        val miniWidthPx = with(density) { (if (miniPip) com.greenaltambe.vela.ui.components.PIP_WIDTH else 64.dp).toPx() }
+        val miniWidthFallbackPx = with(density) { (if (miniPip) com.greenaltambe.vela.ui.components.PIP_WIDTH else 64.dp).toPx() }
         val marginPx = with(density) { 16.dp.toPx() }
         val bottomClearPx = with(density) { 112.dp.toPx() }
         Column(Modifier.fillMaxSize()) {
             Box(
                 Modifier.graphicsLayer {
                     val p = (dragPx / (pageHeightPx * 0.5f)).coerceIn(0f, 1f)
+                    // The real picture of the mini player when known, so the page's picture lands exactly on it (and starts exactly there when opened from it).
+                    val real = navigator.miniPicture
+                    val miniWidthPx = real?.width ?: miniWidthFallbackPx
                     val k = miniWidthPx / pageWidthPx.coerceAtLeast(1f)               // the mini picture's size as a fraction of the page width
                     val s = 1f + (k - 1f) * p
                     val miniH = miniWidthPx * 9f / 16f
                     val pipAt = pipPos?.pos
-                    val targetLeft = if (miniPip) (pipAt?.x ?: (pageWidthPx - marginPx - miniWidthPx)) else marginPx + with(density) { 8.dp.toPx() }
-                    val targetTop = (if (miniPip) (pipAt?.y ?: (pageHeightPx - bottomClearPx - miniH)) else pageHeightPx - bottomClearPx - miniH) - k * topInsetPx
+                    val targetLeft = if (real != null) real.left - pageOrigin.x else if (miniPip) (pipAt?.x ?: (pageWidthPx - marginPx - miniWidthPx)) else marginPx + with(density) { 8.dp.toPx() }
+                    val targetTop = (if (real != null) real.top - pageOrigin.y else if (miniPip) (pipAt?.y ?: (pageHeightPx - bottomClearPx - miniH)) else pageHeightPx - bottomClearPx - miniH) - k * topInsetPx
                     transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
                     scaleX = s; scaleY = s
                     translationX = targetLeft * p; translationY = targetTop * p

@@ -91,7 +91,7 @@ fun SubscriptionsScreen(services: AppServices, navigator: Navigator, modifier: M
     // The cache is already on screen; this brings it up to date, but only when it has gone stale (not on every visit).
     LaunchedEffect(Unit) { services.feed.refreshIfStale() }
 
-    PullToRefreshBox(isRefreshing = refreshing, onRefresh = { scope.launch { services.feed.refresh() } }, modifier = modifier.fillMaxSize()) {
+    com.greenaltambe.vela.ui.components.RefreshBox(isRefreshing = refreshing, onRefresh = { scope.launch { services.feed.refresh() } }, modifier = modifier.fillMaxSize()) {
         val channels = rememberAsync(refreshing, entries, keepWhileLoading = true, first = { services.subscriptions.all() }, compute = { services.subscriptions.all() })
         // The pipeline (watched lookup included) runs off the main thread; the cached rows show at once through the quick pass.
         val all = rememberAsync(entries, failures, branding, keepWhileLoading = true,

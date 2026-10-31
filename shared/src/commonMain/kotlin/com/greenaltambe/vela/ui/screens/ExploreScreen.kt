@@ -75,7 +75,7 @@ fun ExploreScreen(services: AppServices, navigator: Navigator, modifier: Modifie
     LaunchedEffect(topic) { store.topic = topic; if (store.fresh(topic, services.clock.now()) == null) load(more = false) }
 
     val shown = rememberFiltered(services, videos.items, DeArrowSurface.FEED)
-    androidx.compose.material3.pulltorefresh.PullToRefreshBox(isRefreshing = pulling && loading, onRefresh = { pulling = true; load(more = false) }, modifier = modifier) {
+    com.greenaltambe.vela.ui.components.RefreshBox(isRefreshing = pulling && loading, onRefresh = { pulling = true; load(more = false) }, modifier = modifier) {
         VideoCollection(
             services, navigator, shown, state, Modifier, testTag = "explore.list", scroll = entry.scroll,
             header = {

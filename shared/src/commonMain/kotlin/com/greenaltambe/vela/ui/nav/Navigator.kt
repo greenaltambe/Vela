@@ -2,6 +2,7 @@ package com.greenaltambe.vela.ui.nav
 
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -62,6 +63,27 @@ class Navigator(start: Route = Route.Home) {
 
     /** Set when the video page opens from the mini player: the page then grows out of the mini player's picture (read once by the page). */
     var growFromMini = false
+    /** Where the mini player's picture last was (window coordinates): the page's picture grows from and shrinks back to it. */
+    var miniPicture: androidx.compose.ui.geometry.Rect? = null
+    /** While a finger drags the mini player up: how far the page has grown out of it (0..1); -1 when nobody is dragging. The page follows it. */
+    var expandDrive by mutableFloatStateOf(-1f)
+        private set
+
+    /** The mini player is being dragged up to [progress] (0..1): the first call opens the page in its pulled-down state, the next ones grow it. */
+    fun driveExpand(progress: Float) {
+        if (expandDrive < 0f) {
+            val playing = nowPlaying ?: return
+            if (current is Route.Video) return
+            growFromMini = true; expandDrive = progress; push(Route.Video(playing))
+        } else expandDrive = progress
+    }
+
+    /** The drag ended: [open] keeps the page, otherwise it goes back to the mini player. */
+    fun finishExpand(open: Boolean) {
+        if (expandDrive < 0f) return
+        expandDrive = -1f
+        if (!open) back()
+    }
     var lastAction: NavAction by mutableStateOf(NavAction.TAB)
         private set
 

@@ -1,6 +1,7 @@
 package com.greenaltambe.vela.ui.player
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -192,7 +193,10 @@ fun PlayerView(
             }
         }
     }
-    Box(boxModifier.then(hoverModifier).background(Vela.colors.mediaBackground.toColor()).androidx_onPos { videoBottomPx = it }.testTag("player.view")) {
+    // Fullscreen on desktop: the pointer goes with the controls (it comes back when the mouse moves, as the controls do).
+    val blank = com.greenaltambe.vela.ui.platform.LocalBlankPointer.current
+    val cursorModifier = if (fullscreen && blank != null && !showControls) Modifier.pointerHoverIcon(blank) else Modifier
+    Box(boxModifier.then(hoverModifier).then(cursorModifier).background(Vela.colors.mediaBackground.toColor()).androidx_onPos { videoBottomPx = it }.testTag("player.view")) {
         host.Surface(Modifier.fillMaxSize())
 
         // The poster stands in until this video has a picture of its own.
@@ -243,10 +247,11 @@ fun PlayerView(
                 if (f.forward) Icon(Vela.icons.forward, null, tint = onMedia)
             }
         }
-        if (holding) Text(
-            "${if (holdSpeed == holdSpeed.toInt().toFloat()) holdSpeed.toInt().toString() else holdSpeed.toString()}× speed", color = onMedia, style = MaterialTheme.typography.bodyMedium,
+        val held by session.heldSpeed.collectAsState()
+        held?.let { speed -> Text(
+            "${if (speed == speed.toInt().toFloat()) speed.toInt().toString() else speed.toString()}× speed", color = onMedia, style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.align(Alignment.TopCenter).padding(top = Vela.md).clip(Vela.pillShape).background(Vela.colors.mediaScrim.toColor().copy(alpha = 0.55f)).padding(horizontal = Vela.md, vertical = Vela.xs).testTag("player.holdSpeed"),
-        )
+        ) }
 
         if (buffering && failed == null) CircularProgressIndicator(Modifier.align(Alignment.Center).size(40.dp).testTag("player.spinner"), color = onMedia)
         if (resolving && failed == null && resolvingNote != null) Text(resolvingNote, Modifier.align(Alignment.BottomCenter).padding(Vela.gutter).testTag("player.resolvingNote"), color = onMedia, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, maxLines = 3, overflow = TextOverflow.Ellipsis)

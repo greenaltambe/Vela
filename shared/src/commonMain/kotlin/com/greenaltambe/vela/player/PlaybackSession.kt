@@ -116,6 +116,9 @@ class PlaybackSession(
 
     /** Output volume 0..1 as the user set it, whether or not it is currently [muted]. */
     val volume: StateFlow<Float> = _volume
+    private val _heldSpeed = MutableStateFlow<Float?>(null)
+    /** The speed being held right now (screen hold or space bar), or null: the player shows "2× speed" while it is set. */
+    val heldSpeed: StateFlow<Float?> = _heldSpeed
     private val _muted = MutableStateFlow(false)
     val muted: StateFlow<Boolean> = _muted
 
@@ -335,6 +338,7 @@ class PlaybackSession(
     /** A temporary speed (holding the screen or space bar): not remembered, and null puts back the viewer's pick or the setting. */
     fun holdSpeed(speed: Float?) {
         val id = videoId ?: return
+        _heldSpeed.value = speed
         controller.setSpeed(speed ?: speedOverride ?: settings.resolve(Settings.defaultPlaybackSpeed, channelId.ifEmpty { null }, id))
     }
 

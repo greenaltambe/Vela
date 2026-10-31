@@ -6,13 +6,17 @@ import com.greenaltambe.vela.player.PlaybackStatus
 import com.greenaltambe.vela.player.PlayerState
 import kotlin.math.abs
 
-enum class ShortcutAction { TogglePlay, SeekBack5, SeekForward5, SeekBack10, SeekForward10, ToggleFullscreen, ToggleMute, VolumeUp, VolumeDown, SpeedDown, SpeedUp }
+enum class ShortcutAction { TogglePlay, SeekBack5, SeekForward5, SeekBack10, SeekForward10, ToggleFullscreen, ToggleMute, ToggleCaptions, VolumeUp, VolumeDown, SpeedDown, SpeedUp }
 
-/** Desktop shortcuts: space, arrows (5 s; with shift 10 s), f, m, up / down, < and >. Null for any other key. */
+/** Desktop shortcuts: space and k (play / pause), arrows (5 s; with shift 10 s), j / l (10 s back / forward, as on YouTube), f, m, c (captions), up / down, < and >. Null for any other key. */
 fun shortcutFor(key: Key, shift: Boolean): ShortcutAction? = when (key) {
     Key.Spacebar -> ShortcutAction.TogglePlay
     Key.DirectionLeft -> if (shift) ShortcutAction.SeekBack10 else ShortcutAction.SeekBack5
     Key.DirectionRight -> if (shift) ShortcutAction.SeekForward10 else ShortcutAction.SeekForward5
+    Key.K -> ShortcutAction.TogglePlay
+    Key.J -> ShortcutAction.SeekBack10
+    Key.L -> ShortcutAction.SeekForward10
+    Key.C -> ShortcutAction.ToggleCaptions
     Key.F -> ShortcutAction.ToggleFullscreen
     Key.M -> ShortcutAction.ToggleMute
     Key.DirectionUp -> ShortcutAction.VolumeUp
@@ -46,6 +50,8 @@ fun applyShortcut(action: ShortcutAction, session: PlaybackSession, player: Play
         ShortcutAction.SeekForward10 -> seekBy(10_000)
         ShortcutAction.ToggleFullscreen -> toggleFullscreen()
         ShortcutAction.ToggleMute -> session.toggleMute()
+        // Off when a caption is showing; otherwise the first one the video has (nothing happens without captions).
+        ShortcutAction.ToggleCaptions -> if (session.activeCaption.value != null) session.selectCaption(null) else session.captions.value.firstOrNull()?.let(session::selectCaption)
         ShortcutAction.VolumeUp -> session.setVolume(session.volume.value + VOLUME_STEP)
         ShortcutAction.VolumeDown -> session.setVolume(session.volume.value - VOLUME_STEP)
         ShortcutAction.SpeedDown -> session.setSpeed(steppedSpeed(player.speed, up = false))

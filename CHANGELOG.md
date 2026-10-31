@@ -11,15 +11,21 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 - Channel Videos can be sorted by Latest, Popular or Oldest over the whole channel (sorted by YouTube), not just the loaded videos.
 - Setting "Region for content" (Home page of Settings).
 - Share in every video's three-dot menu; on desktop it copies the link ("Copy link"), as does Share on the video page.
+- Keyboard: `j` / `l` seek 10 s back / forward, `k` play/pause, `c` captions (with the existing `m`, `f`, Escape, space and arrows).
 - YouTube links open in Vela: Android "open with" and share, `vela <link>` on Linux (a running Vela receives it), and pasting a link into Search.
 
 ### Fixed
 - Desktop: the player's menu buttons (volume, captions, quality, speed, sleep, fullscreen) were missing in the windowed player.
 - Desktop: the window class is now `Vela`, so the dock shows the Vela icon instead of the Java one; all icon sizes are sent.
+- The Linux .rpm/.deb carried the default Java icon (jpackage replaced it); it now ships the Vela icon.
+- Keyboard shortcuts keep working after the player's buttons fade out (focus is taken back).
+- Desktop fullscreen: the mouse pointer hides together with the controls and returns when the mouse moves.
+- Desktop: a refresh button (bottom right) and Ctrl+R on Home, Explore and Subscriptions, which have no pull to refresh there.
+- Desktop: holding Space for fast playback now works in fullscreen and on the video page (a button the mouse last clicked no longer takes the key; X11's key-repeat release/press pairs no longer end the hold), and "2× speed" shows while it is held, for the keyboard as for a screen hold.
 - The play/skip buttons no longer overlap the buffering spinner.
 
 ### Changed
-- The video page grows out of the mini player when it is opened from it.
+- The video page grows out of the mini player: dragging the card up pulls the page up with your finger (the picture grows as you drag); a tap animates it.
 
 ## [0.1.0-beta.1]
 
