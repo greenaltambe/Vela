@@ -104,23 +104,17 @@ fun chromeShapes(radius: Dp, pillRadius: Dp, joined: Boolean, docked: Boolean, f
  */
 @Composable
 fun BottomChrome(
-    nav: NavConfig, entries: List<NavEntry>, selected: NavTab?, scroll: ScrollChrome, mini: MiniState?, onSelect: (NavTab) -> Unit,
+    nav: NavConfig, entries: List<NavEntry>, selected: NavTab?, scroll: ScrollChrome, mini: MiniState? = null, hasMiniPlayer: Boolean = false, onSelect: (NavTab) -> Unit,
     modifier: Modifier = Modifier, onHeight: (Int) -> Unit = {},
 ) {
     val docked = nav.barStyle == BarStyle.DOCKED
-    // One number drives the whole contraction (width, height, corners, spacing, labels, the mini player's position), so it is one smooth motion.
+    // One number drives the whole contraction (width, height, corners, spacing, labels), so it is one smooth motion.
     val target = if (nav.barStyle == BarStyle.MINIMAL || (nav.shrinkOnScroll && scroll.shrunk)) 1f else 0f
     val f by androidx.compose.animation.core.animateFloatAsState(target, VelaMotion.tween(Vela.motion, VelaMotion.Level.STANDARD, emphasized = true), label = "barShrink")
     val radius = Vela.look.radii.largeDp.dp
     val pip = nav.miniLook == MiniLook.PIP
-    val joined = mini != null && !pip && nav.miniPlacement == MiniPlacement.ATTACHED
-    val (miniShape, barShape) = chromeShapes(radius, radius, joined, docked, f)
-    val gap = when {
-        mini == null -> 0.dp
-        joined -> SEPARATE_AFTER_SHRINK_GAP * f          // touching at full size; a small gap once the bar is a pill
-        pip -> maxOf(nav.miniGapDp, 4f).dp
-        else -> nav.miniGapDp.dp
-    }
+    val showMiniSpace = (hasMiniPlayer || mini != null) && !pip
+    val gap = if (showMiniSpace) nav.miniGapDp.dp else 0.dp
     val margin = if (docked) 0.dp else Vela.md
 
     Column(
@@ -128,14 +122,12 @@ fun BottomChrome(
         modifier.fillMaxWidth().onSizeChanged { onHeight(it.height) }
             .windowInsetsPadding(WindowInsets.safeDrawing.only(if (docked) WindowInsetsSides.Horizontal else WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
             .let { if (docked) it else it.padding(horizontal = margin, vertical = Vela.xs) },
-        horizontalAlignment = if (pip) Alignment.End else Alignment.CenterHorizontally,
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        if (mini != null) {
-            val miniModifier = if (pip) Modifier.padding(end = if (docked) Vela.md else 0.dp).shadow(6.dp, miniShape) else if (docked) Modifier.fillMaxWidth().padding(horizontal = if (joined && f == 0f) 0.dp else Vela.md) else Modifier.fillMaxWidth()
-            MiniPlayer(mini, nav.miniLook, miniShape, miniModifier)
-            Spacer(Modifier.height(gap))
+        if (showMiniSpace) {
+            Spacer(Modifier.height(56.dp + gap))
         }
-        BottomNav(entries, selected, labelsVisible = nav.labels == NavLabels.ALWAYS, marker = nav.marker, shrink = f, shape = barShape, onSelect = onSelect, bottomInset = docked, modifier = Modifier.fillMaxWidth())
+        BottomNav(entries, selected, labelsVisible = nav.labels == NavLabels.ALWAYS, marker = nav.marker, shrink = f, shape = RoundedCornerShape(radius), onSelect = onSelect, bottomInset = docked, modifier = Modifier.fillMaxWidth())
     }
 }
 

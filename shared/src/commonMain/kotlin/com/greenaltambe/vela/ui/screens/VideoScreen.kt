@@ -3,7 +3,14 @@ package com.greenaltambe.vela.ui.screens
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.requiredWidth
+import androidx.compose.foundation.layout.requiredHeight
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.material3.Icon
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -128,12 +135,22 @@ private fun SessionState.videoIdOrNull(): String? = when (this) {
  * and comments and related videos move to a column beside it.
  */
 @Composable
-fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary, startSeconds: Long?, modifier: Modifier = Modifier) {
+fun VideoScreen(
+    services: AppServices,
+    navigator: Navigator,
+    video: VideoSummary,
+    startSeconds: Long?,
+    sheetProgress: Float = 1f,
+    onBack: (() -> Unit)? = null,
+    onExpand: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
     val scope = rememberCoroutineScope()
     val host = services.player
     val window = LocalWindowControls.current
     val inPip = LocalInPictureInPicture.current
     val size = LocalWindowSize.current
+    val p = sheetProgress.coerceIn(0f, 1f)
 
     // A finished download plays from its file and shows its stored page: no stream, info, comment or related request is made.
     val offline = remember(video.id) { services.downloads?.offline(video.id) }
@@ -161,55 +178,9 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
     // Created before any early return so the scroll positions survive fullscreen and Picture-in-Picture.
     val detailsState = rememberLazyListState()
     val sideState = rememberLazyListState()
-    // Pull-down state: pullFraction is 0 when fully expanded, 1 when at mini player size.
     val containerSize = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize
-    val winW = containerSize.width.toFloat().coerceAtLeast(100f)
-    val winH = containerSize.height.toFloat().coerceAtLeast(100f)
-    var pageHeightPx by remember { androidx.compose.runtime.mutableFloatStateOf(winH) }
-    val growAllowed = LocalWindowWidthDp.current < 1000f && !Vela.motion.reduced
-    val growFromMini = remember { (navigator.growFromMini && growAllowed).also { navigator.growFromMini = false } }
-    var pullFraction by remember { androidx.compose.runtime.mutableFloatStateOf(if (growFromMini) (1f - navigator.expandDrive.coerceAtLeast(0f)) else 0f) }
-    var dragPx by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
-    var pageOrigin by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
-    var pageWidthPx by remember { androidx.compose.runtime.mutableFloatStateOf(winW) }
     val density = androidx.compose.ui.platform.LocalDensity.current
-    val reveal = com.greenaltambe.vela.ui.nav.LocalPageReveal.current
-    fun setFraction(f: Float) {
-        pullFraction = f.coerceIn(0f, 1f)
-        reveal?.floatValue = pullFraction
-        dragPx = pullFraction * (pageHeightPx * 0.45f)
-    }
-    fun setDrag(v: Float) {
-        dragPx = v
-        val maxDrag = maxOf(pageHeightPx * 0.45f, with(density) { 260.dp.toPx() })
-        pullFraction = (v / maxDrag).coerceIn(0f, 1f)
-        reveal?.floatValue = pullFraction
-    }
-    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { reveal?.floatValue = 0f } }
-    val growSpec = com.greenaltambe.vela.ui.look.VelaMotion.tween<Float>(Vela.motion, com.greenaltambe.vela.ui.look.VelaMotion.Level.STANDARD, emphasized = true)
-    LaunchedEffect(growFromMini) {
-        if (!growFromMini) return@LaunchedEffect
-        if (navigator.expandDrive >= 0f) {
-            androidx.compose.runtime.snapshotFlow { navigator.expandDrive }.takeWhile { it >= 0f }.collect { q ->
-                setFraction(1f - q)
-            }
-            if (navigator.current is Route.Video && pullFraction > 0.001f) {
-                androidx.compose.animation.core.animate(pullFraction, 0f, animationSpec = growSpec) { x, _ -> setFraction(x) }
-            } else {
-                setFraction(0f)
-            }
-            return@LaunchedEffect
-        }
-        setFraction(1f)
-        androidx.compose.animation.core.animate(1f, 0f, animationSpec = growSpec) { x, _ -> setFraction(x) }
-    }
-    suspend fun settlePage(velocityY: Float) {
-        if (pullFraction > 0.22f || velocityY > 800f) {
-            androidx.compose.animation.core.animate(pullFraction, 1f, animationSpec = androidx.compose.animation.core.tween(200, easing = androidx.compose.animation.core.FastOutLinearInEasing)) { x, _ -> setFraction(x) }
-            navigator.shrinkToMini = true
-            navigator.back()
-        } else androidx.compose.animation.core.animate(pullFraction, 0f, animationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = 400f)) { x, _ -> setFraction(x) }
-    }
+
     val seekStep = services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.seekStepSeconds).toInt()
     val holdSpeedSetting = services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.holdSpeed)
     val miniOnRight = services.settings.resolve(com.greenaltambe.vela.core.settings.LookSettings.miniLook) == com.greenaltambe.vela.core.settings.MiniLook.PIP
@@ -337,14 +308,15 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
     val resolvingNote = resolveNote(attemptLog, video.id, resolveStart, services.accounts.active.value.isSignedIn, services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.accountFallbackMode) != com.greenaltambe.vela.core.settings.AccountFallbackMode.NEVER)
 
     val playerBox: @Composable () -> Unit = {
-        Box(Modifier.fillMaxWidth().testTag("video.player")) {
+        Box(Modifier.fillMaxSize().testTag("video.player")) {
             if (host != null) PlayerView(
-                host, video, chapters, markers, Modifier.fillMaxWidth(), onBack = { scope.launch { settlePage(1000f) } }, seekStepSeconds = seekStep, holdSpeed = holdSpeedSetting, onPrevious = onPreviousVideo, onNext = onNextVideo,
+                host, video, chapters, markers, Modifier.fillMaxSize(), onBack = onBack ?: { navigator.back(); Unit }, seekStepSeconds = seekStep, holdSpeed = holdSpeedSetting, onPrevious = onPreviousVideo, onNext = onNextVideo,
+                controlsEnabled = (p > 0.85f && !inPip),
                 isLive = info?.isLive == true, resolvingNote = resolvingNote,
                 openAgeSetting = { navigator.selectTab(com.greenaltambe.vela.ui.nav.Route.Settings) },
                 tryAccountNow = services.accounts.active.value.takeIf { it.isSignedIn }?.let { a -> { services.governors.forAccount(a.id).tryNow() } }, showChapterTitle = size != WindowSizeClass.COMPACT,
                 overlay = { SponsorBlockOverlay(prompt, notice, onAccept = modules.sponsorBlock::acceptPrompt, onUndo = { n -> modules.sponsorBlock.undo(n); notice = null }) },
-            ) else Box(Modifier.fillMaxWidth().padding(Vela.gutter), contentAlignment = Alignment.Center) {
+            ) else Box(Modifier.fillMaxSize().padding(Vela.gutter), contentAlignment = Alignment.Center) {
                 Text("No video player is available on this system: nothing will play. (On Linux install mpv-libs.)", Modifier.testTag("video.noPlayer"), maxLines = 4, overflow = TextOverflow.Ellipsis)
             }
         }
@@ -521,87 +493,87 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
     val gap = Arrangement.spacedBy(Vela.sm)
     // Two columns (related videos beside the player) only in a really wide window; narrower ones, desktop windows included, stack like the phone.
     val twoColumn = LocalWindowWidthDp.current >= 1000f
-    var fromRest by remember { mutableStateOf(true) }
-    var pulledDown by remember { mutableStateOf(false) }
-    if (!twoColumn) {
-        val corner = Vela.look.radii.largeDp
+    if (!twoColumn || p < 0.99f) {
         val topInsetPx = WindowInsets.safeDrawing.getTop(density).toFloat()
         val topInsetDp = with(density) { topInsetPx.toDp() }
+        val bottomInsetPx = WindowInsets.safeDrawing.getBottom(density).toFloat()
         val bg = Vela.colors.background.toColor()
-        val currentDrive = navigator.expandDrive
-        val p = if (currentDrive >= 0f) (1f - currentDrive).coerceIn(0f, 1f) else pullFraction
-        Box(
-            modifier.fillMaxSize()
-                .drawBehind { drawRect(bg, alpha = ((1f - p) * 1.05f).coerceIn(0f, 1f)) }
-                .onGloballyPositioned { pageOrigin = it.positionInWindow() }
-                .onSizeChanged { pageHeightPx = it.height.toFloat().coerceAtLeast(100f); pageWidthPx = it.width.toFloat().coerceAtLeast(100f) }
-                .playerVerticalSwipe(
-                    startsOn = { at ->
-                        if (navigator.expandDrive >= 0f) false
-                        else {
-                            fromRest = pullFraction <= 0.001f; pulledDown = false
-                            pullFraction > 0f || at.y < topInsetPx + pageWidthPx * 9f / 16f
-                        }
-                    },
-                    onDelta = { dy -> if (dy > 0f) pulledDown = true; if (pullFraction > 0f || dy > 0f) setDrag((dragPx + dy).coerceAtLeast(0f)) },
-                    onEnd = { total, v ->
-                        if (fromRest && !pulledDown && (total < -with(density) { 60.dp.toPx() } || v < -1000f)) { setFraction(0f); window?.toggleFullscreen() }
-                        else scope.launch { settlePage(v) }
-                    },
-                ),
-        ) {
         val miniPip = miniOnRight
         val pipPos = com.greenaltambe.vela.ui.nav.LocalPipPosition.current
-        val miniWidthFallbackPx = with(density) { (if (miniPip) com.greenaltambe.vela.ui.components.PIP_WIDTH else 64.dp).toPx() }
-        val miniH = miniWidthFallbackPx * 9f / 16f
-        val marginPx = with(density) { 16.dp.toPx() }
-        val bottomInsetPx = WindowInsets.safeDrawing.getBottom(density).toFloat()
-        val bottomClearPx = bottomInsetPx + with(density) { 114.dp.toPx() }
-        val real = navigator.miniPicture
-        val validReal = real?.takeIf { it.top > pageHeightPx * 0.35f && it.width > 20f && it.height > 10f }
-        val miniWidthPx = validReal?.width ?: miniWidthFallbackPx
-        val k = miniWidthPx / pageWidthPx.coerceAtLeast(1f)
-        val s = 1f + (k - 1f) * p
-        val pipAt = pipPos?.pos
-        val targetLeft = if (validReal != null) {
-            validReal.left - pageOrigin.x
-        } else if (miniPip) {
-            pipAt?.x ?: (pageWidthPx - marginPx - miniWidthPx)
+        val winW = containerSize.width.toFloat().coerceAtLeast(100f)
+        val winH = containerSize.height.toFloat().coerceAtLeast(100f)
+
+        val fraction = 1f - p
+        val nav = remember { com.greenaltambe.vela.ui.nav.NavConfig.of(services.settings) }
+        val cardHeightPx = with(density) { 56.dp.toPx() }
+        val bottomClearPx = bottomInsetPx + with(density) { (if (nav.barStyle == com.greenaltambe.vela.core.settings.BarStyle.DOCKED) 64.dp else 72.dp).toPx() }
+        val marginPx = with(density) { (if (nav.barStyle == com.greenaltambe.vela.core.settings.BarStyle.DOCKED) 0.dp else Vela.md).toPx() }
+
+        val fullWidthDp = with(density) { winW.toDp() }
+        val fullHeightDp = with(density) { (winW * 9f / 16f).toDp() }
+
+        val targetLeftDp: androidx.compose.ui.unit.Dp
+        val targetTopDp: androidx.compose.ui.unit.Dp
+        val targetWidthDp: androidx.compose.ui.unit.Dp
+        val targetHeightDp: androidx.compose.ui.unit.Dp
+
+        if (miniPip) {
+            targetLeftDp = 0.dp
+            targetTopDp = 0.dp
+            targetWidthDp = com.greenaltambe.vela.ui.components.PIP_WIDTH
+            targetHeightDp = com.greenaltambe.vela.ui.components.PIP_WIDTH * 9f / 16f
         } else {
-            marginPx + with(density) { 8.dp.toPx() }
+            targetLeftDp = 8.dp
+            targetTopDp = 10.dp
+            targetWidthDp = 64.dp
+            targetHeightDp = 36.dp
         }
-        val rawTargetTop = (if (validReal != null) {
-            validReal.top - pageOrigin.y
-        } else if (miniPip) {
-            pipAt?.y ?: (pageHeightPx - bottomClearPx - miniH)
-        } else {
-            pageHeightPx - bottomClearPx - miniH
-        }) - topInsetPx
-        val targetTop = rawTargetTop.coerceAtLeast(0f)
-        val cornerRadius = (maxOf(corner, 16f) * p).dp
-        Column(Modifier.fillMaxSize()) {
-            Spacer(Modifier.height(topInsetDp))
-            Box(
-                Modifier.graphicsLayer {
-                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
-                    scaleX = s; scaleY = s
-                    translationX = targetLeft * p; translationY = targetTop * p
-                    if (p > 0f) {
-                        clip = true
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(cornerRadius)
+
+        val currentWidthDp = targetWidthDp + (fullWidthDp - targetWidthDp) * p
+        val currentHeightDp = targetHeightDp + (fullHeightDp - targetHeightDp) * p
+        val currentLeftDp = targetLeftDp * fraction
+        val currentTopDp = (topInsetDp * p) + (targetTopDp * fraction)
+        val cornerRadiusDp = ((if (miniPip) 16f else 8f) * fraction).dp
+
+        Box(
+            modifier.fillMaxSize()
+                .drawBehind { if (p > 0.05f) drawRect(bg, alpha = ((p - 0.15f) / 0.85f).coerceIn(0f, 1f)) }
+        ) {
+            if (p > 0.15f) {
+                val detailsAlpha = ((p - 0.25f) / 0.75f).coerceIn(0f, 1f)
+                val detailsTop = topInsetDp + fullHeightDp
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(top = detailsTop)
+                        .graphicsLayer {
+                            alpha = detailsAlpha
+                            translationY = fraction * with(density) { 48.dp.toPx() }
+                        }
+                ) {
+                    LazyColumn(
+                        Modifier.fillMaxSize().testTag("video.list"),
+                        state = detailsState,
+                        userScrollEnabled = p > 0.95f,
+                        contentPadding = Vela.contentPadding,
+                        verticalArrangement = gap
+                    ) {
+                        details()
+                        secondary()
                     }
-                }.let { if (p > 0f) it.clip(androidx.compose.foundation.shape.RoundedCornerShape(cornerRadius)) else it },
-            ) { playerBox() }
-            Box(
-                Modifier.weight(1f).fillMaxWidth().graphicsLayer {
-                    alpha = (1f - 1.5f * p).coerceIn(0f, 1f)
-                    translationY = p * with(density) { 48.dp.toPx() }
-                },
-            ) {
-                LazyColumn(Modifier.fillMaxSize().testTag("video.list"), state = detailsState, contentPadding = Vela.contentPadding, verticalArrangement = gap) { details(); secondary() }
-                commentsPanel(Modifier.fillMaxSize())
+                    commentsPanel(Modifier.fillMaxSize())
+                }
             }
-        }
+
+            Box(
+                Modifier
+                    .offset { IntOffset(currentLeftDp.roundToPx(), currentTopDp.roundToPx()) }
+                    .size(currentWidthDp, currentHeightDp)
+                    .clip(RoundedCornerShape(cornerRadiusDp))
+                    .then(if (p < 0.5f && onExpand != null) Modifier.clickable { onExpand() } else Modifier)
+            ) {
+                playerBox()
+            }
         }
     } else {
         val bg = Vela.colors.background.toColor()

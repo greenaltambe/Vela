@@ -61,6 +61,8 @@ enum class NavAction { TAB, PUSH, POP, REPLACE }
 class Navigator(start: Route = Route.Home) {
     private val stack = mutableStateListOf(start)
 
+    var playerSheetState: com.greenaltambe.vela.ui.player.PlayerSheetState? = null
+
     /** Set when the video page opens from the mini player: the page then grows out of the mini player's picture (read once by the page). */
     var growFromMini = false
     /** Set when the video page is minimized back into the mini player, so the layer exit transition does not animate. */
@@ -73,6 +75,10 @@ class Navigator(start: Route = Route.Home) {
 
     /** The mini player is being dragged up to [progress] (0..1): the first call opens the page in its pulled-down state, the next ones grow it. */
     fun driveExpand(progress: Float) {
+        playerSheetState?.let {
+            it.expand()
+            return
+        }
         if (expandDrive < 0f) {
             val playing = nowPlaying ?: return
             if (current is Route.Video) return
@@ -103,7 +109,12 @@ class Navigator(start: Route = Route.Home) {
 
     /** The video the player is on (the mini player shows it when [current] is not its page). */
     var nowPlaying: VideoSummary? by mutableStateOf(null)
-        private set
+        internal set
+
+    fun setNowPlayingDirect(v: VideoSummary) {
+        remember(v)
+        nowPlaying = v
+    }
 
     /** Videos queued after [nowPlaying], from "play all". */
     var queue: List<VideoSummary> by mutableStateOf(emptyList())
@@ -120,7 +131,12 @@ class Navigator(start: Route = Route.Home) {
 
     /** Swaps the current screen for [route] (a search view re-searching), so Back does not step through every query. */
     fun replace(route: Route) {
-        if (route is Route.Video) { remember(route.video); nowPlaying = route.video }
+        if (route is Route.Video) {
+            remember(route.video)
+            nowPlaying = route.video
+            playerSheetState?.open(route.video, route.startSeconds)
+            return
+        }
         lastAction = NavAction.REPLACE
         stack[stack.lastIndex] = route
     }
@@ -130,8 +146,13 @@ class Navigator(start: Route = Route.Home) {
 
     fun push(route: Route) {
         if (route is Route.Video && route.video.isShort && shortsInPlayer && !route.asVideoPage) return push(Route.ShortsPlayer(route.video))
+        if (route is Route.Video) {
+            remember(route.video)
+            nowPlaying = route.video
+            playerSheetState?.open(route.video, route.startSeconds)
+            return
+        }
         if (route == current) return
-        if (route is Route.Video) { remember(route.video); nowPlaying = route.video }
         lastAction = NavAction.PUSH
         stack.add(route)
     }
@@ -156,8 +177,7 @@ class Navigator(start: Route = Route.Home) {
     fun replaceWithVideo(video: VideoSummary, startSeconds: Long? = null) {
         remember(video)
         nowPlaying = video
-        lastAction = if (current is Route.Video) NavAction.REPLACE else NavAction.PUSH
-        if (current is Route.Video) stack[stack.lastIndex] = Route.Video(video, startSeconds) else stack.add(Route.Video(video, startSeconds))
+        playerSheetState?.open(video, startSeconds)
     }
 
     fun playAll(videos: List<VideoSummary>) {
@@ -179,13 +199,20 @@ class Navigator(start: Route = Route.Home) {
         val prev = played.lastOrNull() ?: return null
         played = played.dropLast(1)
         nowPlaying = prev
-        lastAction = if (current is Route.Video) NavAction.REPLACE else NavAction.PUSH
-        if (current is Route.Video) stack[stack.lastIndex] = Route.Video(prev) else stack.add(Route.Video(prev))
+        playerSheetState?.open(prev) ?: run {
+            lastAction = if (current is Route.Video) NavAction.REPLACE else NavAction.PUSH
+            if (current is Route.Video) stack[stack.lastIndex] = Route.Video(prev) else stack.add(Route.Video(prev))
+        }
         return prev
     }
 
     /** Puts a video back in the mini player after a restart; it does nothing if something is already there. The player stays idle until the viewer presses play. */
-    fun restore(video: VideoSummary) { if (nowPlaying == null) nowPlaying = video }
+    fun restore(video: VideoSummary) {
+        if (nowPlaying == null) {
+            nowPlaying = video
+            playerSheetState?.restore(video)
+        }
+    }
 
     fun clearNowPlaying() {
         nowPlaying = null
@@ -207,6 +234,10 @@ class Navigator(start: Route = Route.Home) {
 
     /** For the mini player: reopens the page of what is playing. */
     fun expandNowPlaying() {
+        playerSheetState?.let {
+            it.expand()
+            return
+        }
         nowPlaying?.let { if (current !is Route.Video) { growFromMini = true; push(Route.Video(it)) } }
     }
 }
