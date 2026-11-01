@@ -148,7 +148,7 @@ class PlaybackRuntime private constructor(context: Context) {
                 AccountOp.PLAYBACK -> true
                 AccountOp.DETAILS -> settings.resolve(Settings.accountUseForDetails)
                 AccountOp.CHANNELS -> settings.resolve(Settings.accountUseForChannels)
-                AccountOp.NEVER -> false
+                AccountOp.FEED, AccountOp.NEVER -> false
             } },
             tierOrder = { TierOrder.parse(settings.resolve(Settings.accountTierOrder)) }, accountPaused = ::pausedReason)
     }
@@ -160,7 +160,7 @@ class PlaybackRuntime private constructor(context: Context) {
                 AccountOp.PLAYBACK -> true
                 AccountOp.DETAILS -> settings.resolve(Settings.accountUseForDetails)
                 AccountOp.CHANNELS -> settings.resolve(Settings.accountUseForChannels)
-                AccountOp.NEVER -> false
+                AccountOp.FEED, AccountOp.NEVER -> false
             } },
             tierOrder = { TierOrder.parse(settings.resolve(Settings.accountTierOrder)) }, accountPaused = ::pausedReason)
     }

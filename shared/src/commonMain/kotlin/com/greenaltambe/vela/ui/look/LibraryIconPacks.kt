@@ -9,12 +9,12 @@ import com.greenaltambe.vela.core.settings.IconStyle
  * "rounded ends" options only apply to Vela's own packs: these come drawn as designed.
  */
 internal object LibraryIconPacks {
-    fun build(style: IconStyle): Map<String, ImageVector> = when (style) {
-        IconStyle.ROUNDED -> MaterialRounded.icons
-        IconStyle.OUTLINED -> MaterialOutlined.icons
-        IconStyle.SHARP -> MaterialSharp.icons
-        IconStyle.TWO_TONE -> MaterialTwoTone.icons
-        IconStyle.LUCIDE -> LucideIcons.icons
+    fun build(style: IconStyle): Pair<Map<String, ImageVector>, Map<String, ImageVector>> = when (style) {
+        IconStyle.ROUNDED -> MaterialRounded.icons to MaterialRounded.filledIcons
+        IconStyle.OUTLINED -> MaterialOutlined.icons to MaterialFilled.icons
+        IconStyle.SHARP -> MaterialSharp.icons to MaterialFilled.icons
+        IconStyle.TWO_TONE -> MaterialTwoTone.icons to MaterialFilled.icons
+        IconStyle.LUCIDE -> LucideIcons.icons to MaterialFilled.icons
         else -> error("$style is drawn by VelaIcons")
     }
 }

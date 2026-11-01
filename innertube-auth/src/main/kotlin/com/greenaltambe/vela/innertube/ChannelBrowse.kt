@@ -225,7 +225,7 @@ class ChannelBrowse(
         return ExtractorResult.Success(post to comments)
     }
 
-    private suspend fun executeBrowse(body: JsonObject): ExtractorResult<JsonElement> {
+    internal suspend fun executeBrowse(body: JsonObject): ExtractorResult<JsonElement> {
         val nowMs = clock.now().toEpochMilliseconds()
         val offsetMinutes = (TimeZone.getDefault().getOffset(nowMs) / 60000)
         val reg = contentRegion().ifBlank { "US" }

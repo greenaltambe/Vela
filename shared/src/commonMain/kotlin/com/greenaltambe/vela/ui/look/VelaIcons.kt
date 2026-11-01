@@ -16,8 +16,13 @@ import com.greenaltambe.vela.core.settings.IconWeight
  * with a soft fill) are drawn here; Material Rounded / Outlined / Sharp / Two-tone and Lucide come ready-made from [LibraryIconPacks]. The line packs are drawn as strokes from the start rather than outlining
  * the solid shapes, so thin things (dots, plus, check marks, arrows) stay as elegant as the rest.
  */
-class VelaIconSet(private val icons: Map<String, ImageVector>) {
-    private operator fun get(name: String): ImageVector = icons.getValue(name)
+class VelaIconSet(
+    private val icons: Map<String, ImageVector>,
+    private val filledIcons: Map<String, ImageVector> = emptyMap(),
+) {
+    operator fun get(name: String): ImageVector = icons.getValue(name)
+    fun get(name: String, active: Boolean): ImageVector = if (active) filled(name) else this[name]
+    fun filled(name: String): ImageVector = filledIcons[name] ?: icons.getValue(name)
 
     val home get() = this["home"]; val subscriptions get() = this["subscriptions"]; val library get() = this["library"]; val settings get() = this["settings"]
     val search get() = this["search"]; val back get() = this["back"]; val close get() = this["close"]; val more get() = this["more"]
@@ -32,6 +37,21 @@ class VelaIconSet(private val icons: Map<String, ImageVector>) {
     val palette get() = this["palette"]; val lock get() = this["lock"]; val shield get() = this["shield"]; val folder get() = this["folder"]
     val tune get() = this["tune"]; val arrowUp get() = this["arrowUp"]; val arrowDown get() = this["arrowDown"]; val dislike get() = this["dislike"]
     val watchLater get() = this["watchLater"]; val comment get() = this["comment"]; val audioTrack get() = this["audioTrack"]; val link get() = this["link"]; val cloud get() = this["cloud"]; val visibility get() = this["visibility"]; val bolt get() = this["bolt"]; val explore get() = this["explore"]; val skipNext get() = this["skipNext"]; val skipPrevious get() = this["skipPrevious"]
+
+    // Filled variants
+    val homeFilled get() = filled("home")
+    val subscriptionsFilled get() = filled("subscriptions")
+    val libraryFilled get() = filled("library")
+    val searchFilled get() = filled("search")
+    val exploreFilled get() = filled("explore")
+    val boltFilled get() = filled("bolt")
+    val downloadFilled get() = filled("download")
+    val saveFilled get() = filled("save")
+    val likeFilled get() = filled("like")
+    val dislikeFilled get() = filled("dislike")
+    val notificationsFilled get() = filled("notifications")
+    val watchLaterFilled get() = filled("watchLater")
+    val commentFilled get() = filled("comment")
 
     /** Every icon with its name, for tests and the pack previews. */
     val all: List<Pair<String, ImageVector>> get() = IconNames.all.map { it to this[it] }
@@ -224,12 +244,19 @@ object VelaIcons {
     const val DUOTONE_FILL_ALPHA = 0.24f
 
     private fun build(t: IconTokens): VelaIconSet {
-        val icons = when (t.style) {
-            IconStyle.FILLED -> IconNames.all.associateWith { filledIcon(it, t.weight) }
-            IconStyle.LINE, IconStyle.DUOTONE -> IconNames.all.associateWith { lineIcon(it, t) }
+        val (icons, filled) = when (t.style) {
+            IconStyle.FILLED -> {
+                val f = IconNames.all.associateWith { filledIcon(it, t.weight) }
+                f to f
+            }
+            IconStyle.LINE, IconStyle.DUOTONE -> {
+                val l = IconNames.all.associateWith { lineIcon(it, t) }
+                val f = IconNames.all.associateWith { filledIcon(it, t.weight) }
+                l to f
+            }
             else -> LibraryIconPacks.build(t.style)
         }
-        return VelaIconSet(icons)
+        return VelaIconSet(icons, filled)
     }
 
     /** The default (filled, regular, rounded) set. */

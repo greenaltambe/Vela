@@ -82,21 +82,58 @@ object InnertubeParsers {
                 v["thumbnail"]["thumbnails"].array.lastOrNull()["url"].string?.let { if (it.startsWith("//")) "https:$it" else it },
                 clock(v["lengthText"].text()), views(v["viewCountText"].text() ?: v["shortViewCountText"].text()),
                 isLive = v["badges"].toString().contains("LIVE"),
-                publishedText = v["publishedTimeText"].text(),
+                publishedText = v["publishedTimeText"].text() ?: v.findAll("publishedTimeText").firstOrNull().text(),
                 channelAvatarUrl = v["channelThumbnailSupportedRenderers"]["channelThumbnailWithLinkRenderer"]["thumbnail"]["thumbnails"].array.firstOrNull()["url"].string?.let { if (it.startsWith("//")) "https:$it" else it },
             )
         }
         val lockups = json.findAll("lockupViewModel").mapNotNull { l ->
-            if (l["contentType"].string?.contains("VIDEO") != true) return@mapNotNull null
+            val cType = l["contentType"].string ?: ""
+            if (!cType.contains("VIDEO")) return@mapNotNull null
             val id = l["contentId"].string ?: return@mapNotNull null
-            val title = l["metadata"]["lockupMetadataViewModel"]["title"]["content"].string ?: return@mapNotNull null
-            val channel = l["metadata"]["lockupMetadataViewModel"]["metadata"]["contentMetadataViewModel"]["metadataRows"][0]["metadataParts"][0]["text"]["content"].string ?: ""
-            // The lockup carries its picture as image "sources"; the largest is last.
-            val thumb = l["contentImage"]["thumbnailViewModel"]["image"]["sources"].array.lastOrNull()["url"].string
-            val avatar = l["metadata"]["lockupMetadataViewModel"]["image"]["decoratedAvatarViewModel"]["avatar"]["avatarViewModel"]["image"]["sources"].array.firstOrNull()["url"].string
-            // The second metadata row is "1.2M views" then "3 days ago".
-            val parts = l["metadata"]["lockupMetadataViewModel"]["metadata"]["contentMetadataViewModel"]["metadataRows"][1]["metadataParts"]
-            com.greenaltambe.vela.extractor.VideoSummary(id, title, "", channel, thumb?.let { if (it.startsWith("//")) "https:$it" else it }, viewCount = views(parts[0]["text"]["content"].string), channelAvatarUrl = avatar, publishedText = parts[1]["text"]["content"].string)
+            val meta = l.at("metadata", "lockupMetadataViewModel") ?: l["metadata"] ?: return@mapNotNull null
+            val title = meta.at("title", "content").string ?: meta["title"].text() ?: return@mapNotNull null
+            val thumb = l.at("contentImage", "thumbnailViewModel", "image", "sources").array.lastOrNull().at("url").string
+            val avatar = meta.at("image", "decoratedAvatarViewModel", "avatar", "avatarViewModel", "image", "sources").array.firstOrNull().at("url").string
+
+            val durationText = l.findAll("thumbnailBadgeViewModel").firstOrNull().at("text").string
+                ?: l.findAll("thumbnailOverlayTimeStatusRenderer").firstOrNull().at("text").text()
+            val duration = clock(durationText)
+
+            var channel = ""
+            var viewCount: Long? = null
+            var publishedText: String? = null
+            val rows = meta.at("metadata", "contentMetadataViewModel", "metadataRows").array
+            for (r in rows) {
+                val parts = r.at("metadataParts").array
+                for (p in parts) {
+                    val text = p.at("text", "content").string ?: p.at("text").text() ?: continue
+                    val lower = text.lowercase()
+                    if (lower.contains("view")) {
+                        viewCount = views(text)
+                    } else if (lower.contains("ago") || lower.contains("stream") || lower.contains("premier") ||
+                        lower.contains("hour") || lower.contains("day") || lower.contains("month") ||
+                        lower.contains("year") || lower.contains("minute") || lower.contains("second") ||
+                        lower.contains("yesterday")) {
+                        publishedText = text
+                    } else if (channel.isBlank()) {
+                        channel = text
+                    }
+                }
+            }
+            if (channel.isBlank()) {
+                channel = meta.at("image", "decoratedAvatarViewModel", "avatar", "avatarViewModel", "accessibility", "accessibilityData", "label").string?.removePrefix("Go to ") ?: ""
+            }
+            com.greenaltambe.vela.extractor.VideoSummary(
+                id = id,
+                title = title,
+                channelId = "",
+                channelName = channel,
+                thumbnailUrl = thumb?.let { if (it.startsWith("//")) "https:$it" else it },
+                durationSeconds = duration,
+                viewCount = viewCount,
+                publishedText = publishedText,
+                channelAvatarUrl = avatar?.let { if (it.startsWith("//")) "https:$it" else it },
+            )
         }
         return (classic + lockups).distinctBy { it.id }
     }

@@ -1,5 +1,9 @@
 package com.greenaltambe.vela.ui.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -10,11 +14,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import com.greenaltambe.vela.AppServices
 import com.greenaltambe.vela.extractor.ExtractorResult
 import com.greenaltambe.vela.extractor.videoPagedList
 import com.greenaltambe.vela.modules.dearrow.DeArrowSurface
+import com.greenaltambe.vela.ui.look.Vela
+import com.greenaltambe.vela.ui.look.toColor
 import com.greenaltambe.vela.ui.nav.Navigator
 import kotlinx.coroutines.launch
 
@@ -79,8 +86,19 @@ fun HomeScreen(services: AppServices, navigator: Navigator, modifier: Modifier =
     VideoCollection(
         services, navigator, shown, state, Modifier, testTag = "home.list", scroll = store?.scroll,
         header = {
-            note?.let { Text(it, style = androidx.compose.material3.MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("home.note")) }
-            (videos.items.size - shown.size).takeIf { it > 0 }?.let { Text("$it hidden by your feed filters (Settings > Feed).", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("home.hiddenByFeed")) }
+            note?.let {
+                Box(
+                    Modifier.fillMaxWidth().padding(bottom = Vela.sm)
+                        .clip(Vela.smallShape)
+                        .background(Vela.colors.surfaceVariant.toColor().copy(alpha = 0.5f))
+                        .padding(horizontal = Vela.sm, vertical = Vela.xs)
+                ) {
+                    Text(it, style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor(), modifier = Modifier.testTag("home.note"))
+                }
+            }
+            (videos.items.size - shown.size).takeIf { it > 0 }?.let {
+                Text("$it hidden by your feed filters (Settings > Feed).", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor(), modifier = Modifier.padding(bottom = Vela.xs).testTag("home.hiddenByFeed"))
+            }
         },
         // More is fetched by itself as the last card comes into view; the button stays as a fallback if that fetch failed.
         // The account's recommended feed is one page with no continuation: at its end the list carries on with Trending (then Trending's own pages).

@@ -9,7 +9,7 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 
 /** What a call is for, so the account can be kept to the operations the user allowed. Search, comments, trending, related and feeds are never account operations. */
-enum class AccountOp { PLAYBACK, DETAILS, CHANNELS, NEVER }
+enum class AccountOp { PLAYBACK, DETAILS, CHANNELS, FEED, NEVER }
 
 /**
  * Tries [tiers] in order and returns the first success. Tiers that recently failed for a tier-health reason
@@ -72,7 +72,7 @@ class FallbackChain(
         run("replies($videoId/$commentId${page(continuation)})", AccountOp.NEVER) { it.replies(videoId, commentId, continuation) }
 
     override suspend fun suggestions(query: String) = run("suggestions", AccountOp.NEVER) { it.suggestions(query) }
-    override suspend fun trending(continuation: String?) = run("trending(${page(continuation)})", AccountOp.NEVER) { it.trending(continuation) }
+    override suspend fun trending(continuation: String?) = run("trending(${page(continuation)})", AccountOp.FEED) { it.trending(continuation) }
     override suspend fun related(videoId: String) = run("related($videoId)", AccountOp.NEVER) { it.related(videoId) }
     override suspend fun channelVideosSorted(channelId: String, sort: ChannelVideoSort, continuation: String?) =
         run("channelVideosSorted($channelId, $sort${page(continuation)})", AccountOp.CHANNELS) { it.channelVideosSorted(channelId, sort, continuation) }
@@ -263,6 +263,9 @@ class FallbackChain(
         }
         if (op == AccountOp.CHANNELS && usable.any { it.capabilities.channelTabFilters }) {
             usable = usable.sortedByDescending { if (it.capabilities.channelTabFilters) 1 else 0 }
+        }
+        if (op == AccountOp.FEED && usable.any { it.id == TierId.ALT_CLIENT }) {
+            usable = usable.sortedByDescending { if (it.id == TierId.ALT_CLIENT) 1 else 0 }
         }
         return if (mode == AccountFallbackMode.ALWAYS) usable.sortedBy { if (it.id == TierId.AUTHENTICATED) 0 else 1 } else usable
     }

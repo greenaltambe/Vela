@@ -112,4 +112,16 @@ class IconPacksTest {
             }
         }
     }
+
+    @Test fun everyPackProvidesFilledVariantForInteractiveIcons() {
+        val interactive = listOf("like", "dislike", "home", "subscriptions", "library", "bolt", "search", "explore", "download", "save")
+        for (t in packs) {
+            val set = VelaIcons.forTokens(t)
+            for (name in interactive) {
+                val filled = set.filled(name)
+                val ps = paths(filled)
+                assertTrue(ps.isNotEmpty(), "Filled $name in pack $t has no paths")
+            }
+        }
+    }
 }

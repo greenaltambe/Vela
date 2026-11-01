@@ -52,7 +52,9 @@ import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.Subscriptions
 import androidx.compose.material.icons.rounded.ThumbDown
+import androidx.compose.material.icons.rounded.ThumbDownOffAlt
 import androidx.compose.material.icons.rounded.ThumbUp
+import androidx.compose.material.icons.rounded.ThumbUpOffAlt
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.VideoLibrary
@@ -91,7 +93,7 @@ internal object MaterialRounded {
             "timer" to Icons.Rounded.Timer,
             "quality" to Icons.Rounded.HighQuality,
             "captions" to Icons.Rounded.ClosedCaption,
-            "like" to Icons.Rounded.ThumbUp,
+            "like" to Icons.Rounded.ThumbUpOffAlt,
             "refresh" to Icons.Rounded.Refresh,
             "info" to Icons.Rounded.Info,
             "chevronRight" to Icons.Rounded.ChevronRight,
@@ -113,7 +115,7 @@ internal object MaterialRounded {
             "tune" to Icons.Rounded.Tune,
             "arrowUp" to Icons.Rounded.ArrowUpward,
             "arrowDown" to Icons.Rounded.ArrowDownward,
-            "dislike" to Icons.Rounded.ThumbDown,
+            "dislike" to Icons.Rounded.ThumbDownOffAlt,
             "link" to Icons.Rounded.Link,
             "cloud" to Icons.Rounded.Cloud,
             "visibility" to Icons.Rounded.Visibility,
@@ -121,6 +123,13 @@ internal object MaterialRounded {
             "explore" to Icons.Rounded.Explore,
             "skipNext" to Icons.Rounded.SkipNext,
             "skipPrevious" to Icons.Rounded.SkipPrevious,
+        )
+    }
+
+    val filledIcons: Map<String, ImageVector> by lazy {
+        icons + mapOf(
+            "like" to Icons.Rounded.ThumbUp,
+            "dislike" to Icons.Rounded.ThumbDown,
         )
     }
 }

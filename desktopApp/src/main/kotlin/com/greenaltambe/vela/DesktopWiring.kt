@@ -164,7 +164,7 @@ fun buildDesktopWiring(
         AccountOp.PLAYBACK -> true
         AccountOp.DETAILS -> settings.resolve(Settings.accountUseForDetails)
         AccountOp.CHANNELS -> settings.resolve(Settings.accountUseForChannels)
-        AccountOp.NEVER -> false
+        AccountOp.FEED, AccountOp.NEVER -> false
     } }
     val paused = { signedIn()?.let { governors.forAccount(it.id).cooldownUntil() }?.let { "account cooling down until ${it.toString().substring(11, 16)} UTC" } }
     val order = { TierOrder.parse(settings.resolve(Settings.accountTierOrder)) }

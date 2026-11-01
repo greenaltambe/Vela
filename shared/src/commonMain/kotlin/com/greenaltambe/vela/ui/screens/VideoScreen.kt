@@ -383,14 +383,15 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
                     liked = target == VideoRating.LIKE; disliked = target == VideoRating.DISLIKE
                     scope.launch { (services.actions!!.rate(video.id, target) as? ActionResult.Failed)?.let { liked = wasLiked; disliked = wasDisliked; actionError = "Could not rate on the account: ${it.message}" } }
                 }
-                ActionChip(Vela.icons.like, votes?.let { compact(it.likes) } ?: "Like", { rate(if (liked) VideoRating.NONE else VideoRating.LIKE) }, Modifier.testTag("video.votes"), selected = liked)
-                ActionChip(Vela.icons.dislike, votes?.let { compact(it.dislikes) } ?: "Dislike", { rate(if (disliked) VideoRating.NONE else VideoRating.DISLIKE) }, Modifier.testTag("video.dislike"), selected = disliked)
+                ActionChip(Vela.icons.like, votes?.let { compact(it.likes) } ?: "Like", { rate(if (liked) VideoRating.NONE else VideoRating.LIKE) }, Modifier.testTag("video.votes"), selected = liked, selectedIcon = Vela.icons.likeFilled)
+                ActionChip(Vela.icons.dislike, votes?.let { compact(it.dislikes) } ?: "Dislike", { rate(if (disliked) VideoRating.NONE else VideoRating.DISLIKE) }, Modifier.testTag("video.dislike"), selected = disliked, selectedIcon = Vela.icons.dislikeFilled)
                 if (services.downloads != null) {
                     if (offline != null) ActionChip(Vela.icons.downloaded, "Saved", {}, Modifier.testTag("video.downloaded"), selected = true)
                     else ActionChip(Vela.icons.download, "Download", { downloadDialog = true }, Modifier.testTag("video.download"))
                 }
                 Box {
-                    ActionChip(Vela.icons.save, "Save", { saveMenu = true }, Modifier.testTag("video.save"))
+                    val isSaved = remember(video.id) { services.playlists.all().any { services.playlists.contains(it.id, video.id) } }
+                    ActionChip(Vela.icons.save, "Save", { saveMenu = true }, Modifier.testTag("video.save"), selected = isSaved, selectedIcon = Vela.icons.saveFilled)
                     DropdownMenu(saveMenu, { saveMenu = false }) {
                         if (services.actions != null && services.accounts.active.value.isSignedIn) DropdownMenuItem(
                             text = { Text("Watch later (YouTube)", maxLines = 1) },

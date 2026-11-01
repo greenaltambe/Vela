@@ -151,7 +151,7 @@ class AnonymousOnlyOperationsTest {
     private fun chain(auth: ChaosExtractor, details: Boolean = false, channels: Boolean = false) = FallbackChain(
         listOf(ExtractorTier(ANONYMOUS, ChaosExtractor(FORBIDDEN_403)), ExtractorTier(AUTHENTICATED, auth)),
         { ONLY_ON_FAILURE }, DiagnosticsLog(), signedInAccount = { "google:ab12cd" }, tierOrder = { TierOrder.Default },
-        accountMayServe = { op -> when (op) { AccountOp.PLAYBACK -> true; AccountOp.DETAILS -> details; AccountOp.CHANNELS -> channels; AccountOp.NEVER -> false } },
+        accountMayServe = { op -> when (op) { AccountOp.PLAYBACK -> true; AccountOp.DETAILS -> details; AccountOp.CHANNELS -> channels; AccountOp.FEED, AccountOp.NEVER -> false } },
     )
 
     @Test fun searchTrendingCommentsRelatedAndFeedsNeverReachTheAccount() = runTest {

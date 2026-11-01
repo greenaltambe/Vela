@@ -81,6 +81,27 @@ class InnertubeWritesTest {
         assertEquals("Chan2", v[1].channelName)
     }
 
+    @Test fun lockupWithModernMetadataRowsParsesRelativeTimeViewsAndBadges() {
+        val json = lenientJson.parseToJsonElement("""{"contents":[{"lockupViewModel":{"contentType":"LOCKUP_CONTENT_TYPE_VIDEO","contentId":"vid123",
+            "metadata":{"lockupMetadataViewModel":{"title":{"content":"Great Video"},"metadata":{"contentMetadataViewModel":{"metadataRows":[
+                {"metadataParts":[{"text":{"content":"Creator Channel"}}]},
+                {"metadataParts":[{"text":{"content":"1.5M views"}},{"text":{"content":"2 days ago"}}]}
+            ]}}}},
+            "contentImage":{"thumbnailViewModel":{"image":{"sources":[{"url":"https://thumb/mq.jpg"}]}}},
+            "thumbnailBadgeViewModel":{"text":"12:34"}
+        }}]}""")
+        val v = InnertubeParsers.videos(json)
+        assertEquals(1, v.size)
+        val video = v.first()
+        assertEquals("vid123", video.id)
+        assertEquals("Great Video", video.title)
+        assertEquals("Creator Channel", video.channelName)
+        assertEquals(1_500_000L, video.viewCount)
+        assertEquals("2 days ago", video.publishedText)
+        assertEquals(754L, video.durationSeconds)
+        assertEquals("https://thumb/mq.jpg", video.thumbnailUrl)
+    }
+
     @Test fun subscriptionsComeFromTheAllSubscriptionsPageAndStopWhenPagesRepeat() {
         val page = """{"x":[{"channelRenderer":{"channelId":"UC1","title":{"simpleText":"Only one"}}}],"c":{"continuationCommand":{"token":"T"}}}"""
         val urls = mutableListOf<String>()

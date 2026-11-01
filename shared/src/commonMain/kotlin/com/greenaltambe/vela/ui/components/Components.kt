@@ -145,11 +145,10 @@ fun VideoCard(
             Thumbnail(video, thumbnail, extras, Modifier.fillMaxWidth().clip(Vela.thumbnailShape))
             Row(Modifier.fillMaxWidth().padding(horizontal = Vela.xs), horizontalArrangement = Arrangement.spacedBy(Vela.sm), verticalAlignment = Alignment.Top) {
                 if (showChannelAvatar) Avatar(video.channelName, onChannelClick, url = video.channelAvatarUrl)
-                Column(Modifier.weight(1f)) {
-                    Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("card.title"))
-                    // Channel on its own line (it can be very long), the numbers under it: neither pushes the other off.
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("card.title"))
                     if (video.channelName.isNotBlank()) Text(video.channelName, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor(), modifier = Modifier.testTag("card.channel"))
-                    val stats = remember(video.viewCount, video.uploadedAt, video.publishedText, extras.badge, showOriginal) { listOfNotNull(formatViews(video.viewCount), (formatAge(video.uploadedAt, Clock.System.now()) ?: video.publishedText), extras.badge, if (showOriginal) "original" else null).joinToString(" · ") }
+                    val stats = remember(video.viewCount, video.uploadedAt, video.publishedText, extras.badge, showOriginal) { listOfNotNull(formatViews(video.viewCount), (formatAge(video.uploadedAt, Clock.System.now()) ?: video.publishedText), extras.badge, if (showOriginal) "original" else null).joinToString(" • ") }
                     if (stats.isNotEmpty()) Text(stats, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor(), modifier = Modifier.testTag("card.meta"))
                 }
                 trailing?.invoke()
@@ -157,16 +156,15 @@ fun VideoCard(
         }
     } else {
         Row(modifier.fillMaxWidth().testTag(ComponentIds.VIDEO_CARD).then(click).padding(Vela.xs), horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
-            // 36% of the row, but never wider than 168 dp: on a 320 dp phone the text (beside the menu button) still keeps 120 dp.
             Thumbnail(video, thumbnail, extras, Modifier.fillMaxWidth(0.36f).widthIn(max = 168.dp).clip(Vela.thumbnailShape))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
-                Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("card.title"))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("card.title"))
                 if (video.channelName.isNotBlank()) Text(
                     video.channelName, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     color = Vela.colors.onSurfaceVariant.toColor(),
                     modifier = Modifier.testTag("card.channel"),
                 )
-                val stats = remember(video.viewCount, video.uploadedAt, video.publishedText, extras.badge, showOriginal) { listOfNotNull(formatViews(video.viewCount), (formatAge(video.uploadedAt, Clock.System.now()) ?: video.publishedText), extras.badge, if (showOriginal) "original" else null).joinToString(" · ") }
+                val stats = remember(video.viewCount, video.uploadedAt, video.publishedText, extras.badge, showOriginal) { listOfNotNull(formatViews(video.viewCount), (formatAge(video.uploadedAt, Clock.System.now()) ?: video.publishedText), extras.badge, if (showOriginal) "original" else null).joinToString(" • ") }
                 if (stats.isNotEmpty()) Text(stats, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor(), modifier = Modifier.testTag("card.meta"))
             }
             trailing?.invoke()
@@ -198,8 +196,8 @@ private fun Thumbnail(video: VideoSummary, url: String?, extras: CardExtras, mod
 @Composable
 private fun Badge(text: String, background: androidx.compose.ui.graphics.Color, modifier: Modifier, textColor: androidx.compose.ui.graphics.Color = Vela.colors.onMedia.toColor()) {
     Text(
-        text, modifier.clip(Vela.smallShape).background(background).padding(horizontal = Vela.xs),
-        style = MaterialTheme.typography.bodySmall, color = textColor, maxLines = 1, softWrap = false,
+        text, modifier.clip(Vela.smallShape).background(background).padding(horizontal = 6.dp, vertical = 2.dp),
+        style = MaterialTheme.typography.labelSmall, color = textColor, maxLines = 1, softWrap = false,
     )
 }
 
@@ -284,14 +282,14 @@ fun navEntries(tabs: List<NavTab>) = tabs.map { NavEntry(it, when (it) {
 }) }
 
 @Composable
-private fun NavEntry.icon(): ImageVector = when (tab) {
-    NavTab.HOME -> Vela.icons.home
-    NavTab.SHORTS -> Vela.icons.bolt
-    NavTab.SUBSCRIPTIONS -> Vela.icons.subscriptions
-    NavTab.LIBRARY -> Vela.icons.library
-    NavTab.SEARCH -> Vela.icons.search
-    NavTab.DOWNLOADS -> Vela.icons.download
-    NavTab.EXPLORE -> Vela.icons.explore
+private fun NavEntry.icon(selected: Boolean = false): ImageVector = when (tab) {
+    NavTab.HOME -> if (selected) Vela.icons.homeFilled else Vela.icons.home
+    NavTab.SHORTS -> if (selected) Vela.icons.boltFilled else Vela.icons.bolt
+    NavTab.SUBSCRIPTIONS -> if (selected) Vela.icons.subscriptionsFilled else Vela.icons.subscriptions
+    NavTab.LIBRARY -> if (selected) Vela.icons.libraryFilled else Vela.icons.library
+    NavTab.SEARCH -> if (selected) Vela.icons.searchFilled else Vela.icons.search
+    NavTab.DOWNLOADS -> if (selected) Vela.icons.downloadFilled else Vela.icons.download
+    NavTab.EXPLORE -> if (selected) Vela.icons.exploreFilled else Vela.icons.explore
 }
 
 /** The line that marks the selected tab: the palette gradient. */
@@ -337,7 +335,7 @@ fun BottomNav(entries: List<NavEntry>, selected: NavTab?, labelsVisible: Boolean
                         .semantics { contentDescription = e.label; this.selected = isSelected }.pressable(role = Role.Tab) { onSelect(e.tab) }.testTag("nav.tab.${e.tab.name}"),
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
                 ) {
-                    Icon(e.icon(), null, tint = if (isSelected) Vela.colors.onSurface.toColor() else Vela.colors.onSurfaceVariant.toColor())
+                    Icon(e.icon(isSelected), null, tint = if (isSelected) Vela.colors.onSurface.toColor() else Vela.colors.onSurfaceVariant.toColor())
                     // The label's room and opacity fade out as the bar contracts; it is gone from the tree once the pill is complete.
                     if (labelsVisible && f < 0.99f) Box(Modifier.height(NAV_LABEL_HEIGHT * (1f - f)).alpha(1f - f), contentAlignment = Alignment.TopCenter) {
                         Text(e.label, maxLines = 1, softWrap = false, style = MaterialTheme.typography.bodySmall, color = if (isSelected) Vela.colors.onSurface.toColor() else Vela.colors.onSurfaceVariant.toColor(), modifier = Modifier.wrapContentHeight(unbounded = true, align = Alignment.Top).testTag("nav.label"))
@@ -382,7 +380,7 @@ fun SideRail(entries: List<NavEntry>, selected: NavTab?, collapsed: Boolean, mar
                 ) {
                     // A short upright gradient bar at the row's left edge (a horizontal line does not fit a side rail); the space is kept when off or unselected.
                     if (marker) Box(Modifier.width(3.dp).height(20.dp).clip(Vela.pillShape).then(if (isSelected) Modifier.background(Vela.wake).testTag("nav.marker") else Modifier))
-                    Icon(e.icon(), null, tint = if (isSelected) Vela.colors.onSurface.toColor() else Vela.colors.onSurfaceVariant.toColor())
+                    Icon(e.icon(isSelected), null, tint = if (isSelected) Vela.colors.onSurface.toColor() else Vela.colors.onSurfaceVariant.toColor())
                     if (!collapsed) Text(e.label, maxLines = 1, softWrap = false, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f, fill = false).testTag("nav.label"))
                 }
             }
@@ -541,12 +539,20 @@ fun SecondaryButton(label: String, onClick: () -> Unit, modifier: Modifier = Mod
 
 /** An icon with a short label under it: the video page's action row (Download, Save, Share). */
 @Composable
-fun ActionChip(icon: ImageVector, label: String, onClick: () -> Unit, modifier: Modifier = Modifier, selected: Boolean = false) {
+fun ActionChip(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    selected: Boolean = false,
+    selectedIcon: ImageVector? = null,
+) {
     Column(
         modifier.heightIn(min = Vela.minTouch).widthIn(min = Vela.minTouch).clip(Vela.mediumShape).clickable(onClick = onClick).padding(horizontal = Vela.sm, vertical = Vela.xs),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(icon, null, Modifier.popOnSelect(selected), tint = if (selected) Vela.colors.primary.toColor() else Vela.colors.onSurface.toColor())
+        val shown = if (selected && selectedIcon != null) selectedIcon else icon
+        Icon(shown, null, Modifier.popOnSelect(selected), tint = if (selected) Vela.colors.primary.toColor() else Vela.colors.onSurface.toColor())
         Text(label, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
     }
 }
