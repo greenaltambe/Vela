@@ -1,12 +1,31 @@
 package com.greenaltambe.vela.ui.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -14,53 +33,218 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import com.greenaltambe.vela.AppServices
+import com.greenaltambe.vela.core.settings.Settings
 import com.greenaltambe.vela.extractor.ExtractorResult
 import com.greenaltambe.vela.extractor.VideoSummary
-import com.greenaltambe.vela.core.settings.Settings
 import com.greenaltambe.vela.feed.FeedContext
 import com.greenaltambe.vela.feed.WatchedLookup
+import com.greenaltambe.vela.feed.standardFeedPipeline
 import com.greenaltambe.vela.modules.dearrow.DeArrowStep
 import com.greenaltambe.vela.modules.dearrow.DeArrowSurface
 import com.greenaltambe.vela.modules.ryd.summary
+import com.greenaltambe.vela.ui.look.Vela
+import com.greenaltambe.vela.ui.look.toColor
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import com.greenaltambe.vela.feed.standardFeedPipeline
+import kotlinx.coroutines.withContext
 
-/** The "⋮" on a video row: Watch later and the user's playlists. */
+/** The "⋮" on a video row: Watch later and the user's playlists in a bottom sheet. */
 @Composable
 fun VideoMenu(services: AppServices, video: VideoSummary, modifier: Modifier = Modifier) {
     var open by remember { mutableStateOf(false) }
-    var revision by remember { mutableStateOf(0) }
     var download by remember { mutableStateOf(false) }
     if (download) DownloadDialog(services, listOf(video), onDismiss = { download = false })
     Box(modifier) {
-        androidx.compose.material3.IconButton(onClick = { open = true }, modifier = Modifier.testTag("video.menu")) { androidx.compose.material3.Icon(com.greenaltambe.vela.ui.look.Vela.icons.more, "More options for ${video.title}") }
-        // Composed only while open: a list of 60 cards used to build 60 popup menus it never showed.
-        if (open) DropdownMenu(true, { open = false }) {
-            if (services.downloads != null) DropdownMenuItem(
-                text = { Text(if (services.downloads.isDownloaded(video.id)) "Downloaded" else "Download...") },
-                leadingIcon = { androidx.compose.material3.Icon(if (services.downloads.isDownloaded(video.id)) com.greenaltambe.vela.ui.look.Vela.icons.downloaded else com.greenaltambe.vela.ui.look.Vela.icons.download, null) },
-                onClick = { open = false; download = true },
+        IconButton(onClick = { open = true }, modifier = Modifier.testTag("video.menu")) {
+            Icon(Vela.icons.more, "More options for ${video.title}")
+        }
+        if (open) {
+            VideoMenuSheet(
+                services = services,
+                video = video,
+                onDismiss = { open = false },
+                onDownload = { download = true },
             )
-            ShareMenuItem(video, onDone = { open = false })
-            // Re-read on every open so the checkmarks reflect the database.
-            val lists = remember(open, revision) { services.playlists.all() }
-            lists.forEach { list ->
-                val has = remember(open, revision, list.id) { services.playlists.contains(list.id, video.id) }
-                DropdownMenuItem(
-                    text = { Text(list.name) },
-                    // Watch later gets its clock, other playlists the list icon; a tick on the right says it is already in there.
-                    leadingIcon = { androidx.compose.material3.Icon(if (list.isWatchLater) com.greenaltambe.vela.ui.look.Vela.icons.watchLater else com.greenaltambe.vela.ui.look.Vela.icons.playlist, null) },
-                    trailingIcon = if (has) ({ androidx.compose.material3.Icon(com.greenaltambe.vela.ui.look.Vela.icons.check, "In this playlist") }) else null,
-                    onClick = {
-                        if (has) services.playlists.remove(list.id, video.id) else services.playlists.add(list.id, listOf(video), services.clock.now())
-                        revision++
-                        open = false
-                    },
+        }
+    }
+}
+
+/** Bottom sheet with video actions: preview header, download, share/copy link, and playlists. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun VideoMenuSheet(
+    services: AppServices,
+    video: VideoSummary,
+    onDismiss: () -> Unit,
+    onDownload: () -> Unit,
+) {
+    val share = com.greenaltambe.vela.ui.platform.LocalShare.current
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    var revision by remember { mutableStateOf(0) }
+    val isDownloaded = remember(video.id, revision) { services.downloads?.isDownloaded(video.id) == true }
+    val lists = remember(revision) { services.playlists.all() }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(
+            topStart = Vela.look.radii.largeDp.dp,
+            topEnd = Vela.look.radii.largeDp.dp
+        ),
+        containerColor = Vela.colors.surface.toColor(),
+        contentColor = Vela.colors.onSurface.toColor(),
+        modifier = Modifier.testTag("video.menu.sheet"),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(bottom = Vela.md)
+        ) {
+            // Header with thumbnail, title, and channel
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Vela.md, vertical = Vela.xs),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Vela.md)
+            ) {
+                val thumbUrl = video.thumbnailUrl ?: "https://i.ytimg.com/vi/${video.id}/mqdefault.jpg"
+                coil3.compose.AsyncImage(
+                    model = thumbUrl,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .width(72.dp)
+                        .aspectRatio(16f / 9f)
+                        .clip(Vela.smallShape)
+                        .background(Vela.colors.surfaceVariant.toColor()),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                 )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(
+                        text = video.title,
+                        style = MaterialTheme.typography.titleSmall,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        color = Vela.colors.onSurface.toColor()
+                    )
+                    if (video.channelName.isNotBlank()) {
+                        Text(
+                            text = video.channelName,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            color = Vela.colors.onSurfaceVariant.toColor()
+                        )
+                    }
+                }
             }
+
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = Vela.sm),
+                color = Vela.colors.outline.toColor().copy(alpha = 0.2f)
+            )
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                if (services.downloads != null) {
+                    VideoMenuSheetItem(
+                        icon = if (isDownloaded) Vela.icons.downloaded else Vela.icons.download,
+                        title = if (isDownloaded) "Downloaded" else "Download video",
+                        onClick = {
+                            onDismiss()
+                            onDownload()
+                        },
+                        modifier = Modifier.testTag("video.menu.download")
+                    )
+                }
+
+                VideoMenuSheetItem(
+                    icon = Vela.icons.share,
+                    title = if (share != null) "Share" else "Copy link",
+                    onClick = {
+                        onDismiss()
+                        val link = "https://youtu.be/${video.id}"
+                        if (share != null) share(video.title, link)
+                        else clipboard.setText(androidx.compose.ui.text.AnnotatedString(link))
+                    },
+                    modifier = Modifier.testTag("video.menu.share")
+                )
+
+                lists.forEach { list ->
+                    val has = remember(revision, list.id) { services.playlists.contains(list.id, video.id) }
+                    VideoMenuSheetItem(
+                        icon = if (list.isWatchLater) Vela.icons.watchLater else Vela.icons.playlist,
+                        title = if (list.isWatchLater && !has) "Save to Watch later" else list.name,
+                        trailingIcon = if (has) Vela.icons.check else null,
+                        trailingContentDescription = if (has) "In this playlist" else null,
+                        highlightTrailing = true,
+                        onClick = {
+                            if (has) services.playlists.remove(list.id, video.id)
+                            else services.playlists.add(list.id, listOf(video), services.clock.now())
+                            revision++
+                            onDismiss()
+                        },
+                        modifier = Modifier.testTag("video.menu.playlist.${list.id}")
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VideoMenuSheetItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    trailingIcon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    trailingContentDescription: String? = null,
+    highlightTrailing: Boolean = false,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .heightIn(min = 48.dp)
+            .padding(horizontal = Vela.md, vertical = Vela.xs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Vela.md)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = Vela.colors.onSurfaceVariant.toColor(),
+            modifier = Modifier.size(24.dp)
+        )
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge,
+            color = Vela.colors.onSurface.toColor(),
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        if (trailingIcon != null) {
+            Icon(
+                imageVector = trailingIcon,
+                contentDescription = trailingContentDescription,
+                tint = if (highlightTrailing) Vela.colors.primary.toColor() else Vela.colors.onSurfaceVariant.toColor(),
+                modifier = Modifier.size(20.dp)
+            )
         }
     }
 }
