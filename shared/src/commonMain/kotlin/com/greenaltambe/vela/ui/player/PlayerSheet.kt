@@ -94,6 +94,7 @@ fun PlayerSheet(
 
     val winW = windowInfo.containerSize.width.toFloat().coerceAtLeast(100f)
     val winH = windowInfo.containerSize.height.toFloat().coerceAtLeast(100f)
+    androidx.compose.runtime.SideEffect { sheetState.windowHeightPx = winH }
     val bottomInsetPx = WindowInsets.safeDrawing.getBottom(density).toFloat()
     val topInsetPx = WindowInsets.safeDrawing.getTop(density).toFloat()
 
@@ -168,7 +169,7 @@ fun PlayerSheet(
                 false
             }
 
-            if (!canDrag) return@awaitEachGesture
+            if (!canDrag || sheetState.slideY > 50f) return@awaitEachGesture
 
             fun currentSheetY(): Float = if (isPip) {
                 val pipW = with(density) { PIP_WIDTH.toPx() }
@@ -223,7 +224,7 @@ fun PlayerSheet(
         // Morphing Sheet Box: exactly sized and positioned, only absorbs touches within its bounds
         Box(
             Modifier
-                .offset { IntOffset(sheetX.roundToInt(), sheetY.roundToInt()) }
+                .offset { IntOffset(sheetX.roundToInt(), (sheetY + sheetState.slideY).roundToInt()) }
                 .size(with(density) { sheetW.toDp() }, with(density) { sheetH.toDp() })
                 .shadow(if (fraction > 0.05f) 8.dp else 0.dp, sheetShape)
                 .clip(sheetShape)

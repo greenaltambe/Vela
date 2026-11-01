@@ -153,6 +153,11 @@ class Navigator(start: Route = Route.Home) {
             return
         }
         if (route == current) return
+        playerSheetState?.let { sheet ->
+            if (sheet.isExpanded || sheet.progress > 0.5f) {
+                sheet.collapse()
+            }
+        }
         lastAction = NavAction.PUSH
         stack.add(route)
     }
@@ -160,6 +165,11 @@ class Navigator(start: Route = Route.Home) {
     /** Switches tab: the stack becomes just that destination. */
     fun selectTab(route: Route) {
         if (stack.size == 1 && current == route) return
+        playerSheetState?.let { sheet ->
+            if (sheet.isExpanded || sheet.progress > 0.5f) {
+                sheet.collapse()
+            }
+        }
         lastAction = NavAction.TAB
         stack.clear()
         stack.add(route)

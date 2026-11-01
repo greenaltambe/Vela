@@ -37,9 +37,15 @@ class PlayerSheetState(
     private val navigator: Navigator,
 ) {
     val animatable = Animatable(0f)
+    val slideAnimatable = Animatable(0f)
+
+    var windowHeightPx: Float = 2000f
 
     /** 0f (collapsed / miniplayer) to 1f (expanded / full video page). */
     val progress: Float get() = animatable.value
+
+    /** Vertical slide-in translation (px) for fresh video launch: windowHeightPx -> 0f. */
+    val slideY: Float get() = slideAnimatable.value
 
     var currentVideo by mutableStateOf<VideoSummary?>(null)
         private set
@@ -47,7 +53,7 @@ class PlayerSheetState(
     var startSeconds by mutableStateOf<Long?>(null)
         private set
 
-    val isExpanded: Boolean get() = progress > 0.85f && currentVideo != null
+    val isExpanded: Boolean get() = progress > 0.85f && currentVideo != null && slideY < 100f
     val isCollapsed: Boolean get() = progress < 0.15f && currentVideo != null
     val isVisible: Boolean get() = currentVideo != null
 
@@ -62,15 +68,22 @@ class PlayerSheetState(
     /** Open a video and expand the sheet to full screen. */
     fun open(video: VideoSummary, start: Long? = null) {
         val sameVideo = currentVideo?.id == video.id
+        val wasAlreadyExpanded = isExpanded
         currentVideo = video
         startSeconds = start
         navigator.setNowPlayingDirect(video)
         scope.launch {
-            if (!sameVideo) {
-                // If opening a different video, ensure we animate smoothly up to 1f
-                animatable.animateTo(1f, tween(300, easing = FastOutSlowInEasing))
-            } else if (animatable.value < 0.99f) {
-                animatable.animateTo(1f, tween(260, easing = FastOutSlowInEasing))
+            if (wasAlreadyExpanded) {
+                // If already open in full screen, stay expanded without slide
+                slideAnimatable.snapTo(0f)
+                animatable.snapTo(1f)
+            } else {
+                // Fresh launch from a card or miniplayer:
+                // Pre-set progress to 1f so layout is measured once at full-size (no 60-frame resize loop!)
+                animatable.snapTo(1f)
+                // Smoothly slide the sheet up from the bottom of the screen on the GPU
+                slideAnimatable.snapTo(windowHeightPx)
+                slideAnimatable.animateTo(0f, tween(300, easing = FastOutSlowInEasing))
             }
         }
     }
@@ -79,6 +92,7 @@ class PlayerSheetState(
     fun expand() {
         if (currentVideo == null) return
         scope.launch {
+            slideAnimatable.snapTo(0f)
             animatable.animateTo(1f, spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow))
         }
     }
@@ -87,18 +101,21 @@ class PlayerSheetState(
     fun collapse() {
         if (currentVideo == null) return
         scope.launch {
+            slideAnimatable.snapTo(0f)
             animatable.animateTo(0f, spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium))
         }
     }
 
     /** Directly snap progress during gesture dragging. */
     suspend fun snapProgress(p: Float) {
+        slideAnimatable.snapTo(0f)
         animatable.snapTo(p.coerceIn(0f, 1f))
     }
 
     /** Finish a drag gesture based on release progress and velocity. */
     fun settle(velocityY: Float) {
         scope.launch {
+            slideAnimatable.snapTo(0f)
             val target = when {
                 velocityY > 350f -> 0f   // Flick down -> collapse immediately
                 velocityY < -350f -> 1f  // Flick up -> expand immediately
@@ -117,6 +134,7 @@ class PlayerSheetState(
     /** Dismiss the miniplayer, stopping playback. */
     fun dismiss() {
         scope.launch {
+            slideAnimatable.snapTo(0f)
             animatable.animateTo(0f, tween(180, easing = FastOutSlowInEasing))
             services.player?.session?.stop()
             currentVideo = null
