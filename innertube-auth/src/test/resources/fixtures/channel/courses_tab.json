@@ -1,0 +1,1770 @@
+{
+  "contents": {
+    "twoColumnBrowseResultsRenderer": {
+      "tabs": [
+        {
+          "tabRenderer": {
+            "endpoint": {
+              "commandMetadata": {
+                "webCommandMetadata": {
+                  "url": "/@mitocw/featured",
+                  "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                  "rootVe": 3611,
+                  "apiUrl": "/youtubei/v1/browse"
+                }
+              },
+              "browseEndpoint": {
+                "browseId": "UCEBb1b_L6zDS3xTUrIALZOw",
+                "params": "EghmZWF0dXJlZPIGBAoCMgA%3D",
+                "canonicalBaseUrl": "/@mitocw"
+              }
+            },
+            "title": "Home"
+          }
+        },
+        {
+          "tabRenderer": {
+            "endpoint": {
+              "commandMetadata": {
+                "webCommandMetadata": {
+                  "url": "/@mitocw/videos",
+                  "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                  "rootVe": 3611,
+                  "apiUrl": "/youtubei/v1/browse"
+                }
+              },
+              "browseEndpoint": {
+                "browseId": "UCEBb1b_L6zDS3xTUrIALZOw",
+                "params": "EgZ2aWRlb3PyBgQKAjoA",
+                "canonicalBaseUrl": "/@mitocw"
+              }
+            },
+            "title": "Videos"
+          }
+        },
+        {
+          "tabRenderer": {
+            "endpoint": {
+              "commandMetadata": {
+                "webCommandMetadata": {
+                  "url": "/@mitocw/shorts",
+                  "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                  "rootVe": 3611,
+                  "apiUrl": "/youtubei/v1/browse"
+                }
+              },
+              "browseEndpoint": {
+                "browseId": "UCEBb1b_L6zDS3xTUrIALZOw",
+                "params": "EgZzaG9ydHPyBgUKA5oBAA%3D%3D",
+                "canonicalBaseUrl": "/@mitocw"
+              }
+            },
+            "title": "Shorts"
+          }
+        },
+        {
+          "tabRenderer": {
+            "endpoint": {
+              "commandMetadata": {
+                "webCommandMetadata": {
+                  "url": "/@mitocw/streams",
+                  "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                  "rootVe": 3611,
+                  "apiUrl": "/youtubei/v1/browse"
+                }
+              },
+              "browseEndpoint": {
+                "browseId": "UCEBb1b_L6zDS3xTUrIALZOw",
+                "params": "EgdzdHJlYW1z8gYECgJ6AA%3D%3D",
+                "canonicalBaseUrl": "/@mitocw"
+              }
+            },
+            "title": "Live"
+          }
+        },
+        {
+          "tabRenderer": {
+            "endpoint": {
+              "commandMetadata": {
+                "webCommandMetadata": {
+                  "url": "/@mitocw/shows",
+                  "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                  "rootVe": 3611,
+                  "apiUrl": "/youtubei/v1/browse"
+                }
+              },
+              "browseEndpoint": {
+                "browseId": "UCEBb1b_L6zDS3xTUrIALZOw",
+                "params": "EgVzaG93c_IGBAoCYgA%3D",
+                "canonicalBaseUrl": "/@mitocw"
+              }
+            },
+            "title": "Shows"
+          }
+        },
+        {
+          "tabRenderer": {
+            "endpoint": {
+              "commandMetadata": {
+                "webCommandMetadata": {
+                  "url": "/@mitocw/podcasts",
+                  "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                  "rootVe": 3611,
+                  "apiUrl": "/youtubei/v1/browse"
+                }
+              },
+              "browseEndpoint": {
+                "browseId": "UCEBb1b_L6zDS3xTUrIALZOw",
+                "params": "Eghwb2RjYXN0c_IGBQoDugEA",
+                "canonicalBaseUrl": "/@mitocw"
+              }
+            },
+            "title": "Podcasts"
+          }
+        },
+        {
+          "tabRenderer": {
+            "endpoint": {
+              "commandMetadata": {
+                "webCommandMetadata": {
+                  "url": "/@mitocw/courses",
+                  "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                  "rootVe": 3611,
+                  "apiUrl": "/youtubei/v1/browse"
+                }
+              },
+              "browseEndpoint": {
+                "browseId": "UCEBb1b_L6zDS3xTUrIALZOw",
+                "params": "Egdjb3Vyc2Vz8gYFCgPCAQA%3D",
+                "canonicalBaseUrl": "/@mitocw"
+              }
+            },
+            "title": "Courses",
+            "selected": true,
+            "content": {
+              "richGridRenderer": {
+                "contents": [
+                  {
+                    "richItemRenderer": {
+                      "content": {
+                        "playlistRenderer": {
+                          "playlistId": "PLbunUf3SkvCc",
+                          "title": {
+                            "simpleText": "MIT RES.16-9960 The Engineering Student\u2019s Guide to Effective Technical Communication, Spring 2026"
+                          },
+                          "thumbnails": [
+                            {
+                              "thumbnails": [
+                                {
+                                  "url": "https://example.invalid/1669.jpg",
+                                  "width": 480,
+                                  "height": 270
+                                }
+                              ]
+                            },
+                            {
+                              "thumbnails": [
+                                {
+                                  "url": "https://example.invalid/1670.jpg",
+                                  "width": 43,
+                                  "height": 20
+                                }
+                              ]
+                            },
+                            {
+                              "thumbnails": [
+                                {
+                                  "url": "https://example.invalid/1671.jpg",
+                                  "width": 43,
+                                  "height": 20
+                                }
+                              ]
+                            },
+                            {
+                              "thumbnails": [
+                                {
+                                  "url": "https://example.invalid/1672.jpg",
+                                  "width": 43,
+                                  "height": 20
+                                }
+                              ]
+                            },
+                            {
+                              "thumbnails": [
+                                {
+                                  "url": "https://example.invalid/1673.jpg",
+                                  "width": 43,
+                                  "height": 20
+                                }
+                              ]
+                            }
+                          ],
+                          "videoCount": "12",
+                          "navigationEndpoint": {
+                            "commandMetadata": {
+                              "webCommandMetadata": {
+                                "url": "/watch?v=6KxXc8cz9tY&list=PLbunUf3SkvCc",
+                                "webPageType": "WEB_PAGE_TYPE_WATCH",
+                                "rootVe": 3832
+                              }
+                            },
+                            "watchEndpoint": {
+                              "videoId": "6KxXc8cz9tY",
+                              "playlistId": "PLbunUf3SkvCc",
+                              "params": "OAI%3D",
+                              "loggingContext": {
+                                "vssLoggingContext": {
+                                  "serializedContextData": "Gg1QTGJ1blVmM1NrdkNj"
+                                }
+                              },
+                              "watchEndpointSupportedOnesieConfig": {
+                                "html5PlaybackOnesieConfig": {
+                                  "commonConfig": {
+                                    "url": "https://example.invalid/1674.jpg"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "viewPlaylistText": {
+                            "runs": [
+                              {
+                                "text": "View full course",
+                                "navigationEndpoint": {
+                                  "commandMetadata": {
+                                    "webCommandMetadata": {
+                                      "url": "/playlist?list=PLbunUf3SkvCc",
+                                      "webPageType": "WEB_PAGE_TYPE_PLAYLIST",
+                                      "rootVe": 5754,
+                                      "apiUrl": "/youtubei/v1/browse"
+                                    }
+                                  },
+                                  "browseEndpoint": {
+                                    "browseId": "VLPLbunUf3SkvCc"
+                                  }
+                                }
+                              }
+                            ]
+                          },
+                          "videos": [
+                            {
+                              "childVideoRenderer": {
+                                "title": {
+                                  "simpleText": "Applying to Fellowships"
+                                },
+                                "navigationEndpoint": {
+                                  "commandMetadata": {
+                                    "webCommandMetadata": {
+                                      "url": "/watch?v=6KxXc8cz9tY&list=PLbunUf3SkvCc&pp=0gcJCRMF0aJEHMZM",
+                                      "webPageType": "WEB_PAGE_TYPE_WATCH",
+                                      "rootVe": 3832
+                                    }
+                                  },
+                                  "watchEndpoint": {
+                                    "videoId": "6KxXc8cz9tY",
+                                    "playlistId": "PLbunUf3SkvCc",
+                                    "playerParams": "0gcJCRMF0aJEHMZM",
+                                    "loggingContext": {
+                                      "vssLoggingContext": {
+                                        "serializedContextData": "Gg1QTGJ1blVmM1NrdkNj"
+                                      }
+                                    },
+                                    "watchEndpointSupportedOnesieConfig": {
+                                      "html5PlaybackOnesieConfig": {
+                                        "commonConfig": {
+                                          "url": "https://example.invalid/1675.jpg"
+                                        }
+                                      }
+                                    }
+                                  }
+                                },
+                                "lengthText": {
+                                  "accessibility": {
+                                    "accessibilityData": {
+                                      "label": "16 minutes, 34 seconds"
+                                    }
+                                  },
+                                  "simpleText": "16:34"
+                                },
+                                "videoId": "6KxXc8cz9tY"
+                              }
+                            },
+                            {
+                              "childVideoRenderer": {
+                                "title": {
+                                  "simpleText": "Effective Meetings with Advisors"
+                                },
+                                "navigationEndpoint": {
+                                  "commandMetadata": {
+                                    "webCommandMetadata": {
+                                      "url": "/watch?v=YXQCtISOcXM&list=PLbunUf3SkvCc",
+                                      "webPageType": "WEB_PAGE_TYPE_WATCH",
+                                      "rootVe": 3832
+                                    }
+                                  },
+                                  "watchEndpoint": {
+                                    "videoId": "YXQCtISOcXM",
+                                    "playlistId": "PLbunUf3SkvCc",
+                                    "loggingContext": {
+                                      "vssLoggingContext": {
+                                        "serializedContextData": "Gg1QTGJ1blVmM1NrdkNj"
+                                      }
+                                    },
+                                    "watchEndpointSupportedOnesieConfig": {
+                                      "html5PlaybackOnesieConfig": {
+                                        "commonConfig": {
+                                          "url": "https://example.invalid/1676.jpg"
+                                        }
+                                      }
+                                    }
+                                  }
+                                },
+                                "lengthText": {
+                                  "accessibility": {
+                                    "accessibilityData": {
+                                      "label": "16 minutes, 57 seconds"
+                                    }
+                                  },
+                                  "simpleText": "16:57"
+                                },
+                                "videoId": "YXQCtISOcXM"
+                              }
+                            }
+                          ],
+                          "videoCountText": {
+                            "runs": [
+                              {
+                                "text": "12"
+                              },
+                              {
+                                "text": " videos"
+                              }
+                            ]
+                          },
+                          "thumbnailText": {
+                            "runs": [
+                              {
+                                "text": "12",
+                                "bold": true
+                              },
+                              {
+                                "text": " videos"
+                              }
+                            ]
+                          },
+                          "ownerBadges": [
+                            {
+                              "metadataBadgeRenderer": {
+                                "icon": {
+                                  "iconType": "CHECK_CIRCLE_THICK"
+                                },
+                                "style": "BADGE_STYLE_TYPE_VERIFIED",
+                                "tooltip": "Verified",
+                                "accessibilityData": {
+                                  "label": "Verified"
+                                }
+                              }
+                            }
+                          ],
+                          "thumbnailRenderer": {
+                            "playlistVideoThumbnailRenderer": {
+                              "thumbnail": {
+                                "thumbnails": [
+                                  {
+                                    "url": "https://example.invalid/1677.jpg",
+                                    "width": 426,
+                                    "height": 240
+                                  },
+                                  {
+                                    "url": "https://example.invalid/1678.jpg",
+                                    "width": 854,
+                                    "height": 480
+                                  },
+                                  {
+                                    "url": "https://example.invalid/1679.jpg",
+                                    "width": 1280,
+                                    "height": 720
+                                  }
+                                ],
+                                "sampledThumbnailColor": {
+                                  "red": 17,
+                                  "green": 70,
+                                  "blue": 114
+                                },
+                                "darkColorPalette": {
+                                  "section2Color": 466739,
+                                  "iconInactiveColor": 7767699,
+                                  "iconDisabledColor": 4806240
+                                },
+                                "vibrantColorPalette": {
+                                  "iconInactiveColor": 7046297
+                                }
+                              }
+                            }
+                          },
+                          "thumbnailOverlays": [
+                            {
+                              "thumbnailOverlayBottomPanelRenderer": {
+                                "text": {
+                                  "simpleText": "12 lessons"
+                                },
+                                "icon": {
+                                  "iconType": "COURSE"
+                                }
+                              }
+                            },
+                            {
+                              "thumbnailOverlayHoverTextRenderer": {
+                                "text": {
+                                  "runs": [
+                                    {
+                                      "text": "Play all"
+                                    }
+                                  ]
+                                },
+                                "icon": {
+                                  "iconType": "PLAY_ALL"
+                                }
+                              }
+                            },
+                            {
+                              "thumbnailOverlayNowPlayingRenderer": {
+                                "text": {
+                                  "runs": [
+                                    {
+                                      "text": "Now playing"
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "richItemRenderer": {
+                      "content": {
+                        "playlistRenderer": {
+                          "playlistId": "PLPVhM0CAcLjI",
+                          "title": {
+                            "simpleText": "MIT 15.879 Building Serious System Dynamics Models from Scratch, Spring 2025"
+                          },
+                          "thumbnails": [
+                            {
+                              "thumbnails": [
+                                {
+                                  "url": "https://example.invalid/1680.jpg",
+                                  "width": 480,
+                                  "height": 270
+                                }
+                              ]
+                            },
+                            {
+                              "thumbnails": [
+                                {
+                                  "url": "https://example.invalid/1681.jpg",
+                                  "width": 43,
+                                  "height": 20
+                                }
+                              ]
+                            },
+                            {
+                              "thumbnails": [
+                                {
+                                  "url": "https://example.invalid/1682.jpg",
+                                  "width": 43,
+                                  "height": 20
+                                }
+                              ]
+                            },
+                            {
+                              "thumbnails": [
+                                {
+                                  "url": "https://example.invalid/1683.jpg",
+                                  "width": 43,
+                                  "height": 20
+                                }
+                              ]
+                            },
+                            {
+                              "thumbnails": [
+                                {
+                                  "url": "https://example.invalid/1684.jpg",
+                                  "width": 43,
+                                  "height": 20
+                                }
+                              ]
+                            }
+                          ],
+                          "videoCount": "12",
+                          "navigationEndpoint": {
+                            "commandMetadata": {
+                              "webCommandMetadata": {
+                                "url": "/watch?v=K1ThW9V0Ctc&list=PLPVhM0CAcLjI",
+                                "webPageType": "WEB_PAGE_TYPE_WATCH",
+                                "rootVe": 3832
+                              }
+                            },
+                            "watchEndpoint": {
+                              "videoId": "K1ThW9V0Ctc",
+                              "playlistId": "PLPVhM0CAcLjI",
+                              "params": "OAI%3D",
+                              "loggingContext": {
+                                "vssLoggingContext": {
+                                  "serializedContextData": "Gg1QTFBWaE0wQ0FjTGpJ"
+                                }
+                              },
+                              "watchEndpointSupportedOnesieConfig": {
+                                "html5PlaybackOnesieConfig": {
+                                  "commonConfig": {
+                                    "url": "https://example.invalid/1685.jpg"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "viewPlaylistText": {
+                            "runs": [
+                              {
+                                "text": "View full course",
+                                "navigationEndpoint": {
+                                  "commandMetadata": {
+                                    "webCommandMetadata": {
+                                      "url": "/playlist?list=PLPVhM0CAcLjI",
+                                      "webPageType": "WEB_PAGE_TYPE_PLAYLIST",
+                                      "rootVe": 5754,
+                                      "apiUrl": "/youtubei/v1/browse"
+                                    }
+                                  },
+                                  "browseEndpoint": {
+                                    "browseId": "VLPLPVhM0CAcLjI"
+                                  }
+                                }
+                              }
+                            ]
+                          },
+                          "videos": [
+                            {
+                              "childVideoRenderer": {
+                                "title": {
+                                  "simpleText": "Session 1: Stocks: Horse Market, Oil Market, and Transportation System"
+                                },
+                                "navigationEndpoint": {
+                                  "commandMetadata": {
+                                    "webCommandMetadata": {
+                                      "url": "/watch?v=K1ThW9V0Ctc&list=PLPVhM0CAcLjI",
+                                      "webPageType": "WEB_PAGE_TYPE_WATCH",
+                                      "rootVe": 3832
+                                    }
+                                  },
+                                  "watchEndpoint": {
+                                    "videoId": "K1ThW9V0Ctc",
+                                    "playlistId": "PLPVhM0CAcLjI",
+                                    "loggingContext": {
+                                      "vssLoggingContext": {
+                                        "serializedContextData": "Gg1QTFBWaE0wQ0FjTGpJ"
+                                      }
+                                    },
+                                    "watchEndpointSupportedOnesieConfig": {
+                                      "html5PlaybackOnesieConfig": {
+                                        "commonConfig": {
+                                          "url": "https://example.invalid/1686.jpg"
+                                        }
+                                      }
+                                    }
+                                  }
+                                },
+                                "lengthText": {
+                                  "accessibility": {
+                                    "accessibilityData": {
+                                      "label": "2 hours, 25 minutes, 51 seconds"
+                                    }
+                                  },
+                                  "simpleText": "2:25:51"
+                                },
+                                "videoId": "K1ThW9V0Ctc"
+                              }
+                            },
+                            {
+                              "childVideoRenderer": {
+                                "title": {
+                                  "simpleText": "Session 2: SIRSb with Vaccination"
+                                },
+                                "navigationEndpoint": {
+                                  "commandMetadata": {
+                                    "webCommandMetadata": {
+                                      "url": "/watch?v=Emtz9V3NreI&list=PLPVhM0CAcLjI",
+                                      "webPageType": "WEB_PAGE_TYPE_WATCH",
+                                      "rootVe": 3832
+                                    }
+                                  },
+                                  "watchEndpoint": {
+                                    "videoId": "Emtz9V3NreI",
+                                    "playlistId": "PLPVhM0CAcLjI",
+                                    "loggingContext": {
+                                      "vssLoggingContext": {
+                                        "serializedContextData": "Gg1QTFBWaE0wQ0FjTGpJ"
+                                      }
+                                    },
+                                    "watchEndpointSupportedOnesieConfig": {
+                                      "html5PlaybackOnesieConfig": {
+                                        "commonConfig": {
+                                          "url": "https://example.invalid/1687.jpg"
+                                        }
+                                      }
+                                    }
+                                  }
+                                },
+                                "lengthText": {
+                                  "accessibility": {
+                                    "accessibilityData": {
+                                      "label": "2 hours, 33 minutes, 47 seconds"
+                                    }
+                                  },
+                                  "simpleText": "2:33:47"
+                                },
+                                "videoId": "Emtz9V3NreI"
+                              }
+                            }
+                          ],
+                          "videoCountText": {
+                            "runs": [
+                              {
+                                "text": "12"
+                              },
+                              {
+                                "text": " videos"
+                              }
+                            ]
+                          },
+                          "thumbnailText": {
+                            "runs": [
+                              {
+                                "text": "12",
+                                "bold": true
+                              },
+                              {
+                                "text": " videos"
+                              }
+                            ]
+                          },
+                          "ownerBadges": [
+                            {
+                              "metadataBadgeRenderer": {
+                                "icon": {
+                                  "iconType": "CHECK_CIRCLE_THICK"
+                                },
+                                "style": "BADGE_STYLE_TYPE_VERIFIED",
+                                "tooltip": "Verified",
+                                "accessibilityData": {
+                                  "label": "Verified"
+                                }
+                              }
+                            }
+                          ],
+                          "thumbnailRenderer": {
+                            "playlistVideoThumbnailRenderer": {
+                              "thumbnail": {
+                                "thumbnails": [
+                                  {
+                                    "url": "https://example.invalid/1688.jpg",
+                                    "width": 480,
+                                    "height": 270
+                                  }
+                                ],
+                                "sampledThumbnailColor": {
+                                  "red": 89,
+                                  "green": 69,
+                                  "blue": 53
+                                },
+                                "darkColorPalette": {
+                                  "section2Color": 3352350,
+                                  "iconInactiveColor": 9667446,
+                                  "iconDisabledColor": 6313033
+                                },
+                                "vibrantColorPalette": {
+                                  "iconInactiveColor": 10059627
+                                }
+                              }
+                            }
+                          },
+                          "thumbnailOverlays": [
+                            {
+                              "thumbnailOverlayBottomPanelRenderer": {
+                                "text": {
+                                  "simpleText": "12 lessons"
+                                },
+                                "icon": {
+                                  "iconType": "COURSE"
+                                }
+                              }
+                            },
+                            {
+                              "thumbnailOverlayHoverTextRenderer": {
+                                "text": {
+                                  "runs": [
+                                    {
+                                      "text": "Play all"
+                                    }
+                                  ]
+                                },
+                                "icon": {
+                                  "iconType": "PLAY_ALL"
+                                }
+                              }
+                            },
+                            {
+                              "thumbnailOverlayNowPlayingRenderer": {
+                                "text": {
+                                  "runs": [
+                                    {
+                                      "text": "Now playing"
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "richItemRenderer": {
+                      "content": {
+                        "playlistRenderer": {
+                          "playlistId": "PLUl4u3cNGP61pwA6paIRZ30q1sjLE8b6c",
+                          "title": {
+                            "simpleText": "MIT MAS.531 Computational Camera and Photography, Fall 2009"
+                          },
+                          "thumbnails": [
+                            {
+                              "thumbnails": [
+                                {
+                                  "url": "https://example.invalid/1689.jpg",
+                                  "width": 480,
+                                  "height": 270
+                                }
+                              ]
+                            },
+                            {
+                              "thumbnails": [
+                                {
+                                  "url": "https://example.invalid/1690.jpg",
+                                  "width": 43,
+                                  "height": 20
+                                }
+                              ]
+                            },
+                            {
+                              "thumbnails": [
+                                {
+                                  "url": "https://example.invalid/1691.jpg",
+                                  "width": 43,
+                                  "height": 20
+                                }
+                              ]
+                            },
+                            {
+                              "thumbnails": [
+                                {
+                                  "url": "https://example.invalid/1692.jpg",
+                                  "width": 43,
+                                  "height": 20
+                                }
+                              ]
+                            },
+                            {
+                              "thumbnails": [
+                                {
+                                  "url": "https://example.invalid/1693.jpg",
+                                  "width": 43,
+                                  "height": 20
+                                }
+                              ]
+                            }
+                          ],
+                          "videoCount": "24",
+                          "navigationEndpoint": {
+                            "commandMetadata": {
+                              "webCommandMetadata": {
+                                "url": "/watch?v=Br1zazcSI4M&list=PLUl4u3cNGP61pwA6paIRZ30q1sjLE8b6c",
+                                "webPageType": "WEB_PAGE_TYPE_WATCH",
+                                "rootVe": 3832
+                              }
+                            },
+                            "watchEndpoint": {
+                              "videoId": "Br1zazcSI4M",
+                              "playlistId": "PLUl4u3cNGP61pwA6paIRZ30q1sjLE8b6c",
+                              "params": "OAI%3D",
+                              "loggingContext": {
+                                "vssLoggingContext": {
+                                  "serializedContextData": "GiJQTFVsNHUzY05HUDYxcHdBNnBhSVJaMzBxMXNqTEU4YjZj"
+                                }
+                              },
+                              "watchEndpointSupportedOnesieConfig": {
+                                "html5PlaybackOnesieConfig": {
+                                  "commonConfig": {
+                                    "url": "https://example.invalid/1694.jpg"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "viewPlaylistText": {
+                            "runs": [
+                              {
+                                "text": "View full course",
+                                "navigationEndpoint": {
+                                  "commandMetadata": {
+                                    "webCommandMetadata": {
+                                      "url": "/playlist?list=PLUl4u3cNGP61pwA6paIRZ30q1sjLE8b6c",
+                                      "webPageType": "WEB_PAGE_TYPE_PLAYLIST",
+                                      "rootVe": 5754,
+                                      "apiUrl": "/youtubei/v1/browse"
+                                    }
+                                  },
+                                  "browseEndpoint": {
+                                    "browseId": "VLPLUl4u3cNGP61pwA6paIRZ30q1sjLE8b6c"
+                                  }
+                                }
+                              }
+                            ]
+                          },
+                          "videos": [
+                            {
+                              "childVideoRenderer": {
+                                "title": {
+                                  "simpleText": "Lecture 1: Introduction and fast-forward preview of all topics - Part 1"
+                                },
+                                "navigationEndpoint": {
+                                  "commandMetadata": {
+                                    "webCommandMetadata": {
+                                      "url": "/watch?v=Br1zazcSI4M&list=PLUl4u3cNGP61pwA6paIRZ30q1sjLE8b6c",
+                                      "webPageType": "WEB_PAGE_TYPE_WATCH",
+                                      "rootVe": 3832
+                                    }
+                                  },
+                                  "watchEndpoint": {
+                                    "videoId": "Br1zazcSI4M",
+                                    "playlistId": "PLUl4u3cNGP61pwA6paIRZ30q1sjLE8b6c",
+                                    "loggingContext": {
+                                      "vssLoggingContext": {
+                                        "serializedContextData": "GiJQTFVsNHUzY05HUDYxcHdBNnBhSVJaMzBxMXNqTEU4YjZj"
+                                      }
+                                    },
+                                    "watchEndpointSupportedOnesieConfig": {
+                                      "html5PlaybackOnesieConfig": {
+                                        "commonConfig": {
+                                          "url": "https://example.invalid/1695.jpg"
+                                        }
+                                      }
+                                    }
+                                  }
+                                },
+                                "lengthText": {
+                                  "accessibility": {
+                                    "accessibilityData": {
+                                      "label": "1 hour, 24 minutes, 10 seconds"
+                                    }
+                                  },
+                                  "simpleText": "1:24:10"
+                                },
+                                "videoId": "Br1zazcSI4M"
+                              }
+                            },
+                            {
+                              "childVideoRenderer": {
+                                "title": {
+                                  "simpleText": "Lecture 1: Introduction and fast-forward preview of all topics - Part 2"
+                                },
+                                "navigationEndpoint": {
+                                  "commandMetadata": {
+                                    "webCommandMetadata": {
+                                      "url": "/watch?v=8autJMHEzBU&list=PLUl4u3cNGP61pwA6paIRZ30q1sjLE8b6c",
+                                      "webPageType": "WEB_PAGE_TYPE_WATCH",
+                                      "rootVe": 3832
+                                    }
+                                  },
+                                  "watchEndpoint": {
+                                    "videoId": "8autJMHEzBU",
+                                    "playlistId": "PLUl4u3cNGP61pwA6paIRZ30q1sjLE8b6c",
+                                    "loggingContext": {
+                                      "vssLoggingContext": {
+                                        "serializedContextData": "GiJQTFVsNHUzY05HUDYxcHdBNnBhSVJaMzBxMXNqTEU4YjZj"
+                                      }
+                                    },
+                                    "watchEndpointSupportedOnesieConfig": {
+                                      "html5PlaybackOnesieConfig": {
+                                        "commonConfig": {
+                                          "url": "https://example.invalid/1696.jpg"
+                                        }
+                                      }
+                                    }
+                                  }
+                                },
+                                "lengthText": {
+                                  "accessibility": {
+                                    "accessibilityData": {
+                                      "label": "1 hour, 5 minutes, 8 seconds"
+                                    }
+                                  },
+                                  "simpleText": "1:05:08"
+                                },
+                                "videoId": "8autJMHEzBU"
+                              }
+                            }
+                          ],
+                          "videoCountText": {
+                            "runs": [
+                              {
+                                "text": "24"
+                              },
+                              {
+                                "text": " videos"
+                              }
+                            ]
+                          },
+                          "thumbnailText": {
+                            "runs": [
+                              {
+                                "text": "24",
+                                "bold": true
+                              },
+                              {
+                                "text": " videos"
+                              }
+                            ]
+                          },
+                          "ownerBadges": [
+                            {
+                              "metadataBadgeRenderer": {
+                                "icon": {
+                                  "iconType": "CHECK_CIRCLE_THICK"
+                                },
+                                "style": "BADGE_STYLE_TYPE_VERIFIED",
+                                "tooltip": "Verified",
+                                "accessibilityData": {
+                                  "label": "Verified"
+                                }
+                              }
+                            }
+                          ],
+                          "thumbnailRenderer": {
+                            "playlistVideoThumbnailRenderer": {
+                              "thumbnail": {
+                                "thumbnails": [
+                                  {
+                                    "url": "https://example.invalid/1697.jpg",
+                                    "width": 480,
+                                    "height": 270
+                                  }
+                                ],
+                                "sampledThumbnailColor": {
+                                  "red": 114,
+                                  "green": 17,
+                                  "blue": 46
+                                },
+                                "darkColorPalette": {
+                                  "section2Color": 3344148,
+                                  "iconInactiveColor": 9664127,
+                                  "iconDisabledColor": 6310224
+                                },
+                                "vibrantColorPalette": {
+                                  "iconInactiveColor": 10054520
+                                }
+                              }
+                            }
+                          },
+                          "thumbnailOverlays": [
+                            {
+                              "thumbnailOverlayBottomPanelRenderer": {
+                                "text": {
+                                  "simpleText": "24 lessons"
+                                },
+                                "icon": {
+                                  "iconType": "COURSE"
+                                }
+                              }
+                            },
+                            {
+                              "thumbnailOverlayHoverTextRenderer": {
+                                "text": {
+                                  "runs": [
+                                    {
+                                      "text": "Play all"
+                                    }
+                                  ]
+                                },
+                                "icon": {
+                                  "iconType": "PLAY_ALL"
+                                }
+                              }
+                            },
+                            {
+                              "thumbnailOverlayNowPlayingRenderer": {
+                                "text": {
+                                  "runs": [
+                                    {
+                                      "text": "Now playing"
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ],
+                "targetId": "71c87130-0000-20ee-9a12-3c286d4fd6da",
+                "style": "RICH_GRID_STYLE_SLIM"
+              }
+            }
+          }
+        },
+        {
+          "tabRenderer": {
+            "endpoint": {
+              "commandMetadata": {
+                "webCommandMetadata": {
+                  "url": "/@mitocw/playlists",
+                  "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                  "rootVe": 3611,
+                  "apiUrl": "/youtubei/v1/browse"
+                }
+              },
+              "browseEndpoint": {
+                "browseId": "UCEBb1b_L6zDS3xTUrIALZOw",
+                "params": "EglwbGF5bGlzdHPyBgoKCEIGCgIQaCIA",
+                "canonicalBaseUrl": "/@mitocw"
+              }
+            },
+            "title": "Playlists"
+          }
+        },
+        {
+          "tabRenderer": {
+            "endpoint": {
+              "commandMetadata": {
+                "webCommandMetadata": {
+                  "url": "/@mitocw/posts",
+                  "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                  "rootVe": 3611,
+                  "apiUrl": "/youtubei/v1/browse"
+                }
+              },
+              "browseEndpoint": {
+                "browseId": "UCEBb1b_L6zDS3xTUrIALZOw",
+                "params": "EgVwb3N0c_IGBAoCSgA%3D",
+                "canonicalBaseUrl": "/@mitocw"
+              }
+            },
+            "title": "Posts"
+          }
+        },
+        {
+          "expandableTabRenderer": {
+            "endpoint": {
+              "commandMetadata": {
+                "webCommandMetadata": {
+                  "url": "/@mitocw/search",
+                  "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                  "rootVe": 3611,
+                  "apiUrl": "/youtubei/v1/browse"
+                }
+              },
+              "browseEndpoint": {
+                "browseId": "UCEBb1b_L6zDS3xTUrIALZOw",
+                "params": "EgZzZWFyY2jyBgQKAloA",
+                "canonicalBaseUrl": "/@mitocw"
+              }
+            },
+            "title": "Search",
+            "selected": false
+          }
+        }
+      ]
+    }
+  },
+  "header": {
+    "pageHeaderRenderer": {
+      "pageTitle": "MIT OpenCourseWare",
+      "content": {
+        "pageHeaderViewModel": {
+          "title": {
+            "dynamicTextViewModel": {
+              "text": {
+                "content": "MIT OpenCourseWare",
+                "styleRuns": [
+                  {
+                    "startIndex": 18,
+                    "styleRunExtensions": {
+                      "styleRunColorMapExtension": {
+                        "colorMap": [
+                          {
+                            "key": "token_scrubbed_1943",
+                            "value": 4294967295
+                          },
+                          {
+                            "key": "token_scrubbed_1944",
+                            "value": 4279440147
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ],
+                "attachmentRuns": [
+                  {
+                    "startIndex": 18,
+                    "length": 0,
+                    "element": {
+                      "type": {
+                        "imageType": {
+                          "image": {
+                            "sources": [
+                              {
+                                "clientResource": {
+                                  "imageName": "CHECK_CIRCLE_FILLED"
+                                },
+                                "width": 24,
+                                "height": 24
+                              }
+                            ]
+                          }
+                        }
+                      },
+                      "properties": {
+                        "layoutProperties": {
+                          "height": {
+                            "value": 24,
+                            "unit": "DIMENSION_UNIT_POINT"
+                          },
+                          "width": {
+                            "value": 24,
+                            "unit": "DIMENSION_UNIT_POINT"
+                          },
+                          "margin": {
+                            "left": {
+                              "value": 8,
+                              "unit": "DIMENSION_UNIT_POINT"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "alignment": "ALIGNMENT_VERTICAL_CENTER"
+                  }
+                ]
+              },
+              "maxLines": 2,
+              "rendererContext": {
+                "loggingContext": {
+                  "loggingDirectives": {
+                    "visibility": {
+                      "types": "12"
+                    }
+                  }
+                },
+                "accessibilityContext": {
+                  "label": "MIT OpenCourseWare, Verified"
+                }
+              }
+            }
+          },
+          "image": {
+            "decoratedAvatarViewModel": {
+              "avatar": {
+                "avatarViewModel": {
+                  "image": {
+                    "sources": [
+                      {
+                        "url": "https://example.invalid/1945.jpg",
+                        "width": 72,
+                        "height": 72
+                      },
+                      {
+                        "url": "https://example.invalid/1946.jpg",
+                        "width": 120,
+                        "height": 120
+                      },
+                      {
+                        "url": "https://example.invalid/1947.jpg",
+                        "width": 160,
+                        "height": 160
+                      }
+                    ],
+                    "processor": {
+                      "borderImageProcessor": {
+                        "circular": true
+                      }
+                    }
+                  },
+                  "avatarImageSize": "AVATAR_SIZE_XL",
+                  "loggingDirectives": {
+                    "visibility": {
+                      "types": "12"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "metadata": {
+            "contentMetadataViewModel": {
+              "metadataRows": [
+                {
+                  "metadataParts": [
+                    {
+                      "text": {
+                        "content": "@mitocw",
+                        "styleRuns": [
+                          {
+                            "weightLabel": "FONT_WEIGHT_MEDIUM",
+                            "styleRunExtensions": {
+                              "styleRunColorMapExtension": {
+                                "colorMap": [
+                                  {
+                                    "key": "token_scrubbed_1948",
+                                    "value": 4294967295
+                                  },
+                                  {
+                                    "key": "token_scrubbed_1949",
+                                    "value": 4279440147
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      "enableTruncation": true
+                    }
+                  ]
+                },
+                {
+                  "metadataParts": [
+                    {
+                      "text": {
+                        "content": "6.57M subscribers"
+                      },
+                      "accessibilityLabel": "6.57 million subscribers"
+                    },
+                    {
+                      "text": {
+                        "content": "8.1K videos",
+                        "styleRuns": [
+                          {
+                            "startIndex": 0,
+                            "length": 11
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "delimiter": "\u2022",
+              "rendererContext": {
+                "loggingContext": {
+                  "loggingDirectives": {
+                    "visibility": {
+                      "types": "12"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "actions": {
+            "flexibleActionsViewModel": {
+              "actionsRows": [
+                {
+                  "actions": [
+                    {
+                      "buttonViewModel": {
+                        "title": "Subscribe",
+                        "onTap": {
+                          "innertubeCommand": {
+                            "commandMetadata": {
+                              "webCommandMetadata": {
+                                "ignoreNavigation": true
+                              }
+                            },
+                            "modalEndpoint": {
+                              "modal": {
+                                "modalWithTitleAndButtonRenderer": {
+                                  "title": {
+                                    "simpleText": "Want to subscribe to this channel?"
+                                  },
+                                  "content": {
+                                    "simpleText": "Sign in to subscribe to this channel."
+                                  },
+                                  "button": {
+                                    "buttonRenderer": {
+                                      "style": "STYLE_MONO_FILLED",
+                                      "size": "SIZE_DEFAULT",
+                                      "isDisabled": false,
+                                      "text": {
+                                        "simpleText": "Sign in"
+                                      },
+                                      "navigationEndpoint": {
+                                        "commandMetadata": {
+                                          "webCommandMetadata": {
+                                            "url": "https://accounts.google.com/ServiceLogin?service=youtube&uilel=3&passive=true&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue%26app%3Ddesktop%26hl%3Den%26next%3D%252F%2540mitocw%252Fcourses%26continue_action%3DQUlxb01IYV80aGU0RnhVdkZ0ai1acHFhWFFfZnxBSTVJdTV1eVpZNkFlZUZfaU5sb0p5OWhNbkFQeFF0a0VKTktkamc4VXV5eDRWVmtIY01zaWxSXzVtcHlXZjFEUGdiZ2ptOGxBdzJzT1BMeHBxSXdCcl9UeTdhYTZ3Wk9sbVAxVmVpVjRJUEU2cFRRVUNDWXVaSml6bGZIRkNVWFVrblJ6cmFtRzlCRHBRaGNnR3VjSC03N1E2UGs1QkhIX1h5MWw5cktJNlQ4dThGMGFoa3pQbUEtWU9z&hl=en&ec=66429",
+                                            "webPageType": "WEB_PAGE_TYPE_UNKNOWN",
+                                            "rootVe": 83769
+                                          }
+                                        },
+                                        "signInEndpoint": {
+                                          "nextEndpoint": {
+                                            "commandMetadata": {
+                                              "webCommandMetadata": {
+                                                "url": "/@mitocw/courses",
+                                                "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                                                "rootVe": 3611,
+                                                "apiUrl": "/youtubei/v1/browse"
+                                              }
+                                            },
+                                            "browseEndpoint": {
+                                              "browseId": "UCEBb1b_L6zDS3xTUrIALZOw",
+                                              "params": "Egdjb3Vyc2Vz",
+                                              "canonicalBaseUrl": "/@mitocw"
+                                            }
+                                          },
+                                          "continueAction": "QUlxb01IYV80aGU0RnhVdkZ0ai1acHFhWFFfZnxBSTVJdTV1eVpZNkFlZUZfaU5sb0p5OWhNbkFQeFF0a0VKTktkamc4VXV5eDRWVmtIY01zaWxSXzVtcHlXZjFEUGdiZ2ptOGxBdzJzT1BMeHBxSXdCcl9UeTdhYTZ3Wk9sbVAxVmVpVjRJUEU2cFRRVUNDWXVaSml6bGZIRkNVWFVrblJ6cmFtRzlCRHBRaGNnR3VjSC03N1E2UGs1QkhIX1h5MWw5cktJNlQ4dThGMGFoa3pQbUEtWU9z",
+                                          "idamTag": "66429"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "accessibilityText": "Subscribe",
+                        "style": "BUTTON_VIEW_MODEL_STYLE_MONO",
+                        "isFullWidth": false,
+                        "type": "BUTTON_VIEW_MODEL_TYPE_FILLED",
+                        "buttonSize": "BUTTON_VIEW_MODEL_SIZE_DEFAULT",
+                        "state": "BUTTON_VIEW_MODEL_STATE_ACTIVE"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "justifyContent": "FLEXIBLE_ACTIONS_JUSTIFY_CONTENT_START",
+              "minimumRowHeight": 44,
+              "rendererContext": {
+                "loggingContext": {
+                  "loggingDirectives": {
+                    "visibility": {
+                      "types": "12"
+                    },
+                    "clientVeSpec": {
+                      "uiType": 184974,
+                      "veCounter": 786773063
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "description": {
+            "descriptionPreviewViewModel": {
+              "description": {
+                "content": "A free and open online publication of educational material from thousands of MIT courses, covering the entire MIT curriculum, ranging from introductory to the most advanced graduate courses. On the OCW website, each course includes a syllabus, instructional material like notes and reading lists, and learning activities like assignments and solutions. Some courses also have videos, online textbooks, and faculty insights on teaching. "
+              },
+              "maxLines": 2,
+              "truncationText": {
+                "content": "...more",
+                "styleRuns": [
+                  {
+                    "startIndex": 0,
+                    "length": 7,
+                    "weight": 500
+                  }
+                ]
+              },
+              "alwaysShowTruncationText": true,
+              "rendererContext": {
+                "loggingContext": {
+                  "loggingDirectives": {
+                    "visibility": {
+                      "types": "12"
+                    }
+                  }
+                },
+                "accessibilityContext": {
+                  "label": "Description. A free and open online publication of educational material f...tap for more."
+                },
+                "commandContext": {
+                  "onTap": {
+                    "innertubeCommand": {
+                      "showEngagementPanelEndpoint": {
+                        "engagementPanel": {
+                          "engagementPanelSectionListRenderer": {
+                            "header": {
+                              "engagementPanelTitleHeaderRenderer": {
+                                "title": {
+                                  "simpleText": "MIT OpenCourseWare"
+                                },
+                                "visibilityButton": {
+                                  "buttonRenderer": {
+                                    "style": "STYLE_DEFAULT",
+                                    "size": "SIZE_DEFAULT",
+                                    "isDisabled": false,
+                                    "icon": {
+                                      "iconType": "CLOSE"
+                                    },
+                                    "accessibility": {
+                                      "label": "Close"
+                                    },
+                                    "accessibilityData": {
+                                      "accessibilityData": {
+                                        "label": "Close"
+                                      }
+                                    },
+                                    "command": {
+                                      "changeEngagementPanelVisibilityAction": {
+                                        "targetId": "71c87128-0000-20ee-9a12-3c286d4fd6da",
+                                        "visibility": "ENGAGEMENT_PANEL_VISIBILITY_HIDDEN"
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "content": {
+                              "sectionListRenderer": {
+                                "contents": [
+                                  {
+                                    "itemSectionRenderer": {
+                                      "contents": [
+                                        {
+                                          "continuationItemRenderer": {
+                                            "trigger": "CONTINUATION_TRIGGER_ON_ITEM_SHOWN",
+                                            "continuationEndpoint": {
+                                              "commandMetadata": {
+                                                "webCommandMetadata": {
+                                                  "sendPost": true,
+                                                  "apiUrl": "/youtubei/v1/browse"
+                                                }
+                                              },
+                                              "continuationCommand": {
+                                                "token": "token_scrubbed_1950",
+                                                "request": "CONTINUATION_REQUEST_TYPE_BROWSE"
+                                              }
+                                            }
+                                          }
+                                        }
+                                      ],
+                                      "sectionIdentifier": "71c87129-0000-20ee-9a12-3c286d4fd6da",
+                                      "targetId": "71c87129-0000-20ee-9a12-3c286d4fd6da"
+                                    }
+                                  }
+                                ],
+                                "scrollPaneStyle": {
+                                  "scrollable": true
+                                }
+                              }
+                            },
+                            "targetId": "71c87128-0000-20ee-9a12-3c286d4fd6da",
+                            "identifier": {
+                              "surface": "ENGAGEMENT_PANEL_SURFACE_BROWSE",
+                              "tag": "71c87128-0000-20ee-9a12-3c286d4fd6da"
+                            }
+                          }
+                        },
+                        "identifier": {
+                          "surface": "ENGAGEMENT_PANEL_SURFACE_BROWSE",
+                          "tag": "71c87128-0000-20ee-9a12-3c286d4fd6da"
+                        },
+                        "engagementPanelPresentationConfigs": {
+                          "engagementPanelPopupPresentationConfig": {
+                            "popupType": "PANEL_POPUP_TYPE_DIALOG"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "attribution": {
+            "attributionViewModel": {
+              "text": {
+                "content": " ocw.mit.edu",
+                "commandRuns": [
+                  {
+                    "startIndex": 0,
+                    "length": 12,
+                    "onTap": {
+                      "innertubeCommand": {
+                        "commandMetadata": {
+                          "webCommandMetadata": {
+                            "url": "https://www.youtube.com/redirect?event=channel_header&redir_token=QUlxb01IWUZRMUl4dldUSDY3UGctUmNURXl0ZnxBSTVJdTV0X0tSZ3lPX0t2RlF0b3htMmgwQks1UlVQeTNzNnRfUG9Ndk9VZHlRQ18ya3JqTU4wZWl3UWxHX2FkT2dYb0dyTGpEYUNkRUhHcjlLMy1Ydk9yV1Rya3U1ZmxfaVlL&q=https%3A%2F%2Focw.mit.edu",
+                            "webPageType": "WEB_PAGE_TYPE_UNKNOWN",
+                            "rootVe": 83769
+                          }
+                        },
+                        "urlEndpoint": {
+                          "url": "https://www.youtube.com/redirect?event=channel_header&redir_token=QUlxb01IWUZRMUl4dldUSDY3UGctUmNURXl0ZnxBSTVJdTV0X0tSZ3lPX0t2RlF0b3htMmgwQks1UlVQeTNzNnRfUG9Ndk9VZHlRQ18ya3JqTU4wZWl3UWxHX2FkT2dYb0dyTGpEYUNkRUhHcjlLMy1Ydk9yV1Rya3U1ZmxfaVlL&q=https%3A%2F%2Focw.mit.edu",
+                          "target": "TARGET_NEW_WINDOW"
+                        }
+                      }
+                    },
+                    "loggingDirectives": {
+                      "visibility": {
+                        "types": "12"
+                      }
+                    }
+                  }
+                ],
+                "styleRuns": [
+                  {
+                    "weightLabel": "FONT_WEIGHT_NORMAL",
+                    "styleRunExtensions": {
+                      "styleRunColorMapExtension": {
+                        "colorMap": [
+                          {
+                            "key": "token_scrubbed_1951",
+                            "value": 4282296063
+                          },
+                          {
+                            "key": "token_scrubbed_1952",
+                            "value": 4278607828
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ],
+                "attachmentRuns": [
+                  {
+                    "startIndex": 0,
+                    "length": 0,
+                    "element": {
+                      "type": {
+                        "imageType": {
+                          "image": {
+                            "sources": [
+                              {
+                                "customImageSource": {
+                                  "youtubeIconSource": {
+                                    "clientResource": {
+                                      "icon": "YTICON_OUTLINE_LINK_S24"
+                                    }
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      },
+                      "properties": {
+                        "layoutProperties": {
+                          "height": {
+                            "value": 14,
+                            "unit": "DIMENSION_UNIT_POINT"
+                          },
+                          "width": {
+                            "value": 14,
+                            "unit": "DIMENSION_UNIT_POINT"
+                          }
+                        }
+                      }
+                    },
+                    "alignment": "ALIGNMENT_VERTICAL_CENTER"
+                  }
+                ]
+              },
+              "suffix": {
+                "content": "and 5 more links",
+                "commandRuns": [
+                  {
+                    "startIndex": 0,
+                    "length": 16,
+                    "onTap": {
+                      "innertubeCommand": {
+                        "showEngagementPanelEndpoint": {
+                          "engagementPanel": {
+                            "engagementPanelSectionListRenderer": {
+                              "header": {
+                                "engagementPanelTitleHeaderRenderer": {
+                                  "title": {
+                                    "simpleText": "MIT OpenCourseWare"
+                                  },
+                                  "visibilityButton": {
+                                    "buttonRenderer": {
+                                      "style": "STYLE_DEFAULT",
+                                      "size": "SIZE_DEFAULT",
+                                      "isDisabled": false,
+                                      "icon": {
+                                        "iconType": "CLOSE"
+                                      },
+                                      "accessibility": {
+                                        "label": "Close"
+                                      },
+                                      "accessibilityData": {
+                                        "accessibilityData": {
+                                          "label": "Close"
+                                        }
+                                      },
+                                      "command": {
+                                        "changeEngagementPanelVisibilityAction": {
+                                          "targetId": "71c8712a-0000-20ee-9a12-3c286d4fd6da",
+                                          "visibility": "ENGAGEMENT_PANEL_VISIBILITY_HIDDEN"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "content": {
+                                "sectionListRenderer": {
+                                  "contents": [
+                                    {
+                                      "itemSectionRenderer": {
+                                        "contents": [
+                                          {
+                                            "continuationItemRenderer": {
+                                              "trigger": "CONTINUATION_TRIGGER_ON_ITEM_SHOWN",
+                                              "continuationEndpoint": {
+                                                "commandMetadata": {
+                                                  "webCommandMetadata": {
+                                                    "sendPost": true,
+                                                    "apiUrl": "/youtubei/v1/browse"
+                                                  }
+                                                },
+                                                "continuationCommand": {
+                                                  "token": "token_scrubbed_1953",
+                                                  "request": "CONTINUATION_REQUEST_TYPE_BROWSE"
+                                                }
+                                              }
+                                            }
+                                          }
+                                        ],
+                                        "sectionIdentifier": "71c8712b-0000-20ee-9a12-3c286d4fd6da",
+                                        "targetId": "71c8712b-0000-20ee-9a12-3c286d4fd6da"
+                                      }
+                                    }
+                                  ],
+                                  "scrollPaneStyle": {
+                                    "scrollable": true
+                                  }
+                                }
+                              },
+                              "targetId": "71c8712a-0000-20ee-9a12-3c286d4fd6da",
+                              "identifier": {
+                                "surface": "ENGAGEMENT_PANEL_SURFACE_BROWSE",
+                                "tag": "71c8712a-0000-20ee-9a12-3c286d4fd6da"
+                              }
+                            }
+                          },
+                          "identifier": {
+                            "surface": "ENGAGEMENT_PANEL_SURFACE_BROWSE",
+                            "tag": "71c8712a-0000-20ee-9a12-3c286d4fd6da"
+                          },
+                          "engagementPanelPresentationConfigs": {
+                            "engagementPanelPopupPresentationConfig": {
+                              "popupType": "PANEL_POPUP_TYPE_DIALOG"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "loggingDirectives": {
+                      "visibility": {
+                        "types": "12"
+                      }
+                    }
+                  }
+                ],
+                "styleRuns": [
+                  {
+                    "fontName": "",
+                    "fontSize": 0,
+                    "weightLabel": "FONT_WEIGHT_MEDIUM"
+                  }
+                ]
+              },
+              "rendererContext": {
+                "loggingContext": {
+                  "loggingDirectives": {
+                    "visibility": {
+                      "types": "12"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "banner": {
+            "imageBannerViewModel": {
+              "image": {
+                "sources": [
+                  {
+                    "url": "https://example.invalid/1954.jpg",
+                    "width": 1060,
+                    "height": 175
+                  },
+                  {
+                    "url": "https://example.invalid/1955.jpg",
+                    "width": 1138,
+                    "height": 188
+                  },
+                  {
+                    "url": "https://example.invalid/1956.jpg",
+                    "width": 1707,
+                    "height": 283
+                  },
+                  {
+                    "url": "https://example.invalid/1957.jpg",
+                    "width": 2120,
+                    "height": 351
+                  },
+                  {
+                    "url": "https://example.invalid/1958.jpg",
+                    "width": 2276,
+                    "height": 377
+                  },
+                  {
+                    "url": "https://example.invalid/1959.jpg",
+                    "width": 2560,
+                    "height": 424
+                  }
+                ]
+              },
+              "style": "IMAGE_BANNER_STYLE_INSET",
+              "rendererContext": {
+                "loggingContext": {
+                  "loggingDirectives": {
+                    "visibility": {
+                      "types": "12"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "rendererContext": {
+            "loggingContext": {
+              "loggingDirectives": {
+                "visibility": {
+                  "types": "12"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

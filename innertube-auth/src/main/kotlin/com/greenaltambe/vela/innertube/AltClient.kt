@@ -48,11 +48,67 @@ class AltClientExtractor(
     private val onProfile: (String) -> Unit = {},
     /** The "allow controversial" setting: whether the player call answers YouTube's content-warning checks (contentCheckOk / racyCheckOk). */
     private val contentChecks: () -> Boolean = { true },
+    private val contentRegion: () -> String = { "US" },
+    val channelBrowse: ChannelBrowse = ChannelBrowse(
+        transport = transport,
+        clock = clock,
+        base = base,
+        onUnknownRenderer = { onProfile("unknown renderer: $it") },
+        contentRegion = contentRegion,
+    ),
 ) : Extractor {
 
+    override val capabilities: ExtractorCapabilities = ExtractorCapabilities(
+        channelTabs = true,
+        channelTabFilters = true,
+    )
+
     override suspend fun search(query: String, continuation: String?): ExtractorResult<Page<VideoSummary>> = notSupported()
-    override suspend fun channel(channelId: String): ExtractorResult<ChannelPage> = notSupported()
-    override suspend fun channelVideos(channelId: String, continuation: String?): ExtractorResult<Page<VideoSummary>> = notSupported()
+    override suspend fun channel(channelId: String): ExtractorResult<ChannelPage> =
+        channelLanding(channelId).map { it.header }
+
+    override suspend fun channelVideos(channelId: String, continuation: String?): ExtractorResult<Page<VideoSummary>> =
+        if (continuation != null) {
+            channelTabByContinuation(continuation).map { tab ->
+                Page(tab.items.filterIsInstance<ChannelItem.Video>().map { it.summary }, tab.nextToken)
+            }
+        } else {
+            channelLanding(channelId).map { landing ->
+                val videos = landing.initialPage?.items?.filterIsInstance<ChannelItem.Video>()?.map { it.summary } ?: emptyList()
+                Page(videos, landing.initialPage?.nextToken)
+            }
+        }
+
+    override suspend fun channelShorts(channelId: String, continuation: String?): ExtractorResult<Page<VideoSummary>> =
+        if (continuation != null) {
+            channelTabByContinuation(continuation).map { tab ->
+                Page(tab.items.filterIsInstance<ChannelItem.Video>().map { it.summary }, tab.nextToken)
+            }
+        } else {
+            val tabDesc = ChannelTab(ChannelTabKind.SHORTS, "Shorts", params = ChannelBrowse.SHORTS_PARAMS)
+            channelTab(channelId, tabDesc, null, null).map { tab ->
+                Page(tab.items.filterIsInstance<ChannelItem.Video>().map { it.summary }, tab.nextToken)
+            }
+        }
+
+    override suspend fun channelLanding(channelId: String): ExtractorResult<ChannelLanding> =
+        channelBrowse.landing(channelId)
+
+    override suspend fun channelTab(channelId: String, tab: ChannelTab, filterOption: ChannelFilterOption?, continuation: String?): ExtractorResult<ChannelTabPage> =
+        channelBrowse.tab(channelId, tab, filterOption, continuation)
+
+    override suspend fun channelTabByContinuation(token: String): ExtractorResult<ChannelTabPage> =
+        channelBrowse.continuation(token)
+
+    override suspend fun channelAbout(channelId: String, token: String?): ExtractorResult<ChannelAbout> =
+        channelBrowse.about(channelId, token)
+
+    override suspend fun channelSearch(channelId: String, query: String, continuation: String?): ExtractorResult<ChannelTabPage> =
+        channelBrowse.search(channelId, query, continuation)
+
+    override suspend fun postDetail(browseParams: String): ExtractorResult<Pair<ChannelPost, List<Comment>>> =
+        channelBrowse.postDetail(browseParams)
+
     override suspend fun comments(videoId: String, sort: CommentSort, continuation: String?): ExtractorResult<CommentsPage> = notSupported()
     override suspend fun replies(videoId: String, commentId: String, continuation: String?): ExtractorResult<CommentsPage> = notSupported()
 

@@ -48,9 +48,12 @@ class FallbackChain(
     private var memoryOwner: String? = signedInAccount?.invoke()
 
     /** Only true if every tier honours it, so the UI never offers a choice some tier would silently ignore. */
-    override val capabilities = ExtractorCapabilities(
-        supportsCommentSort = tiers.isNotEmpty() && tiers.all { it.capabilities.supportsCommentSort },
-    )
+    override val capabilities: ExtractorCapabilities
+        get() = ExtractorCapabilities(
+            supportsCommentSort = tiers.isNotEmpty() && tiers.all { it.capabilities.supportsCommentSort },
+            channelTabs = tiers.any { it.capabilities.channelTabs },
+            channelTabFilters = tiers.any { it.capabilities.channelTabFilters },
+        )
 
     override suspend fun search(query: String, continuation: String?) =
         run("search($query${page(continuation)})", AccountOp.NEVER) { it.search(query, continuation) }
@@ -82,6 +85,18 @@ class FallbackChain(
     override suspend fun playlistVideos(playlistId: String, continuation: String?) =
         run("playlistVideos($playlistId${page(continuation)})", AccountOp.NEVER) { it.playlistVideos(playlistId, continuation) }
     override suspend fun recentUploads(channelId: String) = run("recentUploads($channelId)", AccountOp.NEVER) { it.recentUploads(channelId) }
+    override suspend fun channelLanding(channelId: String) =
+        run("channelLanding($channelId)", AccountOp.CHANNELS) { it.channelLanding(channelId) }
+    override suspend fun channelTab(channelId: String, tab: ChannelTab, filterOption: ChannelFilterOption?, continuation: String?) =
+        run("channelTab($channelId, ${tab.kind}${page(continuation)})", AccountOp.CHANNELS) { it.channelTab(channelId, tab, filterOption, continuation) }
+    override suspend fun channelTabByContinuation(token: String) =
+        run("channelTabByContinuation(more)", AccountOp.CHANNELS) { it.channelTabByContinuation(token) }
+    override suspend fun channelAbout(channelId: String, token: String?) =
+        run("channelAbout($channelId)", AccountOp.CHANNELS) { it.channelAbout(channelId, token) }
+    override suspend fun channelSearch(channelId: String, query: String, continuation: String?) =
+        run("channelSearch($channelId, $query${page(continuation)})", AccountOp.CHANNELS) { it.channelSearch(channelId, query, continuation) }
+    override suspend fun postDetail(browseParams: String) =
+        run("postDetail", AccountOp.CHANNELS) { it.postDetail(browseParams) }
 
     private fun page(continuation: String?) = if (continuation == null) "" else ", more"
 
@@ -142,13 +157,21 @@ class FallbackChain(
                     signInFailures.remove(tier.id)
                     if (subject.startsWith("streams(")) lastStreamsTier = tier.id
                     record(subject, tier.id, AttemptOutcome.SUCCESS, null, servedDetail(tier, account, result.value), took)
-                    failures.filter { (_, e) -> e.reason.isTierHealthIssue }
-                        .forEach { (failed, e) -> memory.remember(failed, e.reason, tier.id) }
+                    if (op != AccountOp.CHANNELS) {
+                        failures.filter { (_, e) -> e.reason.isTierHealthIssue }
+                            .forEach { (failed, e) -> memory.remember(failed, e.reason, tier.id) }
+                    }
                     return result
                 }
                 is ExtractorResult.Failure -> {
                     record(subject, tier.id, AttemptOutcome.FAILED, result.error.reason, account?.takeIf { tier.id == TierId.AUTHENTICATED }?.let { "account $it: " }.orEmpty() + result.error.message, took)
-                    memory.forgetWorked(tier.id)
+                    if (result.error.reason != FailureReason.TOKEN_NOT_MINE && result.error.reason != FailureReason.TOKEN_EXPIRED) {
+                        memory.forgetWorked(tier.id)
+                    }
+                    if (result.error is ExtractorError.TokenNotMine) {
+                        // A token for another tier must never be forwarded to subsequent tiers
+                        return result
+                    }
                     if (result.error.reason == FailureReason.SIGN_IN_REQUIRED && tier.id != TierId.AUTHENTICATED) { signInSeen = true; signInFailures[tier.id] = clock.now() }
                     failures += tier.id to result.error
                     if (AgeText.matches(result.error.message) && !allowAgeRestricted()) {
@@ -237,6 +260,9 @@ class FallbackChain(
         tierOrder?.let { order ->
             val rank = TierOrder.sanitize(order(), mode)
             usable = usable.sortedBy { rank.indexOf(it.id).let { i -> if (i < 0) Int.MAX_VALUE else i } }
+        }
+        if (op == AccountOp.CHANNELS && usable.any { it.capabilities.channelTabFilters }) {
+            usable = usable.sortedByDescending { if (it.capabilities.channelTabFilters) 1 else 0 }
         }
         return if (mode == AccountFallbackMode.ALWAYS) usable.sortedBy { if (it.id == TierId.AUTHENTICATED) 0 else 1 } else usable
     }

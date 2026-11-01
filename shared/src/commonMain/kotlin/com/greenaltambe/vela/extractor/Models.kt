@@ -151,7 +151,15 @@ data class Comment(
 data class ChannelRef(val id: String, val name: String, val avatarUrl: String?, val subscriberCount: Long?, val description: String = "")
 
 /** A playlist as a channel page lists it. */
-data class PlaylistRef(val id: String, val title: String, val thumbnailUrl: String?, val videoCount: Long?, val channelName: String = "")
+data class PlaylistRef(
+    val id: String,
+    val title: String,
+    val thumbnailUrl: String?,
+    val videoCount: Long?,
+    val channelName: String = "",
+    val isCourse: Boolean = false,
+    val lessonCountText: String? = null,
+)
 
 data class CommentsPage(val comments: List<Comment>, val continuation: String? = null)
 
@@ -166,4 +174,146 @@ enum class CommentSort { TOP, NEWEST }
 data class ExtractorCapabilities(
     /** True only if [CommentSort.NEWEST] is honoured rather than ignored. */
     val supportsCommentSort: Boolean = false,
+    /** True if the tier provides native channel tabs discovered from the response. */
+    val channelTabs: Boolean = false,
+    /** True if server-side sorts and filter chips are supported for channel tabs. */
+    val channelTabFilters: Boolean = false,
+)
+
+object ChannelTabParams {
+    const val VIDEOS = "EgZ2aWRlb3PyBgQKAjoA"
+    const val SHORTS = "EgZzaG9ydHPyBgUKA5oBAA=="
+    const val STREAMS = "EgdzdHJlYW1z8gYECgJ6AA=="
+    const val PLAYLISTS = "EglwbGF5bGlzdHPyBgoKCEIGCgIQaCIA"
+    const val COURSES = "Egdjb3Vyc2Vz8gYFCgPCAQA="
+    const val POSTS = "EgVwb3N0c_IGBAoCSgA="
+    const val SEARCH = "EgZzZWFyY2jyBgQKAloA"
+}
+
+/** The kinds of tabs YouTube channels can have, identified by the last segment of the tab's endpoint URL. */
+enum class ChannelTabKind {
+    FEATURED, VIDEOS, SHORTS, STREAMS, SHOWS, PODCASTS, COURSES, PLAYLISTS, POSTS, RELEASES, STORE, SEARCH, ABOUT, UNKNOWN;
+
+    companion object {
+        fun fromUrlSegment(segment: String): ChannelTabKind = when (segment.trim().lowercase()) {
+            "featured" -> FEATURED
+            "videos" -> VIDEOS
+            "shorts" -> SHORTS
+            "streams", "live" -> STREAMS
+            "shows" -> SHOWS
+            "podcasts" -> PODCASTS
+            "courses" -> COURSES
+            "playlists" -> PLAYLISTS
+            "community", "posts" -> POSTS
+            "releases" -> RELEASES
+            "store" -> STORE
+            "search" -> SEARCH
+            "about" -> ABOUT
+            else -> UNKNOWN
+        }
+    }
+}
+
+/** One tab offered by a channel's landing response. */
+data class ChannelTab(
+    val kind: ChannelTabKind,
+    val title: String,
+    val params: String? = null,
+    val selected: Boolean = false,
+    val endpointUrl: String? = null,
+)
+
+/** One sort or filter option (a chip or a dropdown row) for a channel tab. */
+data class ChannelFilterOption(
+    val label: String,
+    val selected: Boolean = false,
+    /** Continuation token for chip continuation / sort reloads. */
+    val token: String? = null,
+    /** Browse params for fresh browse requests (e.g. Playlists sort options). */
+    val params: String? = null,
+)
+
+/** A group of filters on a tab (either a dropdown menu such as "Sort by" or a chip bar). */
+data class ChannelFilterGroup(
+    val isDropdown: Boolean = false,
+    val title: String? = null,
+    val options: List<ChannelFilterOption> = emptyList(),
+)
+
+/** Attachments on a community post. */
+sealed interface PostAttachment {
+    data class Image(val url: String, val aspectRatio: Float? = null) : PostAttachment
+    data class MultiImage(val images: List<Image>) : PostAttachment
+    data class Poll(val choices: List<PollChoice>, val totalVotesText: String? = null) : PostAttachment
+    data class Video(val video: VideoSummary) : PostAttachment
+    data class Playlist(val playlist: PlaylistRef) : PostAttachment
+}
+
+data class PollChoice(
+    val text: String,
+    val voteRatio: Double? = null,
+    val votePercentage: String? = null,
+)
+
+/** A community post on a channel's Posts tab. */
+data class ChannelPost(
+    val id: String,
+    val authorName: String,
+    val authorAvatarUrl: String? = null,
+    val text: String,
+    val publishedText: String? = null,
+    val voteCountText: String? = null,
+    val likeCount: Long? = null,
+    val detailBrowseParams: String? = null,
+    val attachment: PostAttachment? = null,
+)
+
+/** Content items on a channel tab. */
+sealed interface ChannelItem {
+    data class Video(val summary: VideoSummary) : ChannelItem
+    data class Playlist(val playlist: PlaylistRef) : ChannelItem
+    data class Post(val post: ChannelPost) : ChannelItem
+}
+
+/** A shelf of items on a tab (e.g. Featured shelves on Home). */
+data class ChannelShelf(
+    val title: String,
+    val items: List<ChannelItem> = emptyList(),
+)
+
+/** A link listed on a channel's About panel. */
+data class ChannelAboutLink(
+    val title: String,
+    val url: String,
+    val displayUrl: String,
+    val faviconUrl: String? = null,
+)
+
+/** The full About information for a channel. */
+data class ChannelAbout(
+    val description: String = "",
+    val country: String? = null,
+    val joinedDateText: String? = null,
+    val viewCountText: String? = null,
+    val subscriberCountText: String? = null,
+    val videoCountText: String? = null,
+    val customUrl: String? = null,
+    val links: List<ChannelAboutLink> = emptyList(),
+    val isPartial: Boolean = false,
+)
+
+/** A page of items/shelves for one channel tab. */
+data class ChannelTabPage(
+    val items: List<ChannelItem> = emptyList(),
+    val shelves: List<ChannelShelf> = emptyList(),
+    val filters: List<ChannelFilterGroup> = emptyList(),
+    val nextToken: String? = null,
+)
+
+/** The landing response for a channel: header, discovered tabs in order, and initial tab content if loaded. */
+data class ChannelLanding(
+    val header: ChannelPage,
+    val tabs: List<ChannelTab> = emptyList(),
+    val initialPage: ChannelTabPage? = null,
+    val aboutToken: String? = null,
 )

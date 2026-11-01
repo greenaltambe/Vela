@@ -75,6 +75,31 @@ class ExtractorHealthTest {
         assertEquals(74L, NewPipeVersion.ageDays(Instant.parse("2026-10-28T00:00:00Z")))
     }
 
+    @Test fun channelTabsAndFilterCanariesRunOnSupportingTiers() = runTest {
+        val tierWithTabs = object : Extractor by good() {
+            override val capabilities = ExtractorCapabilities(channelTabs = true, channelTabFilters = true)
+            override suspend fun channelLanding(channelId: String) = ExtractorResult.Success(
+                ChannelLanding(
+                    header = ChannelPage(channelId, "Test"),
+                    tabs = listOf(ChannelTab(ChannelTabKind.VIDEOS, "Videos")),
+                )
+            )
+            override suspend fun channelTab(channelId: String, tab: ChannelTab, filterOption: ChannelFilterOption?, continuation: String?) =
+                if (filterOption?.label == "Oldest") {
+                    ExtractorResult.Success(ChannelTabPage(items = listOf(ChannelItem.Video(VideoSummary("v_old", "Oldest", channelId, "Test")))))
+                } else {
+                    ExtractorResult.Success(ChannelTabPage(
+                        items = listOf(ChannelItem.Video(VideoSummary("v_new", "Latest", channelId, "Test"))),
+                        filters = listOf(ChannelFilterGroup(isDropdown = false, options = listOf(ChannelFilterOption("Latest", true), ChannelFilterOption("Oldest", false))))
+                    ))
+                }
+        }
+        val h = ExtractorHealth(listOf(ExtractorTier(TierId.ALT_CLIENT, tierWithTabs)), { _, _ -> 206 }, clock = clock)
+        h.run()
+        assertTrue(h.results.value.any { it.check == "channelTabs" && it.ok })
+        assertTrue(h.results.value.any { it.check == "channelSortOldest" && it.ok })
+    }
+
     private fun broken() = ChaosExtractor(FORBIDDEN_403, FORBIDDEN_403, FORBIDDEN_403, FORBIDDEN_403, FORBIDDEN_403, FORBIDDEN_403, FORBIDDEN_403, FORBIDDEN_403, FORBIDDEN_403, FORBIDDEN_403, FORBIDDEN_403, FORBIDDEN_403)
 
     @Test fun alertNeedsTwoFullFailuresInARowAndNamesTheTiers() = runTest {

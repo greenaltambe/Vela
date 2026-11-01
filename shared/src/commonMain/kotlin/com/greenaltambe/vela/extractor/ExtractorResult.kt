@@ -7,7 +7,13 @@ enum class FailureReason {
     CAPTCHA,
 
     /** The tier itself can't run (e.g. its binary is gone); says nothing about the video, IP or connection. */
-    TIER_UNAVAILABLE;
+    TIER_UNAVAILABLE,
+
+    /** A pagination / continuation token expired or is invalid (e.g. HTTP 400/404); not a tier health issue. */
+    TOKEN_EXPIRED,
+
+    /** A continuation token belongs to another tier family; not a tier health issue. */
+    TOKEN_NOT_MINE;
 
     /** Reasons that say something about the tier/IP rather than the video or the connection. */
     val isTierHealthIssue: Boolean get() = this == BLOCKED || this == SIGN_IN_REQUIRED || this == RATE_LIMITED || this == CAPTCHA
@@ -25,6 +31,8 @@ sealed class ExtractorError(val reason: FailureReason, val message: String, val 
     class Network(message: String = "Network error", cause: Throwable? = null) : ExtractorError(FailureReason.NETWORK, message, cause)
     class TierUnavailable(message: String = "Tier unavailable", cause: Throwable? = null) : ExtractorError(FailureReason.TIER_UNAVAILABLE, message, cause)
     class ParseFailure(message: String = "Parse failure", cause: Throwable? = null) : ExtractorError(FailureReason.PARSE_FAILURE, message, cause)
+    class TokenExpired(message: String = "Token expired", cause: Throwable? = null) : ExtractorError(FailureReason.TOKEN_EXPIRED, message, cause)
+    class TokenNotMine(message: String = "Token belongs to another tier", cause: Throwable? = null) : ExtractorError(FailureReason.TOKEN_NOT_MINE, message, cause)
 }
 
 /** What the account did in a failed attempt, so the player can name the right action. */
@@ -50,4 +58,9 @@ class TiersFailed(
 sealed interface ExtractorResult<out T> {
     data class Success<T>(val value: T) : ExtractorResult<T>
     data class Failure(val error: ExtractorError) : ExtractorResult<Nothing>
+}
+
+fun <T, R> ExtractorResult<T>.map(transform: (T) -> R): ExtractorResult<R> = when (this) {
+    is ExtractorResult.Success -> ExtractorResult.Success(transform(value))
+    is ExtractorResult.Failure -> this
 }

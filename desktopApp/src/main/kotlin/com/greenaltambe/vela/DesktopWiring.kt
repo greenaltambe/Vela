@@ -131,11 +131,25 @@ fun buildDesktopWiring(
             runner = runner, binary = ytDlpBinary, extraArgs = { ytDlpArgs },
         )
     }
+    val dynamicClientVersion = {
+        runCatching { org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.getClientVersion() }.getOrNull()
+            ?: com.greenaltambe.vela.innertube.WebClient.bundled().clientVersion
+    }
+    val channelBrowse = com.greenaltambe.vela.innertube.ChannelBrowse(
+        clientVersion = dynamicClientVersion,
+        onUnknownRenderer = { line -> note("alt client", TierId.ALT_CLIENT, "unknown renderer: $line") },
+        contentRegion = { settings.resolve(Settings.contentRegion) },
+    )
     // Chain order: ANONYMOUS (NewPipe), AUTHENTICATED (yt-dlp --cookies as the active account), ALT_CLIENT (iOS/Android player), YT_DLP.
     val tiers = (listOfNotNull(
         ExtractorTier(TierId.ANONYMOUS, PacedExtractor(NewPipeExtractor(region = { settings.resolve(Settings.contentRegion) })), "NewPipeExtractor ${com.greenaltambe.vela.health.NewPipeVersion.VERSION}"),
         accountTier?.let { ExtractorTier(TierId.AUTHENTICATED, it, ytDlpLabel) },
-        ExtractorTier(TierId.ALT_CLIENT, AltClientExtractor(profiles = { remote?.profiles(com.greenaltambe.vela.innertube.ClientProfile.load()) ?: com.greenaltambe.vela.innertube.ClientProfile.load() }, onProfile = { line -> note("alt client", TierId.ALT_CLIENT, line) }, contentChecks = { settings.resolve(Settings.allowControversial) }), "innertube-profiles.json"),
+        ExtractorTier(TierId.ALT_CLIENT, AltClientExtractor(
+            profiles = { remote?.profiles(com.greenaltambe.vela.innertube.ClientProfile.load()) ?: com.greenaltambe.vela.innertube.ClientProfile.load() },
+            onProfile = { line -> note("alt client", TierId.ALT_CLIENT, line) },
+            contentChecks = { settings.resolve(Settings.allowControversial) },
+            channelBrowse = channelBrowse,
+        ), "innertube-profiles.json"),
         ytDlp?.let { ExtractorTier(TierId.YT_DLP, PacedExtractor(it.extractor), ytDlpLabel) },
     )).withFaults(faults)
     val health = ExtractorHealth(tiers, OkHttpStreamProbe(), DbHealthStore(database), clock, onAlert = { com.greenaltambe.vela.downloads.NotifySendNotifier().healthAlert(it.message()) }, canaries = { ExtractorHealth.DefaultCanaries + remote?.canaryVideoIds().orEmpty().map { com.greenaltambe.vela.health.Canary(it, "remote") } })

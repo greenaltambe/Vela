@@ -39,8 +39,14 @@ dependencies {
 }
 
 tasks.withType<Test>().matching { it.name == "test" }.configureEach {
-    // Where the screenshot tests write their PNGs: the reports link them locally; on CI (env CI set) they go to the build folder so the tree stays clean.
-    systemProperty("vela.screens.dir", if (System.getenv("CI") != null) layout.buildDirectory.dir("screens/12-screens").get().asFile.path else rootProject.file("docs/reports/12-screens").path)
+    // Where the screenshot tests write their PNGs: only writes to docs/reports when -Pscreens=docs is given.
+    val toDocs = project.findProperty("screens") == "docs"
+    systemProperty("vela.screens.toDocs", toDocs.toString())
+    systemProperty("vela.screens.dir", if (toDocs) rootProject.file("docs/reports/12-screens").path else layout.buildDirectory.dir("screens/12-screens").get().asFile.path)
+    val tmp = System.getProperty("java.io.tmpdir", "/tmp")
+    val skikoDir = File(tmp, ".skiko").apply { mkdirs() }
+    systemProperty("skiko.data.dir", skikoDir.path)
+    systemProperty("user.home", tmp)
 }
 
 dependencies {

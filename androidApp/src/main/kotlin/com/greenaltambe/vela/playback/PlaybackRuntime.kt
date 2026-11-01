@@ -110,11 +110,27 @@ class PlaybackRuntime private constructor(context: Context) {
     val faults: com.greenaltambe.vela.extractor.chain.FaultInjector? =
         if (appContext.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) com.greenaltambe.vela.extractor.chain.FaultInjector() else null
     private val tiers by lazy {
+        val dynamicClientVersion = {
+            runCatching { org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.getClientVersion() }.getOrNull()
+                ?: com.greenaltambe.vela.innertube.WebClient.bundled().clientVersion
+        }
+        val channelBrowse = com.greenaltambe.vela.innertube.ChannelBrowse(
+            clientVersion = dynamicClientVersion,
+            onUnknownRenderer = { line ->
+                log.record(TierAttempt("alt client", TierId.ALT_CLIENT, AttemptOutcome.NOTE, null, "unknown renderer: $line", Duration.ZERO, Clock.System.now()))
+            },
+            contentRegion = { settings.resolve(Settings.contentRegion) },
+        )
         listOfNotNull(
             ExtractorTier(TierId.ANONYMOUS, PacedExtractor(NewPipeExtractor({ com.greenaltambe.vela.extractor.newpipe.OkHttpDownloader(exemptionCookie = exemption::headerFor) }, region = { settings.resolve(Settings.contentRegion) })), "NewPipeExtractor ${com.greenaltambe.vela.health.NewPipeVersion.VERSION}"),
-            ExtractorTier(TierId.ALT_CLIENT, AltClientExtractor(profiles = { remote.profiles(com.greenaltambe.vela.innertube.ClientProfile.load()) }, onProfile = { line ->
-                log.record(TierAttempt("alt client", TierId.ALT_CLIENT, AttemptOutcome.NOTE, null, line, Duration.ZERO, Clock.System.now()))
-            }, contentChecks = { settings.resolve(Settings.allowControversial) }), "innertube-profiles.json"),
+            ExtractorTier(TierId.ALT_CLIENT, AltClientExtractor(
+                profiles = { remote.profiles(com.greenaltambe.vela.innertube.ClientProfile.load()) },
+                onProfile = { line ->
+                    log.record(TierAttempt("alt client", TierId.ALT_CLIENT, AttemptOutcome.NOTE, null, line, Duration.ZERO, Clock.System.now()))
+                },
+                contentChecks = { settings.resolve(Settings.allowControversial) },
+                channelBrowse = channelBrowse,
+            ), "innertube-profiles.json"),
             ExtractorTier(TierId.AUTHENTICATED, com.greenaltambe.vela.extractor.ytdlp.AuthenticatedYtDlpExtractor(
                 governors = governors,
                 account = { accounts.active.value.takeIf { it.isSignedIn }?.let { a -> accounts.cookies(a.id)?.let { jar -> com.greenaltambe.vela.extractor.ytdlp.AccountCookies(a.id, a.label, jar) } } },

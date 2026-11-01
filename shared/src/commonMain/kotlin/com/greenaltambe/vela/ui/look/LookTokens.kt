@@ -31,6 +31,7 @@ data class LookTokens(
 @Serializable
 data class AccentTokens(
     val wake: List<Long> = Palettes.stops(com.greenaltambe.vela.core.settings.Palette.VELA),
+    val isSolid: Boolean = false,
 )
 
 @Serializable

@@ -1,7 +1,6 @@
 package com.greenaltambe.vela.health
 
-import com.greenaltambe.vela.extractor.ExtractorResult
-import com.greenaltambe.vela.extractor.NOT_SUPPORTED
+import com.greenaltambe.vela.extractor.*
 import com.greenaltambe.vela.extractor.chain.ExtractorTier
 import com.greenaltambe.vela.extractor.chain.TierId
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -137,6 +136,32 @@ class ExtractorHealth(
                     }
                     url?.let { u -> fresh += probeOnce(tier.id, "GET(${c.label})", u, headers, availableAt) }
                 }
+                if (tier.extractor.capabilities.channelTabs && !slow) {
+                    fresh += timed(tier.id, "channelTabs") {
+                        when (val r = tier.extractor.channelLanding(CANARY_CHANNEL_ID)) {
+                            is ExtractorResult.Success -> if (r.value.tabs.isEmpty()) "no tabs found" else null
+                            is ExtractorResult.Failure -> r.error.message
+                        }
+                    }
+                }
+                if (tier.extractor.capabilities.channelTabFilters && !slow) {
+                    fresh += timed(tier.id, "channelSortOldest") {
+                        val landing = tier.extractor.channelLanding(CANARY_CHANNEL_ID)
+                        if (landing !is ExtractorResult.Success) return@timed (landing as ExtractorResult.Failure).error.message
+                        val vidTab = landing.value.tabs.firstOrNull { it.kind == ChannelTabKind.VIDEOS }
+                            ?: return@timed "no videos tab"
+                        val tabRes = tier.extractor.channelTab(CANARY_CHANNEL_ID, vidTab)
+                        if (tabRes !is ExtractorResult.Success) return@timed (tabRes as ExtractorResult.Failure).error.message
+                        val oldestOpt = tabRes.value.filters.flatMap { it.options }.firstOrNull { it.label.contains("Oldest", true) }
+                            ?: return@timed "no oldest sort option"
+                        val oldestRes = tier.extractor.channelTab(CANARY_CHANNEL_ID, vidTab, oldestOpt)
+                        if (oldestRes !is ExtractorResult.Success) return@timed (oldestRes as ExtractorResult.Failure).error.message
+                        val firstOldest = oldestRes.value.items.filterIsInstance<ChannelItem.Video>().firstOrNull()?.summary
+                        val firstLatest = tabRes.value.items.filterIsInstance<ChannelItem.Video>().firstOrNull()?.summary
+                        if (firstOldest == null || firstLatest == null) return@timed "empty videos"
+                        if (firstOldest.id == firstLatest.id) "Oldest video equals Latest video" else null
+                    }
+                }
             }
             val merged = (_results.value + fresh.map { it.copy(run = runId) }).sortedBy { it.at }.takeLast(keep)
             store.save(merged); _results.update { merged }
@@ -177,6 +202,7 @@ class ExtractorHealth(
         const val ALERT_AFTER = 2
         val MAX_AVAILABLE_WAIT = 20.seconds
         const val SABR = "streamingData has no plain URLs: YouTube may have moved this client to SABR"
+        const val CANARY_CHANNEL_ID = "UCsXVk37bltHxD1rDPwtNM8Q"
         /** Three stable public videos: a normal one, a music video and a short. */
         val DefaultCanaries = listOf(Canary("dQw4w9WgXcQ", "normal"), Canary("kJQP7kiw5Fk", "music"), Canary("jNQXAC9IVRw", "short"))
     }

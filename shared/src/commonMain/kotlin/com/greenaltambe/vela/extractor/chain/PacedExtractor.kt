@@ -54,4 +54,10 @@ class PacedExtractor(
     override suspend fun suggestions(query: String) = paced { inner.suggestions(query) }
     override suspend fun streamsPreferringOther(videoId: String) = paced { inner.streamsPreferringOther(videoId) }
     override suspend fun recentUploads(channelId: String) = paced { inner.recentUploads(channelId) }
+    override suspend fun channelLanding(channelId: String) = paced { inner.channelLanding(channelId) }
+    override suspend fun channelTab(channelId: String, tab: ChannelTab, filterOption: ChannelFilterOption?, continuation: String?) = paced { inner.channelTab(channelId, tab, filterOption, continuation) }
+    override suspend fun channelTabByContinuation(token: String) = paced { inner.channelTabByContinuation(token) }
+    override suspend fun channelAbout(channelId: String, token: String?) = paced { inner.channelAbout(channelId, token) }
+    override suspend fun channelSearch(channelId: String, query: String, continuation: String?) = paced { inner.channelSearch(channelId, query, continuation) }
+    override suspend fun postDetail(browseParams: String) = paced { inner.postDetail(browseParams) }
 }

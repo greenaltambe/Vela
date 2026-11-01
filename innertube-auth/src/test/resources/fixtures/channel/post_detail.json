@@ -1,0 +1,1004 @@
+{
+  "contents": {
+    "twoColumnBrowseResultsRenderer": {
+      "tabs": [
+        {
+          "tabRenderer": {
+            "title": "Posts",
+            "selected": true,
+            "content": {
+              "sectionListRenderer": {
+                "contents": [
+                  {
+                    "itemSectionRenderer": {
+                      "contents": [
+                        {
+                          "backstagePostThreadRenderer": {
+                            "post": {
+                              "backstagePostRenderer": {
+                                "postId": "UgkxyKFy9ATj3NXlWagVbGOlCRaz0gMD6YPV",
+                                "authorText": {
+                                  "runs": [
+                                    {
+                                      "text": "MIT OpenCourseWare",
+                                      "navigationEndpoint": {
+                                        "commandMetadata": {
+                                          "webCommandMetadata": {
+                                            "url": "/@mitocw",
+                                            "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                                            "rootVe": 3611,
+                                            "apiUrl": "/youtubei/v1/browse"
+                                          }
+                                        },
+                                        "browseEndpoint": {
+                                          "browseId": "UCEBb1b_L6zDS3xTUrIALZOw",
+                                          "canonicalBaseUrl": "/@mitocw"
+                                        }
+                                      }
+                                    }
+                                  ],
+                                  "accessibility": {
+                                    "accessibilityData": {
+                                      "label": "MIT OpenCourseWare"
+                                    }
+                                  }
+                                },
+                                "authorThumbnail": {
+                                  "thumbnails": [
+                                    {
+                                      "url": "https://example.invalid/2334.jpg",
+                                      "width": 32,
+                                      "height": 32
+                                    },
+                                    {
+                                      "url": "https://example.invalid/2335.jpg",
+                                      "width": 48,
+                                      "height": 48
+                                    },
+                                    {
+                                      "url": "https://example.invalid/2336.jpg",
+                                      "width": 76,
+                                      "height": 76
+                                    }
+                                  ],
+                                  "accessibility": {
+                                    "accessibilityData": {
+                                      "label": "MIT OpenCourseWare"
+                                    }
+                                  }
+                                },
+                                "authorEndpoint": {
+                                  "commandMetadata": {
+                                    "webCommandMetadata": {
+                                      "url": "/@mitocw",
+                                      "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                                      "rootVe": 3611,
+                                      "apiUrl": "/youtubei/v1/browse"
+                                    }
+                                  },
+                                  "browseEndpoint": {
+                                    "browseId": "UCEBb1b_L6zDS3xTUrIALZOw",
+                                    "canonicalBaseUrl": "/@mitocw"
+                                  }
+                                },
+                                "contentText": {
+                                  "runs": [
+                                    {
+                                      "text": "New course! \ud835\uddd5\ud835\ude02\ud835\uddf6\ud835\uddf9\ud835\uddf1\ud835\uddf6\ud835\uddfb\ud835\uddf4 \ud835\udde6\ud835\uddf2\ud835\uddff\ud835\uddf6\ud835\uddfc\ud835\ude02\ud835\ude00 \ud835\udde6\ud835\ude06\ud835\ude00\ud835\ude01\ud835\uddf2\ud835\uddfa \ud835\uddd7\ud835\ude06\ud835\uddfb\ud835\uddee\ud835\uddfa\ud835\uddf6\ud835\uddf0\ud835\ude00 \ud835\udde0\ud835\uddfc\ud835\uddf1\ud835\uddf2\ud835\uddf9\ud835\ude00 \ud835\uddf3\ud835\uddff\ud835\uddfc\ud835\uddfa \ud835\udde6\ud835\uddf0\ud835\uddff\ud835\uddee\ud835\ude01\ud835\uddf0\ud835\uddf5\n\nProf. Hazhir Rahmandad helps students build hands-on modeling skills that allow them to tackle their own modeling projects independently.\n\nView the full course: "
+                                    },
+                                    {
+                                      "text": "https://ocw.mit.edu/courses/15-879-bu...",
+                                      "navigationEndpoint": {
+                                        "commandMetadata": {
+                                          "webCommandMetadata": {
+                                            "url": "https://www.youtube.com/redirect?event=backstage_event&redir_token=QUlxb01IWkp4bzhhdE9uWHpCbkh0bmRhel9MenxBSTVJdTV2QU5SSVdaYS1xUTdjZ1Z2bTU5dEVBRndObElOU1h4dndaMm1zSWZpWm9BcUN6YkhlWkhYdTZVcC1KbzBQdERkOF9qcHF1eEowZl9wSnliTUpESnloZFMzQ25iU3pB&q=https%3A%2F%2Focw.mit.edu%2Fcourses%2F15-879-building-serious-system-dynamics-models-from-scratch-spring-2025%2F",
+                                            "webPageType": "WEB_PAGE_TYPE_UNKNOWN",
+                                            "rootVe": 83769
+                                          }
+                                        },
+                                        "urlEndpoint": {
+                                          "url": "https://www.youtube.com/redirect?event=backstage_event&redir_token=QUlxb01IWkp4bzhhdE9uWHpCbkh0bmRhel9MenxBSTVJdTV2QU5SSVdaYS1xUTdjZ1Z2bTU5dEVBRndObElOU1h4dndaMm1zSWZpWm9BcUN6YkhlWkhYdTZVcC1KbzBQdERkOF9qcHF1eEowZl9wSnliTUpESnloZFMzQ25iU3pB&q=https%3A%2F%2Focw.mit.edu%2Fcourses%2F15-879-building-serious-system-dynamics-models-from-scratch-spring-2025%2F",
+                                          "target": "TARGET_NEW_WINDOW",
+                                          "nofollow": true
+                                        }
+                                      },
+                                      "loggingDirectives": {
+                                        "visibility": {
+                                          "types": "12"
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "text": "\n\n"
+                                    },
+                                    {
+                                      "text": "#SystemDynamics",
+                                      "navigationEndpoint": {
+                                        "commandMetadata": {
+                                          "webCommandMetadata": {
+                                            "url": "/hashtag/systemdynamics",
+                                            "webPageType": "WEB_PAGE_TYPE_BROWSE",
+                                            "rootVe": 6827,
+                                            "apiUrl": "/youtubei/v1/browse"
+                                          }
+                                        },
+                                        "browseEndpoint": {
+                                          "browseId": "FEhashtag",
+                                          "params": "6gUSCg5zeXN0ZW1keW5hbWljcxgB"
+                                        }
+                                      },
+                                      "loggingDirectives": {
+                                        "visibility": {
+                                          "types": "12"
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "text": " "
+                                    },
+                                    {
+                                      "text": "#Business",
+                                      "navigationEndpoint": {
+                                        "commandMetadata": {
+                                          "webCommandMetadata": {
+                                            "url": "/hashtag/business",
+                                            "webPageType": "WEB_PAGE_TYPE_BROWSE",
+                                            "rootVe": 6827,
+                                            "apiUrl": "/youtubei/v1/browse"
+                                          }
+                                        },
+                                        "browseEndpoint": {
+                                          "browseId": "FEhashtag",
+                                          "params": "6gUMCghidXNpbmVzcxgB"
+                                        }
+                                      },
+                                      "loggingDirectives": {
+                                        "visibility": {
+                                          "types": "12"
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "text": " "
+                                    },
+                                    {
+                                      "text": "#Management",
+                                      "navigationEndpoint": {
+                                        "commandMetadata": {
+                                          "webCommandMetadata": {
+                                            "url": "/hashtag/management",
+                                            "webPageType": "WEB_PAGE_TYPE_BROWSE",
+                                            "rootVe": 6827,
+                                            "apiUrl": "/youtubei/v1/browse"
+                                          }
+                                        },
+                                        "browseEndpoint": {
+                                          "browseId": "FEhashtag",
+                                          "params": "6gUOCgptYW5hZ2VtZW50GAE%3D"
+                                        }
+                                      },
+                                      "loggingDirectives": {
+                                        "visibility": {
+                                          "types": "12"
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "text": " "
+                                    },
+                                    {
+                                      "text": "#OperationsManagement",
+                                      "navigationEndpoint": {
+                                        "commandMetadata": {
+                                          "webCommandMetadata": {
+                                            "url": "/hashtag/operationsmanagement",
+                                            "webPageType": "WEB_PAGE_TYPE_BROWSE",
+                                            "rootVe": 6827,
+                                            "apiUrl": "/youtubei/v1/browse"
+                                          }
+                                        },
+                                        "browseEndpoint": {
+                                          "browseId": "FEhashtag",
+                                          "params": "6gUYChRvcGVyYXRpb25zbWFuYWdlbWVudBgB"
+                                        }
+                                      },
+                                      "loggingDirectives": {
+                                        "visibility": {
+                                          "types": "12"
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "text": " "
+                                    },
+                                    {
+                                      "text": "#OrganizationalBehavior",
+                                      "navigationEndpoint": {
+                                        "commandMetadata": {
+                                          "webCommandMetadata": {
+                                            "url": "/hashtag/organizationalbehavior",
+                                            "webPageType": "WEB_PAGE_TYPE_BROWSE",
+                                            "rootVe": 6827,
+                                            "apiUrl": "/youtubei/v1/browse"
+                                          }
+                                        },
+                                        "browseEndpoint": {
+                                          "browseId": "FEhashtag",
+                                          "params": "6gUaChZvcmdhbml6YXRpb25hbGJlaGF2aW9yGAE%3D"
+                                        }
+                                      },
+                                      "loggingDirectives": {
+                                        "visibility": {
+                                          "types": "12"
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "text": " "
+                                    },
+                                    {
+                                      "text": "#SupplyChainManagement",
+                                      "navigationEndpoint": {
+                                        "commandMetadata": {
+                                          "webCommandMetadata": {
+                                            "url": "/hashtag/supplychainmanagement",
+                                            "webPageType": "WEB_PAGE_TYPE_BROWSE",
+                                            "rootVe": 6827,
+                                            "apiUrl": "/youtubei/v1/browse"
+                                          }
+                                        },
+                                        "browseEndpoint": {
+                                          "browseId": "FEhashtag",
+                                          "params": "6gUZChVzdXBwbHljaGFpbm1hbmFnZW1lbnQYAQ%3D%3D"
+                                        }
+                                      },
+                                      "loggingDirectives": {
+                                        "visibility": {
+                                          "types": "12"
+                                        }
+                                      }
+                                    }
+                                  ]
+                                },
+                                "backstageAttachment": {
+                                  "videoRenderer": {
+                                    "videoId": "K1ThW9V0Ctc",
+                                    "thumbnail": {
+                                      "thumbnails": [
+                                        {
+                                          "url": "https://example.invalid/2337.jpg",
+                                          "width": 360,
+                                          "height": 202
+                                        },
+                                        {
+                                          "url": "https://example.invalid/2338.jpg",
+                                          "width": 720,
+                                          "height": 404
+                                        }
+                                      ]
+                                    },
+                                    "title": {
+                                      "runs": [
+                                        {
+                                          "text": "Session 1: Stocks: Horse Market, Oil Market, and Transportation System"
+                                        }
+                                      ],
+                                      "accessibility": {
+                                        "accessibilityData": {
+                                          "label": "Session 1: Stocks: Horse Market, Oil Market, and Transportation System 2 hours, 25 minutes"
+                                        }
+                                      }
+                                    },
+                                    "descriptionSnippet": {
+                                      "runs": [
+                                        {
+                                          "text": "MIT 15.879 Building Serious System Dynamics Models from Scratch\nInstructor: Hazhir Rahmandad\nView the complete course: https://ocw.mit.edu/courses/15-879-building-serious-system-dynamics-models-fro..."
+                                        }
+                                      ]
+                                    },
+                                    "longBylineText": {
+                                      "runs": [
+                                        {
+                                          "text": "MIT OpenCourseWare",
+                                          "navigationEndpoint": {
+                                            "commandMetadata": {
+                                              "webCommandMetadata": {
+                                                "url": "/@mitocw",
+                                                "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                                                "rootVe": 3611,
+                                                "apiUrl": "/youtubei/v1/browse"
+                                              }
+                                            },
+                                            "browseEndpoint": {
+                                              "browseId": "UCEBb1b_L6zDS3xTUrIALZOw",
+                                              "canonicalBaseUrl": "/@mitocw"
+                                            }
+                                          }
+                                        }
+                                      ]
+                                    },
+                                    "publishedTimeText": {
+                                      "simpleText": "11 days ago"
+                                    },
+                                    "lengthText": {
+                                      "accessibility": {
+                                        "accessibilityData": {
+                                          "label": "2 hours, 25 minutes, 51 seconds"
+                                        }
+                                      },
+                                      "simpleText": "2:25:51"
+                                    },
+                                    "viewCountText": {
+                                      "simpleText": "122,043 views"
+                                    },
+                                    "navigationEndpoint": {
+                                      "commandMetadata": {
+                                        "webCommandMetadata": {
+                                          "url": "/watch?v=K1ThW9V0Ctc",
+                                          "webPageType": "WEB_PAGE_TYPE_WATCH",
+                                          "rootVe": 3832
+                                        }
+                                      },
+                                      "watchEndpoint": {
+                                        "videoId": "K1ThW9V0Ctc"
+                                      }
+                                    },
+                                    "ownerBadges": [
+                                      {
+                                        "metadataBadgeRenderer": {
+                                          "icon": {
+                                            "iconType": "CHECK_CIRCLE_THICK"
+                                          },
+                                          "style": "BADGE_STYLE_TYPE_VERIFIED",
+                                          "tooltip": "Verified",
+                                          "accessibilityData": {
+                                            "label": "Verified"
+                                          }
+                                        }
+                                      }
+                                    ],
+                                    "ownerText": {
+                                      "runs": [
+                                        {
+                                          "text": "MIT OpenCourseWare",
+                                          "navigationEndpoint": {
+                                            "commandMetadata": {
+                                              "webCommandMetadata": {
+                                                "url": "/@mitocw",
+                                                "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                                                "rootVe": 3611,
+                                                "apiUrl": "/youtubei/v1/browse"
+                                              }
+                                            },
+                                            "browseEndpoint": {
+                                              "browseId": "UCEBb1b_L6zDS3xTUrIALZOw",
+                                              "canonicalBaseUrl": "/@mitocw"
+                                            }
+                                          }
+                                        }
+                                      ]
+                                    },
+                                    "shortBylineText": {
+                                      "runs": [
+                                        {
+                                          "text": "MIT OpenCourseWare",
+                                          "navigationEndpoint": {
+                                            "commandMetadata": {
+                                              "webCommandMetadata": {
+                                                "url": "/@mitocw",
+                                                "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                                                "rootVe": 3611,
+                                                "apiUrl": "/youtubei/v1/browse"
+                                              }
+                                            },
+                                            "browseEndpoint": {
+                                              "browseId": "UCEBb1b_L6zDS3xTUrIALZOw",
+                                              "canonicalBaseUrl": "/@mitocw"
+                                            }
+                                          }
+                                        }
+                                      ]
+                                    },
+                                    "showActionMenu": false,
+                                    "shortViewCountText": {
+                                      "accessibility": {
+                                        "accessibilityData": {
+                                          "label": "122 thousand views"
+                                        }
+                                      },
+                                      "simpleText": "122K views"
+                                    },
+                                    "menu": {
+                                      "menuRenderer": {
+                                        "items": [
+                                          {
+                                            "menuServiceItemRenderer": {
+                                              "text": {
+                                                "runs": [
+                                                  {
+                                                    "text": "Add to queue"
+                                                  }
+                                                ]
+                                              },
+                                              "icon": {
+                                                "iconType": "ADD_TO_QUEUE_TAIL"
+                                              },
+                                              "serviceEndpoint": {
+                                                "commandMetadata": {
+                                                  "webCommandMetadata": {
+                                                    "sendPost": true
+                                                  }
+                                                },
+                                                "signalServiceEndpoint": {
+                                                  "signal": "CLIENT_SIGNAL",
+                                                  "actions": [
+                                                    {
+                                                      "addToPlaylistCommand": {
+                                                        "openMiniplayer": true,
+                                                        "videoId": "K1ThW9V0Ctc",
+                                                        "listType": "PLAYLIST_EDIT_LIST_TYPE_QUEUE",
+                                                        "onCreateListCommand": {
+                                                          "commandMetadata": {
+                                                            "webCommandMetadata": {
+                                                              "sendPost": true,
+                                                              "apiUrl": "/youtubei/v1/playlist/create"
+                                                            }
+                                                          },
+                                                          "createPlaylistServiceEndpoint": {
+                                                            "videoIds": [
+                                                              "K1ThW9V0Ctc"
+                                                            ],
+                                                            "params": "CAQ%3D"
+                                                          }
+                                                        },
+                                                        "videoIds": [
+                                                          "K1ThW9V0Ctc"
+                                                        ],
+                                                        "videoCommand": {
+                                                          "commandMetadata": {
+                                                            "webCommandMetadata": {
+                                                              "url": "/watch?v=K1ThW9V0Ctc",
+                                                              "webPageType": "WEB_PAGE_TYPE_WATCH",
+                                                              "rootVe": 3832
+                                                            }
+                                                          },
+                                                          "watchEndpoint": {
+                                                            "videoId": "K1ThW9V0Ctc"
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+                                                  ]
+                                                }
+                                              }
+                                            }
+                                          },
+                                          {
+                                            "menuServiceItemDownloadRenderer": {
+                                              "serviceEndpoint": {
+                                                "offlineVideoEndpoint": {
+                                                  "videoId": "K1ThW9V0Ctc",
+                                                  "onAddCommand": {
+                                                    "getDownloadActionCommand": {
+                                                      "videoId": "K1ThW9V0Ctc",
+                                                      "params": "CAIQAA%3D%3D",
+                                                      "isCrossDeviceDownload": false
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        ],
+                                        "accessibility": {
+                                          "accessibilityData": {
+                                            "label": "Action menu"
+                                          }
+                                        }
+                                      }
+                                    },
+                                    "channelThumbnailSupportedRenderers": {
+                                      "channelThumbnailWithLinkRenderer": {
+                                        "thumbnail": {
+                                          "thumbnails": [
+                                            {
+                                              "url": "https://example.invalid/2339.jpg",
+                                              "width": 68,
+                                              "height": 68
+                                            }
+                                          ]
+                                        },
+                                        "navigationEndpoint": {
+                                          "commandMetadata": {
+                                            "webCommandMetadata": {
+                                              "url": "/@mitocw",
+                                              "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                                              "rootVe": 3611,
+                                              "apiUrl": "/youtubei/v1/browse"
+                                            }
+                                          },
+                                          "browseEndpoint": {
+                                            "browseId": "UCEBb1b_L6zDS3xTUrIALZOw",
+                                            "canonicalBaseUrl": "/@mitocw"
+                                          }
+                                        },
+                                        "accessibility": {
+                                          "accessibilityData": {
+                                            "label": "Go to channel MIT OpenCourseWare"
+                                          }
+                                        }
+                                      }
+                                    },
+                                    "thumbnailOverlays": [
+                                      {
+                                        "thumbnailOverlayTimeStatusRenderer": {
+                                          "text": {
+                                            "accessibility": {
+                                              "accessibilityData": {
+                                                "label": "2 hours, 25 minutes, 51 seconds"
+                                              }
+                                            },
+                                            "simpleText": "2:25:51"
+                                          },
+                                          "style": "DEFAULT"
+                                        }
+                                      },
+                                      {
+                                        "thumbnailOverlayToggleButtonRenderer": {
+                                          "isToggled": false,
+                                          "untoggledIcon": {
+                                            "iconType": "WATCH_LATER"
+                                          },
+                                          "toggledIcon": {
+                                            "iconType": "CHECK"
+                                          },
+                                          "untoggledTooltip": "Watch later",
+                                          "toggledTooltip": "Added",
+                                          "untoggledServiceEndpoint": {
+                                            "commandMetadata": {
+                                              "webCommandMetadata": {
+                                                "sendPost": true,
+                                                "apiUrl": "/youtubei/v1/browse/edit_playlist"
+                                              }
+                                            },
+                                            "playlistEditEndpoint": {
+                                              "playlistId": "WL",
+                                              "actions": [
+                                                {
+                                                  "addedVideoId": "K1ThW9V0Ctc",
+                                                  "action": "ACTION_ADD_VIDEO"
+                                                }
+                                              ]
+                                            }
+                                          },
+                                          "toggledServiceEndpoint": {
+                                            "commandMetadata": {
+                                              "webCommandMetadata": {
+                                                "sendPost": true,
+                                                "apiUrl": "/youtubei/v1/browse/edit_playlist"
+                                              }
+                                            },
+                                            "playlistEditEndpoint": {
+                                              "playlistId": "WL",
+                                              "actions": [
+                                                {
+                                                  "action": "ACTION_REMOVE_VIDEO_BY_VIDEO_ID",
+                                                  "removedVideoId": "K1ThW9V0Ctc"
+                                                }
+                                              ]
+                                            }
+                                          },
+                                          "untoggledAccessibility": {
+                                            "accessibilityData": {
+                                              "label": "Watch later"
+                                            }
+                                          },
+                                          "toggledAccessibility": {
+                                            "accessibilityData": {
+                                              "label": "Added"
+                                            }
+                                          }
+                                        }
+                                      },
+                                      {
+                                        "thumbnailOverlayToggleButtonRenderer": {
+                                          "untoggledIcon": {
+                                            "iconType": "ADD_TO_QUEUE_TAIL"
+                                          },
+                                          "toggledIcon": {
+                                            "iconType": "PLAYLIST_ADD_CHECK"
+                                          },
+                                          "untoggledTooltip": "Add to queue",
+                                          "toggledTooltip": "Added",
+                                          "untoggledServiceEndpoint": {
+                                            "commandMetadata": {
+                                              "webCommandMetadata": {
+                                                "sendPost": true
+                                              }
+                                            },
+                                            "signalServiceEndpoint": {
+                                              "signal": "CLIENT_SIGNAL",
+                                              "actions": [
+                                                {
+                                                  "addToPlaylistCommand": {
+                                                    "openMiniplayer": true,
+                                                    "videoId": "K1ThW9V0Ctc",
+                                                    "listType": "PLAYLIST_EDIT_LIST_TYPE_QUEUE",
+                                                    "onCreateListCommand": {
+                                                      "commandMetadata": {
+                                                        "webCommandMetadata": {
+                                                          "sendPost": true,
+                                                          "apiUrl": "/youtubei/v1/playlist/create"
+                                                        }
+                                                      },
+                                                      "createPlaylistServiceEndpoint": {
+                                                        "videoIds": [
+                                                          "K1ThW9V0Ctc"
+                                                        ],
+                                                        "params": "CAQ%3D"
+                                                      }
+                                                    },
+                                                    "videoIds": [
+                                                      "K1ThW9V0Ctc"
+                                                    ]
+                                                  }
+                                                }
+                                              ]
+                                            }
+                                          },
+                                          "untoggledAccessibility": {
+                                            "accessibilityData": {
+                                              "label": "Add to queue"
+                                            }
+                                          },
+                                          "toggledAccessibility": {
+                                            "accessibilityData": {
+                                              "label": "Added"
+                                            }
+                                          }
+                                        }
+                                      },
+                                      {
+                                        "thumbnailOverlayNowPlayingRenderer": {
+                                          "text": {
+                                            "runs": [
+                                              {
+                                                "text": "Now playing"
+                                              }
+                                            ]
+                                          }
+                                        }
+                                      }
+                                    ],
+                                    "avatar": {
+                                      "decoratedAvatarViewModel": {
+                                        "avatar": {
+                                          "avatarViewModel": {
+                                            "image": {
+                                              "sources": [
+                                                {
+                                                  "url": "https://example.invalid/2340.jpg",
+                                                  "width": 68,
+                                                  "height": 68
+                                                }
+                                              ]
+                                            },
+                                            "avatarImageSize": "AVATAR_SIZE_M"
+                                          }
+                                        },
+                                        "a11yLabel": "Go to channel MIT OpenCourseWare",
+                                        "rendererContext": {
+                                          "commandContext": {
+                                            "onTap": {
+                                              "innertubeCommand": {
+                                                "commandMetadata": {
+                                                  "webCommandMetadata": {
+                                                    "url": "/@mitocw",
+                                                    "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                                                    "rootVe": 3611,
+                                                    "apiUrl": "/youtubei/v1/browse"
+                                                  }
+                                                },
+                                                "browseEndpoint": {
+                                                  "browseId": "UCEBb1b_L6zDS3xTUrIALZOw",
+                                                  "canonicalBaseUrl": "/@mitocw"
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                },
+                                "expandButton": {
+                                  "buttonRenderer": {
+                                    "style": "STYLE_TEXT",
+                                    "size": "SIZE_DEFAULT",
+                                    "text": {
+                                      "accessibility": {
+                                        "accessibilityData": {
+                                          "label": "Read more"
+                                        }
+                                      },
+                                      "simpleText": "Read more"
+                                    },
+                                    "accessibility": {
+                                      "label": "Read more"
+                                    }
+                                  }
+                                },
+                                "collapseButton": {
+                                  "buttonRenderer": {
+                                    "style": "STYLE_TEXT",
+                                    "size": "SIZE_DEFAULT",
+                                    "text": {
+                                      "accessibility": {
+                                        "accessibilityData": {
+                                          "label": "Show less"
+                                        }
+                                      },
+                                      "simpleText": "Show less"
+                                    },
+                                    "accessibility": {
+                                      "label": "Show less"
+                                    }
+                                  }
+                                },
+                                "publishedTimeText": {
+                                  "runs": [
+                                    {
+                                      "text": "9 days ago",
+                                      "navigationEndpoint": {
+                                        "commandMetadata": {
+                                          "webCommandMetadata": {
+                                            "url": "/post/UgkxyKFy9ATj3NXlWagVbGOlCRaz0gMD6YPV",
+                                            "webPageType": "WEB_PAGE_TYPE_BROWSE",
+                                            "rootVe": 247244,
+                                            "apiUrl": "/youtubei/v1/browse"
+                                          }
+                                        },
+                                        "browseEndpoint": {
+                                          "browseId": "FEpost_detail",
+                                          "params": "wgNaEhhVQ0VCYjFiX0w2ekRTM3hUVXJJQUxaT3caJFVna3h5S0Z5OUFUajNOWGxXYWdWYkdPbENSYXowZ01ENllQVloYVUNFQmIxYl9MNnpEUzN4VFVySUFMWk93",
+                                          "canonicalBaseUrl": "/post/UgkxyKFy9ATj3NXlWagVbGOlCRaz0gMD6YPV"
+                                        }
+                                      }
+                                    }
+                                  ]
+                                },
+                                "voteCount": {
+                                  "accessibility": {
+                                    "accessibilityData": {
+                                      "label": "161 likes"
+                                    }
+                                  },
+                                  "simpleText": "161"
+                                },
+                                "voteStatus": "INDIFFERENT",
+                                "actionButtons": {
+                                  "commentActionButtonsRenderer": {
+                                    "likeButton": {
+                                      "toggleButtonRenderer": {
+                                        "style": {
+                                          "styleType": "STYLE_TEXT"
+                                        },
+                                        "size": {
+                                          "sizeType": "SIZE_DEFAULT"
+                                        },
+                                        "isToggled": false,
+                                        "isDisabled": false,
+                                        "defaultIcon": {
+                                          "iconType": "LIKE"
+                                        },
+                                        "accessibility": {
+                                          "label": "Like this post along with 161 other people"
+                                        },
+                                        "defaultTooltip": "Like",
+                                        "toggledTooltip": "Unlike",
+                                        "toggledStyle": {
+                                          "styleType": "STYLE_DEFAULT_ACTIVE"
+                                        },
+                                        "defaultNavigationEndpoint": {
+                                          "commandMetadata": {
+                                            "webCommandMetadata": {
+                                              "url": "https://accounts.google.com/ServiceLogin?service=youtube&uilel=3&passive=true&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue%26app%3Ddesktop%26hl%3Den%26next%3D%252F&hl=en",
+                                              "webPageType": "WEB_PAGE_TYPE_UNKNOWN",
+                                              "rootVe": 83769
+                                            }
+                                          },
+                                          "signInEndpoint": {
+                                            "nextEndpoint": {
+                                              "commandMetadata": {
+                                                "webCommandMetadata": {
+                                                  "url": "/",
+                                                  "webPageType": "WEB_PAGE_TYPE_BROWSE",
+                                                  "rootVe": 3854,
+                                                  "apiUrl": "/youtubei/v1/browse"
+                                                }
+                                              },
+                                              "browseEndpoint": {
+                                                "browseId": "FEwhat_to_watch"
+                                              }
+                                            }
+                                          }
+                                        },
+                                        "accessibilityData": {
+                                          "accessibilityData": {
+                                            "label": "Like this post along with 161 other people"
+                                          }
+                                        },
+                                        "toggledAccessibilityData": {
+                                          "accessibilityData": {
+                                            "label": "Unlike"
+                                          }
+                                        }
+                                      }
+                                    },
+                                    "dislikeButton": {
+                                      "toggleButtonRenderer": {
+                                        "style": {
+                                          "styleType": "STYLE_TEXT"
+                                        },
+                                        "size": {
+                                          "sizeType": "SIZE_DEFAULT"
+                                        },
+                                        "isToggled": false,
+                                        "isDisabled": false,
+                                        "defaultIcon": {
+                                          "iconType": "DISLIKE"
+                                        },
+                                        "accessibility": {
+                                          "label": "Dislike this post"
+                                        },
+                                        "defaultTooltip": "Dislike",
+                                        "toggledTooltip": "Remove dislike",
+                                        "toggledStyle": {
+                                          "styleType": "STYLE_DEFAULT_ACTIVE"
+                                        },
+                                        "defaultNavigationEndpoint": {
+                                          "commandMetadata": {
+                                            "webCommandMetadata": {
+                                              "url": "https://accounts.google.com/ServiceLogin?service=youtube&uilel=3&passive=true&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue%26app%3Ddesktop%26hl%3Den%26next%3D%252F&hl=en",
+                                              "webPageType": "WEB_PAGE_TYPE_UNKNOWN",
+                                              "rootVe": 83769
+                                            }
+                                          },
+                                          "signInEndpoint": {
+                                            "nextEndpoint": {
+                                              "commandMetadata": {
+                                                "webCommandMetadata": {
+                                                  "url": "/",
+                                                  "webPageType": "WEB_PAGE_TYPE_BROWSE",
+                                                  "rootVe": 3854,
+                                                  "apiUrl": "/youtubei/v1/browse"
+                                                }
+                                              },
+                                              "browseEndpoint": {
+                                                "browseId": "FEwhat_to_watch"
+                                              }
+                                            }
+                                          }
+                                        },
+                                        "accessibilityData": {
+                                          "accessibilityData": {
+                                            "label": "Dislike this post"
+                                          }
+                                        },
+                                        "toggledAccessibilityData": {
+                                          "accessibilityData": {
+                                            "label": "Remove dislike"
+                                          }
+                                        }
+                                      }
+                                    },
+                                    "style": "COMMENT_ACTION_BUTTON_STYLE_TYPE_DESKTOP_TOOLBAR",
+                                    "shareButton": {
+                                      "buttonRenderer": {
+                                        "style": "STYLE_DEFAULT",
+                                        "size": "SIZE_DEFAULT",
+                                        "icon": {
+                                          "iconType": "SHARE"
+                                        },
+                                        "accessibility": {
+                                          "label": "Share"
+                                        },
+                                        "tooltip": "Share",
+                                        "hint": {
+                                          "hintRenderer": {
+                                            "hintId": "share-post-hint"
+                                          }
+                                        },
+                                        "accessibilityData": {
+                                          "accessibilityData": {
+                                            "label": "Share"
+                                          }
+                                        },
+                                        "command": {
+                                          "commandMetadata": {
+                                            "webCommandMetadata": {
+                                              "sendPost": true,
+                                              "apiUrl": "/youtubei/v1/share/get_share_panel"
+                                            }
+                                          },
+                                          "shareEntityServiceEndpoint": {
+                                            "serializedShareEntity": "MiRVZ2t4eUtGeTlBVGozTlhsV2FnVmJHT2xDUmF6MGdNRDZZUFY6GFVDRUJiMWJfTDZ6RFMzeFRVcklBTFpPd6ABBg%3D%3D",
+                                            "commands": [
+                                              {
+                                                "openPopupAction": {
+                                                  "popup": {
+                                                    "unifiedSharePanelRenderer": {
+                                                      "showLoadingSpinner": true
+                                                    }
+                                                  },
+                                                  "popupType": "DIALOG",
+                                                  "beReused": true
+                                                }
+                                              }
+                                            ]
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                },
+                                "surface": "BACKSTAGE_SURFACE_TYPE_STREAM",
+                                "loggingDirectives": {
+                                  "visibility": {
+                                    "types": "12"
+                                  }
+                                }
+                              }
+                            },
+                            "useUpdatedRepostUi": true,
+                            "loggingDirectives": {
+                              "visibility": {
+                                "types": "12"
+                              }
+                            }
+                          }
+                        }
+                      ],
+                      "header": {
+                        "commentsHeaderRenderer": {
+                          "isBackstageContent": true
+                        }
+                      },
+                      "sectionIdentifier": "backstage-item-section"
+                    }
+                  },
+                  {
+                    "itemSectionRenderer": {
+                      "contents": [
+                        {
+                          "continuationItemRenderer": {
+                            "trigger": "CONTINUATION_TRIGGER_ON_ITEM_SHOWN",
+                            "continuationEndpoint": {
+                              "commandMetadata": {
+                                "webCommandMetadata": {
+                                  "sendPost": true,
+                                  "apiUrl": "/youtubei/v1/browse"
+                                }
+                              },
+                              "continuationCommand": {
+                                "token": "token_scrubbed_2341",
+                                "request": "CONTINUATION_REQUEST_TYPE_BROWSE"
+                              }
+                            }
+                          }
+                        }
+                      ],
+                      "sectionIdentifier": "comment-item-section",
+                      "targetId": "comments-section"
+                    }
+                  }
+                ],
+                "disablePullToRefresh": true
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

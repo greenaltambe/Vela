@@ -33,6 +33,8 @@ class ScreenStatesTest {
         override suspend fun trending(continuation: String?) = go { ok.trending(continuation) }
         override suspend fun search(query: String, continuation: String?) = go { ok.search(query, continuation) }
         override suspend fun channel(channelId: String) = go { ok.channel(channelId) }
+        override suspend fun channelLanding(channelId: String) = go { ok.channelLanding(channelId) }
+        override suspend fun channelTab(channelId: String, tab: com.greenaltambe.vela.extractor.ChannelTab, filter: ChannelFilterOption?, continuation: String?) = go { ok.channelTab(channelId, tab, filter, continuation) }
         override suspend fun channelVideos(channelId: String, continuation: String?) = go { ok.channelVideos(channelId, continuation) }
         override suspend fun comments(videoId: String, sort: CommentSort, continuation: String?) = go { ok.comments(videoId, sort, continuation) }
         override suspend fun related(videoId: String) = go { ok.related(videoId) }

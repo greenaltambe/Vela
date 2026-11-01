@@ -40,8 +40,27 @@ class LookBuilderTest {
         for (p in Palette.entries) {
             val l = build(LookSnapshot(palette = p, theme = ThemeMode.DARK))
             assertEquals(Palettes.stops(p), l.accent.wake); assertEquals(3, l.accent.wake.size)
+            assertFalse(l.accent.isSolid)
         }
         assertNotEquals(build(LookSnapshot(palette = Palette.VELA)).accent.wake, build(LookSnapshot(palette = Palette.EMBER)).accent.wake)
+    }
+
+    @Test fun solidColorModeAndCustomHexDriveUniformStops() {
+        val solid = build(LookSnapshot(palette = Palette.OCEAN, colorMode = ColorMode.SOLID))
+        assertTrue(solid.accent.isSolid)
+        assertEquals(3, solid.accent.wake.size)
+        assertEquals(solid.accent.wake[0], solid.accent.wake[1])
+        assertEquals(solid.accent.wake[1], solid.accent.wake[2])
+
+        val custom = build(LookSnapshot(customColor = "#FF3366"))
+        assertTrue(custom.accent.isSolid)
+        val expected = 0xFFFF3366L
+        assertEquals(listOf(expected, expected, expected), custom.accent.wake)
+
+        // Invalid hex falls back to palette
+        val invalid = build(LookSnapshot(customColor = "not-a-hex", palette = Palette.VELA))
+        assertFalse(invalid.accent.isSolid)
+        assertEquals(Palettes.stops(Palette.VELA), invalid.accent.wake)
     }
 
     @Test fun shapesIconsAndTextComeThroughAsTokens() {

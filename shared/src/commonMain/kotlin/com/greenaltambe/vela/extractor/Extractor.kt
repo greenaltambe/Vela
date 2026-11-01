@@ -72,6 +72,24 @@ interface Extractor {
     suspend fun suggestions(query: String): ExtractorResult<List<String>> = notSupported()
 
     suspend fun recentUploads(channelId: String): ExtractorResult<List<VideoSummary>> = notSupported()
+
+    /** Native channel landing page: header, available tabs in the channel's order, and initial tab content if loaded. */
+    suspend fun channelLanding(channelId: String): ExtractorResult<ChannelLanding> = notSupported()
+
+    /** Content of one channel tab, with its filters/sorts and items/shelves. */
+    suspend fun channelTab(channelId: String, tab: ChannelTab, filterOption: ChannelFilterOption? = null, continuation: String? = null): ExtractorResult<ChannelTabPage> = notSupported()
+
+    /** Next page or sort continuation for a channel tab. */
+    suspend fun channelTabByContinuation(token: String): ExtractorResult<ChannelTabPage> = notSupported()
+
+    /** Full about panel for the channel (using continuation token from landing header if available). */
+    suspend fun channelAbout(channelId: String, token: String? = null): ExtractorResult<ChannelAbout> = notSupported()
+
+    /** In-channel search. */
+    suspend fun channelSearch(channelId: String, query: String, continuation: String? = null): ExtractorResult<ChannelTabPage> = notSupported()
+
+    /** Comments and details for a community post. */
+    suspend fun postDetail(browseParams: String): ExtractorResult<Pair<ChannelPost, List<Comment>>> = notSupported()
 }
 
 const val NOT_SUPPORTED = "not supported"

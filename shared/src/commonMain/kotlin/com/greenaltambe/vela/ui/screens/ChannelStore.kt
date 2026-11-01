@@ -4,12 +4,24 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
-import com.greenaltambe.vela.extractor.ChannelPage
-import com.greenaltambe.vela.extractor.PlaylistRef
-import com.greenaltambe.vela.extractor.VideoSummary
+import com.greenaltambe.vela.extractor.*
 import kotlin.time.Instant
 
-/** One list's loaded items, the next-page token, and its loading state. */
+/** One tab's loaded items, filters, next-page token, and loading state. */
+class ChannelTabFeed {
+    var items by mutableStateOf<List<ChannelItem>>(emptyList())
+    var shelves by mutableStateOf<List<ChannelShelf>>(emptyList())
+    var filters by mutableStateOf<List<ChannelFilterGroup>>(emptyList())
+    var selectedFilter by mutableStateOf<ChannelFilterOption?>(null)
+    var nextToken by mutableStateOf<String?>(null)
+    var state by mutableStateOf<ListState>(ListState.Loading)
+    var loaded by mutableStateOf(false)
+    var loading by mutableStateOf(false)
+    var refreshedNotice by mutableStateOf(false)
+    val scroll = ScrollMemory()
+}
+
+/** Legacy tab feed for backwards compatibility. */
 class TabFeed<T> {
     var items by mutableStateOf<List<T>>(emptyList())
     var next by mutableStateOf<String?>(null)
@@ -20,20 +32,30 @@ class TabFeed<T> {
 
 /** Everything a channel page shows, so it can be rebuilt exactly as it was: the open tab, each tab's items, sorting and scroll positions. */
 class ChannelState(var at: Instant) {
-    var tab by mutableStateOf(ChannelTab.HOME)
-    var sort by mutableStateOf(ChannelSort.LATEST)
-    /** The order the Videos list actually holds, as YouTube sorted it for the whole channel; a different pill then sorts what is loaded. */
-    var videosSort by mutableStateOf(ChannelSort.LATEST)
-    /** A pill YouTube could not sort by this time (so the page does not keep asking). */
-    var sortFailed by mutableStateOf<ChannelSort?>(null)
-    var playlistSort by mutableStateOf(PlaylistSort.RECENT)
-    var page by mutableStateOf<ChannelPage?>(null)
+    var landing by mutableStateOf<ChannelLanding?>(null)
+    var about by mutableStateOf<ChannelAbout?>(null)
+    var selectedTabIndex by mutableStateOf(0)
+    var searchQuery by mutableStateOf("")
+
+    // Per-tab feeds keyed by tab kind or url
+    private val tabFeeds = HashMap<String, ChannelTabFeed>()
+    fun feedFor(tabKey: String): ChannelTabFeed = tabFeeds.getOrPut(tabKey) { ChannelTabFeed() }
+
+    // Legacy fields preserved for compatibility
+    var page: ChannelPage?
+        get() = landing?.header
+        set(value) {
+            if (value != null) {
+                val current = landing
+                landing = current?.copy(header = value) ?: ChannelLanding(header = value)
+            }
+        }
     val videos = TabFeed<VideoSummary>()
     val shorts = TabFeed<VideoSummary>()
     val live = TabFeed<VideoSummary>()
     val playlists = TabFeed<PlaylistRef>()
-    private val scrolls = HashMap<ChannelTab, ScrollMemory>()
-    fun scrollFor(tab: ChannelTab) = scrolls.getOrPut(tab) { ScrollMemory() }
+    private val scrolls = HashMap<String, ScrollMemory>()
+    fun scrollFor(tab: String) = scrolls.getOrPut(tab) { ScrollMemory() }
 }
 
 /**

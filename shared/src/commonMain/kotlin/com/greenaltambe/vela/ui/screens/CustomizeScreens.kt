@@ -59,7 +59,7 @@ object CustomizePages {
     val titles = mapOf("color" to "Colour palette", "progress" to "Progress bar", "text" to "Text", "icons" to "Icons & shapes", "glass" to "Glass & backgrounds", "tabs" to "Tabs & mini player") + stubs
 
     fun pageFor(s: Setting<*>): String = when {
-        s.key == "look.palette" -> "color"
+        s.key in setOf("look.palette", "look.colorMode", "look.customColor") -> "color"
         s.key == "look.progressStyle" -> "progress"
         s.key in setOf("look.font", "look.titleWeight", "look.textScale", "look.density") -> "text"
         s.key in setOf("look.glass", "look.reduceMotion", "appearance.performanceMode") -> "glass"
@@ -135,7 +135,10 @@ fun CustomizePageScreen(services: AppServices, navigator: Navigator, page: Strin
                 return@Column
             }
             when (page) {
-                "color" -> PaletteGrid(s.resolve(LookSettings.palette)) { p -> s.setWithUndo(LookSettings.palette, p.name, toasts) { LookSettings.palette.choices.first { c -> c.raw == it }.label } }
+                "color" -> {
+                    PaletteGrid(s.resolve(LookSettings.palette)) { p -> s.setWithUndo(LookSettings.palette, p.name, toasts) { LookSettings.palette.choices.first { c -> c.raw == it }.label } }
+                    CustomizePages.settingsOn("color").filter { it.key != "look.palette" }.forEach { SettingRow(s, it, revision) }
+                }
                 "progress" -> ProgressGrid(s.resolve(LookSettings.progressStyle)) { st -> s.setWithUndo(LookSettings.progressStyle, st.name, toasts) { LookSettings.progressStyle.choices.first { c -> c.raw == it }.label } }
                 "text" -> {
                     Text("Font", style = MaterialTheme.typography.bodyLarge)

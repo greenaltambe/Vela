@@ -7,6 +7,8 @@ data class LookSnapshot(
     val theme: ThemeMode = ThemeMode.SYSTEM,
     val pureBlack: Boolean = false,
     val palette: Palette = Palette.VELA,
+    val colorMode: ColorMode = ColorMode.GRADIENT,
+    val customColor: String = "",
     val corners: Float = LookSettings.corners.default,
     val density: DensityChoice = DensityChoice.COMFORTABLE,
     val textScalePercent: Float = 100f,
@@ -24,6 +26,8 @@ data class LookSnapshot(
         fun of(s: SettingsResolver) = LookSnapshot(
             theme = s.resolve(LookSettings.theme), pureBlack = s.resolve(Settings.look) == LookChoice.PURE_BLACK,
             palette = s.resolve(LookSettings.palette),
+            colorMode = s.resolve(LookSettings.colorMode),
+            customColor = s.resolve(LookSettings.customColor),
             corners = s.resolve(LookSettings.corners), density = s.resolve(LookSettings.density), textScalePercent = s.resolve(LookSettings.textScale),
             font = s.resolve(LookSettings.font), titleWeight = s.resolve(LookSettings.titleWeight),
             iconStyle = s.resolve(LookSettings.iconStyle), iconWeight = s.resolve(LookSettings.iconWeight), iconRounded = s.resolve(LookSettings.iconRounded), progress = s.resolve(LookSettings.progressStyle),
@@ -47,11 +51,14 @@ object LookBuilder {
     fun build(s: LookSnapshot, systemDark: Boolean): LookTokens {
         val dark = when (s.theme) { ThemeMode.DARK -> true; ThemeMode.LIGHT -> false; ThemeMode.SYSTEM -> systemDark } || s.pureBlack
         val base = when { s.pureBlack -> Looks.PureBlack; dark -> Looks.Dark; else -> Looks.Light }
-        // The accent is the palette\'s middle stop, nudged until text-sized things in it reach 4.5:1 on both the page and the surface.
+        // The accent is the palette's middle stop (or custom colour if set), nudged until text-sized things in it reach 4.5:1 on both the page and the surface.
         val stops = Palettes.stops(s.palette)
-        val picked = stops[1]
+        val customHex = s.customColor.takeIf { it.isNotBlank() }?.let { parseHex(it) }
+        val picked = customHex ?: stops[1]
         val primary = Contrast.ensure(Contrast.ensure(picked, base.colors.background), base.colors.surface)
         val colors = base.colors.copy(primary = primary, onPrimary = Contrast.onColor(primary))
+        val isSolid = s.colorMode == ColorMode.SOLID || customHex != null
+        val finalStops = if (isSolid) listOf(picked, picked, picked) else stops
 
         val c = s.corners.coerceIn(0f, 16f)
         val radii = RadiusTokens(smallDp = c * 0.5f, mediumDp = c, largeDp = c * 1.5f, fullDp = 999f)
@@ -63,7 +70,7 @@ object LookBuilder {
             density = when (s.density) { DensityChoice.COMPACT -> Density.COMPACT; DensityChoice.COMFORTABLE -> Density.COMFORTABLE; DensityChoice.ROOMY -> Density.SPACIOUS },
             typography = base.typography.copy(fontFamily = s.font.name.lowercase(), scale = scale, titleWeight = s.titleWeight),
             effects = base.effects.copy(blur = glass),
-            accent = AccentTokens(stops),
+            accent = AccentTokens(finalStops, isSolid = isSolid),
             icons = IconTokens(s.iconStyle, s.iconWeight, s.iconRounded),
             motion = MotionTokens(reduced = reduced),
             progress = s.progress,

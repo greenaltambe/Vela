@@ -182,9 +182,10 @@ class FeedRepository(private val db: VelaDatabase, private val accountId: String
     private val q get() = db.feedItemQueries
 
     fun entries(limit: Long = 500): List<FeedEntry> = q.selectForAccount(accountId, limit).executeAsList().map {
+        val published = it.publishedAt?.let(Instant::fromEpochMilliseconds)
         FeedEntry(
-            VideoSummary(it.videoId, it.title, it.channelId, it.channelName, it.thumbnailUrl, it.durationSeconds, it.viewCount, it.isShort != 0L),
-            it.publishedAt?.let(Instant::fromEpochMilliseconds),
+            VideoSummary(it.videoId, it.title, it.channelId, it.channelName, it.thumbnailUrl, it.durationSeconds, it.viewCount, it.isShort != 0L, uploadedAt = published),
+            published,
             Instant.fromEpochMilliseconds(it.fetchedAt),
         )
     }

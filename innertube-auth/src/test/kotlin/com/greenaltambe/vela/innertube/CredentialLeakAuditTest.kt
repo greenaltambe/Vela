@@ -69,7 +69,41 @@ class CredentialLeakAuditTest {
         val t = Recorder { RawResponse(200, """{"playabilityStatus":{"status":"UNPLAYABLE","reason":"x"}}""", emptyMap(), "") }
         val x = AltClientExtractor(t)
         x.streams("v"); x.videoInfo("v")
+        x.channelLanding("UC123")
         assertTrue(t.sent.isNotEmpty())
         assertTrue(t.sent.all { (_, _, h) -> h.keys.none { it.equals("Cookie", true) || it.equals("Authorization", true) || it.equals("X-Goog-AuthUser", true) } }, "no credential header on any alt-client call")
+    }
+
+    @Test fun fixturesNeverCarryVisitorDataCookiesOrEmails() {
+        val names = listOf(
+            "about_panel.json", "channel_landing.json", "courses_tab.json",
+            "playlists_tab.json", "post_detail.json", "posts_tab.json",
+            "search_tab.json", "videos_sorted_oldest.json", "videos_tab.json"
+        )
+        val emailRegex = Regex("""[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}""")
+        val visitorDataRegex = Regex(""""visitorData"\s*:\s*"[^"]+"""")
+        val cookieRegex = Regex("""(SAPISID|SSID|HSID|APISID|__Secure-|SID=)""")
+
+        for (name in names) {
+            val stream = CredentialLeakAuditTest::class.java.getResourceAsStream("/fixtures/channel/$name")
+            assertNotNull(stream, "Fixture /fixtures/channel/$name must exist")
+            val content = stream.bufferedReader().use { it.readText() }
+
+            assertFalse(
+                visitorDataRegex.containsMatchIn(content),
+                "Fixture $name must not contain visitorData"
+            )
+            assertFalse(
+                cookieRegex.containsMatchIn(content),
+                "Fixture $name must not contain account cookies"
+            )
+            val emails = emailRegex.findAll(content).map { it.value }.filterNot {
+                it.endsWith("@example.invalid") || it.endsWith("@example.com")
+            }.toList()
+            assertTrue(
+                emails.isEmpty(),
+                "Fixture $name must not contain user email addresses: $emails"
+            )
+        }
     }
 }

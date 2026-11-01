@@ -1,0 +1,943 @@
+{
+  "onResponseReceivedEndpoints": [
+    {
+      "appendContinuationItemsAction": {
+        "continuationItems": [
+          {
+            "aboutChannelRenderer": {
+              "metadata": {
+                "aboutChannelViewModel": {
+                  "description": "Animation videos explaining things with optimistic nihilism since 12,013.\n\nWe\u2019re a team of illustrators, animators, number crunchers and one dog who aim to spark curiosity about science and the world we live in. To us nothing is boring if you tell a good story.\n\nFor updates on our videos and other news from the kurzgesagt universe follow us on Twitter, Facebook, Instagram and LinkedIn.\n",
+                  "descriptionLabel": {
+                    "content": "Description",
+                    "styleRuns": [
+                      {
+                        "startIndex": 0,
+                        "length": 11
+                      }
+                    ]
+                  },
+                  "country": "Germany",
+                  "customLinksLabel": {
+                    "content": "Links",
+                    "styleRuns": [
+                      {
+                        "startIndex": 0,
+                        "length": 5
+                      }
+                    ]
+                  },
+                  "subscriberCountText": "25.8M subscribers",
+                  "viewCountText": "3,991,359,888 views",
+                  "joinedDateText": {
+                    "content": "Joined Jul 10, 2013",
+                    "styleRuns": [
+                      {
+                        "startIndex": 0,
+                        "length": 19
+                      }
+                    ]
+                  },
+                  "canonicalChannelUrl": "http://www.youtube.com/@kurzgesagt",
+                  "channelId": "UCsXVk37bltHxD1rDPwtNM8Q",
+                  "additionalInfoLabel": {
+                    "content": "More info",
+                    "styleRuns": [
+                      {
+                        "startIndex": 0,
+                        "length": 9
+                      }
+                    ]
+                  },
+                  "customUrlOnTap": {
+                    "innertubeCommand": {
+                      "commandMetadata": {
+                        "webCommandMetadata": {
+                          "ignoreNavigation": true
+                        }
+                      },
+                      "shareEntityEndpoint": {
+                        "serializedShareEntity": "GhhVQ3NYVmszN2JsdEh4RDFyRFB3dE5NOFE%3D",
+                        "sharePanelType": "SHARE_PANEL_TYPE_UNIFIED_SHARE_PANEL"
+                      }
+                    }
+                  },
+                  "videoCountText": "397 videos",
+                  "signInForBusinessEmail": {
+                    "content": "Sign in to see email address",
+                    "commandRuns": [
+                      {
+                        "startIndex": 0,
+                        "length": 7,
+                        "onTap": {
+                          "innertubeCommand": {
+                            "commandMetadata": {
+                              "webCommandMetadata": {
+                                "url": "https://accounts.google.com/ServiceLogin?service=youtube&uilel=3&passive=true&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue%26app%3Ddesktop%26hl%3Den%26next%3D%252F%2540kurzgesagt&hl=en",
+                                "webPageType": "WEB_PAGE_TYPE_UNKNOWN",
+                                "rootVe": 83769
+                              }
+                            },
+                            "signInEndpoint": {
+                              "nextEndpoint": {
+                                "commandMetadata": {
+                                  "webCommandMetadata": {
+                                    "url": "/@kurzgesagt",
+                                    "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                                    "rootVe": 3611,
+                                    "apiUrl": "/youtubei/v1/browse"
+                                  }
+                                },
+                                "browseEndpoint": {
+                                  "browseId": "UCsXVk37bltHxD1rDPwtNM8Q",
+                                  "params": "8gYECgIyAA%3D%3D",
+                                  "canonicalBaseUrl": "/@kurzgesagt"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    ],
+                    "styleRuns": [
+                      {
+                        "startIndex": 0,
+                        "length": 28
+                      }
+                    ]
+                  },
+                  "links": [
+                    {
+                      "channelExternalLinkViewModel": {
+                        "title": {
+                          "content": "Shop"
+                        },
+                        "link": {
+                          "content": "shop.kgs.link/cool",
+                          "commandRuns": [
+                            {
+                              "startIndex": 0,
+                              "length": 18,
+                              "onTap": {
+                                "innertubeCommand": {
+                                  "commandMetadata": {
+                                    "webCommandMetadata": {
+                                      "url": "https://www.youtube.com/redirect?event=channel_description&redir_token=QUlxb01IWjk4QmEtdmxNWVJCZTB5dFA0b0pWUHxBSTVJdTV0QU5rRW9GMUJ3eGJYTWZ5M1hZYUt4cGlIbk1meFItT1lKVEhkdEtfMF9fbGdCcWhxc29Ra1pGWDRhUGZ4b1pwRVZHQS1FdkNVU1pWRm8tN0treE1aSllDbzJlN3Bn&q=https%3A%2F%2Fshop.kgs.link%2Fcool",
+                                      "webPageType": "WEB_PAGE_TYPE_UNKNOWN",
+                                      "rootVe": 83769
+                                    }
+                                  },
+                                  "urlEndpoint": {
+                                    "url": "https://www.youtube.com/redirect?event=channel_description&redir_token=QUlxb01IWjk4QmEtdmxNWVJCZTB5dFA0b0pWUHxBSTVJdTV0QU5rRW9GMUJ3eGJYTWZ5M1hZYUt4cGlIbk1meFItT1lKVEhkdEtfMF9fbGdCcWhxc29Ra1pGWDRhUGZ4b1pwRVZHQS1FdkNVU1pWRm8tN0treE1aSllDbzJlN3Bn&q=https%3A%2F%2Fshop.kgs.link%2Fcool",
+                                    "target": "TARGET_NEW_WINDOW",
+                                    "nofollow": true
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        "favicon": {
+                          "sources": [
+                            {
+                              "url": "https://example.invalid/2247.jpg",
+                              "width": 16,
+                              "height": 16
+                            },
+                            {
+                              "url": "https://example.invalid/2248.jpg",
+                              "width": 24,
+                              "height": 24
+                            },
+                            {
+                              "url": "https://example.invalid/2249.jpg",
+                              "width": 32,
+                              "height": 32
+                            },
+                            {
+                              "url": "https://example.invalid/2250.jpg",
+                              "width": 48,
+                              "height": 48
+                            },
+                            {
+                              "url": "https://example.invalid/2251.jpg",
+                              "width": 50,
+                              "height": 50
+                            },
+                            {
+                              "url": "https://example.invalid/2252.jpg",
+                              "width": 64,
+                              "height": 64
+                            },
+                            {
+                              "url": "https://example.invalid/2253.jpg",
+                              "width": 96,
+                              "height": 96
+                            },
+                            {
+                              "url": "https://example.invalid/2254.jpg",
+                              "width": 128,
+                              "height": 128
+                            },
+                            {
+                              "url": "https://example.invalid/2255.jpg",
+                              "width": 180,
+                              "height": 180
+                            },
+                            {
+                              "url": "https://example.invalid/2256.jpg",
+                              "width": 256,
+                              "height": 256
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "channelExternalLinkViewModel": {
+                        "title": {
+                          "content": "Patreon"
+                        },
+                        "link": {
+                          "content": "patreon.com/Kurzgesagt",
+                          "commandRuns": [
+                            {
+                              "startIndex": 0,
+                              "length": 22,
+                              "onTap": {
+                                "innertubeCommand": {
+                                  "commandMetadata": {
+                                    "webCommandMetadata": {
+                                      "url": "https://www.youtube.com/redirect?event=channel_description&redir_token=QUlxb01IWjEwSWJ0ZENUTklrelJ3TkVoZUJTQXxBSTVJdTVzSzBsVERZZi1GY05WSUNveU50bzl2Uzc0SWlFbldvdmg1NFNqamxWQ2d1RHVTWVQwNW9QUGR4czhoajVncGRqTXU3LXB4MkNnRkI0Y2dRQUVPMlRwcEhjQkhQV2JX&q=http%3A%2F%2Fwww.patreon.com%2FKurzgesagt",
+                                      "webPageType": "WEB_PAGE_TYPE_UNKNOWN",
+                                      "rootVe": 83769
+                                    }
+                                  },
+                                  "urlEndpoint": {
+                                    "url": "https://www.youtube.com/redirect?event=channel_description&redir_token=QUlxb01IWjEwSWJ0ZENUTklrelJ3TkVoZUJTQXxBSTVJdTVzSzBsVERZZi1GY05WSUNveU50bzl2Uzc0SWlFbldvdmg1NFNqamxWQ2d1RHVTWVQwNW9QUGR4czhoajVncGRqTXU3LXB4MkNnRkI0Y2dRQUVPMlRwcEhjQkhQV2JX&q=http%3A%2F%2Fwww.patreon.com%2FKurzgesagt",
+                                    "target": "TARGET_NEW_WINDOW",
+                                    "nofollow": true
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        "favicon": {
+                          "sources": [
+                            {
+                              "url": "https://example.invalid/2257.jpg",
+                              "width": 16,
+                              "height": 16
+                            },
+                            {
+                              "url": "https://example.invalid/2258.jpg",
+                              "width": 24,
+                              "height": 24
+                            },
+                            {
+                              "url": "https://example.invalid/2259.jpg",
+                              "width": 32,
+                              "height": 32
+                            },
+                            {
+                              "url": "https://example.invalid/2260.jpg",
+                              "width": 48,
+                              "height": 48
+                            },
+                            {
+                              "url": "https://example.invalid/2261.jpg",
+                              "width": 50,
+                              "height": 50
+                            },
+                            {
+                              "url": "https://example.invalid/2262.jpg",
+                              "width": 64,
+                              "height": 64
+                            },
+                            {
+                              "url": "https://example.invalid/2263.jpg",
+                              "width": 96,
+                              "height": 96
+                            },
+                            {
+                              "url": "https://example.invalid/2264.jpg",
+                              "width": 128,
+                              "height": 128
+                            },
+                            {
+                              "url": "https://example.invalid/2265.jpg",
+                              "width": 180,
+                              "height": 180
+                            },
+                            {
+                              "url": "https://example.invalid/2266.jpg",
+                              "width": 256,
+                              "height": 256
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "channelExternalLinkViewModel": {
+                        "title": {
+                          "content": "TikTok"
+                        },
+                        "link": {
+                          "content": "tiktok.com/@kurz_gesagt",
+                          "commandRuns": [
+                            {
+                              "startIndex": 0,
+                              "length": 23,
+                              "onTap": {
+                                "innertubeCommand": {
+                                  "commandMetadata": {
+                                    "webCommandMetadata": {
+                                      "url": "https://www.youtube.com/redirect?event=channel_description&redir_token=QUlxb01IWVZhMGVyUFpBdnVxRHdzc3JzSS1rTXxBSTVJdTV2QkZKZ0Nvck5PRE9mU0ljMmFNMXdUYzcySmhNVVF6ek1JbEVCYjFxRDVnOGtoWkJRb1lTYWRDZzV6Y0ZWdE56Uk1ncV9ib2tXTDBCYlhNUUk4bEFXQ2pqeEJpUWlY&q=https%3A%2F%2Fwww.tiktok.com%2F%40kurz_gesagt",
+                                      "webPageType": "WEB_PAGE_TYPE_UNKNOWN",
+                                      "rootVe": 83769
+                                    }
+                                  },
+                                  "urlEndpoint": {
+                                    "url": "https://www.youtube.com/redirect?event=channel_description&redir_token=QUlxb01IWVZhMGVyUFpBdnVxRHdzc3JzSS1rTXxBSTVJdTV2QkZKZ0Nvck5PRE9mU0ljMmFNMXdUYzcySmhNVVF6ek1JbEVCYjFxRDVnOGtoWkJRb1lTYWRDZzV6Y0ZWdE56Uk1ncV9ib2tXTDBCYlhNUUk4bEFXQ2pqeEJpUWlY&q=https%3A%2F%2Fwww.tiktok.com%2F%40kurz_gesagt",
+                                    "target": "TARGET_NEW_WINDOW",
+                                    "nofollow": true
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        "favicon": {
+                          "sources": [
+                            {
+                              "url": "https://example.invalid/2267.jpg",
+                              "width": 16,
+                              "height": 16
+                            },
+                            {
+                              "url": "https://example.invalid/2268.jpg",
+                              "width": 24,
+                              "height": 24
+                            },
+                            {
+                              "url": "https://example.invalid/2269.jpg",
+                              "width": 32,
+                              "height": 32
+                            },
+                            {
+                              "url": "https://example.invalid/2270.jpg",
+                              "width": 48,
+                              "height": 48
+                            },
+                            {
+                              "url": "https://example.invalid/2271.jpg",
+                              "width": 50,
+                              "height": 50
+                            },
+                            {
+                              "url": "https://example.invalid/2272.jpg",
+                              "width": 64,
+                              "height": 64
+                            },
+                            {
+                              "url": "https://example.invalid/2273.jpg",
+                              "width": 96,
+                              "height": 96
+                            },
+                            {
+                              "url": "https://example.invalid/2274.jpg",
+                              "width": 128,
+                              "height": 128
+                            },
+                            {
+                              "url": "https://example.invalid/2275.jpg",
+                              "width": 180,
+                              "height": 180
+                            },
+                            {
+                              "url": "https://example.invalid/2276.jpg",
+                              "width": 256,
+                              "height": 256
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "channelExternalLinkViewModel": {
+                        "title": {
+                          "content": "Instagram"
+                        },
+                        "link": {
+                          "content": "instagram.com/Kurzgesagt",
+                          "commandRuns": [
+                            {
+                              "startIndex": 0,
+                              "length": 24,
+                              "onTap": {
+                                "innertubeCommand": {
+                                  "commandMetadata": {
+                                    "webCommandMetadata": {
+                                      "url": "https://www.youtube.com/redirect?event=channel_description&redir_token=QUlxb01IWUYwZEVadEkxV08tb2FMTTNVSG1JenxBSTVJdTV0LTdYRmhxb01hejVkWFR3QlN3UGJ0dFFEYzBuRnRBbndBSUZxSk1vTXgtdV8tc2VUMWZzSVlHckZPajMtMUg1Y2NYMVd6WjNEc1lxc05lamVaN2cwWHFRRjdVaTZE&q=https%3A%2F%2Finstagram.com%2FKurzgesagt",
+                                      "webPageType": "WEB_PAGE_TYPE_UNKNOWN",
+                                      "rootVe": 83769
+                                    }
+                                  },
+                                  "urlEndpoint": {
+                                    "url": "https://www.youtube.com/redirect?event=channel_description&redir_token=QUlxb01IWUYwZEVadEkxV08tb2FMTTNVSG1JenxBSTVJdTV0LTdYRmhxb01hejVkWFR3QlN3UGJ0dFFEYzBuRnRBbndBSUZxSk1vTXgtdV8tc2VUMWZzSVlHckZPajMtMUg1Y2NYMVd6WjNEc1lxc05lamVaN2cwWHFRRjdVaTZE&q=https%3A%2F%2Finstagram.com%2FKurzgesagt",
+                                    "target": "TARGET_NEW_WINDOW",
+                                    "nofollow": true
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        "favicon": {
+                          "sources": [
+                            {
+                              "url": "https://example.invalid/2277.jpg",
+                              "width": 16,
+                              "height": 16
+                            },
+                            {
+                              "url": "https://example.invalid/2278.jpg",
+                              "width": 24,
+                              "height": 24
+                            },
+                            {
+                              "url": "https://example.invalid/2279.jpg",
+                              "width": 32,
+                              "height": 32
+                            },
+                            {
+                              "url": "https://example.invalid/2280.jpg",
+                              "width": 48,
+                              "height": 48
+                            },
+                            {
+                              "url": "https://example.invalid/2281.jpg",
+                              "width": 50,
+                              "height": 50
+                            },
+                            {
+                              "url": "https://example.invalid/2282.jpg",
+                              "width": 64,
+                              "height": 64
+                            },
+                            {
+                              "url": "https://example.invalid/2283.jpg",
+                              "width": 96,
+                              "height": 96
+                            },
+                            {
+                              "url": "https://example.invalid/2284.jpg",
+                              "width": 128,
+                              "height": 128
+                            },
+                            {
+                              "url": "https://example.invalid/2285.jpg",
+                              "width": 180,
+                              "height": 180
+                            },
+                            {
+                              "url": "https://example.invalid/2286.jpg",
+                              "width": 256,
+                              "height": 256
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "channelExternalLinkViewModel": {
+                        "title": {
+                          "content": "Newsletter"
+                        },
+                        "link": {
+                          "content": "shop.kgs.link/pages/newsletter-fans",
+                          "commandRuns": [
+                            {
+                              "startIndex": 0,
+                              "length": 35,
+                              "onTap": {
+                                "innertubeCommand": {
+                                  "commandMetadata": {
+                                    "webCommandMetadata": {
+                                      "url": "https://www.youtube.com/redirect?event=channel_description&redir_token=QUlxb01IYlhUVXgxQ2dyeWhOQldOQ2lLTUo3QXxBSTVJdTV1dzZTY1gwU0FrN3NVVmZpOFNaMk5PUmJTNlF6cmhDSE1QZ3dweEp6SEZqVTYzNXM4X0tIcXhBM3BXSDJzMm5qRGNSMDJYT0pDMEd0WXdHbDJQLTJNR3pEd0pacUx0&q=https%3A%2F%2Fshop.kgs.link%2Fpages%2Fnewsletter-fans",
+                                      "webPageType": "WEB_PAGE_TYPE_UNKNOWN",
+                                      "rootVe": 83769
+                                    }
+                                  },
+                                  "urlEndpoint": {
+                                    "url": "https://www.youtube.com/redirect?event=channel_description&redir_token=QUlxb01IYlhUVXgxQ2dyeWhOQldOQ2lLTUo3QXxBSTVJdTV1dzZTY1gwU0FrN3NVVmZpOFNaMk5PUmJTNlF6cmhDSE1QZ3dweEp6SEZqVTYzNXM4X0tIcXhBM3BXSDJzMm5qRGNSMDJYT0pDMEd0WXdHbDJQLTJNR3pEd0pacUx0&q=https%3A%2F%2Fshop.kgs.link%2Fpages%2Fnewsletter-fans",
+                                    "target": "TARGET_NEW_WINDOW",
+                                    "nofollow": true
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        "favicon": {
+                          "sources": [
+                            {
+                              "url": "https://example.invalid/2287.jpg",
+                              "width": 16,
+                              "height": 16
+                            },
+                            {
+                              "url": "https://example.invalid/2288.jpg",
+                              "width": 24,
+                              "height": 24
+                            },
+                            {
+                              "url": "https://example.invalid/2289.jpg",
+                              "width": 32,
+                              "height": 32
+                            },
+                            {
+                              "url": "https://example.invalid/2290.jpg",
+                              "width": 48,
+                              "height": 48
+                            },
+                            {
+                              "url": "https://example.invalid/2291.jpg",
+                              "width": 50,
+                              "height": 50
+                            },
+                            {
+                              "url": "https://example.invalid/2292.jpg",
+                              "width": 64,
+                              "height": 64
+                            },
+                            {
+                              "url": "https://example.invalid/2293.jpg",
+                              "width": 96,
+                              "height": 96
+                            },
+                            {
+                              "url": "https://example.invalid/2294.jpg",
+                              "width": 128,
+                              "height": 128
+                            },
+                            {
+                              "url": "https://example.invalid/2295.jpg",
+                              "width": 180,
+                              "height": 180
+                            },
+                            {
+                              "url": "https://example.invalid/2296.jpg",
+                              "width": 256,
+                              "height": 256
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "channelExternalLinkViewModel": {
+                        "title": {
+                          "content": "Reddit"
+                        },
+                        "link": {
+                          "content": "reddit.com/r/kurzgesagt",
+                          "commandRuns": [
+                            {
+                              "startIndex": 0,
+                              "length": 23,
+                              "onTap": {
+                                "innertubeCommand": {
+                                  "commandMetadata": {
+                                    "webCommandMetadata": {
+                                      "url": "https://www.youtube.com/redirect?event=channel_description&redir_token=QUlxb01IWVQ3QjI4eHU3cHJham8yYnhCRXZlVnxBSTVJdTV1WjlOTkFmc1BjXzR0eTlEdERsWmJJaW11eTgzb3RpLUF2bHFMdFZrM2FYVzdoa1I4MmpWRmNLcFBacjZqMmg5TFc1aUplSVp4eDhrWnYtcHZKVHFUSUoyX3hLQ1la&q=http%3A%2F%2Fwww.reddit.com%2Fr%2Fkurzgesagt",
+                                      "webPageType": "WEB_PAGE_TYPE_UNKNOWN",
+                                      "rootVe": 83769
+                                    }
+                                  },
+                                  "urlEndpoint": {
+                                    "url": "https://www.youtube.com/redirect?event=channel_description&redir_token=QUlxb01IWVQ3QjI4eHU3cHJham8yYnhCRXZlVnxBSTVJdTV1WjlOTkFmc1BjXzR0eTlEdERsWmJJaW11eTgzb3RpLUF2bHFMdFZrM2FYVzdoa1I4MmpWRmNLcFBacjZqMmg5TFc1aUplSVp4eDhrWnYtcHZKVHFUSUoyX3hLQ1la&q=http%3A%2F%2Fwww.reddit.com%2Fr%2Fkurzgesagt",
+                                    "target": "TARGET_NEW_WINDOW",
+                                    "nofollow": true
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        "favicon": {
+                          "sources": [
+                            {
+                              "url": "https://example.invalid/2297.jpg",
+                              "width": 16,
+                              "height": 16
+                            },
+                            {
+                              "url": "https://example.invalid/2298.jpg",
+                              "width": 24,
+                              "height": 24
+                            },
+                            {
+                              "url": "https://example.invalid/2299.jpg",
+                              "width": 32,
+                              "height": 32
+                            },
+                            {
+                              "url": "https://example.invalid/2300.jpg",
+                              "width": 48,
+                              "height": 48
+                            },
+                            {
+                              "url": "https://example.invalid/2301.jpg",
+                              "width": 50,
+                              "height": 50
+                            },
+                            {
+                              "url": "https://example.invalid/2302.jpg",
+                              "width": 64,
+                              "height": 64
+                            },
+                            {
+                              "url": "https://example.invalid/2303.jpg",
+                              "width": 96,
+                              "height": 96
+                            },
+                            {
+                              "url": "https://example.invalid/2304.jpg",
+                              "width": 128,
+                              "height": 128
+                            },
+                            {
+                              "url": "https://example.invalid/2305.jpg",
+                              "width": 180,
+                              "height": 180
+                            },
+                            {
+                              "url": "https://example.invalid/2306.jpg",
+                              "width": 256,
+                              "height": 256
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "channelExternalLinkViewModel": {
+                        "title": {
+                          "content": "Imprint"
+                        },
+                        "link": {
+                          "content": "kurzgesagt.org/imprint",
+                          "commandRuns": [
+                            {
+                              "startIndex": 0,
+                              "length": 22,
+                              "onTap": {
+                                "innertubeCommand": {
+                                  "commandMetadata": {
+                                    "webCommandMetadata": {
+                                      "url": "https://www.youtube.com/redirect?event=channel_description&redir_token=QUlxb01IWnFwLUNzd3VtRFJNTzRJYURuZFVjcXxBSTVJdTV1SlVrdXRwYWZKaFBDSmw0Z1cycWtEQmNONUtYLTZKS3ZiNXVlellHdTVVRmR6aFZKWnRYS1dZM2VOMlF2RVlzSVJ4WnVnQ3dJc0RheV9GOFlEN2VzYmc3azVENWE1&q=https%3A%2F%2Fkurzgesagt.org%2Fimprint%2F",
+                                      "webPageType": "WEB_PAGE_TYPE_UNKNOWN",
+                                      "rootVe": 83769
+                                    }
+                                  },
+                                  "urlEndpoint": {
+                                    "url": "https://www.youtube.com/redirect?event=channel_description&redir_token=QUlxb01IWnFwLUNzd3VtRFJNTzRJYURuZFVjcXxBSTVJdTV1SlVrdXRwYWZKaFBDSmw0Z1cycWtEQmNONUtYLTZKS3ZiNXVlellHdTVVRmR6aFZKWnRYS1dZM2VOMlF2RVlzSVJ4WnVnQ3dJc0RheV9GOFlEN2VzYmc3azVENWE1&q=https%3A%2F%2Fkurzgesagt.org%2Fimprint%2F",
+                                    "target": "TARGET_NEW_WINDOW",
+                                    "nofollow": true
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        "favicon": {
+                          "sources": [
+                            {
+                              "url": "https://example.invalid/2307.jpg",
+                              "width": 16,
+                              "height": 16
+                            },
+                            {
+                              "url": "https://example.invalid/2308.jpg",
+                              "width": 24,
+                              "height": 24
+                            },
+                            {
+                              "url": "https://example.invalid/2309.jpg",
+                              "width": 32,
+                              "height": 32
+                            },
+                            {
+                              "url": "https://example.invalid/2310.jpg",
+                              "width": 48,
+                              "height": 48
+                            },
+                            {
+                              "url": "https://example.invalid/2311.jpg",
+                              "width": 50,
+                              "height": 50
+                            },
+                            {
+                              "url": "https://example.invalid/2312.jpg",
+                              "width": 64,
+                              "height": 64
+                            },
+                            {
+                              "url": "https://example.invalid/2313.jpg",
+                              "width": 96,
+                              "height": 96
+                            },
+                            {
+                              "url": "https://example.invalid/2314.jpg",
+                              "width": 128,
+                              "height": 128
+                            },
+                            {
+                              "url": "https://example.invalid/2315.jpg",
+                              "width": 180,
+                              "height": 180
+                            },
+                            {
+                              "url": "https://example.invalid/2316.jpg",
+                              "width": 256,
+                              "height": 256
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "channelExternalLinkViewModel": {
+                        "title": {
+                          "content": "Facebook"
+                        },
+                        "link": {
+                          "content": "facebook.com/Kurzgesagt",
+                          "commandRuns": [
+                            {
+                              "startIndex": 0,
+                              "length": 23,
+                              "onTap": {
+                                "innertubeCommand": {
+                                  "commandMetadata": {
+                                    "webCommandMetadata": {
+                                      "url": "https://www.youtube.com/redirect?event=channel_description&redir_token=QUlxb01IYVdXZjZsZjJzZ0Z2S0RuYS1LYVhCc3xBSTVJdTVzNDJEYjBFODRxT3YtUjVma2RMY2ZyZnU3SldDVUVmdjRDZXFtdGNUbkg4QWVYX0paa0VRWmVOSVdPZmhNWXV1LW8ycjVONWUzdTIzS1dEcHlqcjVBa2JDbDFKMGs5&q=https%3A%2F%2Fwww.facebook.com%2FKurzgesagt%2F",
+                                      "webPageType": "WEB_PAGE_TYPE_UNKNOWN",
+                                      "rootVe": 83769
+                                    }
+                                  },
+                                  "urlEndpoint": {
+                                    "url": "https://www.youtube.com/redirect?event=channel_description&redir_token=QUlxb01IYVdXZjZsZjJzZ0Z2S0RuYS1LYVhCc3xBSTVJdTVzNDJEYjBFODRxT3YtUjVma2RMY2ZyZnU3SldDVUVmdjRDZXFtdGNUbkg4QWVYX0paa0VRWmVOSVdPZmhNWXV1LW8ycjVONWUzdTIzS1dEcHlqcjVBa2JDbDFKMGs5&q=https%3A%2F%2Fwww.facebook.com%2FKurzgesagt%2F",
+                                    "target": "TARGET_NEW_WINDOW",
+                                    "nofollow": true
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        "favicon": {
+                          "sources": [
+                            {
+                              "url": "https://example.invalid/2317.jpg",
+                              "width": 16,
+                              "height": 16
+                            },
+                            {
+                              "url": "https://example.invalid/2318.jpg",
+                              "width": 24,
+                              "height": 24
+                            },
+                            {
+                              "url": "https://example.invalid/2319.jpg",
+                              "width": 32,
+                              "height": 32
+                            },
+                            {
+                              "url": "https://example.invalid/2320.jpg",
+                              "width": 48,
+                              "height": 48
+                            },
+                            {
+                              "url": "https://example.invalid/2321.jpg",
+                              "width": 50,
+                              "height": 50
+                            },
+                            {
+                              "url": "https://example.invalid/2322.jpg",
+                              "width": 64,
+                              "height": 64
+                            },
+                            {
+                              "url": "https://example.invalid/2323.jpg",
+                              "width": 96,
+                              "height": 96
+                            },
+                            {
+                              "url": "https://example.invalid/2324.jpg",
+                              "width": 128,
+                              "height": 128
+                            },
+                            {
+                              "url": "https://example.invalid/2325.jpg",
+                              "width": 180,
+                              "height": 180
+                            },
+                            {
+                              "url": "https://example.invalid/2326.jpg",
+                              "width": 256,
+                              "height": 256
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  ],
+                  "displayCanonicalChannelUrl": "www.youtube.com/@kurzgesagt",
+                  "rendererContext": {
+                    "loggingContext": {
+                      "loggingDirectives": {
+                        "visibility": {
+                          "types": "12"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "shareChannel": {
+                "buttonRenderer": {
+                  "style": "STYLE_DEFAULT",
+                  "size": "SIZE_DEFAULT",
+                  "text": {
+                    "runs": [
+                      {
+                        "text": "Share channel"
+                      }
+                    ]
+                  },
+                  "icon": {
+                    "iconType": "SHARE"
+                  },
+                  "accessibilityData": {
+                    "accessibilityData": {
+                      "label": "Share channel"
+                    }
+                  },
+                  "command": {
+                    "commandMetadata": {
+                      "webCommandMetadata": {
+                        "sendPost": true
+                      }
+                    },
+                    "signalServiceEndpoint": {
+                      "signal": "CLIENT_SIGNAL",
+                      "actions": [
+                        {
+                          "openPopupAction": {
+                            "popup": {
+                              "menuPopupRenderer": {
+                                "items": [
+                                  {
+                                    "menuServiceItemRenderer": {
+                                      "text": {
+                                        "runs": [
+                                          {
+                                            "text": "Share channel"
+                                          }
+                                        ]
+                                      },
+                                      "command": {
+                                        "commandMetadata": {
+                                          "webCommandMetadata": {
+                                            "sendPost": true,
+                                            "apiUrl": "/youtubei/v1/share/get_share_panel"
+                                          }
+                                        },
+                                        "shareEntityServiceEndpoint": {
+                                          "serializedShareEntity": "GhhVQ3NYVmszN2JsdEh4RDFyRFB3dE5NOFE%3D",
+                                          "commands": [
+                                            {
+                                              "openPopupAction": {
+                                                "popup": {
+                                                  "unifiedSharePanelRenderer": {
+                                                    "showLoadingSpinner": true
+                                                  }
+                                                },
+                                                "popupType": "DIALOG",
+                                                "beReused": true
+                                              }
+                                            }
+                                          ]
+                                        }
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "menuServiceItemRenderer": {
+                                      "text": {
+                                        "runs": [
+                                          {
+                                            "text": "Copy channel ID"
+                                          }
+                                        ]
+                                      },
+                                      "command": {
+                                        "copyTextEndpoint": {
+                                          "text": "UCsXVk37bltHxD1rDPwtNM8Q",
+                                          "successActions": [
+                                            {
+                                              "commandMetadata": {
+                                                "webCommandMetadata": {
+                                                  "sendPost": true
+                                                }
+                                              },
+                                              "signalServiceEndpoint": {
+                                                "signal": "CLIENT_SIGNAL",
+                                                "actions": [
+                                                  {
+                                                    "openPopupAction": {
+                                                      "popup": {
+                                                        "notificationActionRenderer": {
+                                                          "responseText": {
+                                                            "runs": [
+                                                              {
+                                                                "text": "Channel ID copied to clipboard"
+                                                              }
+                                                            ]
+                                                          }
+                                                        }
+                                                      },
+                                                      "popupType": "TOAST"
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          ]
+                                        }
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            "popupType": "RESPONSIVE_DROPDOWN"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "targetId": "6fd6296e-0000-2e46-82da-14c14ef8ea58"
+      }
+    }
+  ]
+}

@@ -143,10 +143,10 @@ fun VideoCard(
     if (style == VideoCardStyle.VERTICAL) {
         Column(modifier.fillMaxWidth().testTag(ComponentIds.VIDEO_CARD).then(click), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
             Thumbnail(video, thumbnail, extras, Modifier.fillMaxWidth().clip(Vela.thumbnailShape))
-            Row(horizontalArrangement = Arrangement.spacedBy(Vela.sm), verticalAlignment = Alignment.Top) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = Vela.xs), horizontalArrangement = Arrangement.spacedBy(Vela.sm), verticalAlignment = Alignment.Top) {
                 if (showChannelAvatar) Avatar(video.channelName, onChannelClick, url = video.channelAvatarUrl)
                 Column(Modifier.weight(1f)) {
-                    Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("card.title"))
+                    Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("card.title"))
                     // Channel on its own line (it can be very long), the numbers under it: neither pushes the other off.
                     if (video.channelName.isNotBlank()) Text(video.channelName, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor(), modifier = Modifier.testTag("card.channel"))
                     val stats = remember(video.viewCount, video.uploadedAt, video.publishedText, extras.badge, showOriginal) { listOfNotNull(formatViews(video.viewCount), (formatAge(video.uploadedAt, Clock.System.now()) ?: video.publishedText), extras.badge, if (showOriginal) "original" else null).joinToString(" · ") }
@@ -156,11 +156,11 @@ fun VideoCard(
             }
         }
     } else {
-        Row(modifier.fillMaxWidth().testTag(ComponentIds.VIDEO_CARD).then(click), horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+        Row(modifier.fillMaxWidth().testTag(ComponentIds.VIDEO_CARD).then(click).padding(Vela.xs), horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
             // 36% of the row, but never wider than 168 dp: on a 320 dp phone the text (beside the menu button) still keeps 120 dp.
             Thumbnail(video, thumbnail, extras, Modifier.fillMaxWidth(0.36f).widthIn(max = 168.dp).clip(Vela.thumbnailShape))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
-                Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("card.title"))
+                Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("card.title"))
                 if (video.channelName.isNotBlank()) Text(
                     video.channelName, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     color = Vela.colors.onSurfaceVariant.toColor(),

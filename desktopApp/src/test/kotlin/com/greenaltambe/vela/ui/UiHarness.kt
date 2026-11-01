@@ -112,6 +112,15 @@ class FakeExtractor : Extractor by StubExtractor() {
         VideoInfo(videoId, FakeData.longTitle, FakeData.description, "UC1", FakeData.longChannel, 1_845, 1_234_567_890, 45_300_000, chapters = listOf(Chapter("Intro", 0), Chapter("Parts list", 90), Chapter("Assembly", 312), Chapter("Software", 760), Chapter("Conclusion", 1205))),
     )
     override suspend fun channel(channelId: String) = ExtractorResult.Success(ChannelPage(channelId, FakeData.longChannel, "Official channel of an extremely prolific creator. ".repeat(6), null, 12_400_000, FakeData.videos, "next"))
+    override suspend fun channelLanding(channelId: String) = channel(channelId).map { ch ->
+        val tabs = listOf(
+            com.greenaltambe.vela.extractor.ChannelTab(ChannelTabKind.VIDEOS, "Videos", selected = true),
+            com.greenaltambe.vela.extractor.ChannelTab(ChannelTabKind.SHORTS, "Shorts"),
+            com.greenaltambe.vela.extractor.ChannelTab(ChannelTabKind.PLAYLISTS, "Playlists"),
+        )
+        val initial = ChannelTabPage(items = ch.videos.map { ChannelItem.Video(it) }, nextToken = ch.continuation)
+        ChannelLanding(header = ch, tabs = tabs, initialPage = initial)
+    }
     override suspend fun channelVideos(channelId: String, continuation: String?) = ExtractorResult.Success(Page(FakeData.videos.take(4), null))
     override suspend fun recentUploads(channelId: String) = ExtractorResult.Success(FakeData.videos.filter { it.channelId == channelId || true }.take(8))
     override suspend fun streams(videoId: String) = ExtractorResult.Success(
@@ -153,7 +162,12 @@ fun buildFixture(pureBlack: Boolean = false, withDownloads: Boolean = true, logi
     val settings = SettingsResolver(InMemorySettingsStore())
     // The layout tests were written for the three-tab bar (Home, Subs, Library); the app now also offers Shorts by default.
     settings.set(com.greenaltambe.vela.core.settings.LookSettings.navTabs, "HOME,SUBSCRIPTIONS,LIBRARY")
-    if (pureBlack) settings.set(Settings.look, LookChoice.PURE_BLACK)
+    if (pureBlack) {
+        settings.set(Settings.look, LookChoice.PURE_BLACK)
+        settings.set(com.greenaltambe.vela.core.settings.LookSettings.theme, com.greenaltambe.vela.core.settings.ThemeMode.DARK)
+    } else {
+        settings.set(com.greenaltambe.vela.core.settings.LookSettings.theme, com.greenaltambe.vela.core.settings.ThemeMode.LIGHT)
+    }
     val database = createDatabase(if (wrapDriver == null) JvmDatabaseDriverFactory() else object : com.greenaltambe.vela.data.DatabaseDriverFactory { override fun create() = wrapDriver(JvmDatabaseDriverFactory().create()) })
     val extractor = extractorOverride ?: FakeExtractor()
     val log = DiagnosticsLog()
@@ -214,7 +228,7 @@ val Screens = listOf(
  * variable CI is set, so a CI run never dirties the working tree nor depends on the docs folder. Null when neither can be used.
  */
 fun screensDir(sub: String): File? =
-    (if (System.getenv("CI") != null) File("build/screens/$sub") else File("../docs/reports/$sub").takeIf { File("../docs/reports").isDirectory })?.also { it.mkdirs() }
+    (if (System.getProperty("vela.screens.toDocs") == "true") File("../docs/reports/$sub").takeIf { File("../docs/reports").isDirectory } else File("build/screens/$sub"))?.also { it.mkdirs() }
 
 /** Writes the current window as a PNG under the screens directory (only when the build set it), and returns the file. */
 fun DesktopComposeUiTest.screenshot(name: String): File? {

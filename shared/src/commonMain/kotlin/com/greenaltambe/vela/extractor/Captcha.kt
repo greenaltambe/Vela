@@ -66,6 +66,12 @@ class CaptchaAwareExtractor(private val inner: Extractor, private val coordinato
     override suspend fun playlistVideos(playlistId: String, continuation: String?) = guard { inner.playlistVideos(playlistId, continuation) }
     override suspend fun suggestions(query: String) = guard { inner.suggestions(query) }
     override suspend fun recentUploads(channelId: String) = guard { inner.recentUploads(channelId) }
+    override suspend fun channelLanding(channelId: String) = guard { inner.channelLanding(channelId) }
+    override suspend fun channelTab(channelId: String, tab: ChannelTab, filterOption: ChannelFilterOption?, continuation: String?) = guard { inner.channelTab(channelId, tab, filterOption, continuation) }
+    override suspend fun channelTabByContinuation(token: String) = guard { inner.channelTabByContinuation(token) }
+    override suspend fun channelAbout(channelId: String, token: String?) = guard { inner.channelAbout(channelId, token) }
+    override suspend fun channelSearch(channelId: String, query: String, continuation: String?) = guard { inner.channelSearch(channelId, query, continuation) }
+    override suspend fun postDetail(browseParams: String) = guard { inner.postDetail(browseParams) }
 }
 
 /** Keeps the exemption cookie's value and expiry as one settings row; sent only to YouTube API hosts. */

@@ -8,7 +8,8 @@ import kotlin.io.encoding.ExperimentalEncodingApi
 import org.schabi.newpipe.extractor.Page as NpPage
 
 /** Token family of this tier; see [ContinuationToken]. */
-internal const val TOKEN_TIER = "newpipe"
+internal const val TOKEN_TIER = "np"
+internal const val TOKEN_TIER_LEGACY = "newpipe"
 
 /** NewPipe's pages are objects, ours are strings: a token is the page as URL-safe base64 JSON, stamped with [TOKEN_TIER]. */
 @Serializable
@@ -30,7 +31,9 @@ internal fun NpPage.toContinuationToken(): String {
 /** Null if [token] wasn't issued by this tier or is damaged; callers report that as a foreign continuation. */
 @OptIn(ExperimentalEncodingApi::class)
 internal fun pageFromContinuationToken(token: String): NpPage? = runCatching {
-    val payload = ContinuationToken.unwrap(TOKEN_TIER, token) ?: return null
+    val payload = ContinuationToken.unwrap(TOKEN_TIER, token)
+        ?: ContinuationToken.unwrap(TOKEN_TIER_LEGACY, token)
+        ?: return null
     val dto = Json.decodeFromString(PageDto.serializer(), Base64.UrlSafe.decode(payload).decodeToString())
     NpPage(dto.url, dto.id, dto.ids, dto.cookies, dto.body?.let { Base64.UrlSafe.decode(it) })
 }.getOrNull()

@@ -36,4 +36,10 @@ class TimeoutExtractor(private val inner: Extractor, private val timeout: Durati
     override suspend fun playlistVideos(playlistId: String, continuation: String?) = bounded("Loading the playlist") { inner.playlistVideos(playlistId, continuation) }
     override suspend fun suggestions(query: String) = bounded("Suggestions") { inner.suggestions(query) }
     override suspend fun recentUploads(channelId: String) = bounded("Loading uploads") { inner.recentUploads(channelId) }
+    override suspend fun channelLanding(channelId: String) = bounded("Loading channel") { inner.channelLanding(channelId) }
+    override suspend fun channelTab(channelId: String, tab: ChannelTab, filterOption: ChannelFilterOption?, continuation: String?) = bounded("Loading tab") { inner.channelTab(channelId, tab, filterOption, continuation) }
+    override suspend fun channelTabByContinuation(token: String) = bounded("Loading tab") { inner.channelTabByContinuation(token) }
+    override suspend fun channelAbout(channelId: String, token: String?) = bounded("Loading about") { inner.channelAbout(channelId, token) }
+    override suspend fun channelSearch(channelId: String, query: String, continuation: String?) = bounded("Searching channel") { inner.channelSearch(channelId, query, continuation) }
+    override suspend fun postDetail(browseParams: String) = bounded("Loading post") { inner.postDetail(browseParams) }
 }

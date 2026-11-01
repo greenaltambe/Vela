@@ -30,13 +30,25 @@ class WrappersForwardEverythingTest {
         override suspend fun playlistVideos(playlistId: String, continuation: String?) = hit<Page<VideoSummary>>("playlistVideos")
         override suspend fun suggestions(query: String) = hit<List<String>>("suggestions")
         override suspend fun recentUploads(channelId: String) = hit<List<VideoSummary>>("recentUploads")
+        override suspend fun channelLanding(channelId: String) = hit<ChannelLanding>("channelLanding")
+        override suspend fun channelTab(channelId: String, tab: ChannelTab, filterOption: ChannelFilterOption?, continuation: String?) = hit<ChannelTabPage>("channelTab")
+        override suspend fun channelTabByContinuation(token: String) = hit<ChannelTabPage>("channelTabByContinuation")
+        override suspend fun channelAbout(channelId: String, token: String?) = hit<ChannelAbout>("channelAbout")
+        override suspend fun channelSearch(channelId: String, query: String, continuation: String?) = hit<ChannelTabPage>("channelSearch")
+        override suspend fun postDetail(browseParams: String) = hit<Pair<ChannelPost, List<Comment>>>("postDetail")
     }
 
-    private val all = setOf("search", "videoInfo", "streams", "streamsPreferringOther", "channel", "channelVideos", "channelVideosSorted", "comments", "replies", "trending", "related", "channelShorts", "channelLive", "channelPlaylists", "playlistVideos", "suggestions", "recentUploads")
+    private val all = setOf(
+        "search", "videoInfo", "streams", "streamsPreferringOther", "channel", "channelVideos",
+        "channelVideosSorted", "comments", "replies", "trending", "related", "channelShorts",
+        "channelLive", "channelPlaylists", "playlistVideos", "suggestions", "recentUploads",
+        "channelLanding", "channelTab", "channelTabByContinuation", "channelAbout", "channelSearch", "postDetail"
+    )
 
     private suspend fun callAll(x: Extractor) {
         x.search("q"); x.videoInfo("v"); x.streams("v"); x.streamsPreferringOther("v"); x.channel("c"); x.channelVideos("c"); x.channelVideosSorted("c", ChannelVideoSort.POPULAR); x.comments("v"); x.replies("v", "id")
         x.trending(); x.related("v"); x.channelShorts("c"); x.channelLive("c"); x.channelPlaylists("c"); x.playlistVideos("p"); x.suggestions("q"); x.recentUploads("c")
+        x.channelLanding("c"); x.channelTab("c", ChannelTab(ChannelTabKind.VIDEOS, "Videos")); x.channelTabByContinuation("t"); x.channelAbout("c"); x.channelSearch("c", "q"); x.postDetail("p")
     }
 
     private suspend fun check(name: String, except: Set<String> = emptySet(), wrap: (Extractor) -> Extractor) {

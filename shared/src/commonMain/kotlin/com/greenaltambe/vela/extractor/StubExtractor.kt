@@ -40,4 +40,11 @@ class StubExtractor(private val error: ExtractorError? = null) : Extractor {
     override suspend fun playlistVideos(playlistId: String, continuation: String?) = respond { Page<VideoSummary>(emptyList()) }
 
     override suspend fun recentUploads(channelId: String) = respond { emptyList<VideoSummary>() }
+
+    override suspend fun channelLanding(channelId: String) = respond { ChannelLanding(ChannelPage(channelId, "Stub channel")) }
+    override suspend fun channelTab(channelId: String, tab: ChannelTab, filterOption: ChannelFilterOption?, continuation: String?) = respond { ChannelTabPage() }
+    override suspend fun channelTabByContinuation(token: String) = respond { ChannelTabPage() }
+    override suspend fun channelAbout(channelId: String, token: String?) = respond { ChannelAbout() }
+    override suspend fun channelSearch(channelId: String, query: String, continuation: String?) = respond { ChannelTabPage() }
+    override suspend fun postDetail(browseParams: String) = respond { ChannelPost("p", "Stub author", text = "") to emptyList<Comment>() }
 }

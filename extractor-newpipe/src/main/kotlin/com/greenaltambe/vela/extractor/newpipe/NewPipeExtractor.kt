@@ -46,7 +46,11 @@ class NewPipeExtractor(downloader: () -> Downloader = { OkHttpDownloader() }, pr
     // The region setting is read on every call (a static in NewPipe), so a change applies from the next request on.
     private val youtube get() = ServiceList.YouTube.also { NewPipeBootstrap.applyRegion(region()) }
 
-    override val capabilities = ExtractorCapabilities(supportsCommentSort = false)
+    override val capabilities = ExtractorCapabilities(
+        supportsCommentSort = false,
+        channelTabs = true,
+        channelTabFilters = false,
+    )
 
     override suspend fun search(query: String, continuation: String?): ExtractorResult<Page<VideoSummary>> =
         withPage(continuation) { page ->
@@ -233,6 +237,74 @@ class NewPipeExtractor(downloader: () -> Downloader = { OkHttpDownloader() }, pr
             }
         }.map { (items, next) -> Page(items, next.toTokenOrNull()) }
 
+    override suspend fun channelLanding(channelId: String): ExtractorResult<ChannelLanding> =
+        channel(channelId).map { ch ->
+            val fallbackTabs = listOf(
+                ChannelTab(ChannelTabKind.VIDEOS, "Videos", selected = true),
+                ChannelTab(ChannelTabKind.SHORTS, "Shorts"),
+                ChannelTab(ChannelTabKind.STREAMS, "Live"),
+                ChannelTab(ChannelTabKind.PLAYLISTS, "Playlists"),
+            )
+            val initialPage = ChannelTabPage(items = ch.videos.map { ChannelItem.Video(it) }, nextToken = ch.continuation)
+            ChannelLanding(header = ch, tabs = fallbackTabs, initialPage = initialPage)
+        }
+
+    override suspend fun channelTab(channelId: String, tab: ChannelTab, filterOption: ChannelFilterOption?, continuation: String?): ExtractorResult<ChannelTabPage> {
+        if (continuation != null && continuation.startsWith("n1:")) {
+            return ExtractorResult.Failure(ExtractorError.TokenNotMine("Native token passed to NewPipe"))
+        }
+        return when (tab.kind) {
+            ChannelTabKind.VIDEOS, ChannelTabKind.FEATURED -> channelVideos(channelId, continuation).map { p ->
+                ChannelTabPage(items = p.items.map { ChannelItem.Video(it) }, nextToken = p.continuation)
+            }
+            ChannelTabKind.SHORTS -> channelShorts(channelId, continuation).map { p ->
+                ChannelTabPage(items = p.items.map { ChannelItem.Video(it) }, nextToken = p.continuation)
+            }
+            ChannelTabKind.STREAMS -> channelLive(channelId, continuation).map { p ->
+                ChannelTabPage(items = p.items.map { ChannelItem.Video(it) }, nextToken = p.continuation)
+            }
+            ChannelTabKind.PLAYLISTS -> channelPlaylists(channelId, continuation).map { p ->
+                ChannelTabPage(items = p.items.map { ChannelItem.Playlist(it) }, nextToken = p.continuation)
+            }
+            ChannelTabKind.COURSES, ChannelTabKind.POSTS -> ExtractorResult.Failure(ExtractorError.TierUnavailable("${tab.kind.name.lowercase().replaceFirstChar(Char::uppercase)} are not available on fallback"))
+            else -> ExtractorResult.Failure(ExtractorError.TierUnavailable("Tab ${tab.kind} is not available on fallback"))
+        }
+    }
+
+    override suspend fun channelTabByContinuation(token: String): ExtractorResult<ChannelTabPage> {
+        if (token.startsWith("n1:")) return ExtractorResult.Failure(ExtractorError.TokenNotMine("Native token passed to NewPipe"))
+        val page = pageFromContinuationToken(token) ?: return ExtractorResult.Failure(ExtractorError.TokenNotMine("Token cannot be parsed by NewPipe"))
+        return guarded {
+            val url = page.url
+            if (url.contains("playlist")) {
+                val more = PlaylistInfo.getMoreItems(youtube, url, page)
+                ChannelTabPage(items = more.items.toPlaylistRefs().map { ChannelItem.Playlist(it) }, nextToken = more.nextPage.toTokenOrNull())
+            } else {
+                val chanId = channelIdFromUrl(url).orEmpty()
+                val tab = if (url.contains("shorts")) ChannelTabs.SHORTS
+                else if (url.contains("streams") || url.contains("live")) ChannelTabs.LIVESTREAMS
+                else ChannelTabs.VIDEOS
+                val result = youtube.getChannelTabExtractorFromId(chanId, tab).getPage(page)
+                ChannelTabPage(items = result.items.toVideoSummaries().map { ChannelItem.Video(it) }, nextToken = result.nextPage.toTokenOrNull())
+            }
+        }
+    }
+
+    override suspend fun channelAbout(channelId: String, token: String?): ExtractorResult<ChannelAbout> =
+        channel(channelId).map { ch ->
+            ChannelAbout(
+                description = ch.description,
+                subscriberCountText = ch.subscriberCount?.let { "$it subscribers" },
+                isPartial = true,
+            )
+        }
+
+    override suspend fun channelSearch(channelId: String, query: String, continuation: String?): ExtractorResult<ChannelTabPage> =
+        ExtractorResult.Failure(ExtractorError.TierUnavailable("In-channel search is not supported on fallback"))
+
+    override suspend fun postDetail(browseParams: String): ExtractorResult<Pair<ChannelPost, List<Comment>>> =
+        ExtractorResult.Failure(ExtractorError.Unplayable("Post details not supported on NewPipe fallback"))
+
     /**
      * The public Atom feed first (one small request, carries publish times), the channel's Videos tab if that is refused.
      * Shorts are not told apart by the feed, so they are not flagged here.
@@ -251,7 +323,10 @@ class NewPipeExtractor(downloader: () -> Downloader = { OkHttpDownloader() }, pr
 
     /** Runs [block] with the decoded continuation (null for a first page); a token from another tier fails cleanly. */
     private suspend fun <T> withPage(continuation: String?, block: (NpPage?) -> T): ExtractorResult<T> {
-        val page = continuation?.let { pageFromContinuationToken(it) ?: return ContinuationToken.foreign() }
+        val page = continuation?.let {
+            if (it.startsWith("n1:")) return ExtractorResult.Failure(ExtractorError.TokenNotMine("Native token passed to NewPipe"))
+            pageFromContinuationToken(it) ?: return ExtractorResult.Failure(ExtractorError.TokenNotMine("Token is not from NewPipe"))
+        }
         return guarded { block(page) }
     }
 
@@ -264,11 +339,6 @@ class NewPipeExtractor(downloader: () -> Downloader = { OkHttpDownloader() }, pr
     } catch (e: Exception) {
         ExtractorResult.Failure(e.toExtractorError())
     }
-}
-
-private inline fun <T, R> ExtractorResult<T>.map(transform: (T) -> R): ExtractorResult<R> = when (this) {
-    is ExtractorResult.Success -> ExtractorResult.Success(transform(value))
-    is ExtractorResult.Failure -> this
 }
 
 /** The `params` of the Videos tab in a browse request (the same value the channel page itself sends). */

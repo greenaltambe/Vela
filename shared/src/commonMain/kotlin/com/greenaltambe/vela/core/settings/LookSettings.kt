@@ -1,6 +1,7 @@
 package com.greenaltambe.vela.core.settings
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
+enum class ColorMode { GRADIENT, SOLID }
 /** The one colour choice: a gradient of three stops that tints the whole app (stops live in ui/look/Palettes). */
 enum class Palette { VELA, AURORA, OCEAN, SUNSET, EMBER, ORCHID, MEADOW, SLATE }
 enum class DensityChoice { COMPACT, COMFORTABLE, ROOMY }
@@ -56,7 +57,20 @@ object LookSettings {
         "look.palette", Palette.VELA, Palette.entries, "Colour palette",
         mapOf(Palette.VELA to "Vela", Palette.AURORA to "Aurora", Palette.OCEAN to "Ocean", Palette.SUNSET to "Sunset", Palette.EMBER to "Ember", Palette.ORCHID to "Orchid", Palette.MEADOW to "Meadow", Palette.SLATE to "Slate"),
         listOf("color", "colour", "accent", "gradient", "palette", "tint"),
-        "One gradient for the whole app: buttons, switches, selected tabs, sliders and the profile ring.",
+        "The colour palette for the app: buttons, switches, selected tabs, sliders and the profile ring.",
+    )
+
+    val colorMode = pick(
+        "look.colorMode", ColorMode.GRADIENT, ColorMode.entries, "Colour style",
+        mapOf(ColorMode.GRADIENT to "Gradient", ColorMode.SOLID to "Solid"),
+        listOf("color", "solid", "gradient", "flat", "style"),
+        "Choose between multi-stop gradients or a solid single colour for accents.",
+    )
+
+    val customColor = Setting(
+        key = "look.customColor", default = "", scope = SettingScope.GLOBAL, label = "Custom accent colour",
+        keywords = listOf("custom", "color", "hex", "accent"), codec = SettingCodecs.string, section = SettingSection.APPEARANCE,
+        info = "Manual hex colour (e.g. #3B82F6 or #FF0055). Leave blank to use the palette preset.",
     )
 
     val corners = Setting(
@@ -102,7 +116,7 @@ object LookSettings {
     val reduceMotion = flag("look.reduceMotion", false, "Reduce motion", listOf("motion", "animation", "reduce", "accessibility"), "Shorter, simpler animations; no staggered entrances.")
 
     val all: List<Setting<*>> = listOf(
-        theme, palette, corners, density, textScale, font, titleWeight,
+        theme, palette, colorMode, customColor, corners, density, textScale, font, titleWeight,
         iconStyle, iconWeight, iconRounded, progressStyle, navTabs, navOpenOn, navLabels, barStyle, navShrink, navMarker, miniLook, miniPlacement, miniGap, railCollapsed, glass, reduceMotion,
     )
 }

@@ -45,6 +45,7 @@ class SelfTestActivity : Activity() {
             if (which == "all" || which == "canary") canary(rt)
             if (which == "all" || which == "play") play(rt, video)
             if (which == "all" || which == "download") download(rt)
+            if (which == "all" || which == "channel") channelFlows(rt, intent.getStringExtra("channel") ?: "UCEBb1b_L6zDS3xTUrIALZOw")
             if (which == "handoff") handoff(rt, video)
             if (which == "live") live(rt, video)
             if (which == "all") { ytdlp(rt, listOf("dQw4w9WgXcQ", "HtVdAasjOgU")); playAge(rt, "HtVdAasjOgU"); ytdlpDownload(rt) }
@@ -460,6 +461,69 @@ class SelfTestActivity : Activity() {
         }
         add("download + merge", done?.state == com.greenaltambe.vela.data.DownloadState.COMPLETED, done?.toString()?.take(300) ?: "timeout", System.currentTimeMillis() - t0)
         rt.downloads.manager.remove(id)
+    }
+
+    private suspend fun channelFlows(rt: PlaybackRuntime, channelId: String) = withContext(kotlinx.coroutines.Dispatchers.IO) {
+        // 1. Channel landing
+        val landingRes = rt.chain.channelLanding(channelId)
+        if (landingRes !is com.greenaltambe.vela.extractor.ExtractorResult.Success<*>) {
+            val err = (landingRes as? com.greenaltambe.vela.extractor.ExtractorResult.Failure)?.error?.message
+            add("channel landing", false, "failed: $err")
+            return@withContext
+        }
+        val landing = landingRes.value as com.greenaltambe.vela.extractor.ChannelLanding
+        add("channel landing", true, "channel landing $channelId (header=${landing.header.name}, tabs=${landing.tabs.size})")
+
+        // 2. Oldest videos
+        val videosTab = landing.tabs.firstOrNull { it.kind == com.greenaltambe.vela.extractor.ChannelTabKind.VIDEOS }
+            ?: com.greenaltambe.vela.extractor.ChannelTab(com.greenaltambe.vela.extractor.ChannelTabKind.VIDEOS, "Videos")
+        val page1Res = rt.chain.channelTab(channelId, videosTab)
+        if (page1Res !is com.greenaltambe.vela.extractor.ExtractorResult.Success<*>) {
+            val err = (page1Res as? com.greenaltambe.vela.extractor.ExtractorResult.Failure)?.error?.message
+            add("oldest videos", false, "failed loading videos tab: $err")
+            return@withContext
+        }
+        val page1 = page1Res.value as com.greenaltambe.vela.extractor.ChannelTabPage
+        val oldestFilter = page1.filters.flatMap { grp -> grp.options }.firstOrNull { opt -> opt.label.contains("Oldest", true) }
+        val oldestPageRes = if (oldestFilter != null) {
+            rt.chain.channelTab(channelId, videosTab, oldestFilter)
+        } else {
+            page1Res
+        }
+        if (oldestPageRes !is com.greenaltambe.vela.extractor.ExtractorResult.Success<*>) {
+            val err = (oldestPageRes as? com.greenaltambe.vela.extractor.ExtractorResult.Failure)?.error?.message
+            add("oldest videos", false, "failed loading oldest videos: $err")
+            return@withContext
+        }
+        val oldestPage = oldestPageRes.value as com.greenaltambe.vela.extractor.ChannelTabPage
+        val firstTitle = (oldestPage.items.firstOrNull() as? com.greenaltambe.vela.extractor.ChannelItem.Video)?.summary?.title ?: "unknown"
+        add("oldest videos", true, "oldest videos (first=$firstTitle)")
+
+        // 3. Paging 3 pages
+        var curToken = oldestPage.nextToken
+        var totalItems = oldestPage.items.size
+        var pagedCount = 0
+        while (curToken != null && pagedCount < 3) {
+            val nextRes = rt.chain.channelTab(channelId, videosTab, oldestFilter, curToken)
+            if (nextRes !is com.greenaltambe.vela.extractor.ExtractorResult.Success<*>) break
+            val nextVal = nextRes.value as com.greenaltambe.vela.extractor.ChannelTabPage
+            totalItems += nextVal.items.size
+            curToken = nextVal.nextToken
+            pagedCount++
+        }
+        add("channel paging", pagedCount >= 1, "paged $pagedCount times (total=$totalItems)")
+
+        // 4. Shorts tab
+        val shortsTab = landing.tabs.firstOrNull { it.kind == com.greenaltambe.vela.extractor.ChannelTabKind.SHORTS }
+            ?: com.greenaltambe.vela.extractor.ChannelTab(com.greenaltambe.vela.extractor.ChannelTabKind.SHORTS, "Shorts", params = com.greenaltambe.vela.extractor.ChannelTabParams.SHORTS)
+        val shortsRes = rt.chain.channelTab(channelId, shortsTab)
+        if (shortsRes is com.greenaltambe.vela.extractor.ExtractorResult.Success<*>) {
+            val shortsVal = shortsRes.value as com.greenaltambe.vela.extractor.ChannelTabPage
+            add("shorts tab", true, "shorts tab (items=${shortsVal.items.size})")
+        } else {
+            val err = (shortsRes as? com.greenaltambe.vela.extractor.ExtractorResult.Failure)?.error?.message
+            add("shorts tab", false, "failed: $err")
+        }
     }
 
     companion object { const val TAG = "VelaSelfTest" }
