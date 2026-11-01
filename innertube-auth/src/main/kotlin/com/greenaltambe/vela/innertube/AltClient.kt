@@ -63,25 +63,6 @@ class AltClientExtractor(
         channelTabFilters = true,
     )
 
-    override suspend fun trending(continuation: String?): ExtractorResult<Page<VideoSummary>> {
-        val body = if (continuation != null) {
-            val unwrapped = unwrapNativeToken(continuation) ?: continuation
-            buildJsonObject { put("continuation", unwrapped) }
-        } else {
-            buildJsonObject { put("browseId", "FEwhat_to_watch") }
-        }
-        val res = channelBrowse.executeBrowse(body)
-        val json = when (res) {
-            is ExtractorResult.Success -> res.value
-            is ExtractorResult.Failure -> return res
-        }
-        val videos = InnertubeParsers.videos(json)
-        val token = json.findAll("continuationItemRenderer")
-            .firstNotNullOfOrNull { it.at("continuationEndpoint", "continuationCommand", "token").string }
-            ?.let { wrapNativeToken(it) }
-        return ExtractorResult.Success(Page(videos, token))
-    }
-
     override suspend fun search(query: String, continuation: String?): ExtractorResult<Page<VideoSummary>> = notSupported()
     override suspend fun channel(channelId: String): ExtractorResult<ChannelPage> =
         channelLanding(channelId).map { it.header }

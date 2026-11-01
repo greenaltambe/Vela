@@ -467,14 +467,21 @@ private fun VideoLayer(services: AppServices, navigator: Navigator, route: Route
     val quick = VelaMotion.tween<Float>(m, VelaMotion.Level.QUICK)
     androidx.compose.animation.AnimatedVisibility(
         visible = route is Route.Video && shown != null, modifier = modifier,
-        enter = if (m.reduced || navigator.growFromMini) androidx.compose.animation.fadeIn(quick) else androidx.compose.animation.fadeIn(VelaMotion.tween(m, VelaMotion.Level.STANDARD)) + slideInVertically(VelaMotion.tween(m, VelaMotion.Level.STANDARD)) { it / 3 },
-        // Already pulled down to the mini player's size, or leaving for another page: just fade; sliding would pull the page away from under the shrunk picture.
-        exit = if (m.reduced || pulled || !closing) androidx.compose.animation.fadeOut(quick) else androidx.compose.animation.fadeOut(quick) + slideOutVertically(VelaMotion.tween(m, VelaMotion.Level.STANDARD)) { it / 4 },
+        enter = if (m.reduced) androidx.compose.animation.fadeIn(quick)
+            else if (navigator.growFromMini) androidx.compose.animation.EnterTransition.None
+            else androidx.compose.animation.fadeIn(VelaMotion.tween(m, VelaMotion.Level.STANDARD)) + slideInVertically(VelaMotion.tween(m, VelaMotion.Level.STANDARD)) { it / 3 },
+        exit = if (m.reduced || navigator.shrinkToMini) {
+            navigator.shrinkToMini = false
+            androidx.compose.animation.ExitTransition.None
+        } else if (pulled || !closing) {
+            androidx.compose.animation.fadeOut(quick)
+        } else {
+            androidx.compose.animation.fadeOut(quick) + slideOutVertically(VelaMotion.tween(m, VelaMotion.Level.STANDARD)) { it / 4 }
+        },
     ) {
-        if (shown != null) Box(
-            // Opaque page background that melts away as the page is pulled down; the empty pointerInput stops touches reaching the screen below.
-            Modifier.fillMaxSize().drawBehind { drawRect(bg, alpha = (1f - 1.8f * reveal.floatValue).coerceIn(0f, 1f)) }.pointerInput(Unit) { },
-        ) { VideoScreen(services, navigator, shown.video, shown.startSeconds, Modifier.fillMaxSize()) }
+        if (shown != null) Box(Modifier.fillMaxSize().pointerInput(Unit) { }) {
+            VideoScreen(services, navigator, shown.video, shown.startSeconds, Modifier.fillMaxSize())
+        }
     }
 }
 

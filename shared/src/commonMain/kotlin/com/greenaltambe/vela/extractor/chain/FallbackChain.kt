@@ -264,9 +264,6 @@ class FallbackChain(
         if (op == AccountOp.CHANNELS && usable.any { it.capabilities.channelTabFilters }) {
             usable = usable.sortedByDescending { if (it.capabilities.channelTabFilters) 1 else 0 }
         }
-        if (op == AccountOp.FEED && usable.any { it.id == TierId.ALT_CLIENT }) {
-            usable = usable.sortedByDescending { if (it.id == TierId.ALT_CLIENT) 1 else 0 }
-        }
         return if (mode == AccountFallbackMode.ALWAYS) usable.sortedBy { if (it.id == TierId.AUTHENTICATED) 0 else 1 } else usable
     }
 

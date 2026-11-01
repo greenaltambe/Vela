@@ -71,6 +71,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.semantics.onClick
 import com.greenaltambe.vela.ui.player.playerVerticalSwipe
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -453,46 +458,139 @@ class MiniState(
 fun MiniPlayer(state: MiniState, look: MiniLook, shape: androidx.compose.ui.graphics.Shape, modifier: Modifier = Modifier) {
     when (look) {
         MiniLook.CARD -> {
-          // Dragging the card up pulls the video page up out of it: the card follows the finger while the page's picture grows from the card's, and on release it
-          // either completes (past a third of the way, or a quick flick) or sinks back. A short flick that never started the drag opens it like a tap.
+          // Dragging the card up pulls the video page up out of it; dragging down dismisses/closes it.
           var lift by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+          var isClosing by remember { mutableStateOf(false) }
           var topPx by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
-          var started by remember { mutableStateOf(false) }
           val scope = androidx.compose.runtime.rememberCoroutineScope()
           val density = androidx.compose.ui.platform.LocalDensity.current
-          val startAt = with(density) { 8.dp.toPx() }
-          val distance = maxOf(topPx * 0.8f, with(density) { 300.dp.toPx() })
-          fun progress() = (-lift / distance).coerceIn(0f, 1f)
+          val expandDistance = with(density) { 160.dp.toPx() }
+          val dismissDistance = with(density) { 110.dp.toPx() }
+          val slopPx = with(density) { 4.dp.toPx() }
+
+          val currentState by androidx.compose.runtime.rememberUpdatedState(state)
+
+          val handleClose: () -> Unit = {
+              if (!isClosing) {
+                  isClosing = true
+                  scope.launch {
+                      androidx.compose.animation.core.animate(
+                          initialValue = lift,
+                          targetValue = dismissDistance * 1.4f,
+                          animationSpec = androidx.compose.animation.core.tween(180, easing = androidx.compose.animation.core.FastOutLinearInEasing),
+                      ) { x, _ -> lift = x }
+                      currentState.onClose()
+                  }
+              }
+          }
+          val currentHandleClose by androidx.compose.runtime.rememberUpdatedState(handleClose)
+
           Column(
             modifier.onGloballyPositioned { topPx = it.boundsInWindow().top }
-                .graphicsLayer { alpha = (1f - 2f * progress()).coerceIn(0f, 1f) }
-                .playerVerticalSwipe(
-                    onDelta = { dy ->
-                        lift = (lift + dy).coerceAtMost(0f)
-                        if (state.onExpandDrag != null && -lift > startAt) { started = true; state.onExpandDrag.invoke(progress()) }
-                    },
-                    onEnd = { total, v ->
-                        if (!started) { lift = 0f; if (total < -startAt || v < -900f) state.onExpand(); return@playerVerticalSwipe }
-                        val open = progress() > 0.33f || v < -900f
-                        scope.launch {
-                            androidx.compose.animation.core.animate(progress(), if (open) 1f else 0f, animationSpec = androidx.compose.animation.core.tween(160)) { x, _ -> lift = -x * distance; state.onExpandDrag?.invoke(x) }
-                            started = false
-                            state.onExpandRelease(open)
-                            lift = 0f
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val downId = down.id
+                        val downPos = down.position
+                        val tracker = VelocityTracker()
+                        tracker.addPosition(down.uptimeMillis, down.position)
+                        var isDrag = false
+                        var dragMode = 0 // -1: up, 1: down
+
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull { it.id == downId }
+                            if (change == null || !change.pressed) {
+                                if (isDrag) {
+                                    val velocityY = tracker.calculateVelocity().y
+                                    if (dragMode < 0) {
+                                        val pUp = (-lift / expandDistance).coerceIn(0f, 1f)
+                                        val open = pUp > 0.15f || velocityY < -300f
+                                        lift = 0f
+                                        currentState.onExpandRelease(open)
+                                    } else if (dragMode > 0) {
+                                        val pDown = (lift / dismissDistance).coerceIn(0f, 1f)
+                                        val dismiss = pDown > 0.22f || velocityY > 300f
+                                        if (dismiss) {
+                                            currentHandleClose()
+                                        } else {
+                                            scope.launch {
+                                                androidx.compose.animation.core.animate(
+                                                    initialValue = lift,
+                                                    targetValue = 0f,
+                                                    animationSpec = androidx.compose.animation.core.spring(
+                                                        dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                                                        stiffness = androidx.compose.animation.core.Spring.StiffnessMedium,
+                                                    ),
+                                                ) { x, _ -> lift = x }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    val dy = (change?.position?.y ?: downPos.y) - downPos.y
+                                    val dx = (change?.position?.x ?: downPos.x) - downPos.x
+                                    val moved = kotlin.math.abs(dy) > slopPx || kotlin.math.abs(dx) > slopPx
+                                    if (change?.isConsumed == false && !moved) {
+                                        change.consume()
+                                        currentState.onExpand()
+                                    }
+                                }
+                                break
+                            }
+
+                            tracker.addPosition(change.uptimeMillis, change.position)
+                            val dy = change.position.y - downPos.y
+                            val dx = change.position.x - downPos.x
+
+                            if (!isDrag) {
+                                if (kotlin.math.abs(dy) > slopPx && kotlin.math.abs(dy) > kotlin.math.abs(dx)) {
+                                    isDrag = true
+                                    dragMode = if (dy < 0) -1 else 1
+                                    change.consume()
+                                    val currentLift = if (dragMode < 0) dy + slopPx else dy - slopPx
+                                    lift = currentLift
+                                    if (dragMode < 0) {
+                                        val pUp = (-lift / expandDistance).coerceIn(0f, 1f)
+                                        currentState.onExpandDrag?.invoke(pUp)
+                                    }
+                                }
+                            } else {
+                                change.consume()
+                                if (isClosing) break
+                                val currentLift = if (dragMode < 0) (dy + slopPx).coerceAtMost(0f) else (dy - slopPx).coerceAtLeast(0f)
+                                lift = currentLift
+                                if (dragMode < 0) {
+                                    val pUp = (-lift / expandDistance).coerceIn(0f, 1f)
+                                    currentState.onExpandDrag?.invoke(pUp)
+                                }
+                            }
                         }
-                    },
-                )
+                    }
+                }
+                .graphicsLayer {
+                    if (lift > 0f) {
+                        val pDown = (lift / dismissDistance).coerceIn(0f, 1.5f)
+                        translationY = lift
+                        alpha = (1f - pDown * 0.75f).coerceIn(0f, 1f)
+                        scaleX = (1f - 0.05f * pDown).coerceIn(0.88f, 1f)
+                        scaleY = (1f - 0.05f * pDown).coerceIn(0.88f, 1f)
+                    } else {
+                        val pUp = (-lift / expandDistance).coerceIn(0f, 1f)
+                        translationY = lift * 0.2f
+                        alpha = (1f - 1.5f * pUp).coerceIn(0f, 1f)
+                    }
+                }
+                .semantics { role = Role.Button; onClick(label = "Expand") { currentState.onExpand(); true } }
                 .clip(shape).background(Vela.colors.surfaceVariant.toColor()).testTag(ComponentIds.MINI_PLAYER),
           ) {
-            Row(Modifier.fillMaxWidth().clickable(onClick = state.onExpand).padding(start = Vela.sm), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                // While the page is being dragged out of the card, this picture is the page's: the card keeps only its frame (and fades), so there is one picture, not two.
-                Box(Modifier.size(width = 64.dp, height = 36.dp).onGloballyPositioned { state.onPictureBounds(it.boundsInWindow()) }.graphicsLayer { alpha = if (started) 0f else 1f }.clip(Vela.smallShape).background(Vela.colors.mediaBackground.toColor())) {
-                    if (state.thumbnailUrl != null) AsyncImage(state.thumbnailUrl, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
-                    state.surface?.invoke(Modifier.matchParentSize())
+            Row(Modifier.fillMaxWidth().padding(start = Vela.sm), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+                Box(Modifier.size(width = 64.dp, height = 36.dp).onGloballyPositioned { currentState.onPictureBounds(it.boundsInWindow()) }.clip(Vela.smallShape).background(Vela.colors.mediaBackground.toColor())) {
+                    if (currentState.thumbnailUrl != null) AsyncImage(currentState.thumbnailUrl, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
+                    currentState.surface?.invoke(Modifier.matchParentSize())
                 }
-                Text(state.title, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                IconButton(onClick = state.onToggle, modifier = Modifier.testTag("mini.toggle")) { Icon(if (state.playing) Vela.icons.pause else Vela.icons.play, if (state.playing) "Pause" else "Play") }
-                IconButton(onClick = state.onClose, modifier = Modifier.testTag("mini.close")) { Icon(Vela.icons.close, "Close player") }
+                Text(currentState.title, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                IconButton(onClick = currentState.onToggle, modifier = Modifier.testTag("mini.toggle")) { Icon(if (currentState.playing) Vela.icons.pause else Vela.icons.play, if (currentState.playing) "Pause" else "Play") }
+                IconButton(onClick = handleClose, modifier = Modifier.testTag("mini.close")) { Icon(Vela.icons.close, "Close player") }
             }
             // The progress line is the card's bottom edge.
             Box(Modifier.fillMaxWidth().height(2.dp).background(Vela.colors.outline.toColor())) {
@@ -500,14 +598,65 @@ fun MiniPlayer(state: MiniState, look: MiniLook, shape: androidx.compose.ui.grap
             }
           }
         }
-        MiniLook.PIP -> Box(modifier.size(PIP_WIDTH, PIP_WIDTH * 9 / 16).onGloballyPositioned { state.onPictureBounds(it.boundsInWindow()) }.clip(shape).background(Vela.colors.mediaBackground.toColor()).clickable(onClick = state.onExpand).testTag(ComponentIds.MINI_PLAYER)) {
-            if (state.thumbnailUrl != null) AsyncImage(state.thumbnailUrl, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
-            state.surface?.invoke(Modifier.matchParentSize())
-            Box(Modifier.matchParentSize().background(Vela.colors.mediaScrim.toColor().copy(alpha = 0.35f)))
-            IconButton(onClick = state.onToggle, modifier = Modifier.align(Alignment.Center).testTag("mini.toggle")) { Icon(if (state.playing) Vela.icons.pause else Vela.icons.play, if (state.playing) "Pause" else "Play", tint = Vela.colors.onMedia.toColor()) }
-            IconButton(onClick = state.onClose, modifier = Modifier.align(Alignment.TopEnd).testTag("mini.close")) { Icon(Vela.icons.close, "Close player", tint = Vela.colors.onMedia.toColor()) }
-            Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Vela.colors.outline.toColor().copy(alpha = 0.5f))) {
-                Box(Modifier.fillMaxWidth(state.progress.coerceIn(0f, 1f)).fillMaxHeight().background(Vela.wake))
+        MiniLook.PIP -> {
+            var lift by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+            var isClosing by remember { mutableStateOf(false) }
+            val scope = androidx.compose.runtime.rememberCoroutineScope()
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            val dismissDistance = with(density) { 90.dp.toPx() }
+
+            val handleClose: () -> Unit = {
+                if (!isClosing) {
+                    isClosing = true
+                    scope.launch {
+                        androidx.compose.animation.core.animate(
+                            initialValue = lift,
+                            targetValue = dismissDistance * 1.4f,
+                            animationSpec = androidx.compose.animation.core.tween(180, easing = androidx.compose.animation.core.FastOutLinearInEasing),
+                        ) { x, _ -> lift = x }
+                        state.onClose()
+                    }
+                }
+            }
+
+            Box(
+                modifier.size(PIP_WIDTH, PIP_WIDTH * 9 / 16)
+                    .onGloballyPositioned { state.onPictureBounds(it.boundsInWindow()) }
+                    .graphicsLayer {
+                        if (lift > 0f) {
+                            val pDown = (lift / dismissDistance).coerceIn(0f, 1.5f)
+                            translationY = lift
+                            alpha = (1f - pDown * 0.75f).coerceIn(0f, 1f)
+                            scaleX = (1f - 0.05f * pDown).coerceIn(0.88f, 1f)
+                            scaleY = (1f - 0.05f * pDown).coerceIn(0.88f, 1f)
+                        }
+                    }
+                    .playerVerticalSwipe(
+                        onDelta = { dy ->
+                            if (!isClosing) lift = (lift + dy).coerceAtLeast(0f)
+                        },
+                        onEnd = { _, v ->
+                            if (isClosing) return@playerVerticalSwipe
+                            val pDown = (lift / dismissDistance).coerceIn(0f, 1f)
+                            if (pDown > 0.28f || v > 350f) {
+                                handleClose()
+                            } else {
+                                scope.launch {
+                                    androidx.compose.animation.core.animate(lift, 0f, animationSpec = androidx.compose.animation.core.spring(dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy, stiffness = androidx.compose.animation.core.Spring.StiffnessMedium)) { x, _ -> lift = x }
+                                }
+                            }
+                        },
+                    )
+                    .clip(shape).background(Vela.colors.mediaBackground.toColor()).clickable(onClick = state.onExpand).testTag(ComponentIds.MINI_PLAYER),
+            ) {
+                if (state.thumbnailUrl != null) AsyncImage(state.thumbnailUrl, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
+                state.surface?.invoke(Modifier.matchParentSize())
+                Box(Modifier.matchParentSize().background(Vela.colors.mediaScrim.toColor().copy(alpha = 0.35f)))
+                IconButton(onClick = state.onToggle, modifier = Modifier.align(Alignment.Center).testTag("mini.toggle")) { Icon(if (state.playing) Vela.icons.pause else Vela.icons.play, if (state.playing) "Pause" else "Play", tint = Vela.colors.onMedia.toColor()) }
+                IconButton(onClick = handleClose, modifier = Modifier.align(Alignment.TopEnd).testTag("mini.close")) { Icon(Vela.icons.close, "Close player", tint = Vela.colors.onMedia.toColor()) }
+                Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Vela.colors.outline.toColor().copy(alpha = 0.5f))) {
+                    Box(Modifier.fillMaxWidth(state.progress.coerceIn(0f, 1f)).fillMaxHeight().background(Vela.wake))
+                }
             }
         }
     }
