@@ -66,7 +66,7 @@ class Navigator(start: Route = Route.Home) {
     /** Set when the video page is minimized back into the mini player, so the layer exit transition does not animate. */
     var shrinkToMini by mutableStateOf(false)
     /** Where the mini player's picture last was (window coordinates): the page's picture grows from and shrinks back to it. */
-    var miniPicture: androidx.compose.ui.geometry.Rect? = null
+    var miniPicture by mutableStateOf<androidx.compose.ui.geometry.Rect?>(null)
     /** While a finger drags the mini player up: how far the page has grown out of it (0..1); -1 when nobody is dragging. The page follows it. */
     var expandDrive by mutableFloatStateOf(-1f)
         private set

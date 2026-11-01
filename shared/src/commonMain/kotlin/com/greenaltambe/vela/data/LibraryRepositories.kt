@@ -60,6 +60,23 @@ class HistoryLibrary(private val db: VelaDatabase, private val accountId: String
     fun progress(limit: Long = 500): Map<String, Float> = buildMap {
         for (r in recent(limit)) if (r.durationMs > 0 && r.videoId !in this) put(r.videoId, (r.positionMs.toFloat() / r.durationMs).coerceIn(0f, 1f))
     }
+
+    /**
+     * Videos that were started but not watched completely, newest first.
+     * Filtered to videos with a recorded position (at least 3 seconds or >= 2% watched)
+     * and less than 90% watched.
+     */
+    fun continueWatching(limit: Int = 10): List<WatchRecord> {
+        val records = recent(100).distinctBy { it.videoId }
+        return records.filter { r ->
+            if (r.durationMs > 0) {
+                val fraction = r.positionMs.toFloat() / r.durationMs
+                (fraction >= 0.02f || r.positionMs >= 3000L) && fraction < 0.90f
+            } else {
+                r.positionMs >= 3000L
+            }
+        }.take(limit)
+    }
 }
 
 class SearchHistoryRepository(private val db: VelaDatabase, private val accountId: String = LOCAL_ACCOUNT) {

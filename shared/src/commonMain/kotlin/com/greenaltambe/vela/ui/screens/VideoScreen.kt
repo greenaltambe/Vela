@@ -339,7 +339,7 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
     val playerBox: @Composable () -> Unit = {
         Box(Modifier.fillMaxWidth().testTag("video.player")) {
             if (host != null) PlayerView(
-                host, video, chapters, markers, Modifier.fillMaxWidth(), onBack = { navigator.back() }, seekStepSeconds = seekStep, holdSpeed = holdSpeedSetting, onPrevious = onPreviousVideo, onNext = onNextVideo,
+                host, video, chapters, markers, Modifier.fillMaxWidth(), onBack = { scope.launch { settlePage(1000f) } }, seekStepSeconds = seekStep, holdSpeed = holdSpeedSetting, onPrevious = onPreviousVideo, onNext = onNextVideo,
                 isLive = info?.isLive == true, resolvingNote = resolvingNote,
                 openAgeSetting = { navigator.selectTab(com.greenaltambe.vela.ui.nav.Route.Settings) },
                 tryAccountNow = services.accounts.active.value.takeIf { it.isSignedIn }?.let { a -> { services.governors.forAccount(a.id).tryNow() } }, showChapterTitle = size != WindowSizeClass.COMPACT,
@@ -555,7 +555,8 @@ fun VideoScreen(services: AppServices, navigator: Navigator, video: VideoSummary
         val miniWidthFallbackPx = with(density) { (if (miniPip) com.greenaltambe.vela.ui.components.PIP_WIDTH else 64.dp).toPx() }
         val miniH = miniWidthFallbackPx * 9f / 16f
         val marginPx = with(density) { 16.dp.toPx() }
-        val bottomClearPx = with(density) { 96.dp.toPx() }
+        val bottomInsetPx = WindowInsets.safeDrawing.getBottom(density).toFloat()
+        val bottomClearPx = bottomInsetPx + with(density) { 114.dp.toPx() }
         val real = navigator.miniPicture
         val validReal = real?.takeIf { it.top > pageHeightPx * 0.35f && it.width > 20f && it.height > 10f }
         val miniWidthPx = validReal?.width ?: miniWidthFallbackPx

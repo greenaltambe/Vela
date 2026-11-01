@@ -53,6 +53,18 @@ class LibraryRepositoriesTest {
         assertTrue(lib.recent().isEmpty())
     }
 
+    @Test fun continueWatchingFiltersStartedAndUnfinishedVideos() {
+        val repo = SqlDelightWatchHistoryRepository(db)
+        repo.begin("local", "not_started", "UC", "Not Started", at(1), 0, 100_000, 0)
+        repo.begin("local", "half_watched", "UC", "Half Watched", at(2), 50_000, 100_000, 50_000)
+        repo.begin("local", "completed", "UC", "Completed", at(3), 95_000, 100_000, 95_000)
+        repo.begin("local", "started_recent", "UC", "Started Recent", at(4), 10_000, 100_000, 10_000)
+
+        val lib = HistoryLibrary(db)
+        val cw = lib.continueWatching()
+        assertEquals(listOf("started_recent", "half_watched"), cw.map { it.videoId })
+    }
+
     @Test fun watchLaterExistsFromTheStartAndCannotBeRenamedOrDeleted() {
         val p = PlaylistRepository(db)
         val watchLater = p.all().single()

@@ -277,7 +277,7 @@ private fun AppShellContent(services: AppServices, navigator: Navigator) {
             com.greenaltambe.vela.ui.look.LocalAnimationsActive provides lifecycleState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED),
         ) {
             androidx.compose.runtime.SideEffect { navigator.shortsInPlayer = services.settings.shortsEnabled() }
-            val mini = if (chrome) rememberMiniState(services, navigator) else null
+            val mini = if (chrome) rememberMiniState(services, navigator, reveal) else null
             // The picture-in-picture look floats over the whole window (and can be dragged anywhere), so the bar does not carry it.
             val pipMini = mini != null && nav.miniLook == MiniLook.PIP
             // One structure for every layout: only the rail, top bar and bottom bar come and go. If the page itself moved
@@ -359,7 +359,12 @@ private fun PipOverlay(mini: MiniState, position: PipPosition, windowW: Float, w
         Modifier.offset { androidx.compose.ui.unit.IntOffset(at.x.roundToInt(), at.y.roundToInt()) }
             .shadow(8.dp, Vela.largeShape)
             .pointerInput(windowW, windowH) {
-                detectDragGestures { change, drag -> change.consume(); position.pos = clamp((position.pos ?: at) + drag) }
+                detectDragGestures { change, drag ->
+                    if (mini.alpha() > 0.05f) {
+                        change.consume()
+                        position.pos = clamp((position.pos ?: at) + drag)
+                    }
+                }
             },
     )
 }
@@ -392,33 +397,40 @@ private fun routeTitle(route: Route): String = when (route) {
 
 /** What the mini player shows, or null when nothing plays or the player's own page is open. */
 @Composable
-private fun rememberMiniState(services: AppServices, navigator: Navigator): MiniState? {
+private fun rememberMiniState(services: AppServices, navigator: Navigator, reveal: androidx.compose.runtime.MutableFloatState): MiniState? {
     val playing = navigator.nowPlaying ?: return null
     val host = services.player ?: return null
-    // While a finger drags the mini player up its page is already open underneath: the card stays (it is what the finger holds), without the picture (the page has it).
+    val inVideo = navigator.current is Route.Video && navigator.expandDrive < 0f
     val dragging = navigator.expandDrive >= 0f
-    if (navigator.current is Route.Video && !dragging) return null
     val state by host.controllerState.collectAsState()
-    return MiniState(
-        title = playing.title,
-        thumbnailUrl = playing.thumbnailUrl,
-        playing = state.status == PlaybackStatus.PLAYING,
-        progress = if (state.durationMs > 0) state.positionMs.toFloat() / state.durationMs else 0f,
-        onToggle = {
-            when {
-                state.status == PlaybackStatus.PLAYING -> host.session.pause()
-                // After a restart the mini player is restored but nothing is loaded: start it (it resumes from the saved position).
-                host.session.state.value is SessionState.Idle -> host.session.start(playing.id, playing)
-                else -> host.session.play()
-            }
-        },
-        onExpand = navigator::expandNowPlaying,
-        surface = if (dragging) null else ({ m -> host.Surface(m) }),
-        onPictureBounds = { navigator.miniPicture = it },
-        onExpandDrag = navigator::driveExpand,
-        onExpandRelease = navigator::finishExpand,
-        onClose = { host.session.stop(); navigator.clearNowPlaying() },
-    )
+    return remember(playing.id, state.status, state.durationMs, state.positionMs, inVideo, dragging) {
+        MiniState(
+            title = playing.title,
+            thumbnailUrl = playing.thumbnailUrl,
+            playing = state.status == PlaybackStatus.PLAYING,
+            progress = if (state.durationMs > 0) state.positionMs.toFloat() / state.durationMs else 0f,
+            onToggle = {
+                when {
+                    state.status == PlaybackStatus.PLAYING -> host.session.pause()
+                    // After a restart the mini player is restored but nothing is loaded: start it (it resumes from the saved position).
+                    host.session.state.value is SessionState.Idle -> host.session.start(playing.id, playing)
+                    else -> host.session.play()
+                }
+            },
+            onExpand = navigator::expandNowPlaying,
+            surface = if (inVideo || dragging) null else ({ m -> host.Surface(m) }),
+            onPictureBounds = { rect ->
+                if (navigator.miniPicture != rect) {
+                    navigator.miniPicture = rect
+                }
+            },
+            onExpandDrag = navigator::driveExpand,
+            onExpandRelease = navigator::finishExpand,
+            onClose = { host.session.stop(); navigator.clearNowPlaying() },
+            alpha = { if (navigator.current is Route.Video && navigator.expandDrive < 0f) reveal.floatValue.coerceIn(0f, 1f) else 1f },
+            interactive = !inVideo,
+        )
+    }
 }
 
 /**
@@ -465,13 +477,16 @@ private fun VideoLayer(services: AppServices, navigator: Navigator, route: Route
     val closing = navigator.lastAction == NavAction.POP
     val bg = Vela.colors.background.toColor()
     val quick = VelaMotion.tween<Float>(m, VelaMotion.Level.QUICK)
+    val shrinkToMini = navigator.shrinkToMini
+    LaunchedEffect(route) {
+        if (route !is Route.Video) navigator.shrinkToMini = false
+    }
     androidx.compose.animation.AnimatedVisibility(
         visible = route is Route.Video && shown != null, modifier = modifier,
         enter = if (m.reduced) androidx.compose.animation.fadeIn(quick)
             else if (navigator.growFromMini) androidx.compose.animation.EnterTransition.None
             else androidx.compose.animation.fadeIn(VelaMotion.tween(m, VelaMotion.Level.STANDARD)) + slideInVertically(VelaMotion.tween(m, VelaMotion.Level.STANDARD)) { it / 3 },
-        exit = if (m.reduced || navigator.shrinkToMini) {
-            navigator.shrinkToMini = false
+        exit = if (m.reduced || shrinkToMini) {
             androidx.compose.animation.ExitTransition.None
         } else if (pulled || !closing) {
             androidx.compose.animation.fadeOut(quick)

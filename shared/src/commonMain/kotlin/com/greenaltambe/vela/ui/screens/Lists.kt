@@ -89,6 +89,8 @@ fun VideoCollection(
     scroll: ScrollMemory? = null,
     /** False on a channel's own page, where every video is by that channel. */
     showChannelAvatar: Boolean = true,
+    injectedContent: (@Composable () -> Unit)? = null,
+    injectedIndex: Int = 2,
 ) {
     val size = LocalWindowSize.current
     val listState = androidx.compose.foundation.lazy.rememberLazyListState(scroll?.index ?: 0, scroll?.offset ?: 0)
@@ -113,6 +115,9 @@ fun VideoCollection(
     // The channel page opens at once; when the listing carries no channel id, the page finds it from the video behind its own loader.
     val channel = { v: VideoSummary -> navigator.push(Route.Channel(v.channelId, v.channelName, if (v.channelId.isBlank()) v.id else "")) }
 
+    val before = if (injectedContent != null && videos.isNotEmpty()) videos.take(injectedIndex) else videos
+    val after = if (injectedContent != null && videos.size > injectedIndex) videos.drop(injectedIndex) else emptyList()
+
     if (grid && size != WindowSizeClass.COMPACT) {
         LazyVerticalGrid(
             GridCells.Adaptive(minSize = 280.dp), modifier.fillMaxSize().testTag(testTag), state = gridState, contentPadding = padding,
@@ -120,9 +125,19 @@ fun VideoCollection(
         ) {
             header?.let { h -> item(span = { GridItemSpan(maxLineSpan) }) { h() } }
             stateItems(state) { SkeletonCard(vertical = true) }
-            gridItemsIndexed(videos, key = { _, v -> v.id }, contentType = { _, _ -> "video" }) { i, v ->
+            gridItemsIndexed(before, key = { _, v -> v.id }, contentType = { _, _ -> "video" }) { i, v ->
                 VideoCard(v, { open(v) }, modifier = Modifier.appearOnce(v.id, i), style = VideoCardStyle.VERTICAL, extras = extras(v), onChannelClick = { channel(v) }, showChannelAvatar = showChannelAvatar, trailing = trailing?.let { t -> { t(v) } })
-                if (onEndReached != null && v.id == videos.last().id) LaunchedEffect(videos.size) { onEndReached() }
+                if (onEndReached != null && after.isEmpty() && v.id == before.last().id) LaunchedEffect(videos.size) { onEndReached() }
+            }
+            if (injectedContent != null && before.isNotEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }, contentType = "injected") { injectedContent() }
+            }
+            if (after.isNotEmpty()) {
+                gridItemsIndexed(after, key = { _, v -> v.id }, contentType = { _, _ -> "video" }) { i, v ->
+                    val idx = before.size + i
+                    VideoCard(v, { open(v) }, modifier = Modifier.appearOnce(v.id, idx), style = VideoCardStyle.VERTICAL, extras = extras(v), onChannelClick = { channel(v) }, showChannelAvatar = showChannelAvatar, trailing = trailing?.let { t -> { t(v) } })
+                    if (onEndReached != null && v.id == after.last().id) LaunchedEffect(videos.size) { onEndReached() }
+                }
             }
             footer?.let { f -> item(span = { GridItemSpan(maxLineSpan) }) { f() } }
         }
@@ -135,9 +150,19 @@ fun VideoCollection(
             ) {
                 header?.let { h -> item { h() } }
                 stateItems(state) { SkeletonCard(vertical = vertical) }
-                itemsIndexed(videos, key = { _, v -> v.id }, contentType = { _, _ -> "video" }) { i, v ->
+                itemsIndexed(before, key = { _, v -> v.id }, contentType = { _, _ -> "video" }) { i, v ->
                     VideoCard(v, { open(v) }, modifier = Modifier.appearOnce(v.id, i), style = if (vertical) VideoCardStyle.VERTICAL else VideoCardStyle.HORIZONTAL, extras = extras(v), onChannelClick = { channel(v) }, showChannelAvatar = showChannelAvatar, trailing = trailing?.let { t -> { t(v) } })
-                    if (onEndReached != null && v.id == videos.last().id) LaunchedEffect(videos.size) { onEndReached() }
+                    if (onEndReached != null && after.isEmpty() && v.id == before.last().id) LaunchedEffect(videos.size) { onEndReached() }
+                }
+                if (injectedContent != null && before.isNotEmpty()) {
+                    item(contentType = "injected") { injectedContent() }
+                }
+                if (after.isNotEmpty()) {
+                    itemsIndexed(after, key = { _, v -> v.id }, contentType = { _, _ -> "video" }) { i, v ->
+                        val idx = before.size + i
+                        VideoCard(v, { open(v) }, modifier = Modifier.appearOnce(v.id, idx), style = if (vertical) VideoCardStyle.VERTICAL else VideoCardStyle.HORIZONTAL, extras = extras(v), onChannelClick = { channel(v) }, showChannelAvatar = showChannelAvatar, trailing = trailing?.let { t -> { t(v) } })
+                        if (onEndReached != null && v.id == after.last().id) LaunchedEffect(videos.size) { onEndReached() }
+                    }
                 }
                 footer?.let { f -> item { f() } }
             }

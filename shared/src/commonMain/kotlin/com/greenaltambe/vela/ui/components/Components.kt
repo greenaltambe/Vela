@@ -447,6 +447,8 @@ class MiniState(
     val onExpandRelease: (open: Boolean) -> Unit = {},
     /** Where the mini player's picture is in the window, so the page's picture can start from and return to exactly that place. */
     val onPictureBounds: (androidx.compose.ui.geometry.Rect) -> Unit = {},
+    val alpha: () -> Float = { 1f },
+    val interactive: Boolean = true,
 )
 
 /**
@@ -485,102 +487,107 @@ fun MiniPlayer(state: MiniState, look: MiniLook, shape: androidx.compose.ui.grap
           }
           val currentHandleClose by androidx.compose.runtime.rememberUpdatedState(handleClose)
 
+          val gestureModifier = if (state.interactive) {
+              Modifier.pointerInput(Unit) {
+                  awaitEachGesture {
+                      val down = awaitFirstDown(requireUnconsumed = false)
+                      val downId = down.id
+                      val downPos = down.position
+                      val tracker = VelocityTracker()
+                      tracker.addPosition(down.uptimeMillis, down.position)
+                      var isDrag = false
+                      var dragMode = 0 // -1: up, 1: down
+
+                      while (true) {
+                          val event = awaitPointerEvent()
+                          val change = event.changes.firstOrNull { it.id == downId }
+                          if (change == null || !change.pressed) {
+                              if (isDrag) {
+                                  val velocityY = tracker.calculateVelocity().y
+                                  if (dragMode < 0) {
+                                      val pUp = (-lift / expandDistance).coerceIn(0f, 1f)
+                                      val open = pUp > 0.15f || velocityY < -300f
+                                      lift = 0f
+                                      currentState.onExpandRelease(open)
+                                  } else if (dragMode > 0) {
+                                      val pDown = (lift / dismissDistance).coerceIn(0f, 1f)
+                                      val dismiss = pDown > 0.22f || velocityY > 300f
+                                      if (dismiss) {
+                                          currentHandleClose()
+                                      } else {
+                                          scope.launch {
+                                              androidx.compose.animation.core.animate(
+                                                  initialValue = lift,
+                                                  targetValue = 0f,
+                                                  animationSpec = androidx.compose.animation.core.spring(
+                                                      dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                                                      stiffness = androidx.compose.animation.core.Spring.StiffnessMedium,
+                                                  ),
+                                              ) { x, _ -> lift = x }
+                                          }
+                                      }
+                                  }
+                              } else {
+                                  val dy = (change?.position?.y ?: downPos.y) - downPos.y
+                                  val dx = (change?.position?.x ?: downPos.x) - downPos.x
+                                  val moved = kotlin.math.abs(dy) > slopPx || kotlin.math.abs(dx) > slopPx
+                                  if (change?.isConsumed == false && !moved) {
+                                      change.consume()
+                                      currentState.onExpand()
+                                  }
+                              }
+                              break
+                          }
+
+                          tracker.addPosition(change.uptimeMillis, change.position)
+                          val dy = change.position.y - downPos.y
+                          val dx = change.position.x - downPos.x
+
+                          if (!isDrag) {
+                              if (kotlin.math.abs(dy) > slopPx && kotlin.math.abs(dy) > kotlin.math.abs(dx)) {
+                                  isDrag = true
+                                  dragMode = if (dy < 0) -1 else 1
+                                  change.consume()
+                                  val currentLift = if (dragMode < 0) dy + slopPx else dy - slopPx
+                                  lift = currentLift
+                                  if (dragMode < 0) {
+                                      val pUp = (-lift / expandDistance).coerceIn(0f, 1f)
+                                      currentState.onExpandDrag?.invoke(pUp)
+                                  }
+                              }
+                          } else {
+                              change.consume()
+                              if (isClosing) break
+                              val currentLift = if (dragMode < 0) (dy + slopPx).coerceAtMost(0f) else (dy - slopPx).coerceAtLeast(0f)
+                              lift = currentLift
+                              if (dragMode < 0) {
+                                  val pUp = (-lift / expandDistance).coerceIn(0f, 1f)
+                                  currentState.onExpandDrag?.invoke(pUp)
+                              }
+                          }
+                      }
+                  }
+              }
+          } else Modifier
+
           Column(
             modifier.onGloballyPositioned { topPx = it.boundsInWindow().top }
-                .pointerInput(Unit) {
-                    awaitEachGesture {
-                        val down = awaitFirstDown(requireUnconsumed = false)
-                        val downId = down.id
-                        val downPos = down.position
-                        val tracker = VelocityTracker()
-                        tracker.addPosition(down.uptimeMillis, down.position)
-                        var isDrag = false
-                        var dragMode = 0 // -1: up, 1: down
-
-                        while (true) {
-                            val event = awaitPointerEvent()
-                            val change = event.changes.firstOrNull { it.id == downId }
-                            if (change == null || !change.pressed) {
-                                if (isDrag) {
-                                    val velocityY = tracker.calculateVelocity().y
-                                    if (dragMode < 0) {
-                                        val pUp = (-lift / expandDistance).coerceIn(0f, 1f)
-                                        val open = pUp > 0.15f || velocityY < -300f
-                                        lift = 0f
-                                        currentState.onExpandRelease(open)
-                                    } else if (dragMode > 0) {
-                                        val pDown = (lift / dismissDistance).coerceIn(0f, 1f)
-                                        val dismiss = pDown > 0.22f || velocityY > 300f
-                                        if (dismiss) {
-                                            currentHandleClose()
-                                        } else {
-                                            scope.launch {
-                                                androidx.compose.animation.core.animate(
-                                                    initialValue = lift,
-                                                    targetValue = 0f,
-                                                    animationSpec = androidx.compose.animation.core.spring(
-                                                        dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
-                                                        stiffness = androidx.compose.animation.core.Spring.StiffnessMedium,
-                                                    ),
-                                                ) { x, _ -> lift = x }
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    val dy = (change?.position?.y ?: downPos.y) - downPos.y
-                                    val dx = (change?.position?.x ?: downPos.x) - downPos.x
-                                    val moved = kotlin.math.abs(dy) > slopPx || kotlin.math.abs(dx) > slopPx
-                                    if (change?.isConsumed == false && !moved) {
-                                        change.consume()
-                                        currentState.onExpand()
-                                    }
-                                }
-                                break
-                            }
-
-                            tracker.addPosition(change.uptimeMillis, change.position)
-                            val dy = change.position.y - downPos.y
-                            val dx = change.position.x - downPos.x
-
-                            if (!isDrag) {
-                                if (kotlin.math.abs(dy) > slopPx && kotlin.math.abs(dy) > kotlin.math.abs(dx)) {
-                                    isDrag = true
-                                    dragMode = if (dy < 0) -1 else 1
-                                    change.consume()
-                                    val currentLift = if (dragMode < 0) dy + slopPx else dy - slopPx
-                                    lift = currentLift
-                                    if (dragMode < 0) {
-                                        val pUp = (-lift / expandDistance).coerceIn(0f, 1f)
-                                        currentState.onExpandDrag?.invoke(pUp)
-                                    }
-                                }
-                            } else {
-                                change.consume()
-                                if (isClosing) break
-                                val currentLift = if (dragMode < 0) (dy + slopPx).coerceAtMost(0f) else (dy - slopPx).coerceAtLeast(0f)
-                                lift = currentLift
-                                if (dragMode < 0) {
-                                    val pUp = (-lift / expandDistance).coerceIn(0f, 1f)
-                                    currentState.onExpandDrag?.invoke(pUp)
-                                }
-                            }
-                        }
-                    }
-                }
+                .then(gestureModifier)
                 .graphicsLayer {
+                    val currentAlpha = currentState.alpha()
                     if (lift > 0f) {
                         val pDown = (lift / dismissDistance).coerceIn(0f, 1.5f)
                         translationY = lift
-                        alpha = (1f - pDown * 0.75f).coerceIn(0f, 1f)
+                        alpha = (1f - pDown * 0.75f).coerceIn(0f, 1f) * currentAlpha
                         scaleX = (1f - 0.05f * pDown).coerceIn(0.88f, 1f)
                         scaleY = (1f - 0.05f * pDown).coerceIn(0.88f, 1f)
                     } else {
                         val pUp = (-lift / expandDistance).coerceIn(0f, 1f)
                         translationY = lift * 0.2f
-                        alpha = (1f - 1.5f * pUp).coerceIn(0f, 1f)
+                        alpha = (1f - 1.5f * pUp).coerceIn(0f, 1f) * currentAlpha
                     }
                 }
-                .semantics { role = Role.Button; onClick(label = "Expand") { currentState.onExpand(); true } }
+                .semantics { role = Role.Button; onClick(label = "Expand") { if (state.interactive) { currentState.onExpand(); true } else false } }
                 .clip(shape).background(Vela.colors.surfaceVariant.toColor()).testTag(ComponentIds.MINI_PLAYER),
           ) {
             Row(Modifier.fillMaxWidth().padding(start = Vela.sm), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
@@ -589,8 +596,8 @@ fun MiniPlayer(state: MiniState, look: MiniLook, shape: androidx.compose.ui.grap
                     currentState.surface?.invoke(Modifier.matchParentSize())
                 }
                 Text(currentState.title, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                IconButton(onClick = currentState.onToggle, modifier = Modifier.testTag("mini.toggle")) { Icon(if (currentState.playing) Vela.icons.pause else Vela.icons.play, if (currentState.playing) "Pause" else "Play") }
-                IconButton(onClick = handleClose, modifier = Modifier.testTag("mini.close")) { Icon(Vela.icons.close, "Close player") }
+                IconButton(onClick = { if (state.interactive) currentState.onToggle() }, enabled = state.interactive, modifier = Modifier.testTag("mini.toggle")) { Icon(if (currentState.playing) Vela.icons.pause else Vela.icons.play, if (currentState.playing) "Pause" else "Play") }
+                IconButton(onClick = { if (state.interactive) handleClose() }, enabled = state.interactive, modifier = Modifier.testTag("mini.close")) { Icon(Vela.icons.close, "Close player") }
             }
             // The progress line is the card's bottom edge.
             Box(Modifier.fillMaxWidth().height(2.dp).background(Vela.colors.outline.toColor())) {
@@ -619,41 +626,49 @@ fun MiniPlayer(state: MiniState, look: MiniLook, shape: androidx.compose.ui.grap
                 }
             }
 
+            val pipGestureModifier = if (state.interactive) {
+                Modifier.playerVerticalSwipe(
+                    startsOn = { true },
+                    onDelta = { dy ->
+                        if (!isClosing) lift = (lift + dy).coerceAtLeast(0f)
+                    },
+                    onEnd = { _, v ->
+                        if (isClosing) return@playerVerticalSwipe
+                        val pDown = (lift / dismissDistance).coerceIn(0f, 1f)
+                        if (pDown > 0.28f || v > 350f) {
+                            handleClose()
+                        } else {
+                            scope.launch {
+                                androidx.compose.animation.core.animate(lift, 0f, animationSpec = androidx.compose.animation.core.spring(dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy, stiffness = androidx.compose.animation.core.Spring.StiffnessMedium)) { x, _ -> lift = x }
+                            }
+                        }
+                    },
+                ).clickable(onClick = state.onExpand)
+            } else Modifier
+
             Box(
                 modifier.size(PIP_WIDTH, PIP_WIDTH * 9 / 16)
                     .onGloballyPositioned { state.onPictureBounds(it.boundsInWindow()) }
+                    .then(pipGestureModifier)
                     .graphicsLayer {
+                        val currentAlpha = state.alpha()
                         if (lift > 0f) {
                             val pDown = (lift / dismissDistance).coerceIn(0f, 1.5f)
                             translationY = lift
-                            alpha = (1f - pDown * 0.75f).coerceIn(0f, 1f)
+                            alpha = (1f - pDown * 0.75f).coerceIn(0f, 1f) * currentAlpha
                             scaleX = (1f - 0.05f * pDown).coerceIn(0.88f, 1f)
                             scaleY = (1f - 0.05f * pDown).coerceIn(0.88f, 1f)
+                        } else {
+                            alpha = currentAlpha
                         }
                     }
-                    .playerVerticalSwipe(
-                        onDelta = { dy ->
-                            if (!isClosing) lift = (lift + dy).coerceAtLeast(0f)
-                        },
-                        onEnd = { _, v ->
-                            if (isClosing) return@playerVerticalSwipe
-                            val pDown = (lift / dismissDistance).coerceIn(0f, 1f)
-                            if (pDown > 0.28f || v > 350f) {
-                                handleClose()
-                            } else {
-                                scope.launch {
-                                    androidx.compose.animation.core.animate(lift, 0f, animationSpec = androidx.compose.animation.core.spring(dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy, stiffness = androidx.compose.animation.core.Spring.StiffnessMedium)) { x, _ -> lift = x }
-                                }
-                            }
-                        },
-                    )
-                    .clip(shape).background(Vela.colors.mediaBackground.toColor()).clickable(onClick = state.onExpand).testTag(ComponentIds.MINI_PLAYER),
+                    .clip(shape).background(Vela.colors.mediaBackground.toColor()).testTag(ComponentIds.MINI_PLAYER),
             ) {
                 if (state.thumbnailUrl != null) AsyncImage(state.thumbnailUrl, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
                 state.surface?.invoke(Modifier.matchParentSize())
                 Box(Modifier.matchParentSize().background(Vela.colors.mediaScrim.toColor().copy(alpha = 0.35f)))
-                IconButton(onClick = state.onToggle, modifier = Modifier.align(Alignment.Center).testTag("mini.toggle")) { Icon(if (state.playing) Vela.icons.pause else Vela.icons.play, if (state.playing) "Pause" else "Play", tint = Vela.colors.onMedia.toColor()) }
-                IconButton(onClick = handleClose, modifier = Modifier.align(Alignment.TopEnd).testTag("mini.close")) { Icon(Vela.icons.close, "Close player", tint = Vela.colors.onMedia.toColor()) }
+                IconButton(onClick = { if (state.interactive) state.onToggle() }, enabled = state.interactive, modifier = Modifier.align(Alignment.Center).testTag("mini.toggle")) { Icon(if (state.playing) Vela.icons.pause else Vela.icons.play, if (state.playing) "Pause" else "Play", tint = Vela.colors.onMedia.toColor()) }
+                IconButton(onClick = { if (state.interactive) handleClose() }, enabled = state.interactive, modifier = Modifier.align(Alignment.TopEnd).testTag("mini.close")) { Icon(Vela.icons.close, "Close player", tint = Vela.colors.onMedia.toColor()) }
                 Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Vela.colors.outline.toColor().copy(alpha = 0.5f))) {
                     Box(Modifier.fillMaxWidth(state.progress.coerceIn(0f, 1f)).fillMaxHeight().background(Vela.wake))
                 }
