@@ -261,10 +261,18 @@ fun PlayerView(
             modifier = Modifier.align(Alignment.TopCenter).padding(top = Vela.md).clip(Vela.pillShape).background(Vela.colors.mediaScrim.toColor().copy(alpha = 0.55f)).padding(horizontal = Vela.md, vertical = Vela.xs).testTag("player.holdSpeed"),
         ) }
 
-        if (buffering && failed == null) CircularProgressIndicator(Modifier.align(Alignment.Center).size(40.dp).testTag("player.spinner"), color = onMedia)
-        if (resolving && failed == null && resolvingNote != null) Text(resolvingNote, Modifier.align(Alignment.BottomCenter).padding(Vela.gutter).testTag("player.resolvingNote"), color = onMedia, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        if (buffering && failed == null) {
+            val spinnerSize = if (!controlsEnabled) 18.dp else 40.dp
+            val strokeWidth = if (!controlsEnabled) 2.dp else androidx.compose.material3.ProgressIndicatorDefaults.CircularStrokeWidth
+            CircularProgressIndicator(
+                modifier = Modifier.align(Alignment.Center).size(spinnerSize).testTag("player.spinner"),
+                strokeWidth = strokeWidth,
+                color = onMedia,
+            )
+        }
+        if (resolving && failed == null && resolvingNote != null && controlsEnabled) Text(resolvingNote, Modifier.align(Alignment.BottomCenter).padding(Vela.gutter).testTag("player.resolvingNote"), color = onMedia, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, maxLines = 3, overflow = TextOverflow.Ellipsis)
 
-        if (failed != null) {
+        if (failed != null && controlsEnabled) {
             Column(Modifier.align(Alignment.Center).padding(Vela.md), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
                 val tiersFailed = failed.extractorError as? com.greenaltambe.vela.extractor.TiersFailed
                 val needsSignIn = failed.extractorError?.reason == com.greenaltambe.vela.extractor.FailureReason.SIGN_IN_REQUIRED

@@ -117,7 +117,7 @@ object LookSettings {
 
     val all: List<Setting<*>> = listOf(
         theme, palette, colorMode, customColor, corners, density, textScale, font, titleWeight,
-        iconStyle, iconWeight, iconRounded, progressStyle, navTabs, navOpenOn, navLabels, barStyle, navShrink, navMarker, miniLook, miniPlacement, miniGap, railCollapsed, glass, reduceMotion,
+        iconStyle, iconWeight, iconRounded, progressStyle, navTabs, navOpenOn, navLabels, barStyle, navShrink, navMarker, miniLook, railCollapsed, glass, reduceMotion,
     )
 }
 

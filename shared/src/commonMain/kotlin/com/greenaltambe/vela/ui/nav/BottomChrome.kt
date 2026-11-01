@@ -114,7 +114,6 @@ fun BottomChrome(
     val radius = Vela.look.radii.largeDp.dp
     val pip = nav.miniLook == MiniLook.PIP
     val showMiniSpace = (hasMiniPlayer || mini != null) && !pip
-    val gap = if (showMiniSpace) nav.miniGapDp.dp else 0.dp
     val margin = if (docked) 0.dp else Vela.md
 
     Column(
@@ -125,7 +124,7 @@ fun BottomChrome(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         if (showMiniSpace) {
-            Spacer(Modifier.height(56.dp + gap))
+            Spacer(Modifier.height(56.dp))
         }
         BottomNav(entries, selected, labelsVisible = nav.labels == NavLabels.ALWAYS, marker = nav.marker, shrink = f, shape = RoundedCornerShape(radius), onSelect = onSelect, bottomInset = docked, modifier = Modifier.fillMaxWidth())
     }
