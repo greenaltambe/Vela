@@ -316,7 +316,8 @@ private fun AppShellContent(services: AppServices, navigator: Navigator) {
                         var chromeHeightPx by remember { mutableIntStateOf(0) }
                         val density = androidx.compose.ui.platform.LocalDensity.current
                         // The page leaves room for a bar that floats over it: its full (unshrunk) height, so a shrinking bar never reflows the list.
-                        val inset = if (barOverlays) with(density) { chromeHeightPx.toDp() } else 0.dp
+                        val desktopMiniInset = if (sheetState.isVisible) (if (nav.miniLook == MiniLook.PIP) 120.dp else 76.dp) else 0.dp
+                        val inset = if (barOverlays) with(density) { chromeHeightPx.toDp() } else if (rail) desktopMiniInset else 0.dp
                         // Keyed by the active account, so switching rebuilds every screen on the new account's data.
                         val activeAccount by services.accounts.active.collectAsState()
                         Box(Modifier.weight(1f).fillMaxWidth().nestedScroll(scroll.connection)) {

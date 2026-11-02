@@ -22,6 +22,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.greenaltambe.vela.ui.look.Vela
 import com.greenaltambe.vela.ui.look.toColor
+import com.greenaltambe.vela.ui.nav.LocalChromeInset
 import com.greenaltambe.vela.ui.platform.LocalVolumeSlider
 
 /** What Ctrl+R does on the page that is showing: the page registers its refresh here (desktop). */
@@ -43,11 +44,17 @@ fun RefreshBox(isRefreshing: Boolean, onRefresh: () -> Unit, modifier: Modifier 
         handle?.action = mine
         onDispose { if (handle?.action === mine) handle.action = null }
     }
+    val chromeInset = LocalChromeInset.current
     Box(modifier) {
         content()
         IconButton(
             onClick = onRefresh, enabled = !isRefreshing,
-            modifier = Modifier.align(Alignment.BottomEnd).padding(Vela.md).clip(Vela.pillShape).background(Vela.colors.surfaceVariant.toColor()).testTag("page.refresh"),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = Vela.md, bottom = Vela.md + chromeInset)
+                .clip(Vela.pillShape)
+                .background(Vela.colors.surfaceVariant.toColor())
+                .testTag("page.refresh"),
         ) {
             if (isRefreshing) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
             else Icon(Vela.icons.refresh, "Refresh (Ctrl+R)")

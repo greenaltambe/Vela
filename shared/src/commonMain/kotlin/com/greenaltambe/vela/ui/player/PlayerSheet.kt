@@ -107,18 +107,27 @@ fun PlayerSheet(
     val bottomClearPx = bottomInsetPx + with(density) { (if (nav.barStyle == BarStyle.DOCKED) 64.dp else 72.dp).toPx() }
     val marginPx = with(density) { (if (nav.barStyle == BarStyle.DOCKED) 0.dp else Vela.md).toPx() }
 
+    val sizeClass = com.greenaltambe.vela.ui.layout.LocalWindowSize.current
+    val rail = sizeClass != com.greenaltambe.vela.ui.layout.WindowSizeClass.COMPACT && !isFullscreen
+    val railWidthDp = if (!rail) 0.dp else if (nav.railCollapsed) 72.dp else 176.dp
+    val railWidthPx = with(density) { railWidthDp.toPx() }
+    val contentW = winW - railWidthPx
+
     val cardBottom = winH - bottomClearPx
     val cardTop = cardBottom - cardHeightPx
-    val cardLeft = marginPx
-    val cardWidth = winW - marginPx * 2
+    val cardLeft = railWidthPx + marginPx
+    val cardWidth = contentW - marginPx * 2
 
     // Dynamic morphing sheet bounds:
+    val targetExpandedX = if (rail) railWidthPx else 0f
+    val targetExpandedW = if (rail) contentW else winW
+
     val sheetX = if (isPip) {
         val pipW = with(density) { PIP_WIDTH.toPx() }
         val at = pipPos?.pos ?: Offset(winW - pipW - marginPx, cardBottom - pipW * 9f / 16f)
-        at.x * fraction
+        at.x * fraction + targetExpandedX * p
     } else {
-        cardLeft * fraction
+        cardLeft * fraction + targetExpandedX * p
     }
 
     val sheetY = if (isPip) {
@@ -132,9 +141,9 @@ fun PlayerSheet(
 
     val sheetW = if (isPip) {
         val pipW = with(density) { PIP_WIDTH.toPx() }
-        pipW + (winW - pipW) * p
+        pipW + (targetExpandedW - pipW) * p
     } else {
-        cardWidth + (winW - cardWidth) * p
+        cardWidth + (targetExpandedW - cardWidth) * p
     }
 
     val sheetH = if (isPip) {
