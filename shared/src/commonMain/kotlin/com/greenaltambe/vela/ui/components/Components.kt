@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -95,6 +96,7 @@ import com.greenaltambe.vela.library.formatTimestamp
 import com.greenaltambe.vela.ui.look.ComponentIds
 import com.greenaltambe.vela.ui.look.Vela
 import com.greenaltambe.vela.ui.look.pressFeedback
+import com.greenaltambe.vela.ui.look.focusRing
 import com.greenaltambe.vela.ui.look.popOnSelect
 import com.greenaltambe.vela.ui.look.toColor
 import com.greenaltambe.vela.ui.nav.Route
@@ -701,7 +703,7 @@ fun SecondaryButton(label: String, onClick: () -> Unit, modifier: Modifier = Mod
     ) { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) }
 }
 
-/** An icon with a short label under it: the video page's action row (Download, Save, Share). */
+/** A pill button for the video page's action row (Like, Dislike, Download, Save, Share) with a bouncy tap animation. */
 @Composable
 fun ActionChip(
     icon: ImageVector,
@@ -710,14 +712,107 @@ fun ActionChip(
     modifier: Modifier = Modifier,
     selected: Boolean = false,
     selectedIcon: ImageVector? = null,
+    enabled: Boolean = true,
 ) {
-    Column(
-        modifier.heightIn(min = Vela.minTouch).widthIn(min = Vela.minTouch).clip(Vela.mediumShape).clickable(onClick = onClick).padding(horizontal = Vela.sm, vertical = Vela.xs),
-        horizontalAlignment = Alignment.CenterHorizontally,
+    val m = Vela.motion
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val isHovered by interactionSource.collectIsHoveredAsState()
+
+    // Tactile pill tap animation: smooth scale compression on press, bouncy spring rebound on release
+    val scale = remember { androidx.compose.animation.core.Animatable(1f) }
+
+    androidx.compose.runtime.LaunchedEffect(isPressed) {
+        if (m.reduced) {
+            scale.snapTo(1f)
+            return@LaunchedEffect
+        }
+        if (isPressed) {
+            scale.animateTo(
+                targetValue = 0.91f,
+                animationSpec = androidx.compose.animation.core.tween(durationMillis = 80, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+            )
+        } else {
+            scale.animateTo(
+                targetValue = 1f,
+                animationSpec = androidx.compose.animation.core.spring(
+                    dampingRatio = 0.42f,
+                    stiffness = 380f
+                )
+            )
+        }
+    }
+
+    val animatedBgColor by androidx.compose.animation.animateColorAsState(
+        targetValue = when {
+            selected -> Vela.colors.primary.toColor().copy(alpha = 0.22f)
+            isPressed -> Vela.colors.surfaceVariant.toColor().copy(alpha = 0.70f)
+            isHovered -> Vela.colors.surfaceVariant.toColor().copy(alpha = 0.88f)
+            else -> Vela.colors.surfaceVariant.toColor()
+        },
+        animationSpec = androidx.compose.animation.core.tween(durationMillis = 150),
+        label = "pillBgColor"
+    )
+
+    val animatedContentColor by androidx.compose.animation.animateColorAsState(
+        targetValue = if (selected) Vela.colors.primary.toColor() else Vela.colors.onSurface.toColor(),
+        animationSpec = androidx.compose.animation.core.tween(durationMillis = 150),
+        label = "pillContentColor"
+    )
+
+    val shape = Vela.pillShape
+    val shown = if (selected && selectedIcon != null) selectedIcon else icon
+
+    Row(
+        modifier = modifier
+            .graphicsLayer {
+                scaleX = scale.value
+                scaleY = scale.value
+            }
+            .clip(shape)
+            .background(animatedBgColor)
+            .focusRing(interactionSource, shape)
+            .hoverable(interactionSource)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                enabled = enabled,
+                role = Role.Button,
+                onClick = {
+                    if (!m.reduced && scale.value > 0.95f) {
+                        scope.launch {
+                            scale.animateTo(0.91f, androidx.compose.animation.core.tween(durationMillis = 60, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+                            scale.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.42f, stiffness = 380f))
+                        }
+                    }
+                    onClick()
+                }
+            )
+            .height(38.dp)
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        val shown = if (selected && selectedIcon != null) selectedIcon else icon
-        Icon(shown, null, Modifier.popOnSelect(selected), tint = if (selected) Vela.colors.primary.toColor() else Vela.colors.onSurface.toColor())
-        Text(label, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
+        Icon(
+            imageVector = shown,
+            contentDescription = null,
+            modifier = Modifier
+                .size(19.dp)
+                .popOnSelect(selected),
+            tint = animatedContentColor
+        )
+        if (label.isNotBlank()) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                softWrap = false,
+                color = animatedContentColor
+            )
+        }
     }
 }
 

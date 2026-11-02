@@ -365,8 +365,14 @@ fun VideoScreen(
             val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
             // Five actions do not fit one phone width at full label size: they keep their natural size and the row scrolls sideways when it must, never clipping one.
             androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
-            // Spread edge to edge when they fit (no wasted margin at the sides); when they do not, the row is as wide as it needs and scrolls.
-            Row(Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()).widthIn(min = maxWidth).testTag("video.actions"), horizontalArrangement = Arrangement.SpaceBetween) {
+            Row(
+                Modifier
+                    .horizontalScroll(androidx.compose.foundation.rememberScrollState())
+                    .padding(vertical = Vela.xs)
+                    .testTag("video.actions"),
+                horizontalArrangement = Arrangement.spacedBy(Vela.sm),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 // The viewer's own like and dislike (account only); the counts next to them are Return YouTube Dislike's. With RYD off or
                 // unreachable there is no count: the like says "Like", the dislike button stays and says "Dislike".
                 val canRate = services.actions != null && services.accounts.active.value.isSignedIn
