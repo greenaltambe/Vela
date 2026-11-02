@@ -3,6 +3,7 @@ package com.greenaltambe.vela.ui.screens
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.requiredWidth
@@ -86,6 +87,7 @@ import com.greenaltambe.vela.player.PlaybackPlan
 import com.greenaltambe.vela.player.PlaybackSession
 import com.greenaltambe.vela.player.SessionState
 import com.greenaltambe.vela.ui.components.ActionChip
+import com.greenaltambe.vela.ui.components.HScrollableRow
 import com.greenaltambe.vela.ui.components.Avatar
 import com.greenaltambe.vela.ui.components.ChapterRow
 import com.greenaltambe.vela.ui.components.CommentItem
@@ -363,15 +365,10 @@ fun VideoScreen(
         item {
             var saveMenu by remember { mutableStateOf(false) }
             val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
-            // Five actions do not fit one phone width at full label size: they keep their natural size and the row scrolls sideways when it must, never clipping one.
-            androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
-            Row(
-                Modifier
-                    .horizontalScroll(androidx.compose.foundation.rememberScrollState())
-                    .padding(vertical = Vela.xs)
-                    .testTag("video.actions"),
+            HScrollableRow(
+                modifier = Modifier.fillMaxWidth(),
+                rowModifier = Modifier.testTag("video.actions"),
                 horizontalArrangement = Arrangement.spacedBy(Vela.sm),
-                verticalAlignment = Alignment.CenterVertically
             ) {
                 // The viewer's own like and dislike (account only); the counts next to them are Return YouTube Dislike's. With RYD off or
                 // unreachable there is no count: the like says "Like", the dislike button stays and says "Dislike".
@@ -411,7 +408,6 @@ fun VideoScreen(
                     val link = "https://youtu.be/${video.id}"
                     if (share != null) share(shownTitle, link) else { clipboard.setText(AnnotatedString(link)); actionError = null; actionNote = "Link copied: $link" }
                 }, Modifier.testTag("video.share"))
-            }
             }
         }
         info?.takeIf { it.description.isNotBlank() }?.let { d ->
@@ -587,7 +583,9 @@ fun VideoScreen(
         Row(modifier.fillMaxSize().drawBehind { drawRect(bg) }) {
             Column(Modifier.weight(1.6f).fillMaxSize()) {
                 Spacer(Modifier.height(topInsetDp))
-                playerBox()
+                Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
+                    playerBox()
+                }
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     LazyColumn(Modifier.fillMaxSize().testTag("video.list"), state = detailsState, contentPadding = Vela.contentPadding, verticalArrangement = gap) { details() }
                     commentsPanel(Modifier.fillMaxSize())
