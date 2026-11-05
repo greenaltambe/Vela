@@ -155,20 +155,45 @@ class MainActivity : ComponentActivity() {
             .setNegativeButton("Not now", null).show()
     }
 
+    /** Many phones keep an app at 60 Hz unless it asks: pick the display's highest-rate mode for the current resolution. */
+    private fun requestHighRefreshRate() {
+        try {
+            val display = if (android.os.Build.VERSION.SDK_INT >= 30) display else @Suppress("DEPRECATION") windowManager.defaultDisplay
+            val current = display?.mode ?: return
+            val best = display.supportedModes
+                .filter { it.physicalWidth == current.physicalWidth && it.physicalHeight == current.physicalHeight }
+                .maxByOrNull { it.refreshRate } ?: return
+            window.attributes = window.attributes.also {
+                it.preferredDisplayModeId = best.modeId
+                if (android.os.Build.VERSION.SDK_INT < 31) it.preferredRefreshRate = best.refreshRate
+            }
+        } catch (_: Throwable) { /* a hint only */ }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         com.greenaltambe.vela.ui.platform.configureImageLoader(applicationContext)
+        requestHighRefreshRate()
+        // The data layer (database, accounts/Keystore, extractor tiers, modules) is built lazily; start building it off the main thread now so the first
+        // composition, which needs all of it, mostly finds it ready. The lazies are synchronized, so nothing is built twice.
+        Thread {
+            runCatching { runtime.database; runtime.accounts; runtime.modules; runtime.chain }
+        }.apply { name = "vela-warmup"; start() }
         explainBatteryOptimisationOnce()
         ContextCompat.registerReceiver(this, pipToggle, IntentFilter(ACTION_PIP_TOGGLE), ContextCompat.RECEIVER_NOT_EXPORTED)
 
         if (savedInstanceState == null) openLinkFrom(intent)
 
         // Keeps the PiP window's play/pause action in step, and (API 31+) lets the system enter PiP on its own when the user leaves.
-        scope.launch {
-            combine(runtime.controller.state, runtime.session.state) { player, session -> player.status to session }.collect { (status, session) ->
-                setPictureInPictureParams(pipParams(status == PlaybackStatus.PLAYING, (session as? SessionState.Ready)?.plan?.videoHeight != null))
+        // After the first frame (idle main thread): this builds ExoPlayer and the playback session, which the first screen does not need.
+        android.os.Looper.myQueue().addIdleHandler {
+            scope.launch {
+                combine(runtime.controller.state, runtime.session.state) { player, session -> player.status to session }.collect { (status, session) ->
+                    setPictureInPictureParams(pipParams(status == PlaybackStatus.PLAYING, (session as? SessionState.Ready)?.plan?.videoHeight != null))
+                }
             }
+            false
         }
 
         setContent {

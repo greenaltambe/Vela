@@ -6,6 +6,9 @@ import kotlin.time.Instant
 /** One page of a paged listing. [continuation] is an opaque, tier-specific token for the next page; null when there is none. */
 data class Page<T>(val items: List<T>, val continuation: String? = null)
 
+// Immutable by contract: `Instant` is an external type the Compose compiler cannot prove stable, which made every card compare by
+// identity and recompose whenever the feed pipeline rebuilt the list. With this, an unchanged video lets its card be skipped.
+@androidx.compose.runtime.Immutable
 data class VideoSummary(
     val id: String,
     val title: String,
@@ -29,7 +32,7 @@ data class VideoSummary(
 )
 
 @Serializable
-data class Chapter(val title: String, val startSeconds: Long)
+data class Chapter(val title: String, val startSeconds: Long, val thumbnailUrl: String? = null)
 
 data class VideoInfo(
     val id: String,

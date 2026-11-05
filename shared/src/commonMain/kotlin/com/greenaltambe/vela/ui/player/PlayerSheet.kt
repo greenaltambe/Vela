@@ -24,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -34,6 +35,8 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalDensity
@@ -98,9 +101,8 @@ fun PlayerSheet(
     val bottomInsetPx = WindowInsets.safeDrawing.getBottom(density).toFloat()
     val topInsetPx = WindowInsets.safeDrawing.getTop(density).toFloat()
 
-    val p = sheetState.progress.coerceIn(0f, 1f)
-    val fraction = 1f - p
-
+    // Progress is NOT read here: reading it in composition recomposed this sheet and the whole video page on every animation frame. It is read
+    // in the layout / draw lambdas below (and through the coarse flags), so a frame only re-measures and redraws.
     val cardHeightPx = with(density) { 56.dp.toPx() }
     val thumbWidthDp = 64.dp
     val thumbWidthPx = with(density) { thumbWidthDp.toPx() }
@@ -121,41 +123,32 @@ fun PlayerSheet(
     // Dynamic morphing sheet bounds:
     val targetExpandedX = if (rail) railWidthPx else 0f
     val targetExpandedW = if (rail) contentW else winW
+    val pipW = with(density) { PIP_WIDTH.toPx() }
+    val pipH = pipW * 9f / 16f
 
-    val sheetX = if (isPip) {
-        val pipW = with(density) { PIP_WIDTH.toPx() }
-        val at = pipPos?.pos ?: Offset(winW - pipW - marginPx, cardBottom - pipW * 9f / 16f)
-        at.x * fraction + targetExpandedX * p
-    } else {
-        cardLeft * fraction + targetExpandedX * p
+    // Each is a function of the progress `p` (0 collapsed .. 1 expanded); called from layout/draw lambdas only.
+    val sheetXAt = { p: Float ->
+        if (isPip) {
+            val at = pipPos?.pos ?: Offset(winW - pipW - marginPx, cardBottom - pipH)
+            at.x * (1f - p) + targetExpandedX * p
+        } else cardLeft * (1f - p) + targetExpandedX * p
     }
-
-    val sheetY = if (isPip) {
-        val pipW = with(density) { PIP_WIDTH.toPx() }
-        val pipH = pipW * 9f / 16f
-        val at = pipPos?.pos ?: Offset(winW - pipW - marginPx, cardBottom - pipH)
-        at.y * fraction
-    } else {
-        cardTop * fraction
+    val sheetYAt = { p: Float ->
+        if (isPip) {
+            val at = pipPos?.pos ?: Offset(winW - pipW - marginPx, cardBottom - pipH)
+            at.y * (1f - p)
+        } else cardTop * (1f - p)
     }
-
-    val sheetW = if (isPip) {
-        val pipW = with(density) { PIP_WIDTH.toPx() }
-        pipW + (targetExpandedW - pipW) * p
-    } else {
-        cardWidth + (targetExpandedW - cardWidth) * p
-    }
-
-    val sheetH = if (isPip) {
-        val pipW = with(density) { PIP_WIDTH.toPx() }
-        val pipH = pipW * 9f / 16f
-        pipH + (winH - pipH) * p
-    } else {
-        cardHeightPx + (winH - cardHeightPx) * p
-    }
-
-    val cornerRadiusDp = if (isPip) 16f * fraction else Vela.look.radii.largeDp * fraction
-    val sheetShape = RoundedCornerShape(cornerRadiusDp.dp)
+    val sheetWAt = { p: Float -> if (isPip) pipW + (targetExpandedW - pipW) * p else cardWidth + (targetExpandedW - cardWidth) * p }
+    val sheetHAt = { p: Float -> if (isPip) pipH + (winH - pipH) * p else cardHeightPx + (winH - cardHeightPx) * p }
+    val largeRadiusDp = Vela.look.radii.largeDp
+    val cornerDpAt = { p: Float -> (if (isPip) 16f else largeRadiusDp) * (1f - p) }
+    val progressNow = { sheetState.progress.coerceIn(0f, 1f) }
+    val backgroundExpanded = Vela.colors.background.toColor()
+    val backgroundCollapsed = Vela.colors.surfaceVariant.toColor()
+    // Coarse flags: composition only changes when one of these flips, not on every frame in between.
+    val showCardControls by remember(sheetState) { derivedStateOf { sheetState.progress < 0.6f } }
+    val showPipControls by remember(sheetState) { derivedStateOf { sheetState.progress < 0.25f } }
 
     // Gesture handler attached ONLY to the sheet container (never to full screen when collapsed)
     val gestureModifier = Modifier.pointerInput(winW, winH, isPip) {
@@ -233,11 +226,22 @@ fun PlayerSheet(
         // Morphing Sheet Box: exactly sized and positioned, only absorbs touches within its bounds
         Box(
             Modifier
-                .offset { IntOffset(sheetX.roundToInt(), (sheetY + sheetState.slideY).roundToInt()) }
-                .size(with(density) { sheetW.toDp() }, with(density) { sheetH.toDp() })
-                .shadow(if (fraction > 0.05f) 8.dp else 0.dp, sheetShape)
-                .clip(sheetShape)
-                .background(if (p > 0.4f) Vela.colors.background.toColor() else Vela.colors.surfaceVariant.toColor())
+                .offset { val p = progressNow(); IntOffset(sheetXAt(p).roundToInt(), (sheetYAt(p) + sheetState.slideY).roundToInt()) }
+                .layout { measurable, _ ->
+                    val p = progressNow()
+                    val w = sheetWAt(p).roundToInt().coerceAtLeast(0)
+                    val h = sheetHAt(p).roundToInt().coerceAtLeast(0)
+                    val placeable = measurable.measure(androidx.compose.ui.unit.Constraints.fixed(w, h))
+                    layout(w, h) { placeable.place(0, 0) }
+                }
+                .graphicsLayer {
+                    val p = progressNow()
+                    shape = RoundedCornerShape(cornerDpAt(p).dp.toPx())
+                    clip = true
+                    // The shadow only shows around the small card; drawing it for a near-full-screen layer is wasted GPU work, so it fades out early.
+                    shadowElevation = 8.dp.toPx() * (1f - p / 0.3f).coerceIn(0f, 1f)
+                }
+                .drawBehind { drawRect(if (progressNow() > 0.4f) backgroundExpanded else backgroundCollapsed) }
                 .then(gestureModifier)
         ) {
             // LAYER 0: The persistent VideoScreen with the live video surface
@@ -246,24 +250,24 @@ fun PlayerSheet(
                 navigator = navigator,
                 video = video,
                 startSeconds = sheetState.startSeconds,
-                sheetProgress = p,
+                sheetProgress = progressNow,
                 onBack = { sheetState.collapse() },
                 onExpand = { sheetState.expand() },
                 modifier = Modifier.fillMaxSize()
             )
 
             // LAYER 1: MiniPlayer Controls & Progress bar (only in card mode when near collapsed)
-            if (!isPip && p < 0.6f) {
-                val cardAlpha = ((0.6f - p) / 0.6f).coerceIn(0f, 1f)
-                val controlsLeft = thumbWidthPx + with(density) { 16.dp.toPx() }
-                val controlsWidth = sheetW - controlsLeft
+            if (!isPip && showCardControls) {
+                val cardAlphaNow = { ((0.6f - progressNow()) / 0.6f).coerceIn(0f, 1f) }
+                val controlsLeftDp = thumbWidthDp + 16.dp
 
                 // Action controls to the right of thumbnail
                 Box(
                     Modifier
-                        .size(with(density) { controlsWidth.coerceAtLeast(0f).toDp() }, with(density) { cardHeightPx.toDp() })
-                        .offset { IntOffset(controlsLeft.roundToInt(), 0) }
-                        .graphicsLayer { alpha = cardAlpha }
+                        .fillMaxWidth()
+                        .height(with(density) { cardHeightPx.toDp() })
+                        .padding(start = controlsLeftDp)
+                        .graphicsLayer { alpha = cardAlphaNow() }
                         .clickable { sheetState.expand() }
                 ) {
                     Row(
@@ -308,7 +312,7 @@ fun PlayerSheet(
                         .fillMaxWidth()
                         .height(2.dp)
                         .align(Alignment.BottomStart)
-                        .graphicsLayer { alpha = cardAlpha }
+                        .graphicsLayer { alpha = cardAlphaNow() }
                         .background(Vela.colors.outline.toColor())
                 ) {
                     Box(Modifier.fillMaxWidth(progressFrac.coerceIn(0f, 1f)).fillMaxHeight().background(Vela.wake))
@@ -316,7 +320,7 @@ fun PlayerSheet(
             }
 
             // LAYER 2: PiP overlay controls (only in PiP mode when collapsed)
-            if (isPip && p < 0.25f) {
+            if (isPip && showPipControls) {
                 Box(
                     Modifier.fillMaxSize()
                         .background(Color.Black.copy(alpha = 0.35f))
@@ -325,8 +329,8 @@ fun PlayerSheet(
                                 change.consume()
                                 pipPos?.let {
                                     it.pos = Offset(
-                                        (it.pos?.x ?: (winW - sheetW - marginPx)) + drag.x,
-                                        (it.pos?.y ?: (cardBottom - sheetH)) + drag.y
+                                        (it.pos?.x ?: (winW - pipW - marginPx)) + drag.x,
+                                        (it.pos?.y ?: (cardBottom - pipH)) + drag.y
                                     )
                                 }
                             }

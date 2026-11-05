@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
@@ -123,6 +124,8 @@ fun PlayerView(
     /** The previous / next video buttons beside play. Null disables the button (nothing before / after). */
     onPrevious: (() -> Unit)? = null,
     onNext: (() -> Unit)? = null,
+    /** Open chapters bottom panel (used by VideoScreen to open in-page panel under player). */
+    onOpenChapters: (() -> Unit)? = null,
 ) {
     val session = host.session
     val sessionState by session.state.collectAsState()
@@ -383,7 +386,7 @@ fun PlayerView(
                         // The current chapter's name sits above the seek bar; tapping it opens the chapter list.
                         currentChapter(chapters, shown)?.let { ch ->
                             Row(
-                                Modifier.weight(1f).clip(Vela.mediumShape).clickable { touch(); chaptersOpen = true }.padding(horizontal = Vela.xs, vertical = Vela.xs).testTag("player.chapterTitle"),
+                                Modifier.weight(1f).clip(Vela.mediumShape).clickable { touch(); if (onOpenChapters != null) onOpenChapters() else chaptersOpen = true }.padding(horizontal = Vela.xs, vertical = Vela.xs).testTag("player.chapterTitle"),
                                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.xs, Alignment.End),
                             ) {
                                 Text(ch.title, Modifier.weight(1f, fill = false), color = onMedia, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -405,6 +408,9 @@ fun PlayerView(
                         buffered = if (duration > 0) ((position + stats.bufferedAheadMs).toFloat() / duration).coerceIn(0f, 1f) else null,
                         markers = if (duration > 0) markers.map { ScrubMarker(it.startMs.toFloat() / duration, it.endMs.toFloat() / duration, it.color) } else emptyList(),
                         ticks = if (duration > 0) chapters.drop(1).map { (it.startSeconds * 1000f / duration) } else emptyList(),
+                        chapters = chapters,
+                        durationMs = duration,
+                        videoThumbnailUrl = video.thumbnailUrl,
                         previewLabel = { f -> formatTimestamp((f * duration / 1000).toLong()) },
                         description = "Seek",
                         valueDescription = "${formatTimestamp(shown / 1000)} of ${formatTimestamp(duration / 1000)}",
@@ -423,7 +429,18 @@ fun PlayerView(
         }
     }
 
-    if (chaptersOpen && chapters.isNotEmpty()) ChaptersSheet(chapters, position, keepClearTopPx = if (fullscreen) 0f else videoBottomPx, onSeek = { session.seekTo(it) }, onDismiss = { chaptersOpen = false })
+    if (chaptersOpen && chapters.isNotEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+            ChaptersPanel(
+                chapters = chapters,
+                positionMs = position,
+                videoThumbnailUrl = video.thumbnailUrl,
+                onSeek = { session.seekTo(it) },
+                onDismiss = { chaptersOpen = false },
+                modifier = Modifier.fillMaxWidth().fillMaxHeight(if (fullscreen) 0.65f else 0.75f),
+            )
+        }
+    }
     if (showStats) AlertDialog(
         onDismissRequest = { showStats = false },
         title = { Text("Stats for nerds") },

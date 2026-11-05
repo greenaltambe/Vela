@@ -105,15 +105,16 @@ fun VideoCollection(
         }
     }
     // A listing often carries no channel picture (feeds, history, playlists); the ones of the channels you subscribe to fill the gap.
-    val subscribedAvatars = remember { services.subscriptions.all().filter { it.avatarUrl != null }.associate { it.channelId to it.avatarUrl } }
+    // Read off the main thread (it is a database query): the cards show without the pictures first, then fill in.
+    val subscribedAvatars = rememberAsync(keepWhileLoading = true, first = { emptyMap<String, String?>() }, compute = { services.subscriptions.all().filter { it.avatarUrl != null }.associate { it.channelId to it.avatarUrl } })
     val videos = remember(videos, subscribedAvatars) { if (subscribedAvatars.isEmpty()) videos else videos.map { v -> if (v.channelAvatarUrl == null) subscribedAvatars[v.channelId]?.let { v.copy(channelAvatarUrl = it) } ?: v else v } }
     val extras = rememberCardExtras(services, videos)
     val padding = Vela.contentPadding
-    val open = { v: VideoSummary -> navigator.push(Route.Video(v)) }
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    // Remembered so the per-card click lambdas below keep their identity and an unchanged card can be skipped.
+    val open = remember(navigator) { { v: VideoSummary -> navigator.push(Route.Video(v)) } }
     // Some listings (shorts, certain search results) carry no channel id; ask the video itself before opening, never open a channel with a blank id.
     // The channel page opens at once; when the listing carries no channel id, the page finds it from the video behind its own loader.
-    val channel = { v: VideoSummary -> navigator.push(Route.Channel(v.channelId, v.channelName, if (v.channelId.isBlank()) v.id else "")) }
+    val channel = remember(navigator) { { v: VideoSummary -> navigator.push(Route.Channel(v.channelId, v.channelName, if (v.channelId.isBlank()) v.id else "")) } }
 
     val before = if (injectedContent != null && videos.isNotEmpty()) videos.take(injectedIndex) else videos
     val after = if (injectedContent != null && videos.size > injectedIndex) videos.drop(injectedIndex) else emptyList()

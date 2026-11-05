@@ -105,6 +105,16 @@ android {
             )
         }
     }
+    buildTypes {
+        // For measuring performance on a device that has the debug build installed: release code (not debuggable, no debug tooling) signed with
+        // the debug key, so `adb install -r` replaces the debug app and keeps its data. Never published. ./gradlew :androidApp:assembleMeasure
+        create("measure") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+            isDebuggable = false
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11

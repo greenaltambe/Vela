@@ -204,10 +204,11 @@ class PlaybackRuntime private constructor(context: Context) {
     val batteryHintAlreadyShown: Boolean get() = flags.get(explainedKey, com.greenaltambe.vela.core.settings.SettingLayer.Global) == "1"
     fun markBatteryHintShown() = flags.put(explainedKey, com.greenaltambe.vela.core.settings.SettingLayer.Global, "1")
     init {
-        scope.launch {
+        // Not at construction: touching `controller` builds ExoPlayer on the main thread before the first frame. Start when the main thread is idle.
+        android.os.Looper.getMainLooper().queue.addIdleHandler { scope.launch {
             controller.state.map { it.status == com.greenaltambe.vela.player.PlaybackStatus.PLAYING }.distinctUntilChanged()
                 .collect { flags.put(wasPlayingKey, com.greenaltambe.vela.core.settings.SettingLayer.Global, if (it) "1" else "0") }
-        }
+        }; false }
     }
 
     val session: PlaybackSession by lazy {

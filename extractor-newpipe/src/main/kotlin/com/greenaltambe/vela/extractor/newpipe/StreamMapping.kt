@@ -102,7 +102,7 @@ internal fun StreamInfo.toVideoInfo() = VideoInfo(
     viewCount = viewCount.takeIf { it >= 0 },
     likeCount = likeCount.takeIf { it >= 0 },
     thumbnailUrl = thumbnails.bestUrl(),
-    chapters = streamSegments.orEmpty().map { Chapter(it.title.orEmpty(), it.startTimeSeconds.toLong()) },
+    chapters = streamSegments.orEmpty().map { Chapter(it.title.orEmpty(), it.startTimeSeconds.toLong(), it.previewUrl?.takeIf { u -> u.isNotBlank() }) },
     isLive = streamType == StreamType.LIVE_STREAM || streamType == StreamType.AUDIO_LIVE_STREAM,
     wasLive = streamType == StreamType.POST_LIVE_STREAM || streamType == StreamType.POST_LIVE_AUDIO_STREAM,
     uploadDate = uploadDate?.instant?.let { Instant.fromEpochMilliseconds(it.toEpochMilli()) },

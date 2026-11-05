@@ -137,7 +137,10 @@ internal fun JsonObject.toVideoInfo() = VideoInfo(
     likeCount = long("like_count"),
     thumbnailUrl = str("thumbnail") ?: bestThumbnail(),
     chapters = objects("chapters").mapNotNull { c ->
-        c.str("title")?.let { Chapter(it, (c.double("start_time") ?: 0.0).toLong()) }
+        c.str("title")?.let {
+            val thumb = c.str("thumbnail") ?: c.objects("thumbnails").lastOrNull { t -> t.str("url") != null }?.str("url")
+            Chapter(it, (c.double("start_time") ?: 0.0).toLong(), thumb)
+        }
     },
     isLive = bool("is_live") == true || str("live_status") == "is_live",
     uploadDate = uploadInstant(),

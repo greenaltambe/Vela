@@ -346,6 +346,12 @@ fun ChannelScreen(
                 modifier = Modifier.fillMaxWidth().weight(1f).testTag("channel.pager")
             ) { pageIndex ->
                 val tab = tabs.getOrNull(pageIndex) ?: return@HorizontalPager
+                // Until the landing arrives the tab list is only a placeholder; loading those tabs would hit tabs this channel/tier may not
+                // support (a flash of "Could not load: not supported" before the real page lands), so wait and show skeletons.
+                if (landing == null) {
+                    Column(Modifier.fillMaxSize().padding(Vela.contentPadding), verticalArrangement = Arrangement.spacedBy(Vela.lg)) { repeat(3) { SkeletonCard(vertical = true) } }
+                    return@HorizontalPager
+                }
                 val feed = st.feedFor(tab.kind.name)
 
                 ChannelTabPane(

@@ -44,6 +44,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -113,7 +114,9 @@ import com.greenaltambe.vela.ui.platform.PlatformBackHandler
 import com.greenaltambe.vela.ui.player.PlayerView
 import com.greenaltambe.vela.ui.player.playerVerticalSwipe
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
+import kotlin.math.roundToInt
 import androidx.compose.ui.graphics.graphicsLayer
 import com.greenaltambe.vela.ui.player.SeekMarker
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -142,7 +145,8 @@ fun VideoScreen(
     navigator: Navigator,
     video: VideoSummary,
     startSeconds: Long?,
-    sheetProgress: Float = 1f,
+    /** Where the page is between mini player (0) and full (1). A provider, so each animation frame is read in layout/draw only and never recomposes this page. */
+    sheetProgress: () -> Float = { 1f },
     onBack: (() -> Unit)? = null,
     onExpand: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
@@ -152,7 +156,14 @@ fun VideoScreen(
     val window = LocalWindowControls.current
     val inPip = LocalInPictureInPicture.current
     val size = LocalWindowSize.current
-    val p = sheetProgress.coerceIn(0f, 1f)
+    val progressNow = { sheetProgress().coerceIn(0f, 1f) }
+    // Coarse flags for composition: they flip at a threshold, so the page recomposes then and not on every frame in between.
+    val fullyExpanded by remember { derivedStateOf { progressNow() > 0.85f } }
+    val notFullyOpen by remember { derivedStateOf { progressNow() < 0.99f } }
+    val showDetailsPane by remember { derivedStateOf { progressNow() > 0.15f } }
+    val detailsScrollable by remember { derivedStateOf { progressNow() > 0.95f } }
+    val detailsKept = remember { mutableStateOf(false) }
+    val tapToExpand by remember { derivedStateOf { progressNow() < 0.5f } }
 
     // A finished download plays from its file and shows its stored page: no stream, info, comment or related request is made.
     val offline = remember(video.id) { services.downloads?.offline(video.id) }
@@ -164,6 +175,7 @@ fun VideoScreen(
     var comments by remember(video.id) { mutableStateOf<List<Comment>>(offline?.comments ?: cached?.comments.orEmpty()) }
     var commentsNext by remember(video.id) { mutableStateOf<String?>(cached?.commentsNext) }
     var commentsOpen by remember(video.id) { mutableStateOf(false) }
+    var chaptersOpen by remember(video.id) { mutableStateOf(false) }
     var commentsState by remember(video.id) { mutableStateOf<ListState>(if (offline != null) (if (offline.comments.isEmpty()) ListState.Empty("No saved comments.") else ListState.Ready) else if (cached?.comments?.isNotEmpty() == true) ListState.Ready else ListState.Loading) }
     var commentsLoading by remember(video.id) { mutableStateOf(false) }
     var sort by remember(video.id) { mutableStateOf(CommentSort.TOP) }
@@ -177,6 +189,18 @@ fun VideoScreen(
     var disliked by remember(video.id) { mutableStateOf(false) }
     var actionError by remember(video.id) { mutableStateOf<String?>(null) }
     var actionNote by remember(video.id) { mutableStateOf<String?>(null) }
+    LaunchedEffect(actionNote) {
+        if (actionNote != null) {
+            delay(4_000)
+            actionNote = null
+        }
+    }
+    LaunchedEffect(actionError) {
+        if (actionError != null) {
+            delay(5_000)
+            actionError = null
+        }
+    }
     // Created before any early return so the scroll positions survive fullscreen and Picture-in-Picture.
     val detailsState = rememberLazyListState()
     val sideState = rememberLazyListState()
@@ -313,7 +337,8 @@ fun VideoScreen(
         Box(Modifier.fillMaxSize().testTag("video.player")) {
             if (host != null) PlayerView(
                 host, video, chapters, markers, Modifier.fillMaxSize(), onBack = onBack ?: { navigator.back(); Unit }, seekStepSeconds = seekStep, holdSpeed = holdSpeedSetting, onPrevious = onPreviousVideo, onNext = onNextVideo,
-                controlsEnabled = (p > 0.85f && !inPip),
+                onOpenChapters = if (chapters.isNotEmpty()) ({ chaptersOpen = true; commentsOpen = false }) else null,
+                controlsEnabled = (fullyExpanded && !inPip),
                 isLive = info?.isLive == true, resolvingNote = resolvingNote,
                 openAgeSetting = { navigator.selectTab(com.greenaltambe.vela.ui.nav.Route.Settings) },
                 tryAccountNow = services.accounts.active.value.takeIf { it.isSignedIn }?.let { a -> { services.governors.forAccount(a.id).tryNow() } }, showChapterTitle = size != WindowSizeClass.COMPACT,
@@ -408,6 +433,20 @@ fun VideoScreen(
                     val link = "https://youtu.be/${video.id}"
                     if (share != null) share(shownTitle, link) else { clipboard.setText(AnnotatedString(link)); actionError = null; actionNote = "Link copied: $link" }
                 }, Modifier.testTag("video.share"))
+                ActionChip(Vela.icons.link, "Copy link", {
+                    val link = "https://youtu.be/${video.id}"
+                    clipboard.setText(AnnotatedString(link))
+                    actionError = null
+                    actionNote = "Link copied: $link"
+                }, Modifier.testTag("video.copyLink"))
+                ActionChip(Vela.icons.timer, "Copy with timestamp", {
+                    val currentMs = host?.controllerState?.value?.positionMs ?: position
+                    val currentSec = (currentMs / 1000).coerceAtLeast(0)
+                    val link = "https://youtu.be/${video.id}?t=$currentSec"
+                    clipboard.setText(AnnotatedString(link))
+                    actionError = null
+                    actionNote = "Link copied: $link"
+                }, Modifier.testTag("video.copyTimestamp"))
             }
         }
         info?.takeIf { it.description.isNotBlank() }?.let { d ->
@@ -427,7 +466,7 @@ fun VideoScreen(
         // Comments are one wide button, right under the description (also in the wide layout, where related videos sit in the side column): it opens the panel here.
         item {
             Row(
-                Modifier.fillMaxWidth().clip(Vela.mediumShape).background(Vela.colors.surface.toColor()).clickable { commentsOpen = true }.heightIn(min = Vela.minTouch).padding(horizontal = Vela.md).testTag("video.commentsButton"),
+                Modifier.fillMaxWidth().clip(Vela.mediumShape).background(Vela.colors.surface.toColor()).clickable { commentsOpen = true; chaptersOpen = false }.heightIn(min = Vela.minTouch).padding(horizontal = Vela.md).testTag("video.commentsButton"),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm),
             ) {
                 Text("Comments", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, maxLines = 1)
@@ -490,12 +529,26 @@ fun VideoScreen(
         }
     }
 
+    PlatformBackHandler(enabled = chaptersOpen) { chaptersOpen = false }
+    val chaptersPanel: @Composable (Modifier) -> Unit = { m ->
+        androidx.compose.animation.AnimatedVisibility(chaptersOpen, m, enter = androidx.compose.animation.slideInVertically { it } + androidx.compose.animation.fadeIn(), exit = androidx.compose.animation.slideOutVertically { it } + androidx.compose.animation.fadeOut()) {
+            com.greenaltambe.vela.ui.player.ChaptersPanel(
+                chapters = chapters,
+                positionMs = position,
+                videoThumbnailUrl = video.thumbnailUrl ?: info?.thumbnailUrl,
+                onSeek = { secondsMs -> host?.session?.seekTo(secondsMs) },
+                onDismiss = { chaptersOpen = false },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+    }
+
     if (downloadDialog) DownloadDialog(services, listOf(video), onDismiss = { downloadDialog = false })
 
     val gap = Arrangement.spacedBy(Vela.sm)
     // Two columns (related videos beside the player) only in a really wide window; narrower ones, desktop windows included, stack like the phone.
     val twoColumn = LocalWindowWidthDp.current >= 1000f
-    if (!twoColumn || p < 0.99f) {
+    if (!twoColumn || notFullyOpen) {
         val topInsetPx = WindowInsets.safeDrawing.getTop(density).toFloat()
         val topInsetDp = with(density) { topInsetPx.toDp() }
         val bottomInsetPx = WindowInsets.safeDrawing.getBottom(density).toFloat()
@@ -505,7 +558,6 @@ fun VideoScreen(
         val winW = containerSize.width.toFloat().coerceAtLeast(100f)
         val winH = containerSize.height.toFloat().coerceAtLeast(100f)
 
-        val fraction = 1f - p
         val nav = remember { com.greenaltambe.vela.ui.nav.NavConfig.of(services.settings) }
         val cardHeightPx = with(density) { 56.dp.toPx() }
         val bottomClearPx = bottomInsetPx + with(density) { (if (nav.barStyle == com.greenaltambe.vela.core.settings.BarStyle.DOCKED) 64.dp else 72.dp).toPx() }
@@ -531,32 +583,43 @@ fun VideoScreen(
             targetHeightDp = 36.dp
         }
 
-        val currentWidthDp = targetWidthDp + (fullWidthDp - targetWidthDp) * p
-        val currentHeightDp = targetHeightDp + (fullHeightDp - targetHeightDp) * p
-        val currentLeftDp = targetLeftDp * fraction
-        val currentTopDp = (topInsetDp * p) + (targetTopDp * fraction)
-        val cornerRadiusDp = ((if (miniPip) 16f else 8f) * fraction).dp
+        val cornerBaseDp = if (miniPip) 16f else 8f
+        // Position and size of the video box as functions of the progress, evaluated in the layout/draw lambdas below.
+        val fullWidthPx = with(density) { fullWidthDp.roundToPx() }
+        val fullHeightPx = with(density) { fullHeightDp.roundToPx() }
+        val miniWidthPx = with(density) { targetWidthDp.roundToPx() }
+        val miniHeightPx = with(density) { targetHeightDp.roundToPx() }
+        val miniLeftPx = with(density) { targetLeftDp.roundToPx() }
+        val miniTopPx = with(density) { targetTopDp.roundToPx() }
+        val fullTopPx = with(density) { topInsetDp.roundToPx() }
 
         Box(
             modifier.fillMaxSize()
-                .drawBehind { if (p > 0.05f) drawRect(bg, alpha = ((p - 0.15f) / 0.85f).coerceIn(0f, 1f)) }
+                .drawBehind { val p = progressNow(); if (p > 0.05f) drawRect(bg, alpha = ((p - 0.15f) / 0.85f).coerceIn(0f, 1f)) }
         ) {
-            if (p > 0.15f) {
-                val detailsAlpha = ((p - 0.25f) / 0.75f).coerceIn(0f, 1f)
-                val detailsTop = topInsetDp + fullHeightDp
+            // Once the details have been shown they stay composed (hidden, and clipped away by the sheet while it is a card): re-composing the
+            // whole details/related list every time the page is expanded was a ~100 ms stall in the middle of the animation.
+            if (showDetailsPane && !detailsKept.value) detailsKept.value = true
+            if (showDetailsPane || detailsKept.value) {
+                val detailsTopPx = with(density) { (topInsetDp + fullHeightDp).roundToPx() }
+                val detailsHeightPx = (with(density) { winH.roundToInt() } - detailsTopPx).coerceAtLeast(0)
                 Box(
                     Modifier
-                        .fillMaxSize()
-                        .padding(top = detailsTop)
+                        // Always laid out at the full page size, whatever the sheet's current size, so the list is not re-measured on every frame of the morph.
+                        .layout { measurable, constraints ->
+                            val placeable = measurable.measure(androidx.compose.ui.unit.Constraints.fixed(fullWidthPx, detailsHeightPx))
+                            layout(constraints.maxWidth, constraints.maxHeight) { placeable.place(0, detailsTopPx) }
+                        }
                         .graphicsLayer {
-                            alpha = detailsAlpha
-                            translationY = fraction * with(density) { 48.dp.toPx() }
+                            val p = progressNow()
+                            alpha = ((p - 0.25f) / 0.75f).coerceIn(0f, 1f)
+                            translationY = (1f - p) * 48.dp.toPx()
                         }
                 ) {
                     LazyColumn(
                         Modifier.fillMaxSize().testTag("video.list"),
                         state = detailsState,
-                        userScrollEnabled = p > 0.95f,
+                        userScrollEnabled = detailsScrollable,
                         contentPadding = Vela.contentPadding,
                         verticalArrangement = gap
                     ) {
@@ -564,15 +627,24 @@ fun VideoScreen(
                         secondary()
                     }
                     commentsPanel(Modifier.fillMaxSize())
+                    chaptersPanel(Modifier.fillMaxSize())
                 }
             }
 
             Box(
                 Modifier
-                    .offset { IntOffset(currentLeftDp.roundToPx(), currentTopDp.roundToPx()) }
-                    .size(currentWidthDp, currentHeightDp)
-                    .clip(RoundedCornerShape(cornerRadiusDp))
-                    .then(if (p < 0.5f && onExpand != null) Modifier.clickable { onExpand() } else Modifier)
+                    .layout { measurable, _ ->
+                        val p = progressNow()
+                        val w = (miniWidthPx + (fullWidthPx - miniWidthPx) * p).roundToInt()
+                        val h = (miniHeightPx + (fullHeightPx - miniHeightPx) * p).roundToInt()
+                        val placeable = measurable.measure(androidx.compose.ui.unit.Constraints.fixed(w, h))
+                        layout(w, h) { placeable.place((miniLeftPx * (1f - p)).roundToInt(), (fullTopPx * p + miniTopPx * (1f - p)).roundToInt()) }
+                    }
+                    .graphicsLayer {
+                        shape = RoundedCornerShape((cornerBaseDp * (1f - progressNow())).dp.toPx())
+                        clip = true
+                    }
+                    .then(if (tapToExpand && onExpand != null) Modifier.clickable { onExpand() } else Modifier)
             ) {
                 playerBox()
             }
@@ -589,6 +661,7 @@ fun VideoScreen(
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     LazyColumn(Modifier.fillMaxSize().testTag("video.list"), state = detailsState, contentPadding = Vela.contentPadding, verticalArrangement = gap) { details() }
                     commentsPanel(Modifier.fillMaxSize())
+                    chaptersPanel(Modifier.fillMaxSize())
                 }
             }
             LazyColumn(Modifier.weight(1f).fillMaxSize().testTag("video.side"), state = sideState, contentPadding = Vela.contentPadding, verticalArrangement = gap) { secondary() }
