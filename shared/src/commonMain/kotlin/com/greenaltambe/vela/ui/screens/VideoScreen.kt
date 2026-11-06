@@ -155,6 +155,8 @@ fun VideoScreen(
     onBack: (() -> Unit)? = null,
     onExpand: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    /** The width the open page has, in pixels, when it is not the whole window (beside the desktop rail). Null: the window's width. */
+    pageWidthPx: Float? = null,
 ) {
     val scope = rememberCoroutineScope()
     val host = services.player
@@ -583,7 +585,8 @@ fun VideoScreen(
         val bg = Vela.colors.background.toColor()
         val miniPip = miniOnRight
         val pipPos = com.greenaltambe.vela.ui.nav.LocalPipPosition.current
-        val winW = containerSize.width.toFloat().coerceAtLeast(100f)
+        // The page is laid out once at its open size (the sheet clips and moves it): the width the sheet will have, which beside a rail is less than the window.
+        val winW = (pageWidthPx ?: containerSize.width.toFloat()).coerceAtLeast(100f)
         val winH = containerSize.height.toFloat().coerceAtLeast(100f)
 
         val nav = remember { com.greenaltambe.vela.ui.nav.NavConfig.of(services.settings) }

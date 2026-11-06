@@ -233,9 +233,9 @@ fun Scrubber(
                     .wrapContentSize(unbounded = true)
                     .offset { IntOffset(cardLeftPx.roundToInt(), verticalOffset.roundToPx()) }
                     .width(cardW)
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(Vela.mediumShape)
                     .background(Vela.colors.surface.toColor())
-                    .border(1.dp, Vela.colors.outline.toColor().copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                    .border(1.dp, Vela.colors.outline.toColor().copy(alpha = 0.6f), Vela.mediumShape)
                     .padding(4.dp)
                     .testTag("scrubber.preview"),
             ) {
@@ -248,18 +248,18 @@ fun Scrubber(
                             Modifier
                                 .fillMaxWidth()
                                 .height(78.dp)
-                                .clip(RoundedCornerShape(4.dp))
+                                .clip(Vela.smallShape)
                                 .background(Vela.colors.surfaceVariant.toColor())
                         ) {
                             AsyncImage(thumb, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                             Text(
                                 timeLabel,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = Color.White,
+                                color = Vela.colors.onMedia.toColor(),
                                 modifier = Modifier
                                     .align(Alignment.BottomEnd)
                                     .padding(2.dp)
-                                    .background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(2.dp))
+                                    .background(Vela.colors.mediaBackground.toColor().copy(alpha = 0.75f), Vela.smallShape)
                                     .padding(horizontal = 4.dp, vertical = 1.dp)
                             )
                         }

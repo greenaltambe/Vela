@@ -275,7 +275,9 @@ class ChannelTabsNativeUiTest {
         setContent { AppUnderTest(f) }
         waitForIdle()
 
-        onNodeWithTag("channel.loadMore").performScrollTo().assertIsDisplayed().performClick()
+        // The button is the list's last item and may be below the fold (so not composed yet): scroll the list to it first.
+        onNodeWithTag("channel.list").performScrollToNode(hasTestTag("channel.loadMore"))
+        onNodeWithTag("channel.loadMore").assertIsDisplayed().performClick()
         waitForIdle()
 
         // Verify notice is shown and page 1 was re-fetched

@@ -57,7 +57,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import com.greenaltambe.vela.ui.components.Avatar
 import com.greenaltambe.vela.ui.components.ErrorRow
-import com.greenaltambe.vela.ui.components.SkeletonCard
+import com.greenaltambe.vela.ui.components.CommentSkeleton
 import com.greenaltambe.vela.ui.components.formatCount
 import com.greenaltambe.vela.ui.look.Vela
 import com.greenaltambe.vela.ui.look.toColor
@@ -182,7 +182,7 @@ fun CommentsPanel(
         if (open != null) ThreadView(open, replies, onSeek, creatorName, creatorAvatarUrl, Modifier.fillMaxWidth().weight(1f))
         else LazyColumn(Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(start = Vela.gutter, end = Vela.gutter, top = Vela.sm, bottom = Vela.lg), verticalArrangement = Arrangement.spacedBy(Vela.md)) {
             when (state) {
-                ListState.Loading -> items(4) { SkeletonCard(vertical = false) }
+                ListState.Loading -> items(5, key = { "sk-$it" }) { i -> CommentSkeleton(avatar = 40.dp, lastLineWidth = if (i % 2 == 0) 0.6f else 0.8f) }
                 is ListState.Empty -> item { Text(state.message, Modifier.testTag("video.commentsStatus"), style = MaterialTheme.typography.bodyMedium, color = Vela.colors.onSurfaceVariant.toColor()) }
                 is ListState.Error -> item { ErrorRow(state.message, state.onRetry) }
                 ListState.Ready -> {}
@@ -217,7 +217,13 @@ private fun ThreadView(root: Comment, replies: RepliesModel, onSeek: (Long) -> U
                 CommentRow(row.comment, avatar = ThreadGeometry.ReplyAvatar, onSeek = onSeek, onReplies = null, creatorName = creatorName, creatorAvatarUrl = creatorAvatarUrl, modifier = Modifier.weight(1f))
             }
         }
-        if (t.loading && rows.isEmpty()) items(3) { SkeletonCard(vertical = false) }
+        // Placeholders shaped like the replies that are coming: indented like a reply, with the smaller picture.
+        if (t.loading && rows.isEmpty()) items(3, key = { "sk-$it" }) { i ->
+            Row(Modifier.fillMaxWidth().padding(top = ThreadGeometry.RowTop, bottom = Vela.xs)) {
+                androidx.compose.foundation.layout.Spacer(Modifier.width(ThreadGeometry.ReplyLeft.dp))
+                CommentSkeleton(Modifier.weight(1f), avatar = ThreadGeometry.ReplyAvatar, lastLineWidth = if (i % 2 == 0) 0.7f else 0.5f)
+            }
+        }
         if (t.failed) item { ErrorRow("Could not load the replies.", onRetry = { replies.open(root) }) }
         if (t.next != null) item { TextButton(onClick = { replies.more(root) }, enabled = !t.loading, modifier = Modifier.testTag("comment.moreReplies")) { Text(if (t.loading) "Loading…" else "Show more replies", maxLines = 1) } }
     }

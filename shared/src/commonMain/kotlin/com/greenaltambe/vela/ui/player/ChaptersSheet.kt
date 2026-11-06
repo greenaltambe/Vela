@@ -139,11 +139,11 @@ fun ChaptersPanel(
                         Text(
                             formatTimestamp(c.startSeconds),
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color.White,
+                            color = Vela.colors.onMedia.toColor(),
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
                                 .padding(2.dp)
-                                .background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(2.dp))
+                                .background(Vela.colors.mediaBackground.toColor().copy(alpha = 0.75f), Vela.smallShape)
                                 .padding(horizontal = 4.dp, vertical = 1.dp)
                         )
                         if (isCurrent) {

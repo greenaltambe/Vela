@@ -63,7 +63,21 @@ enum class NavAction { TAB, PUSH, POP, REPLACE }
 class Navigator(start: Route = Route.Home) {
     private val stack = mutableStateListOf(start)
 
+    /** An open asked for before the sheet existed (before the first composition: a link at start-up): it opens as soon as the sheet is attached. */
+    private var pendingOpen: Pair<VideoSummary, Long?>? = null
+    /** The page was asked for and left again before the sheet existed: the video goes to the mini player, idle. */
+    private var pendingMini: VideoSummary? = null
     var playerSheetState: com.greenaltambe.vela.ui.player.PlayerSheetState? = null
+        set(value) {
+            field = value
+            val pending = pendingOpen
+            if (value != null && pending != null) { pendingOpen = null; value.open(pending.first, pending.second) }
+            else if (value != null) pendingMini?.let { pendingMini = null; value.restore(it) }
+        }
+    private fun openInSheet(video: VideoSummary, start: Long?) {
+        val sheet = playerSheetState
+        if (sheet != null) sheet.open(video, start) else pendingOpen = video to start
+    }
 
     /** Set when the video page opens from the mini player: the page then grows out of the mini player's picture (read once by the page). */
     var growFromMini = false
@@ -136,7 +150,7 @@ class Navigator(start: Route = Route.Home) {
         if (route is Route.Video) {
             remember(route.video)
             nowPlaying = route.video
-            playerSheetState?.open(route.video, route.startSeconds)
+            openInSheet(route.video, route.startSeconds)
             return
         }
         lastAction = NavAction.REPLACE
@@ -151,7 +165,7 @@ class Navigator(start: Route = Route.Home) {
         if (route is Route.Video) {
             remember(route.video)
             nowPlaying = route.video
-            playerSheetState?.open(route.video, route.startSeconds)
+            openInSheet(route.video, route.startSeconds)
             return
         }
         if (route == current) return
@@ -179,6 +193,7 @@ class Navigator(start: Route = Route.Home) {
 
     /** Pops one screen; false if already at the root of a tab (the platform may then leave the app). */
     fun back(): Boolean {
+        pendingOpen?.let { pendingOpen = null; pendingMini = it.first; return true }
         if (stack.size <= 1) return false
         lastAction = NavAction.POP
         stack.removeAt(stack.lastIndex)
@@ -189,7 +204,7 @@ class Navigator(start: Route = Route.Home) {
     fun replaceWithVideo(video: VideoSummary, startSeconds: Long? = null) {
         remember(video)
         nowPlaying = video
-        playerSheetState?.open(video, startSeconds)
+        openInSheet(video, startSeconds)
     }
 
     fun playAll(videos: List<VideoSummary>) {

@@ -21,6 +21,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
@@ -105,7 +107,7 @@ fun chromeShapes(radius: Dp, pillRadius: Dp, joined: Boolean, docked: Boolean, f
 @Composable
 fun BottomChrome(
     nav: NavConfig, entries: List<NavEntry>, selected: NavTab?, scroll: ScrollChrome, mini: MiniState? = null, hasMiniPlayer: Boolean = false, onSelect: (NavTab) -> Unit,
-    modifier: Modifier = Modifier, onHeight: (Int) -> Unit = {},
+    modifier: Modifier = Modifier, onHeight: (Int) -> Unit = {}, miniSlot: MiniSlot? = null,
 ) {
     val docked = nav.barStyle == BarStyle.DOCKED
     // One number drives the whole contraction (width, height, corners, spacing, labels), so it is one smooth motion.
@@ -124,7 +126,9 @@ fun BottomChrome(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         if (showMiniSpace) {
-            Spacer(Modifier.height(56.dp))
+            // Attached, the mini player touches the bar and floats [SEPARATE_AFTER_SHRINK_GAP] above it once the bar has contracted; apart it keeps the chosen distance.
+            val gap = if (nav.miniPlacement == MiniPlacement.SEPARATE) nav.miniGapDp.dp else SEPARATE_AFTER_SHRINK_GAP * f
+            Spacer(Modifier.height(56.dp + gap).onGloballyPositioned { miniSlot?.top = it.positionInWindow().y })
         }
         BottomNav(entries, selected, labelsVisible = nav.labels == NavLabels.ALWAYS, marker = nav.marker, shrink = f, shape = RoundedCornerShape(radius), onSelect = onSelect, bottomInset = docked, modifier = Modifier.fillMaxWidth())
     }

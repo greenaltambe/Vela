@@ -64,7 +64,7 @@ class ScreenStatesTest {
                 onNodeWithTag("video.commentsButton", useUnmergedTree = true).performClick()
             }
             waitUntil("an error with Retry on $name after $mode", 10_000) { onAllNodesWithTagExists("error.retry") }
-            onNodeWithTag("error.retry", useUnmergedTree = true).assertIsDisplayed()
+            runCatching { onNodeWithTag("error.retry", useUnmergedTree = true).assertIsDisplayed() }.onFailure { throw AssertionError("Retry is not displayed on $name after $mode", it) }
             flaky.mode = Mode.OK
             onNodeWithTag("error.retry", useUnmergedTree = true).performClick()
             waitUntil("the error is gone after Retry on $name after $mode", 10_000) { !onAllNodesWithTagExists("error.retry") }

@@ -72,4 +72,14 @@ class HomeLogicTest {
     @Test fun interleaveTakesOneFromEachListInTurn() {
         assertEquals(listOf(1, 3, 2, 4, 5), interleave(listOf(listOf(1, 2), listOf(3, 4, 5))))
     }
+
+    @Test fun musicIsDecidedByWholeWordsNotPartsOfWords() {
+        fun v(title: String, channel: String = "Some Channel") = VideoSummary("id", title, "UC", channel)
+        assertTrue(isMusic(v("Artist - Song (Official Video)")))
+        assertTrue(isMusic(v("Chill LOFI mix for studying")))
+        assertTrue(isMusic(v("Song [Lyrics]")))
+        assertFalse(isMusic(v("SIDEMEN RANK THE MOST EXPENSIVE FAST FOOD ITEMS")))
+        assertFalse(isMusic(v("We mixed everything and covered the floor")))
+        assertTrue(isMusic(v("Anything", "Artist - Topic")))
+    }
 }

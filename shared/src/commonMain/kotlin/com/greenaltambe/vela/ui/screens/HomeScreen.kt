@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
@@ -176,44 +177,82 @@ fun HomeScreen(services: AppServices, navigator: Navigator, modifier: Modifier =
         compute = { services.history.continueWatching() }
     )
 
-    val slots = remember(shelfOrder, shown.size, density) { planSlots(shelfOrder, shown.size, density.step) }
-    val injections = slots.map { slot ->
-        Injection(slot.afterVideos, slot.shelf.name) {
+    // One read of the subscriptions and of the card numbers for the whole screen (feed and every shelf), not one per shelf.
+    val subscribed = rememberAsync(accountId, keepWhileLoading = true, first = { emptyList<com.greenaltambe.vela.data.SubscribedChannel>() }, compute = { services.subscriptions.all() })
+    val subscribedAvatars = remember(subscribed) { subscribed.filter { it.avatarUrl != null }.associate { it.channelId to it.avatarUrl } }
+    val channelNames = remember(subscribed) { subscribed.associate { it.channelId to it.name } }
+    val readyShelves = shelfOrder.mapNotNull { (shelves[it] as? ShelfUi.Ready)?.data?.videos }
+    val allVideos = remember(shown, readyShelves) { shown + readyShelves.flatten() }
+    val extras = rememberCardExtras(services, allVideos)
+
+    // The places of the shelves do not depend on how much has loaded. With a chip active the shelves are out of the way (the chips filter the feed);
+    // while the feed's first answer is awaited only Continue watching is up, so the screen has one set of placeholders, not shelves stacked over them.
+    val filtering = filter != HomeFilter.ALL || topic != null
+    val feedPending = videos.items.isEmpty() && state == ListState.Loading
+    val slots = remember(shelfOrder, density) { planSlots(shelfOrder, density.step) }
+    val injections = if (filtering) emptyList() else slots.filter { !feedPending || it.shelf == HomeShelf.CONTINUE }.map { slot ->
+        Injection(slot.afterVideos, slot.shelf.name, "shelf-${slot.shelf.name}") {
             ShelfBlock(
-                slot.shelf, shelves[slot.shelf], shelfTick, { ensureShelf(slot.shelf) }, services, navigator, dismissed, filter, topic, watched, lastOpened, continueWatching,
-                ::notInterested, ::hideChannel,
+                slot.shelf, shelves[slot.shelf], shelfTick, { ensureShelf(slot.shelf) }, services, navigator, dismissed, lastOpened, continueWatching,
+                subscribedAvatars, channelNames, extras, ::notInterested, ::hideChannel,
             )
         }
     }
 
-    com.greenaltambe.vela.ui.components.RefreshBox(isRefreshing = pulling && loading, onRefresh = { pulling = true; shelfTick++; load(more = false) }, modifier = modifier) {
+    // A chip whose matches are not among what is loaded: an empty list has no last card to ask for more, so ask here, a few pages at most, behind placeholders;
+    // then say plainly that nothing matches, with the way back.
+    val canMore = videos.continuation != null || showing == "Recommended"
+    var autoPages by remember(filter, topic) { mutableStateOf(0) }
+    val nothingYet = filtering && shown.isEmpty() && state == ListState.Ready
+    LaunchedEffect(nothingYet, loading, videos.items.size, filter, topic) {
+        if (nothingYet && !loading && canMore && autoPages < MAX_FILTER_PAGES) { autoPages++; load(more = true) }
+    }
+    val listState = when {
+        !nothingYet -> state
+        loading || (canMore && autoPages < MAX_FILTER_PAGES) -> ListState.Loading
+        else -> ListState.Empty("Nothing in your feed matches \"${topic ?: filter.label}\" right now.", "Show all") { filter = HomeFilter.ALL; topic = null }
+    }
+
+    Column(modifier.fillMaxSize()) {
+    // The chips stay put above the list while it scrolls, so a filter is always one tap away.
+    if (showChips) HomeChips(filter, { filter = it }, topics, topic, { topic = it }, Modifier.padding(top = Vela.sm))
+    // What the feed has to say sits here, under the chips, not as a list item: a first item that appears after the list has loaded would land above the videos, out of sight.
+    note?.let {
+        Box(
+            Modifier.fillMaxWidth().padding(horizontal = Vela.gutter).padding(top = Vela.sm)
+                .clip(Vela.smallShape)
+                .background(Vela.colors.surfaceVariant.toColor().copy(alpha = 0.5f))
+                .padding(horizontal = Vela.sm, vertical = Vela.xs)
+        ) {
+            Text(it, style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor(), modifier = Modifier.testTag("home.note"))
+        }
+    }
+    (videos.items.size - shownBase.size).takeIf { it > 0 }?.let {
+        Text("$it hidden by your feed filters (Settings > Feed).", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor(), modifier = Modifier.padding(horizontal = Vela.gutter).padding(top = Vela.xs))
+    }
+    com.greenaltambe.vela.ui.components.RefreshBox(isRefreshing = pulling && loading, onRefresh = { pulling = true; shelfTick++; load(more = false) }, modifier = Modifier.weight(1f)) {
     VideoCollection(
-        services, navigator, shown, state, Modifier, testTag = "home.list", scroll = store?.scroll,
+        services, navigator, shown, listState, Modifier, testTag = "home.list", scroll = store?.scroll,
         trailing = { v -> VideoMenu(services, v, onNotInterested = { notInterested(v) }, onHideChannel = { hideChannel(v) }) },
         injections = injections,
-        header = {
-            if (showChips) HomeChips(filter, { filter = it }, topics, topic, { topic = it }, Modifier.padding(bottom = Vela.sm))
-            note?.let {
-                Box(
-                    Modifier.fillMaxWidth().padding(bottom = Vela.sm)
-                        .clip(Vela.smallShape)
-                        .background(Vela.colors.surfaceVariant.toColor().copy(alpha = 0.5f))
-                        .padding(horizontal = Vela.sm, vertical = Vela.xs)
-                ) {
-                    Text(it, style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor(), modifier = Modifier.testTag("home.note"))
-                }
-            }
-            (videos.items.size - shownBase.size).takeIf { it > 0 }?.let {
-                Text("$it hidden by your feed filters (Settings > Feed).", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor(), modifier = Modifier.padding(bottom = Vela.sm))
-            }
-        },
-        // More is fetched by itself as the last card comes into view; the button stays as a fallback if that fetch failed.
+        skeletonCount = 3,
+        scrollToTopKey = filter to topic,
+        sharedAvatars = subscribedAvatars,
+        sharedExtras = extras,
+        // More is fetched by itself a few cards before the end; while it is on its way a placeholder card shows, and the button is only the way back if that fetch failed.
         // The account's recommended feed is one page with no continuation: at its end the list carries on with Trending (then Trending's own pages).
         onEndReached = { if ((videos.continuation != null || showing == "Recommended") && !loading && state == ListState.Ready) load(more = true) },
-        footer = if (videos.continuation != null || showing == "Recommended") ({ TextButton(onClick = { load(more = true) }, enabled = !loading) { Text("Load more", maxLines = 1) } }) else null,
+        footer = if (canMore && !nothingYet) ({
+            if (loading) com.greenaltambe.vela.ui.components.SkeletonCard(vertical = true, fullBleed = true)
+            else TextButton(onClick = { load(more = true) }) { Text("Load more", maxLines = 1) }
+        }) else null,
     )
     }
+    }
 }
+
+/** How many more pages a filter that matches nothing loaded may fetch before it says so. */
+private const val MAX_FILTER_PAGES = 4
 
 /** What one shelf is doing. A shelf that fails or has nothing is [Gone] and takes no room. */
 internal sealed interface ShelfUi {
@@ -222,36 +261,38 @@ internal sealed interface ShelfUi {
     class Ready(val data: ShelfData) : ShelfUi
 }
 
-/** One place in the list: the shelf that belongs there, as a carousel, a placeholder while it loads, or nothing. */
+/** One place in the list: the shelf that belongs there, as a carousel, a placeholder while it loads, or nothing. A shelf that fills or empties eases its height. */
 @Composable
 private fun ShelfBlock(
-    shelf: HomeShelf, ui: ShelfUi?, tick: Int, ensure: () -> Unit, services: AppServices, navigator: Navigator, dismissed: HomeDismissed, filter: HomeFilter, topic: String?,
-    watched: Set<String>, lastOpened: kotlin.time.Instant?, continueWatching: List<WatchRecord>, onNotInterested: (VideoSummary) -> Unit, onHideChannel: (VideoSummary) -> Unit,
+    shelf: HomeShelf, ui: ShelfUi?, tick: Int, ensure: () -> Unit, services: AppServices, navigator: Navigator, dismissed: HomeDismissed,
+    lastOpened: kotlin.time.Instant?, continueWatching: List<WatchRecord>, avatars: Map<String, String?>, channelNames: Map<String, String>,
+    extras: (VideoSummary) -> CardExtras, onNotInterested: (VideoSummary) -> Unit, onHideChannel: (VideoSummary) -> Unit,
 ) {
     LaunchedEffect(shelf, tick) { ensure() }
-    if (shelf == HomeShelf.CONTINUE) {
-        if (continueWatching.isNotEmpty() && filter == HomeFilter.ALL && topic == null) ContinueBlock(continueWatching, navigator)
-        return
-    }
-    when (ui) {
-        is ShelfUi.Ready -> ShelfContent(shelf, ui.data, services, navigator, dismissed, filter, topic, watched, lastOpened, onNotInterested, onHideChannel)
-        ShelfUi.Gone -> {}
-        ShelfUi.Loading, null -> if (filter == HomeFilter.ALL && topic == null) CarouselSkeleton(portrait = shelf == HomeShelf.SHORTS)
+    Box(Modifier.fillMaxWidth().animateContentSize()) {
+        if (shelf == HomeShelf.CONTINUE) {
+            if (continueWatching.isNotEmpty()) ContinueBlock(continueWatching, channelNames, navigator)
+            return@Box
+        }
+        when (ui) {
+            is ShelfUi.Ready -> ShelfContent(shelf, ui.data, services, navigator, dismissed, lastOpened, avatars, extras, onNotInterested, onHideChannel)
+            ShelfUi.Gone -> {}
+            ShelfUi.Loading, null -> CarouselSkeleton(portrait = shelf == HomeShelf.SHORTS)
+        }
     }
 }
 
-/** A loaded shelf, through the same filters as the lists (DeArrow, keywords, hide watched), the dismissed videos and channels, and the chips. Under three videos after them: not drawn. */
+/** A loaded shelf, through the same filters as the lists (DeArrow, keywords, hide watched) and the dismissed videos and channels. Under three videos after them: not drawn. */
 @Composable
 private fun ShelfContent(
-    shelf: HomeShelf, data: ShelfData, services: AppServices, navigator: Navigator, dismissed: HomeDismissed, filter: HomeFilter, topic: String?, watched: Set<String>,
-    lastOpened: kotlin.time.Instant?, onNotInterested: (VideoSummary) -> Unit, onHideChannel: (VideoSummary) -> Unit,
+    shelf: HomeShelf, data: ShelfData, services: AppServices, navigator: Navigator, dismissed: HomeDismissed, lastOpened: kotlin.time.Instant?,
+    avatars: Map<String, String?>, extras: (VideoSummary) -> CardExtras, onNotInterested: (VideoSummary) -> Unit, onHideChannel: (VideoSummary) -> Unit,
 ) {
     val base = rememberFiltered(services, data.videos, DeArrowSurface.FEED)
-    val videos = remember(base, dismissed, filter, topic, watched) { base.withoutDismissed(dismissed).filter { v -> filter.matches(v, watched) && (topic == null || matchesTopic(v, topic)) } }
+    val videos = remember(base, dismissed) { base.withoutDismissed(dismissed) }
     if (videos.size < MIN_SHELF_VIDEOS) return
     // A listing often carries no channel picture; the ones of the channels you subscribe to fill the gap (as in the main list).
-    val subscribedAvatars = rememberAsync(keepWhileLoading = true, first = { emptyMap<String, String?>() }, compute = { services.subscriptions.all().filter { it.avatarUrl != null }.associate { it.channelId to it.avatarUrl } })
-    val shown = remember(videos, subscribedAvatars) { if (subscribedAvatars.isEmpty()) videos else videos.map { v -> if (v.channelAvatarUrl == null) subscribedAvatars[v.channelId]?.let { v.copy(channelAvatarUrl = it) } ?: v else v } }
+    val shown = remember(videos, avatars) { if (avatars.isEmpty()) videos else videos.map { v -> if (v.channelAvatarUrl == null) avatars[v.channelId]?.let { v.copy(channelAvatarUrl = it) } ?: v else v } }
     val title = data.title ?: if (shelf == HomeShelf.INTERESTS) "Your interests" else shelf.label
     val subtitle = data.subtitle ?: if (shelf == HomeShelf.INTERESTS && data.topics.isNotEmpty()) data.topics.take(2).joinToString(" \u00B7 ") else if (shelf == HomeShelf.CHANNELS) shelf.hint else null
     val tag = "home.shelf.${shelf.name}"
@@ -260,7 +301,6 @@ private fun ShelfContent(
         ShortsCarousel(title, shown, subtitle = subtitle, onSeeAll = seeAll, tag = tag, onOpen = { v -> navigator.push(Route.ShortsPlayer(v)) })
         return
     }
-    val extras = rememberCardExtras(services, shown)
     val marked: (VideoSummary) -> CardExtras = if (shelf == HomeShelf.SUBSCRIPTIONS) { v -> extras(v).let { if (isNewSince(v, lastOpened)) it.copy(badge = "New") else it } } else extras
     VideoCarousel(
         title, shown, subtitle = subtitle, onSeeAll = seeAll, tag = tag, extras = marked,
@@ -272,13 +312,13 @@ private fun ShelfContent(
 
 /** Videos started and not finished, as the same carousel: the progress bar on the picture and what is left as the numbers line. */
 @Composable
-private fun ContinueBlock(records: List<WatchRecord>, navigator: Navigator) =
-    WatchRecordCarousel("Continue watching", records, navigator, tag = "home.continueWatching", onSeeAll = { navigator.push(Route.History) })
+private fun ContinueBlock(records: List<WatchRecord>, channelNames: Map<String, String>, navigator: Navigator) =
+    WatchRecordCarousel("Continue watching", records, navigator, tag = "home.continueWatching", onSeeAll = { navigator.push(Route.History) }, channelNames = channelNames)
 
-/** Watch-history rows as a carousel of the standard card: progress on the picture, "7:34 left" as the numbers; the history keeps no channel, so no picture of one. */
+/** Watch-history rows as a carousel of the standard card: progress on the picture, "7:34 left" as the numbers; the history keeps no channel name, so only the channels you subscribe to show one (no picture). */
 @Composable
-fun WatchRecordCarousel(title: String, records: List<WatchRecord>, navigator: Navigator, tag: String, onSeeAll: (() -> Unit)? = null) {
-    val videos = remember(records) { records.map { r -> VideoSummary(id = r.videoId, title = r.title, channelId = r.channelId, channelName = "", durationSeconds = r.durationMs.takeIf { it > 0 }?.div(1000)) } }
+fun WatchRecordCarousel(title: String, records: List<WatchRecord>, navigator: Navigator, tag: String, onSeeAll: (() -> Unit)? = null, channelNames: Map<String, String> = emptyMap()) {
+    val videos = remember(records, channelNames) { records.map { r -> VideoSummary(id = r.videoId, title = r.title, channelId = r.channelId, channelName = channelNames[r.channelId].orEmpty(), durationSeconds = r.durationMs.takeIf { it > 0 }?.div(1000)) } }
     val byId = remember(records) { records.associateBy { it.videoId } }
     VideoCarousel(
         title, videos, tag = tag, onSeeAll = onSeeAll, showChannelAvatar = false,

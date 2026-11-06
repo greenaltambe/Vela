@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
@@ -34,6 +36,7 @@ import com.greenaltambe.vela.extractor.VideoSummary
 import com.greenaltambe.vela.ui.layout.LocalWindowSize
 import com.greenaltambe.vela.ui.layout.WindowSizeClass
 import com.greenaltambe.vela.ui.look.Vela
+import com.greenaltambe.vela.ui.look.shimmer
 import com.greenaltambe.vela.ui.look.toColor
 
 /**
@@ -109,30 +112,44 @@ fun ShortsCarousel(
     onOpen: (VideoSummary) -> Unit,
 ) {
     Carousel(title, videos, { it.id }, modifier, subtitle, onSeeAll, tag, fixedCardWidth = 150.dp) { v, width ->
-        Column(Modifier.width(width).clip(Vela.thumbnailShape).clickable { onOpen(v) }.testTag("$tag.item"), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
+        Column(Modifier.width(width).clickable { onOpen(v) }.testTag("$tag.item"), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
             Box(Modifier.fillMaxWidth().aspectRatio(9f / 16f).clip(Vela.thumbnailShape).background(Vela.colors.surfaceVariant.toColor())) {
                 AsyncImage(v.thumbnailUrl ?: "https://i.ytimg.com/vi/${v.id}/hq720.jpg", null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             }
-            Text(v.title, Modifier.padding(horizontal = Vela.xs), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            formatViews(v.viewCount)?.let { Text(it, Modifier.padding(horizontal = Vela.xs).padding(bottom = Vela.xs), style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor(), maxLines = 1) }
+            Column(Modifier.padding(horizontal = Vela.sm).padding(bottom = Vela.xs), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(v.title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (v.channelName.isNotBlank()) Text(v.channelName, style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor(), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                formatViews(v.viewCount)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor(), maxLines = 1) }
+            }
         }
     }
 }
 
-/** A carousel still loading: its title bar and a grey picture of the size of the real cards, so nothing jumps when the cards arrive. */
+/**
+ * A carousel still loading: the header line, then cards built like the real ones (picture, avatar and two text lines; the same widths and
+ * heights), shimmering like the list's own placeholders, so nothing jumps when the cards arrive and the screen has one loading look.
+ */
 @Composable
 fun CarouselSkeleton(modifier: Modifier = Modifier, portrait: Boolean = false) {
     val gutter = Vela.gutter
     val size = LocalWindowSize.current
-    Column(modifier.fillMaxWidth().testTag("carousel.skeleton"), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
-        Box(Modifier.padding(top = Vela.sm).width(180.dp).height(18.dp).clip(Vela.smallShape).background(Vela.colors.surfaceVariant.toColor()))
+    Column(modifier.fillMaxWidth().testTag("carousel.skeleton"), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
+        Box(Modifier.fillMaxWidth().heightIn(min = Vela.minTouch), contentAlignment = Alignment.CenterStart) {
+            Box(Modifier.width(160.dp).height(18.dp).clip(Vela.smallShape).shimmer())
+        }
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val width = if (portrait) 150.dp else when (size) { WindowSizeClass.COMPACT -> maxWidth * 0.82f; WindowSizeClass.MEDIUM -> 320.dp; WindowSizeClass.EXPANDED -> 340.dp }
             Row(Modifier.bleed(gutter).padding(horizontal = gutter), horizontalArrangement = Arrangement.spacedBy(Vela.md)) {
-                repeat(2) {
+                repeat(if (portrait) 3 else 2) {
                     Column(Modifier.width(width), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                        Box(Modifier.fillMaxWidth().aspectRatio(if (portrait) 9f / 16f else 16f / 9f).clip(Vela.thumbnailShape).background(Vela.colors.surfaceVariant.toColor()))
-                        Box(Modifier.fillMaxWidth(0.8f).height(14.dp).clip(Vela.smallShape).background(Vela.colors.surfaceVariant.toColor()))
+                        Box(Modifier.fillMaxWidth().aspectRatio(if (portrait) 9f / 16f else 16f / 9f).clip(Vela.thumbnailShape).shimmer())
+                        Row(Modifier.padding(horizontal = Vela.sm), horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+                            if (!portrait) Box(Modifier.size(36.dp).clip(Vela.pillShape).shimmer())
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
+                                Box(Modifier.fillMaxWidth().height(14.dp).clip(Vela.smallShape).shimmer())
+                                Box(Modifier.fillMaxWidth(0.6f).height(12.dp).clip(Vela.smallShape).shimmer())
+                            }
+                        }
                     }
                 }
             }

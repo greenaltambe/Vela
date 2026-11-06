@@ -60,7 +60,11 @@ class NavigationUiTest {
         setContent { AppUnderTest(f) }; waitForIdle()
         val b = bar(); val page = onNodeWithTag("home.list").fetchSemanticsNode().boundsInRoot
         assertTrue(page.bottom > b.top + 1f, "floating: the page runs under the bar (page ends ${page.bottom}, bar starts ${b.top})")
-        onNodeWithTag("home.list").performScrollToIndex(12); waitForIdle()
+        // To the real end of the list (it grows as more pages arrive and the shelves are part of it), not to a fixed index.
+        repeat(6) {
+            val rows = onNodeWithTag("home.list").fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.CollectionInfo].rowCount
+            onNodeWithTag("home.list").performScrollToIndex(rows - 1); waitForIdle()
+        }
         val lastCard = onAllNodesWithTag("component.video_card").fetchSemanticsNodes().maxOf { it.boundsInRoot.bottom }
         assertTrue(lastCard <= b.top + 1f, "the last card ($lastCard) is not hidden by the bar (${b.top})")
     }

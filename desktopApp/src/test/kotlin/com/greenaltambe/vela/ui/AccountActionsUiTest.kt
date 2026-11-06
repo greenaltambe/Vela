@@ -45,7 +45,7 @@ class AccountActionsUiTest {
         val video = FakeData.videos.first { !f.services.subscriptions.isSubscribed(it.channelId) }
         f.navigator.push(Route.Video(video))
         setContent { AppUnderTest(f) }
-        waitForIdle()
+        waitForIdle(); mainClock.advanceTimeBy(1_500); waitForIdle()   // the video page slides in as a sheet: let it arrive before clicking in it
         onNodeWithTag("video.subscribe", useUnmergedTree = true).performClick(); waitForIdle()
         waitUntil(timeoutMillis = 3_000) { actions.calls.isNotEmpty() }
         assertEquals("subscribe ${video.channelId}", actions.calls.single())
@@ -62,7 +62,7 @@ class AccountActionsUiTest {
         val video = FakeData.videos.first { !f.services.subscriptions.isSubscribed(it.channelId) }
         f.navigator.push(Route.Video(video))
         setContent { AppUnderTest(f) }
-        waitForIdle()
+        waitForIdle(); mainClock.advanceTimeBy(1_500); waitForIdle()   // the video page slides in as a sheet: let it arrive before clicking in it
         onNodeWithTag("video.subscribe", useUnmergedTree = true).performClick(); waitForIdle()
         waitUntil(timeoutMillis = 3_000) { runCatching { onNodeWithTag("video.actionError", useUnmergedTree = true).assertIsDisplayed() }.isSuccess }
         assertTrue(!f.services.subscriptions.isSubscribed(video.channelId), "the local change was rolled back")
@@ -75,7 +75,7 @@ class AccountActionsUiTest {
         val video = FakeData.videos.first { !f.services.subscriptions.isSubscribed(it.channelId) }
         f.navigator.push(Route.Video(video))
         setContent { AppUnderTest(f) }
-        waitForIdle()
+        waitForIdle(); mainClock.advanceTimeBy(1_500); waitForIdle()   // the video page slides in as a sheet: let it arrive before clicking in it
         // The page waits for the video's own details first: the channel id they give (a real UC... id) is the one that is stored and sent.
         waitUntil(timeoutMillis = 5_000) { onAllNodesWithTag("video.subscribe", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
         val before = f.services.subscriptions.isSubscribed("UC1")   // the fixture may already follow it: the button then unsubscribes

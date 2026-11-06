@@ -150,6 +150,7 @@ private fun AppShellContent(services: AppServices, navigator: Navigator) {
     val playerState = host?.controllerState?.collectAsState()?.value
 
     val sheetState = com.greenaltambe.vela.ui.player.rememberPlayerSheetState(services, navigator)
+    val miniSlot = remember { com.greenaltambe.vela.ui.nav.MiniSlot() }
     androidx.compose.runtime.SideEffect { navigator.playerSheetState = sheetState }
 
     PlatformBackHandler(enabled = navigator.canGoBack) { navigator.back() }
@@ -330,12 +331,12 @@ private fun AppShellContent(services: AppServices, navigator: Navigator) {
                             if (barOverlays) BottomChrome(
                                 nav = nav, entries = navEntries(nav.tabs), selected = nav.selected(uiRoute), scroll = scroll,
                                 hasMiniPlayer = sheetState.isVisible, onSelect = navigator::openTab, modifier = Modifier.align(Alignment.BottomCenter),
-                                onHeight = { if (!(nav.shrinkOnScroll && scroll.shrunk)) chromeHeightPx = it },
+                                onHeight = { if (!(nav.shrinkOnScroll && scroll.shrunk)) chromeHeightPx = it }, miniSlot = miniSlot,
                             )
                         }
                         if (chrome && showBar && !rail && !barOverlays) BottomChrome(
                             nav = nav, entries = navEntries(nav.tabs), selected = nav.selected(uiRoute), scroll = scroll,
-                            hasMiniPlayer = sheetState.isVisible, onSelect = navigator::openTab,
+                            hasMiniPlayer = sheetState.isVisible, onSelect = navigator::openTab, miniSlot = miniSlot,
                         )
                         else if (chrome && rail) {
                             Spacer(Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)))
@@ -348,6 +349,7 @@ private fun AppShellContent(services: AppServices, navigator: Navigator) {
                 services = services,
                 navigator = navigator,
                 sheetState = sheetState,
+                miniSlot = miniSlot,
                 modifier = Modifier.fillMaxSize(),
             )
         }

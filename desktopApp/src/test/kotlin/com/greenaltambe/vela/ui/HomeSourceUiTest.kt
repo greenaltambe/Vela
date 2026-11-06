@@ -3,7 +3,11 @@
 package com.greenaltambe.vela.ui
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.printToString
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.runDesktopComposeUiTest
 import com.greenaltambe.vela.auth.*
@@ -50,5 +54,30 @@ class HomeSourceUiTest {
         val f = buildFixture(withDownloads = false, reads = reads); signIn(f); f.services.settings.set(Settings.homeSource, HomeSource.TRENDING)
         setContent { AppUnderTest(f) }; waitForIdle()
         assertEquals(0, reads.calls, "the Trending setting wins even when signed in")
+    }
+
+    @Test fun theChipsStayAboveTheListAndAFilterStaysOnTheFeed() = runDesktopComposeUiTest(800, 1000) {
+        val f = buildFixture(withDownloads = false)
+        setContent { AppUnderTest(f) }; waitForIdle()
+        runCatching { waitUntil(timeoutMillis = 3_000) { onAllNodesWithTag("card.title", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() } }
+            .onFailure { println("TREE>> " + onRoot(useUnmergedTree = true).printToString(40)); throw it }
+        // The chips are not part of the list's items, so scrolling cannot take them away.
+        onNodeWithTag("home.chips", useUnmergedTree = true).assertIsDisplayed()
+        onNodeWithTag("home.chip.LIVE", useUnmergedTree = true).performClick(); waitForIdle()
+        onNodeWithTag("home.chips", useUnmergedTree = true).assertIsDisplayed()
+        // With a filter on, no shelf (or shelf placeholder) is drawn between the results.
+        assertEquals(0, onAllNodesWithTag("carousel.skeleton", useUnmergedTree = true).fetchSemanticsNodes().size)
+        onNodeWithTag("home.chip.ALL", useUnmergedTree = true).performClick(); waitForIdle()
+        onNodeWithTag("home.chips", useUnmergedTree = true).assertIsDisplayed()
+    }
+
+    @Test fun firstLoadShowsOnlyTheListsPlaceholdersNotShelfPlaceholdersOnTopOfThem() = runDesktopComposeUiTest(800, 1000) {
+        val f = buildFixture(withDownloads = false)
+        setContent { AppUnderTest(f) }
+        // At most 3 list placeholders and, while the feed has not answered, no shelf placeholder at all.
+        val skeletons = onAllNodesWithTag("skeleton", useUnmergedTree = true).fetchSemanticsNodes().size
+        val shelves = onAllNodesWithTag("carousel.skeleton", useUnmergedTree = true).fetchSemanticsNodes().size
+        assertTrue(skeletons <= 3, "list placeholders: $skeletons")
+        assertTrue(shelves == 0 || skeletons == 0, "shelf placeholders ($shelves) must not sit over list placeholders ($skeletons)")
     }
 }

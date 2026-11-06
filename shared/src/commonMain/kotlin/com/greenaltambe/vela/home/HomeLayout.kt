@@ -8,16 +8,16 @@ data class ShelfSlot(val shelf: HomeShelf, val afterVideos: Int)
 /**
  * Weaves the shelves into the list the way YouTube does, instead of stacking them above it. Continue watching goes first (it is something to
  * do, not something to be recommended); the others follow the viewer's order: the first after [FIRST_AFTER] videos, then one every [step] videos.
- * While the list has fewer videos than that (or none: it is still loading, or its source failed) a shelf waits at the end of what there is, so
- * Home is never blank and the shelves take their places as the list grows.
+ * The places depend only on the order and the density, never on how many videos have loaded, so a shelf does not move when the list grows. The list
+ * puts a shelf whose place is past the end of a short list at that end, so Home is never blank.
  */
-fun planSlots(shelves: List<HomeShelf>, videoCount: Int, step: Int): List<ShelfSlot> {
+fun planSlots(shelves: List<HomeShelf>, step: Int): List<ShelfSlot> {
     val gap = step.coerceAtLeast(2)
     val out = ArrayList<ShelfSlot>()
     var n = 0
     shelves.distinct().forEach { shelf ->
         if (shelf == HomeShelf.CONTINUE) out += ShelfSlot(shelf, 0)
-        else { out += ShelfSlot(shelf, minOf(FIRST_AFTER + n * gap, videoCount)); n++ }
+        else { out += ShelfSlot(shelf, FIRST_AFTER + n * gap); n++ }
     }
     return out.sortedBy { it.afterVideos }
 }

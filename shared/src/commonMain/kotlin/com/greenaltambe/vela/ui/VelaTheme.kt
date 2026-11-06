@@ -92,6 +92,8 @@ fun typographyFor(t: com.greenaltambe.vela.ui.look.TypographyTokens): Typography
         bodyMedium = TextStyle(fontFamily = family, fontSize = size(t.bodySizeSp)),
         bodySmall = TextStyle(fontFamily = family, fontSize = size(t.captionSizeSp)),
         labelLarge = TextStyle(fontFamily = family, fontSize = size(t.bodySizeSp)),
+        // Badges (durations, LIVE) and small labels: Material's own 11 sp is under the 12 sp floor, so they take the caption size.
+        labelSmall = TextStyle(fontFamily = family, fontSize = size(t.captionSizeSp), fontWeight = androidx.compose.ui.text.font.FontWeight.Medium),
         headlineMedium = TextStyle(fontFamily = family, fontSize = size(t.titleSizeSp + 4), fontWeight = titleWeight),
     )
 }

@@ -23,9 +23,11 @@ private val musicWords = listOf("official video", "official audio", "official mu
 
 /** Music by what the listing says (the title's usual words, an artist's "- Topic" channel, VEVO): a guess, not a category YouTube gives. */
 fun isMusic(v: VideoSummary): Boolean {
-    val title = v.title.lowercase()
     val channel = v.channelName.lowercase()
-    return channel.endsWith("- topic") || channel.endsWith("vevo") || musicWords.any { it in title }
+    if (channel.endsWith("- topic") || channel.endsWith("vevo")) return true
+    // Whole words only: "ost" is in "most" and "mix" in "mixed"; a letter or digit next to the word means it is another word.
+    val title = " " + v.title.lowercase().map { if (it.isLetterOrDigit() || it == '.') it else ' ' }.joinToString("") + " "
+    return musicWords.any { " $it " in title }
 }
 
 /** A topic chip (one of the viewer's interests): the word is in the title or the channel's name. */

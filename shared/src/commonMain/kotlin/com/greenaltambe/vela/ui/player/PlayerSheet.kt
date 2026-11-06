@@ -27,6 +27,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -42,6 +43,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -76,6 +79,8 @@ fun PlayerSheet(
     navigator: Navigator,
     sheetState: PlayerSheetState,
     modifier: Modifier = Modifier,
+    /** Where the bar has set aside room for the card; the card sits there, so it follows the bar (shrinking, placement, gap). */
+    miniSlot: com.greenaltambe.vela.ui.nav.MiniSlot? = null,
 ) {
     val video = sheetState.currentVideo ?: return
     val host = services.player ?: return
@@ -136,6 +141,9 @@ fun PlayerSheet(
 
     val cardBottom = winH - bottomClearPx
     val cardTop = cardBottom - cardHeightPx
+    var rootTopPx by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    // With the bar showing, the card is where the bar has left room for it; otherwise (a rail, before the first layout) at the fixed place. Read in layout, not composition.
+    val cardTopNow = { val t = miniSlot?.top; if (t != null && !t.isNaN() && !isPip && !rail) t - rootTopPx else cardTop }
     // The card is as wide as the page, up to a comfortable width: stretched across a landscape screen it is a thin bar with its controls far apart.
     val cardWidth = minOf(contentW - marginPx * 2, with(density) { 640.dp.toPx() })
     val cardLeft = leftInsetPx + railWidthPx + marginPx + (contentW - marginPx * 2 - cardWidth) / 2f
@@ -157,7 +165,7 @@ fun PlayerSheet(
         if (isPip) {
             val at = pipPos?.pos ?: Offset(winW - pipW - marginPx, cardBottom - pipH)
             at.y * (1f - p)
-        } else cardTop * (1f - p)
+        } else cardTopNow() * (1f - p)
     }
     val sheetWAt = { p: Float -> if (isPip) pipW + (targetExpandedW - pipW) * p else cardWidth + (targetExpandedW - cardWidth) * p }
     val sheetHAt = { p: Float -> if (isPip) pipH + (winH - pipH) * p else cardHeightPx + (winH - cardHeightPx) * p }
@@ -202,7 +210,7 @@ fun PlayerSheet(
                 val at = pipPos?.pos ?: Offset(winW - pipW - marginPx, cardBottom - pipW * 9f / 16f)
                 at.y * (1f - sheetState.progress)
             } else {
-                cardTop * (1f - sheetState.progress)
+                cardTopNow() * (1f - sheetState.progress)
             }
 
             startProgress = currentP
@@ -212,7 +220,7 @@ fun PlayerSheet(
             tracker.addPosition(down.uptimeMillis, Offset(down.position.x, startWindowY))
 
             // Moves slightly faster than fingers (1 / 0.82 = 1.22x finger speed)
-            val dragRangePx = (cardTop - topInsetPx).coerceAtLeast(100f) * 0.82f
+            val dragRangePx = (cardTopNow() - topInsetPx).coerceAtLeast(100f) * 0.82f
             val touchSlop = with(density) { 8.dp.toPx() }
 
             var lastTotal = 0f
@@ -251,7 +259,7 @@ fun PlayerSheet(
     }
 
     // Outer Box: pure transparent wrapper with NO touch consumption
-    Box(modifier.fillMaxSize()) {
+    Box(modifier.fillMaxSize().onGloballyPositioned { rootTopPx = it.positionInWindow().y }) {
         // Morphing Sheet Box: exactly sized and positioned, only absorbs touches within its bounds
         Box(
             Modifier
@@ -272,6 +280,8 @@ fun PlayerSheet(
                 }
                 .drawBehind { drawRect(if (progressNow() > 0.4f) backgroundExpanded else backgroundCollapsed) }
                 .then(gestureModifier)
+                // Collapsed, the sheet is the mini player (or the picture-in-picture card): named as such for the tests and for accessibility tooling.
+                .then(if (sheetState.isCollapsed) Modifier.testTag(com.greenaltambe.vela.ui.look.ComponentIds.MINI_PLAYER) else Modifier)
         ) {
             // LAYER 0: The persistent VideoScreen with the live video surface
             VideoScreen(
@@ -282,7 +292,8 @@ fun PlayerSheet(
                 sheetProgress = progressNow,
                 onBack = { sheetState.collapse() },
                 onExpand = { sheetState.expand() },
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                pageWidthPx = targetExpandedW,
             )
 
             // LAYER 1: MiniPlayer Controls & Progress bar (only in card mode when near collapsed)
@@ -352,7 +363,7 @@ fun PlayerSheet(
             if (isPip && showPipControls) {
                 Box(
                     Modifier.fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.35f))
+                        .background(Vela.colors.mediaBackground.toColor().copy(alpha = 0.35f))
                         .pointerInput(winW, winH) {
                             detectDragGestures { change, drag ->
                                 change.consume()
@@ -376,14 +387,14 @@ fun PlayerSheet(
                         Icon(
                             if (controllerState.status == PlaybackStatus.PLAYING) Vela.icons.pause else Vela.icons.play,
                             if (controllerState.status == PlaybackStatus.PLAYING) "Pause" else "Play",
-                            tint = Color.White
+                            tint = Vela.colors.onMedia.toColor()
                         )
                     }
                     IconButton(
                         onClick = { sheetState.dismiss() },
                         modifier = Modifier.align(Alignment.TopEnd).testTag("mini.close")
                     ) {
-                        Icon(Vela.icons.close, "Close player", tint = Color.White)
+                        Icon(Vela.icons.close, "Close player", tint = Vela.colors.onMedia.toColor())
                     }
                 }
             }

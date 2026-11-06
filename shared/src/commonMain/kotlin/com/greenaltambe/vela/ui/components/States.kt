@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -49,6 +50,23 @@ fun SkeletonCard(vertical: Boolean, modifier: Modifier = Modifier, fullBleed: Bo
                 Box(Modifier.fillMaxWidth(0.7f).height(14.dp).clip(Vela.smallShape).shimmer())
                 Box(Modifier.fillMaxWidth(0.4f).height(12.dp).clip(Vela.smallShape).shimmer())
             }
+        }
+    }
+}
+
+/**
+ * A placeholder shaped like a comment: the round picture, a short name line, two lines of text and the likes line. [avatar] is the picture's size
+ * (a reply's is smaller than a comment's); the blocks shimmer like the video placeholders.
+ */
+@Composable
+fun CommentSkeleton(modifier: Modifier = Modifier, avatar: androidx.compose.ui.unit.Dp = 40.dp, lastLineWidth: Float = 0.6f) {
+    Row(modifier.fillMaxWidth().testTag("skeleton.comment"), horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+        Box(Modifier.size(avatar).clip(Vela.pillShape).shimmer())
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
+            Box(Modifier.fillMaxWidth(0.35f).height(12.dp).clip(Vela.smallShape).shimmer())
+            Box(Modifier.fillMaxWidth().height(14.dp).clip(Vela.smallShape).shimmer())
+            Box(Modifier.fillMaxWidth(lastLineWidth).height(14.dp).clip(Vela.smallShape).shimmer())
+            Box(Modifier.padding(top = Vela.xs).width(72.dp).height(12.dp).clip(Vela.smallShape).shimmer())
         }
     }
 }
