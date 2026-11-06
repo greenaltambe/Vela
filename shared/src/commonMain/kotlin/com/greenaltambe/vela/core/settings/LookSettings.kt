@@ -99,6 +99,12 @@ object LookSettings {
         key = "look.nav.tabs", default = NavTabs.encode(NavTabs.default), scope = SettingScope.GLOBAL, label = "Tabs in the bar", keywords = listOf("tabs", "bar", "navigation", "order", "home", "shorts", "downloads"),
         codec = SettingCodecs.string, section = SettingSection.APPEARANCE, info = "Which pages get a tab, in order (2 to 5). Settings is never a tab: it lives in the profile menu.",
     )
+    val homeShelves = Setting(
+        key = "look.home.shelves", default = HomeShelves.encode(HomeShelves.default), scope = SettingScope.GLOBAL, label = "Home shelves", keywords = listOf("home", "shelves", "rows", "sections", "order", "continue", "subscriptions", "because", "shorts", "interests"),
+        codec = SettingCodecs.string, section = SettingSection.APPEARANCE, info = "Which shelves Home shows above its list, and in what order. A shelf with nothing to show is left out.",
+    )
+    val homeDensity = pick("look.home.density", HomeDensity.NORMAL, HomeDensity.entries, "Shelves between videos", mapOf(HomeDensity.FEW to "Few (every 8 videos)", HomeDensity.NORMAL to "Normal (every 5)", HomeDensity.MANY to "Many (every 3)"), listOf("home", "shelves", "rows", "often", "density", "carousel"), "How often a shelf comes between the videos of Home's list.")
+    val homeChips = flag("look.home.chips", true, "Quick filters on Home", listOf("home", "filter", "chips", "unwatched", "music", "live", "short"), "A row of chips above Home (All, Unwatched, Under 10 min, Live, Music, and your own topics). They filter what is already loaded.")
     val navOpenOn = pick("look.nav.openOn", NavTab.HOME, NavTab.entries.filter { it != NavTab.SEARCH }, "Open on", mapOf(NavTab.HOME to "Home", NavTab.SHORTS to "Shorts", NavTab.SUBSCRIPTIONS to "Subscriptions", NavTab.LIBRARY to "Library", NavTab.DOWNLOADS to "Downloads", NavTab.EXPLORE to "Explore"), listOf("start", "open", "launch", "first"))
     val navLabels = pick("look.nav.labels", NavLabels.ALWAYS, NavLabels.entries, "Tab labels", mapOf(NavLabels.HIDDEN to "Hidden", NavLabels.ALWAYS to "Always visible"), listOf("labels", "tabs", "text", "hide"), "Labels also hide while the bar is shrunk (see Shrink the bar while scrolling).")
     val barStyle = pick("look.nav.barStyle", BarStyle.FLOATING, BarStyle.entries, "Bar style", mapOf(BarStyle.FLOATING to "Floating", BarStyle.DOCKED to "Docked", BarStyle.MINIMAL to "Minimal"), listOf("bar", "floating", "docked", "pill", "minimal", "dock"), "Floating runs over the page (the page scrolls behind it). Docked sits below the page. Minimal is a small icon-only pill that also floats.")
@@ -117,7 +123,7 @@ object LookSettings {
 
     val all: List<Setting<*>> = listOf(
         theme, palette, colorMode, customColor, corners, density, textScale, font, titleWeight,
-        iconStyle, iconWeight, iconRounded, progressStyle, navTabs, navOpenOn, navLabels, barStyle, navShrink, navMarker, miniLook, railCollapsed, glass, reduceMotion,
+        iconStyle, iconWeight, iconRounded, progressStyle, navTabs, homeShelves, homeDensity, homeChips, navOpenOn, navLabels, barStyle, navShrink, navMarker, miniLook, railCollapsed, glass, reduceMotion,
     )
 }
 

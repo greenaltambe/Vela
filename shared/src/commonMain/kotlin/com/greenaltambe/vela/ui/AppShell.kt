@@ -368,6 +368,7 @@ private fun routeTitle(route: Route): String = when (route) {
     is Route.Channel -> route.name.ifBlank { "Channel" }
     is Route.Playlist -> "Playlist"
     Route.History -> "History"
+    is Route.HomeShelf -> com.greenaltambe.vela.core.settings.HomeShelf.entries.firstOrNull { it.name == route.shelfId }?.label ?: "Home"
     Route.ManageSubscriptions -> "All channels"
     Route.Diagnostics -> "Diagnostics"
     Route.Accounts -> "Accounts"
@@ -428,6 +429,7 @@ private fun Destination(services: AppServices, navigator: Navigator, route: Rout
         is Route.Channel -> ChannelScreen(services, navigator, route.id, route.name, modifier, route.viaVideoId)
         is Route.Playlist -> PlaylistScreen(services, navigator, route.id, modifier)
         Route.History -> HistoryScreen(services, navigator, modifier)
+        is Route.HomeShelf -> com.greenaltambe.vela.ui.screens.HomeShelfScreen(services, navigator, route.shelfId, modifier)
         Route.ManageSubscriptions -> com.greenaltambe.vela.ui.screens.AllChannelsScreen(services, navigator, modifier)
         Route.Diagnostics -> DiagnosticsScreen(services.extractor, services.log, services.modules.log, services.downloads, modifier, faults = services.faults, exportLog = services.exportLog, rebuildCaches = services.rebuildCaches)
         Route.Downloads -> DownloadsScreen(services, navigator, modifier)

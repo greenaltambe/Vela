@@ -79,7 +79,7 @@ fun ExploreScreen(services: AppServices, navigator: Navigator, modifier: Modifie
         VideoCollection(
             services, navigator, shown, state, Modifier, testTag = "explore.list", scroll = entry.scroll,
             header = {
-                HScrollRow(Modifier.testTag("explore.topics")) {
+                com.greenaltambe.vela.ui.components.ChipRow(Modifier.testTag("explore.topics")) {
                     items(listOf(TRENDING) + ExploreTopics) { t -> FilterChip(selected = topic == t, onClick = { topic = t }, label = { Text(t, maxLines = 1) }, modifier = Modifier.testTag("explore.topic.$t")) }
                 }
             },

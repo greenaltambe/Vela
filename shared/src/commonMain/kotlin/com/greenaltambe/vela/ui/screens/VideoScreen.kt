@@ -423,10 +423,10 @@ fun VideoScreen(
                 SubscribeButton(subscribed, onClick = {
                     if (subscribed) {
                         services.subscriptions.unsubscribe(chId); subscribed = false
-                        scope.launch { (services.actions?.unsubscribe(chId) as? ActionResult.Failed)?.let { services.subscriptions.subscribe(chId, video.channelName, video.channelAvatarUrl ?: info?.channelAvatarUrl, services.clock.now()); subscribed = true; actionError = "Could not unsubscribe on the account: ${it.message}" } }
+                        scope.launch { val r = services.actions?.unsubscribe(chId); (r as? ActionResult.Queued)?.let { actionNote = it.message }; (r as? ActionResult.Failed)?.let { services.subscriptions.subscribe(chId, video.channelName, video.channelAvatarUrl ?: info?.channelAvatarUrl, services.clock.now()); subscribed = true; actionError = "Could not unsubscribe on the account: ${it.message}" } }
                     } else {
                         services.subscriptions.subscribe(chId, video.channelName, video.channelAvatarUrl ?: info?.channelAvatarUrl, services.clock.now()); subscribed = true
-                        scope.launch { (services.actions?.subscribe(chId) as? ActionResult.Failed)?.let { services.subscriptions.unsubscribe(chId); subscribed = false; actionError = "Could not subscribe on the account: ${it.message}" } }
+                        scope.launch { val r = services.actions?.subscribe(chId); (r as? ActionResult.Queued)?.let { actionNote = it.message }; (r as? ActionResult.Failed)?.let { services.subscriptions.unsubscribe(chId); subscribed = false; actionError = "Could not subscribe on the account: ${it.message}" } }
                     }
                 }, modifier = Modifier.testTag("video.subscribe"))
             }
@@ -450,7 +450,7 @@ fun VideoScreen(
                     if (!canRate) { actionNote = "Sign in to rate videos"; return }
                     val (wasLiked, wasDisliked) = liked to disliked
                     liked = target == VideoRating.LIKE; disliked = target == VideoRating.DISLIKE
-                    scope.launch { (services.actions!!.rate(video.id, target) as? ActionResult.Failed)?.let { liked = wasLiked; disliked = wasDisliked; actionError = "Could not rate on the account: ${it.message}" } }
+                    scope.launch { val r = services.actions!!.rate(video.id, target); (r as? ActionResult.Queued)?.let { actionNote = it.message }; (r as? ActionResult.Failed)?.let { liked = wasLiked; disliked = wasDisliked; actionError = "Could not rate on the account: ${it.message}" } }
                 }
                 // Like and Dislike are one joined control: round on the outside, tight where they touch.
                 val outer = Vela.look.radii.fullDp.dp

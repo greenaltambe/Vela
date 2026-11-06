@@ -204,12 +204,12 @@ fun SearchScreen(services: AppServices, navigator: Navigator, query: String, mod
 private fun SearchFilterRow(filters: com.greenaltambe.vela.extractor.SearchFilters, type: SearchType, showShorts: Boolean, onType: (SearchType) -> Unit, onChange: (com.greenaltambe.vela.extractor.SearchFilters) -> Unit) {
     var durationMenu by remember { mutableStateOf(false) }
     var sortMenu by remember { mutableStateOf(false) }
-    com.greenaltambe.vela.ui.components.HScrollRow(Modifier.padding(horizontal = Vela.gutter).testTag("search.filters"), Arrangement.spacedBy(Vela.sm)) {
+    com.greenaltambe.vela.ui.components.ChipRow(Modifier.testTag("search.filters"), bleed = false) {
         item { FilterChip(selected = type == SearchType.ALL, onClick = { onType(SearchType.ALL) }, label = { Text("Videos", maxLines = 1) }, modifier = Modifier.testTag("search.filter.videos")) }
         item { FilterChip(selected = type == SearchType.CHANNELS, onClick = { onType(SearchType.CHANNELS) }, label = { Text("Channels", maxLines = 1) }, modifier = Modifier.testTag("search.filter.channels")) }
         item { FilterChip(selected = type == SearchType.PLAYLISTS, onClick = { onType(SearchType.PLAYLISTS) }, label = { Text("Playlists", maxLines = 1) }, modifier = Modifier.testTag("search.filter.playlists")) }
         // Video-only narrowing makes no sense for channels and playlists.
-        if (type != SearchType.ALL) return@HScrollRow
+        if (type != SearchType.ALL) return@ChipRow
         // Only offered while Shorts are on in Settings.
         if (showShorts) item { FilterChip(selected = filters.shortsOnly, onClick = { onChange(filters.copy(shortsOnly = !filters.shortsOnly)) }, label = { Text("Shorts", maxLines = 1) }, modifier = Modifier.testTag("search.filter.shorts")) }
         item { Box {
@@ -272,30 +272,10 @@ private fun SearchStart(services: AppServices, navigator: Navigator, history: Li
             }
         }
         if (watched.isNotEmpty()) item {
-            Column(verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
-                SectionHeader("Recently watched")
-                com.greenaltambe.vela.ui.components.HScrollRow(Modifier.testTag("search.watched"), Arrangement.spacedBy(Vela.md)) {
-                    items(watched, key = { it.id }) { v ->
-                        Column(Modifier.width(168.dp).clip(Vela.mediumShape).clickable { navigator.push(Route.Video(v)) }, verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
-                            coil3.compose.AsyncImage("https://i.ytimg.com/vi/${v.id}/mqdefault.jpg", null, Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(Vela.thumbnailShape).background(Vela.colors.surfaceVariant.toColor()), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
-                            Text(v.title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                }
-            }
+            com.greenaltambe.vela.ui.components.VideoCarousel("Recently watched", watched, tag = "search.watched", onOpen = { v -> navigator.push(Route.Video(v)) }, showChannelAvatar = false)
         }
         if (channels.isNotEmpty()) item {
-            Column(verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
-                SectionHeader("Subscriptions")
-                com.greenaltambe.vela.ui.components.HScrollRow(Modifier.testTag("search.channels"), Arrangement.spacedBy(Vela.md)) {
-                    items(channels, key = { it.channelId }) { c ->
-                        Column(Modifier.width(72.dp).clip(Vela.mediumShape).clickable { navigator.push(Route.Channel(c.channelId, c.name)) }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
-                            com.greenaltambe.vela.ui.components.Avatar(c.name, size = 56.dp, url = c.avatarUrl)
-                            Text(c.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                }
-            }
+            com.greenaltambe.vela.ui.components.ChannelCarousel("Subscriptions", channels, tag = "search.channels", onOpen = { c -> navigator.push(Route.Channel(c.channelId, c.name)) })
         }
         if (history.isEmpty() && watched.isEmpty() && channels.isEmpty()) item { EmptyState("Search for videos, channels and topics.") }
     }

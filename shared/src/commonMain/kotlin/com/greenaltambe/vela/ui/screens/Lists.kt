@@ -89,8 +89,8 @@ fun VideoCollection(
     scroll: ScrollMemory? = null,
     /** False on a channel's own page, where every video is by that channel. */
     showChannelAvatar: Boolean = true,
-    injectedContent: (@Composable () -> Unit)? = null,
-    injectedIndex: Int = 2,
+    /** Blocks (carousels) set between the videos; see [Injection]. */
+    injections: List<Injection> = emptyList(),
 ) {
     val size = LocalWindowSize.current
     val listState = androidx.compose.foundation.lazy.rememberLazyListState(scroll?.index ?: 0, scroll?.offset ?: 0)
@@ -116,8 +116,8 @@ fun VideoCollection(
     // The channel page opens at once; when the listing carries no channel id, the page finds it from the video behind its own loader.
     val channel = remember(navigator) { { v: VideoSummary -> navigator.push(Route.Channel(v.channelId, v.channelName, if (v.channelId.isBlank()) v.id else "")) } }
 
-    val before = if (injectedContent != null && videos.isNotEmpty()) videos.take(injectedIndex) else videos
-    val after = if (injectedContent != null && videos.size > injectedIndex) videos.drop(injectedIndex) else emptyList()
+    val rows = remember(videos, injections.map { it.key to it.afterVideos }) { listRows(videos, injections) }
+    val lastId = videos.lastOrNull()?.id
 
     if (grid && size != WindowSizeClass.COMPACT) {
         LazyVerticalGrid(
@@ -125,19 +125,17 @@ fun VideoCollection(
             horizontalArrangement = Arrangement.spacedBy(Vela.md), verticalArrangement = Arrangement.spacedBy(Vela.lg),
         ) {
             header?.let { h -> item(span = { GridItemSpan(maxLineSpan) }) { h() } }
+            // Blocks that belong above the first video come first, then the loading / empty / error state, then the videos with the other blocks between them.
+            gridItemsIndexed(rows.leading, key = { _, r -> r.key }, span = { _, _ -> GridItemSpan(maxLineSpan) }, contentType = { _, _ -> "injected" }) { _, r -> (r as ListRow.Block).injection.content() }
             stateItems(state) { SkeletonCard(vertical = true) }
-            gridItemsIndexed(before, key = { _, v -> v.id }, contentType = { _, _ -> "video" }) { i, v ->
-                VideoCard(v, { open(v) }, modifier = Modifier.appearOnce(v.id, i), style = VideoCardStyle.VERTICAL, extras = extras(v), onChannelClick = { channel(v) }, showChannelAvatar = showChannelAvatar, trailing = trailing?.let { t -> { t(v) } })
-                if (onEndReached != null && after.isEmpty() && v.id == before.last().id) LaunchedEffect(videos.size) { onEndReached() }
-            }
-            if (injectedContent != null && before.isNotEmpty()) {
-                item(span = { GridItemSpan(maxLineSpan) }, contentType = "injected") { injectedContent() }
-            }
-            if (after.isNotEmpty()) {
-                gridItemsIndexed(after, key = { _, v -> v.id }, contentType = { _, _ -> "video" }) { i, v ->
-                    val idx = before.size + i
-                    VideoCard(v, { open(v) }, modifier = Modifier.appearOnce(v.id, idx), style = VideoCardStyle.VERTICAL, extras = extras(v), onChannelClick = { channel(v) }, showChannelAvatar = showChannelAvatar, trailing = trailing?.let { t -> { t(v) } })
-                    if (onEndReached != null && v.id == after.last().id) LaunchedEffect(videos.size) { onEndReached() }
+            gridItemsIndexed(rows.rest, key = { _, r -> r.key }, span = { _, r -> if (r is ListRow.Block) GridItemSpan(maxLineSpan) else GridItemSpan(1) }, contentType = { _, r -> if (r is ListRow.Block) "injected" else "video" }) { _, r ->
+                when (r) {
+                    is ListRow.Block -> r.injection.content()
+                    is ListRow.Video -> {
+                        val v = r.video
+                        VideoCard(v, { open(v) }, modifier = Modifier.appearOnce(v.id, r.index), style = VideoCardStyle.VERTICAL, extras = extras(v), onChannelClick = { channel(v) }, showChannelAvatar = showChannelAvatar, trailing = trailing?.let { t -> { t(v) } })
+                        if (onEndReached != null && v.id == lastId) LaunchedEffect(videos.size) { onEndReached() }
+                    }
                 }
             }
             footer?.let { f -> item(span = { GridItemSpan(maxLineSpan) }) { f() } }
@@ -150,25 +148,45 @@ fun VideoCollection(
                 state = listState, contentPadding = padding, verticalArrangement = Arrangement.spacedBy(if (vertical) Vela.lg else Vela.md),
             ) {
                 header?.let { h -> item { h() } }
+                items(rows.leading, key = { it.key }, contentType = { "injected" }) { r -> (r as ListRow.Block).injection.content() }
                 stateItems(state) { SkeletonCard(vertical = vertical, fullBleed = vertical) }
-                itemsIndexed(before, key = { _, v -> v.id }, contentType = { _, _ -> "video" }) { i, v ->
-                    VideoCard(v, { open(v) }, modifier = Modifier.appearOnce(v.id, i), style = if (vertical) VideoCardStyle.VERTICAL else VideoCardStyle.HORIZONTAL, extras = extras(v), onChannelClick = { channel(v) }, showChannelAvatar = showChannelAvatar, fullBleed = vertical, trailing = trailing?.let { t -> { t(v) } })
-                    if (onEndReached != null && after.isEmpty() && v.id == before.last().id) LaunchedEffect(videos.size) { onEndReached() }
-                }
-                if (injectedContent != null && before.isNotEmpty()) {
-                    item(contentType = "injected") { injectedContent() }
-                }
-                if (after.isNotEmpty()) {
-                    itemsIndexed(after, key = { _, v -> v.id }, contentType = { _, _ -> "video" }) { i, v ->
-                        val idx = before.size + i
-                        VideoCard(v, { open(v) }, modifier = Modifier.appearOnce(v.id, idx), style = if (vertical) VideoCardStyle.VERTICAL else VideoCardStyle.HORIZONTAL, extras = extras(v), onChannelClick = { channel(v) }, showChannelAvatar = showChannelAvatar, fullBleed = vertical, trailing = trailing?.let { t -> { t(v) } })
-                        if (onEndReached != null && v.id == after.last().id) LaunchedEffect(videos.size) { onEndReached() }
+                items(rows.rest, key = { it.key }, contentType = { r -> if (r is ListRow.Block) "injected" else "video" }) { r ->
+                    when (r) {
+                        is ListRow.Block -> r.injection.content()
+                        is ListRow.Video -> {
+                            val v = r.video
+                            VideoCard(v, { open(v) }, modifier = Modifier.appearOnce(v.id, r.index), style = if (vertical) VideoCardStyle.VERTICAL else VideoCardStyle.HORIZONTAL, extras = extras(v), onChannelClick = { channel(v) }, showChannelAvatar = showChannelAvatar, fullBleed = vertical, trailing = trailing?.let { t -> { t(v) } })
+                            if (onEndReached != null && v.id == lastId) LaunchedEffect(videos.size) { onEndReached() }
+                        }
                     }
                 }
                 footer?.let { f -> item { f() } }
             }
         }
     }
+}
+
+/** A block (a carousel) set into a list after [afterVideos] videos (0: above the first). The [key] keeps it in place as more videos arrive. */
+class Injection(val afterVideos: Int, val key: String, val content: @Composable () -> Unit)
+
+private sealed interface ListRow {
+    val key: String
+    class Video(val video: VideoSummary, val index: Int) : ListRow { override val key get() = video.id }
+    class Block(val injection: Injection) : ListRow { override val key get() = "inj-" + injection.key }
+}
+
+private class ListRows(val leading: List<ListRow>, val rest: List<ListRow>)
+
+/** The videos with the blocks between them. Blocks above the first video are kept apart so the list's own state (loading, error) can sit under them. */
+private fun listRows(videos: List<VideoSummary>, injections: List<Injection>): ListRows {
+    val at = injections.groupBy { it.afterVideos.coerceIn(0, videos.size) }
+    val leading = at[0].orEmpty().map { ListRow.Block(it) }
+    val rest = ArrayList<ListRow>()
+    videos.forEachIndexed { i, v ->
+        rest += ListRow.Video(v, i)
+        at[i + 1]?.forEach { rest += ListRow.Block(it) }
+    }
+    return ListRows(leading, rest)
 }
 
 private fun LazyListScope.stateItems(state: ListState, skeleton: @Composable () -> Unit) {

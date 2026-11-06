@@ -54,9 +54,9 @@ import com.greenaltambe.vela.ui.nav.Route
 /** Which Customize page shows which look setting, and which pages exist. The ones marked [stubs] arrive in the next update. */
 object CustomizePages {
     val stubs = mapOf(
-        "looks" to "Looks", "home" to "Home & Subscriptions", "feeds" to "Feeds & cards", "video" to "Video page & Player",
+        "looks" to "Looks", "feeds" to "Feeds & cards", "video" to "Video page & Player",
     )
-    val titles = mapOf("color" to "Colour palette", "progress" to "Progress bar", "text" to "Text", "icons" to "Icons & shapes", "glass" to "Glass & backgrounds", "tabs" to "Tabs & mini player") + stubs
+    val titles = mapOf("color" to "Colour palette", "progress" to "Progress bar", "text" to "Text", "icons" to "Icons & shapes", "glass" to "Glass & backgrounds", "tabs" to "Tabs & mini player", "home" to "Home") + stubs
 
     fun pageFor(s: Setting<*>): String = when {
         s.key in setOf("look.palette", "look.colorMode", "look.customColor") -> "color"
@@ -64,6 +64,7 @@ object CustomizePages {
         s.key in setOf("look.font", "look.titleWeight", "look.textScale", "look.density") -> "text"
         s.key in setOf("look.glass", "look.reduceMotion", "appearance.performanceMode") -> "glass"
         s.key.startsWith("look.nav.") || s.key.startsWith("look.mini.") -> "tabs"
+        s.key.startsWith("look.home.") -> "home"
         s.key in setOf("look.theme", "appearance.look") -> "hub"
         else -> "icons"
     }
@@ -157,6 +158,12 @@ fun CustomizePageScreen(services: AppServices, navigator: Navigator, page: Strin
                 "glass" -> {
                     CustomizePages.settingsOn("glass").forEach { SettingRow(s, it, revision) }
                     Text("Performance mode switches glass off and motion to the minimum whatever is set here.", style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor())
+                }
+                "home" -> {
+                    HomeShelvesChecklist(s, toasts)
+                    CustomizePages.settingsOn("home").filter { it.key != "look.home.shelves" }.forEach { SettingRow(s, it, revision) }
+                    Text("Home also lists Recommended (signed in) or Trending below the shelves. Hidden videos and channels (Not interested, Hide this channel) stay hidden until you bring them back.", style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor())
+                    TextButton(onClick = { services.homePrefs.clearDismissed(); toasts.show("Home shows everything again") }, modifier = Modifier.testTag("customize.home.clearDismissed")) { Text("Bring back hidden videos and channels", maxLines = 1) }
                 }
                 "tabs" -> {
                     TabsChecklist(s, toasts)
@@ -257,6 +264,33 @@ private fun IconPackCard(style: IconStyle, selected: Boolean, weight: IconWeight
 }
 
 /** The tab list as a checklist with order arrows. Fewer than two tabs is refused with a message instead of being saved. */
+/** Home's shelves: switch each on or off and move it up or down. A shelf that has nothing to show stays out of Home whatever is set here. */
+@Composable
+private fun HomeShelvesChecklist(s: SettingsResolver, toasts: UndoToasts) {
+    val revision by s.revision.collectAsState()
+    val on = remember(revision) { HomeShelves.parse(s.resolve(LookSettings.homeShelves)) }
+    val ordered = HomeShelves.ordered(on)
+    fun save(shelves: List<HomeShelf>) = s.setWithUndo(LookSettings.homeShelves, HomeShelves.encode(shelves), toasts) { r -> "${HomeShelves.parse(r).size} shelves" }
+    Column(Modifier.testTag("home.shelvesChecklist"), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
+        Text("Shelves on Home", style = MaterialTheme.typography.bodyLarge)
+        ordered.forEach { shelf ->
+            val enabled = shelf in on
+            Row(Modifier.fillMaxWidth().heightIn(min = Vela.minTouch).testTag("home.shelfRow.${shelf.name}"), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+                VelaSwitch(enabled, { checked -> save(if (checked) on + shelf else on - shelf) }, Modifier.testTag("home.shelfToggle.${shelf.name}"))
+                Column(Modifier.weight(1f)) {
+                    Text(shelf.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(shelf.hint, style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor(), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+                if (enabled) {
+                    val i = on.indexOf(shelf)
+                    TextButton(onClick = { save(on.toMutableList().also { it.add(i - 1, it.removeAt(i)) }) }, enabled = i > 0, modifier = Modifier.testTag("home.shelfUp.${shelf.name}")) { Text("Up") }
+                    TextButton(onClick = { save(on.toMutableList().also { it.add(i + 1, it.removeAt(i)) }) }, enabled = i < on.lastIndex, modifier = Modifier.testTag("home.shelfDown.${shelf.name}")) { Text("Down") }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun TabsChecklist(s: SettingsResolver, toasts: UndoToasts) {
     val revision by s.revision.collectAsState()

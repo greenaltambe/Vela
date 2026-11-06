@@ -47,7 +47,15 @@ import kotlin.math.abs
  * with the mouse, follows a sideways wheel (or mouse wheel), and shows round arrows at its ends while there is more to see that way.
  */
 @Composable
-fun HScrollRow(modifier: Modifier = Modifier, horizontalArrangement: Arrangement.Horizontal = Arrangement.spacedBy(Vela.sm), content: LazyListScope.() -> Unit) {
+fun HScrollRow(
+    modifier: Modifier = Modifier,
+    horizontalArrangement: Arrangement.Horizontal = Arrangement.spacedBy(Vela.sm),
+    /** Room before the first and after the last item; with a row that runs through the screen's side gutters it is the gutter, so items start in line with the page. */
+    contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(0.dp),
+    /** A swipe settles on a card (the next one peeks in at the edge), instead of coasting to any position. */
+    snap: Boolean = false,
+    content: LazyListScope.() -> Unit,
+) {
     val state = rememberLazyListState()
     val desktop = LocalVolumeSlider.current
     val scope = rememberCoroutineScope()
@@ -69,7 +77,8 @@ fun HScrollRow(modifier: Modifier = Modifier, horizontalArrangement: Arrangement
                         }
                     },
             ),
-            state = state, horizontalArrangement = horizontalArrangement, content = content,
+            state = state, horizontalArrangement = horizontalArrangement, contentPadding = contentPadding, content = content,
+            flingBehavior = if (snap) androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior(state) else androidx.compose.foundation.gestures.ScrollableDefaults.flingBehavior(),
         )
         if (desktop) {
             fun page(forward: Boolean) = scope.launch { state.animateScrollBy((if (forward) 1 else -1) * state.layoutInfo.viewportSize.width * 0.8f) }

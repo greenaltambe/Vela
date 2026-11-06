@@ -131,43 +131,16 @@ fun SubscriptionsScreen(services: AppServices, navigator: Navigator, modifier: M
 /** The channels you follow, one after another, with "View all" opening the full list. */
 @Composable
 private fun ChannelsRow(channels: List<SubscribedChannel>, navigator: Navigator) {
-    Column(Modifier.testTag("subs.channelsRow")) {
-        SectionHeader("Channels") { TextButton(onClick = { navigator.push(Route.ManageSubscriptions) }, modifier = Modifier.testTag("subs.viewAll")) { Text("View all", maxLines = 1) } }
-        HScrollRow(horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
-            items(channels, key = { it.channelId }) { c ->
-                Column(
-                    Modifier.width(76.dp).clip(Vela.mediumShape).clickable { navigator.push(Route.Channel(c.channelId, c.name)) }.padding(vertical = Vela.xs).testTag("subs.channel"),
-                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Vela.xs),
-                ) {
-                    Avatar(c.name, size = 56.dp, url = c.avatarUrl)
-                    Text(c.name, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
-                }
-            }
-        }
-    }
+    com.greenaltambe.vela.ui.components.ChannelCarousel(
+        "Channels", channels, tag = "subs.channelsRow", seeAllLabel = "View all", onSeeAll = { navigator.push(Route.ManageSubscriptions) },
+        onOpen = { c -> navigator.push(Route.Channel(c.channelId, c.name)) },
+    )
 }
 
 /** A few of the newest Shorts as tall cards; a tap opens the Shorts player on it. */
 @Composable
 private fun ShortsRow(shorts: List<VideoSummary>, navigator: Navigator) {
-    Column(Modifier.testTag("subs.shortsRow")) {
-        SectionHeader("Shorts")
-        HScrollRow(horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
-            items(shorts, key = { "short-${it.id}" }) { v ->
-                Box(
-                    Modifier.width(118.dp).aspectRatio(9f / 16f).clip(Vela.thumbnailShape).background(Vela.colors.surfaceVariant.toColor()).clickable { navigator.push(Route.Video(v)) }.testTag("subs.short"),
-                ) {
-                    AsyncImage(v.thumbnailUrl ?: "https://i.ytimg.com/vi/${v.id}/hq720.jpg", null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                    Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Vela.colors.mediaScrim.toColor().copy(alpha = 0.55f)).padding(Vela.xs)) {
-                        Column {
-                            Text(v.title, color = Vela.colors.onMedia.toColor(), style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            formatViews(v.viewCount)?.let { Text(it, color = Vela.colors.onMedia.toColor().copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall, maxLines = 1) }
-                        }
-                    }
-                }
-            }
-        }
-    }
+    com.greenaltambe.vela.ui.components.ShortsCarousel("Shorts", shorts, tag = "subs.shortsRow", onOpen = { v -> navigator.push(Route.ShortsPlayer(v)) })
 }
 
 /**

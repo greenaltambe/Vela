@@ -148,13 +148,16 @@ fun VideoCard(
     // Mouse over a video (desktop): a palette-gradient outline and a faint wash, rounded like the cards.
     val hovered by source.collectIsHoveredAsState()
     val hover = if (hovered) Modifier.border(2.dp, Vela.wake, Vela.mediumShape).background(Vela.colors.onSurface.toColor().copy(alpha = 0.05f), Vela.mediumShape) else Modifier
-    val click = hover.clip(Vela.mediumShape).hoverable(source).pressFeedback(source).combinedClickable(interactionSource = source, indication = null, onClick = onClick, onLongClick = if (replaced) ({ showOriginal = !showOriginal }) else null)
+    val press = Modifier.hoverable(source).pressFeedback(source).combinedClickable(interactionSource = source, indication = null, onClick = onClick, onLongClick = if (replaced) ({ showOriginal = !showOriginal }) else null)
+    val click = hover.clip(Vela.mediumShape).then(press)
+    // A vertical card is not clipped as a whole: only its picture is rounded. The rounded clip used to run over the text block too, and the first
+    // letters of the last line (4 dp from the edge) were cut by the corner. The hover wash and the press squeeze need no clip.
 
     if (style == VideoCardStyle.VERTICAL) {
         val gutter = Vela.gutter
-        Column(modifier.then(if (fullBleed) Modifier.bleed(gutter) else Modifier).fillMaxWidth().testTag(ComponentIds.VIDEO_CARD).then(click), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
+        Column(modifier.then(if (fullBleed) Modifier.bleed(gutter) else Modifier).fillMaxWidth().testTag(ComponentIds.VIDEO_CARD).then(hover).then(press), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
             Thumbnail(video, thumbnail, extras, Modifier.fillMaxWidth().clip(Vela.thumbnailShape))
-            Row(Modifier.fillMaxWidth().padding(horizontal = if (fullBleed) gutter + Vela.xs else Vela.xs), horizontalArrangement = Arrangement.spacedBy(Vela.sm), verticalAlignment = Alignment.Top) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = if (fullBleed) gutter + Vela.xs else Vela.sm).padding(bottom = Vela.xs), horizontalArrangement = Arrangement.spacedBy(Vela.sm), verticalAlignment = Alignment.Top) {
                 if (showChannelAvatar) Avatar(video.channelName, onChannelClick, url = video.channelAvatarUrl)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("card.title"))

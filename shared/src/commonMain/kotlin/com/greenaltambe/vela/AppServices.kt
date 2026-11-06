@@ -88,6 +88,7 @@ class AppServices(
     /** The automatic-download rules (stored as settings JSON). */
     val autoDownloadRules = com.greenaltambe.vela.downloads.AutoDownloadStore(com.greenaltambe.vela.data.SqlDelightSettingsStore(database))
     private val db = database
+    private val homeStore = com.greenaltambe.vela.data.SqlDelightSettingsStore(database)
     private val feeds = HashMap<String, FeedService>()
 
     /** The repositories below follow the active account: each read builds one for the id that is active right now. */
@@ -96,6 +97,9 @@ class AppServices(
     val history get() = HistoryLibrary(db, activeId)
     val searchHistory get() = SearchHistoryRepository(db, activeId)
     val playlists get() = PlaylistRepository(db, activeId)
+    /** What Home remembers (dismissed videos and channels, last visit) for the active account. */
+    val homePrefs get() = com.greenaltambe.vela.home.HomePrefs(homeStore, activeId)
+    val homeSources by lazy { com.greenaltambe.vela.home.HomeSources(this) }
 
     /** One feed service per account, so each keeps its own entries and refresh state. */
     val feed: FeedService

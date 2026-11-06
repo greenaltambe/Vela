@@ -233,7 +233,7 @@ fun ShortsScreen(services: AppServices, navigator: Navigator, modifier: Modifier
                     if (!canRate) { note = "Sign in to rate videos"; return }
                     val (wasLiked, wasDisliked) = (liked[v.id] == true) to (disliked[v.id] == true)
                     liked[v.id] = target == VideoRating.LIKE; disliked[v.id] = target == VideoRating.DISLIKE
-                    scope.launch { (services.actions!!.rate(v.id, target) as? ActionResult.Failed)?.let { liked[v.id] = wasLiked; disliked[v.id] = wasDisliked; note = "Could not rate: ${it.message}" } }
+                    scope.launch { val r = services.actions!!.rate(v.id, target); (r as? ActionResult.Queued)?.let { note = it.message }; (r as? ActionResult.Failed)?.let { liked[v.id] = wasLiked; disliked[v.id] = wasDisliked; note = "Could not rate: ${it.message}" } }
                 }
                 Box(Modifier.fillMaxSize().clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null) {
                     if (current && host != null) { if (player.status == PlaybackStatus.PLAYING) { host.session.pause(); paused = true } else { host.session.play(); paused = false } }

@@ -104,25 +104,7 @@ fun LibraryScreen(services: AppServices, navigator: Navigator, modifier: Modifie
                 }, Modifier.fillMaxWidth().testTag("library.syncAccount"))
             }
             if (recent.isNotEmpty()) item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
-                Column(verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
-                    SectionHeader("Recently watched") { TextButton(onClick = { navigator.push(Route.History) }, modifier = Modifier.testTag("library.historyAll")) { Text("See all", maxLines = 1) } }
-                    com.greenaltambe.vela.ui.components.HScrollRow(Modifier.testTag("library.recent"), Arrangement.spacedBy(Vela.md)) {
-                        items(recent, key = { it.videoId }) { r ->
-                            val v = VideoSummary(r.videoId, r.title, r.channelId, "", durationSeconds = r.durationMs.takeIf { it > 0 }?.div(1000))
-                            Column(Modifier.width(176.dp).clip(Vela.mediumShape).clickable { navigator.push(Route.Video(v)) }, verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
-                                Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(Vela.thumbnailShape).background(Vela.colors.surfaceVariant.toColor())) {
-                                    coil3.compose.AsyncImage("https://i.ytimg.com/vi/${r.videoId}/mqdefault.jpg", null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
-                                    progress[r.videoId]?.takeIf { it > 0f }?.let { p ->
-                                        Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Vela.colors.background.toColor().copy(alpha = 0.5f))) {
-                                            Box(Modifier.fillMaxWidth(p.coerceIn(0f, 1f)).height(3.dp).background(Vela.wake))
-                                        }
-                                    }
-                                }
-                                Text(r.title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
-                            }
-                        }
-                    }
-                }
+                com.greenaltambe.vela.ui.screens.WatchRecordCarousel("Recently watched", recent, navigator, tag = "library.recent", onSeeAll = { navigator.push(Route.History) })
             }
             item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) { SectionHeader("Playlists") { TextButton(onClick = { creating = true }, modifier = Modifier.testTag("library.newPlaylist")) { Text("New playlist", maxLines = 1) } } }
             gridItems(playlists, key = { it.id }) { p ->

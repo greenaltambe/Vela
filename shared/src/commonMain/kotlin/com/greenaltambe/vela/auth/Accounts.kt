@@ -192,11 +192,13 @@ sealed interface ActionResult {
     data object Ok : ActionResult
     data object LocalOnly : ActionResult
     data class Failed(val message: String) : ActionResult
+    /** The hourly limit of account actions was reached: the local change stays and the write is sent when the limit allows ([message] says when). */
+    data class Queued(val message: String) : ActionResult
 }
 
 /**
  * Writes to the active Google account, each one a governor-owned call (write budget, spacing, breaker, audit). The UI updates the
- * local copy first and calls these; a [ActionResult.Failed] rolls the local change back and shows the message. Implemented in `:innertube-auth`.
+ * local copy first and calls these; a [ActionResult.Failed] rolls the local change back and shows the message; a [ActionResult.Queued] keeps it (the write follows later). Implemented in `:innertube-auth`.
  */
 interface AccountActions {
     suspend fun subscribe(channelId: String): ActionResult

@@ -57,7 +57,7 @@ import kotlinx.coroutines.withContext
 
 /** The "⋮" on a video row: Watch later and the user's playlists in a bottom sheet. */
 @Composable
-fun VideoMenu(services: AppServices, video: VideoSummary, modifier: Modifier = Modifier) {
+fun VideoMenu(services: AppServices, video: VideoSummary, modifier: Modifier = Modifier, onNotInterested: (() -> Unit)? = null, onHideChannel: (() -> Unit)? = null) {
     var open by remember { mutableStateOf(false) }
     var download by remember { mutableStateOf(false) }
     if (download) DownloadDialog(services, listOf(video), onDismiss = { download = false })
@@ -72,6 +72,8 @@ fun VideoMenu(services: AppServices, video: VideoSummary, modifier: Modifier = M
                 video = video,
                 onDismiss = { open = false },
                 onDownload = { download = true },
+                onNotInterested = onNotInterested,
+                onHideChannel = onHideChannel,
             )
         }
     }
@@ -85,6 +87,9 @@ fun VideoMenuSheet(
     video: VideoSummary,
     onDismiss: () -> Unit,
     onDownload: () -> Unit,
+    /** Home only: send this video, or its whole channel, away from Home (with an Undo there). */
+    onNotInterested: (() -> Unit)? = null,
+    onHideChannel: (() -> Unit)? = null,
 ) {
     val share = com.greenaltambe.vela.ui.platform.LocalShare.current
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
@@ -160,6 +165,12 @@ fun VideoMenuSheet(
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
             ) {
+                if (onNotInterested != null) VideoMenuSheetItem(
+                    icon = Vela.icons.close, title = "Not interested", onClick = { onDismiss(); onNotInterested() }, modifier = Modifier.testTag("video.menu.notInterested"),
+                )
+                if (onHideChannel != null && video.channelId.isNotBlank()) VideoMenuSheetItem(
+                    icon = Vela.icons.close, title = "Hide ${video.channelName.ifBlank { "this channel" }} from Home", onClick = { onDismiss(); onHideChannel() }, modifier = Modifier.testTag("video.menu.hideChannel"),
+                )
                 if (services.downloads != null) {
                     VideoMenuSheetItem(
                         icon = if (isDownloaded) Vela.icons.downloaded else Vela.icons.download,

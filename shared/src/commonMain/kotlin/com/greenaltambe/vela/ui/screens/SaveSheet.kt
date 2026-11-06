@@ -39,6 +39,7 @@ fun SaveSheet(services: AppServices, video: VideoSummary, onMessage: (note: Stri
                 scope.launch {
                     when (val r = services.actions!!.addToPlaylist("WL", video.id)) {
                         is ActionResult.Failed -> onMessage(null, "Could not add to Watch later: ${r.message}")
+                        is ActionResult.Queued -> onMessage(r.message, null)
                         else -> onMessage("Added to Watch later", null)
                     }
                 }

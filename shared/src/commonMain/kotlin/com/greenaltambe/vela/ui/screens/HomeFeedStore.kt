@@ -17,10 +17,17 @@ class HomeFeedStore {
     var note: String? = null
     var loadedAt: Instant? = null
     val scroll = ScrollMemory()
+    /** Each shelf's last answer, per account, so reopening Home shows the shelves at once (see [shelf]). */
+    private val shelves = HashMap<String, Pair<Instant, com.greenaltambe.vela.home.ShelfData?>>()
+    /** A shelf's last answer and when it came, however old: an old one is shown at once and refreshed (see [isFresh]); it is only replaced by a good new answer. */
+    fun shelf(account: String, id: String): Pair<Instant, com.greenaltambe.vela.home.ShelfData?>? = shelves["$account|$id"]
+    fun isFresh(at: Instant, now: Instant) = (now - at).inWholeMilliseconds < SHELF_MAX_AGE_MS
+    fun keepShelf(account: String, id: String, at: Instant, data: com.greenaltambe.vela.home.ShelfData?) { shelves["$account|$id"] = at to data }
+    fun forgetShelves() = shelves.clear()
 
     fun usable(account: String, now: Instant) = accountId == account && videos.items.isNotEmpty() && loadedAt?.let { (now - it).inWholeMilliseconds < MAX_AGE_MS } == true
 
-    companion object { const val MAX_AGE_MS = 30 * 60 * 1000L }
+    companion object { const val MAX_AGE_MS = 30 * 60 * 1000L; const val SHELF_MAX_AGE_MS = 20 * 60 * 1000L }
 }
 
 val LocalHomeFeed = staticCompositionLocalOf<HomeFeedStore?> { null }
