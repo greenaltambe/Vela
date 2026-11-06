@@ -11,7 +11,7 @@ import kotlin.time.Instant
  * whenever it is opened again (from the mini player, after going back), so without this it showed its loading skeletons every time.
  */
 class VideoPageCache(private val max: Int = 8) {
-    class Entry(val info: VideoInfo?, val related: List<VideoSummary>, val comments: List<Comment>, val commentsNext: String?, val savedAt: Instant, val commentTotal: Long? = null)
+    class Entry(val info: VideoInfo?, val related: List<VideoSummary>, val comments: List<Comment>, val commentsNext: String?, val savedAt: Instant, val commentTotal: Long? = null, val commentSort: com.greenaltambe.vela.extractor.CommentSort = com.greenaltambe.vela.extractor.CommentSort.TOP)
 
     private val entries = LinkedHashMap<String, Entry>()
 

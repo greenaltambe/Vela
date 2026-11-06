@@ -119,6 +119,9 @@ fun PlayerView(
     isLive: Boolean = false,
     /** Drawn over the picture, above the controls' bottom edge: SponsorBlock's skip prompt and "skipped, Undo" notice. */
     overlay: @Composable () -> Unit = {},
+    /** Autoplay-next (a setting the page owns); both null hides the row in the settings sheet. */
+    autoplay: Boolean? = null,
+    onAutoplayChange: ((Boolean) -> Unit)? = null,
     /** How far a double-tap (and the skip buttons) jump, in seconds; and the speed while the picture is held. Both are playback settings. */
     seekStepSeconds: Int = 10,
     holdSpeed: Float = 2f,
@@ -313,13 +316,12 @@ fun PlayerView(
             }
         }
 
-        // The skip prompt and the "skipped, Undo" notice must outlive the controls, so they have a place of their own.
-        if (controlsEnabled) Box(Modifier.align(Alignment.TopEnd).padding(top = if (compact) 48.dp else Vela.sm, end = Vela.sm, start = 56.dp)) {
-            androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides onMedia) { overlay() }
-        }
-
     // The player's menu buttons (mute, captions, audio, quality, speed, sleep). In fullscreen they sit in the bottom row; in the small portrait player
     // they move to the top bar, so the bottom holds only the time, the chapter and the seek bar, well away from the play buttons.
+    val captionsButton: @Composable () -> Unit = {
+                        if (captions.isEmpty()) ControlButton({}, enabled = false, modifier = Modifier.testTag("player.captions")) { Icon(Vela.icons.captions, "No captions for this video", tint = onMedia.copy(alpha = 0.4f)) }
+                        else ControlButton({ touch(); session.toggleCaptions() }, haptic = if (activeCaption != null) HapticKind.TOGGLE_OFF else HapticKind.TOGGLE_ON, onLongClick = { touch(); menu = Menu.CAPTIONS }, modifier = Modifier.testTag("player.captions")) { SwapIcon(Vela.icons.captions, "Captions", if (activeCaption != null) Vela.colors.primary.toColor() else onMedia) }
+    }
     val menuButtons: @Composable androidx.compose.foundation.layout.RowScope.(Boolean) -> Unit = { spaced ->
                         ControlButton({ touch(); session.toggleMute() }, haptic = if (muted) HapticKind.TOGGLE_ON else HapticKind.TOGGLE_OFF, modifier = Modifier.testTag("player.mute")) {
                             SwapIcon(if (muted) Vela.icons.mute else Vela.icons.volume, if (muted) "Unmute" else "Mute", onMedia)
@@ -330,8 +332,7 @@ fun PlayerView(
                             trackColor = onMedia.copy(alpha = 0.3f), style = com.greenaltambe.vela.core.settings.ProgressStyle.BOLD_DOT,
                         )
                         if (spaced) Box(Modifier.weight(1f))
-                        if (captions.isEmpty()) ControlButton({}, enabled = false, modifier = Modifier.testTag("player.captions")) { Icon(Vela.icons.captions, "No captions for this video", tint = onMedia.copy(alpha = 0.4f)) }
-                        else ControlButton({ touch(); session.toggleCaptions() }, haptic = if (activeCaption != null) HapticKind.TOGGLE_OFF else HapticKind.TOGGLE_ON, onLongClick = { touch(); menu = Menu.CAPTIONS }, modifier = Modifier.testTag("player.captions")) { SwapIcon(Vela.icons.captions, "Captions", if (activeCaption != null) Vela.colors.primary.toColor() else onMedia) }
+                        captionsButton()
                         // Only videos with more than one soundtrack (languages, dubs) offer a choice.
                         if (audioTracks.isNotEmpty()) ControlButton({ touch(); menu = Menu.AUDIO }, modifier = Modifier.testTag("player.audio-track")) { Icon(Vela.icons.audioTrack, "Audio track", tint = onMedia) }
                         ControlButton({ touch(); menu = Menu.QUALITY }, modifier = Modifier.testTag("player.quality")) { Icon(Vela.icons.quality, "Quality", tint = onMedia) }
@@ -348,7 +349,13 @@ fun PlayerView(
                     if (onBack != null) ControlButton({ touch(); onBack() }, modifier = Modifier.testTag("player.back")) {
                         Icon(Vela.icons.back, "Back", tint = onMedia)
                     }
-                    if (compact) { Box(Modifier.weight(1f)); menuButtons(false) }
+                    // The small portrait player keeps its top bar to three things (back, captions, settings); quality, speed, soundtrack and the
+                    // sleep timer live one tap away in the settings sheet (the bottom of the picture is for the time, chapter and seek bar).
+                    if (compact) {
+                        Box(Modifier.weight(1f))
+                        captionsButton()
+                        ControlButton({ touch(); menu = Menu.SETTINGS }, modifier = Modifier.testTag("player.settings")) { Icon(Vela.icons.settings, "Player settings", tint = onMedia) }
+                    }
                 }
 
                 // Centre: previous video, play / pause, next video (seeking is the double tap).
@@ -364,13 +371,14 @@ fun PlayerView(
                 }
 
                 // Bottom: seek bar, time, icon row.
-                // In the small portrait player the whole block sits 16 dp lower, so the seek bar lies on the picture's bottom edge (as in YouTube) and the
-                // time/chapter pills have the room above it, clear of the play buttons.
-                Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = Vela.xs).then(if (compact) Modifier.offset(y = 16.dp) else Modifier)) {
+                // In the small portrait player the whole block sits 8 dp lower, so the seek bar lies near the picture's bottom edge (as in YouTube) and the
+                // time/chapter pills have the room above it, clear of the play buttons. Not lower: the thumb grows to about 13 dp while held, and what
+                // lies below the picture is cut off.
+                Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = Vela.xs).then(if (compact) Modifier.offset(y = 8.dp) else Modifier)) {
                     val shown = preview?.let { (it * duration).toLong() } ?: position
                     // The time and the chapter are two quiet pills on one line (the way YouTube shows them), the fullscreen button at the far end.
-                    val pill = Modifier.clip(Vela.pillShape).background(Vela.colors.mediaScrim.toColor().copy(alpha = 0.42f))
-                    Row(Modifier.fillMaxWidth().padding(horizontal = Vela.sm).then(if (compact) Modifier.offset(y = 12.dp) else Modifier), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+                    val pill = Modifier.clip(Vela.pillShape).background(Vela.colors.mediaScrim.toColor().copy(alpha = 0.30f))
+                    Row(Modifier.fillMaxWidth().padding(horizontal = Vela.sm).then(if (compact) Modifier.offset(y = 20.dp) else Modifier), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
                         Text(if (live) (if (behind == null || behind < LIVE_EDGE_MS) "LIVE" else "-${formatTimestamp(behind / 1000)} behind live") else "${if (showRemaining) "-" + formatTimestamp(((duration - shown).coerceAtLeast(0)) / 1000) else formatTimestamp(shown / 1000)} / ${formatTimestamp(duration / 1000)}", color = onMedia, style = MaterialTheme.typography.bodySmall, maxLines = 1, softWrap = false, modifier = pill.then(if (live) Modifier else Modifier.clickable(role = androidx.compose.ui.semantics.Role.Button) { touch(); haptics.tick(); showRemaining = !showRemaining }).padding(horizontal = Vela.sm, vertical = Vela.xs).testTag("player.time"))
                         if (live && behind != null && behind >= LIVE_EDGE_MS) TextButton(onClick = { touch(); session.goLive() }, modifier = Modifier.testTag("player.goLive")) { Text("Go live", color = onMedia, maxLines = 1) }
                         // The current chapter's name sits above the seek bar; tapping it opens the chapter list.
@@ -418,6 +426,14 @@ fun PlayerView(
                 }
             }
         }
+
+        // The skip prompt and the "skipped, Undo" notice outlive the controls, so they have a place of their own: the bottom-right corner, just above the
+        // time / chapter row (as in YouTube), and drawn after the controls so no button of theirs can lie over it.
+        if (controlsEnabled) Box(
+            Modifier.align(Alignment.BottomEnd).padding(end = if (fullscreen) Vela.gutter * 1.5f else Vela.md, bottom = if (compact) 68.dp else 148.dp),
+        ) {
+            androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides onMedia) { overlay() }
+        }
     }
 
     if (chaptersOpen && chapters.isNotEmpty()) {
@@ -448,6 +464,16 @@ fun PlayerView(
             st?.heights?.forEachIndexed { i, h -> PlayerMenuRow("${h}p", selected = st.maxHeight == h, onClick = { session.selectQuality(h); menu = null }, index = i + 1) }
             PlayerMenuRow("Stats for nerds", selected = false, onClick = { showStats = true; menu = null }, index = (st?.heights?.size ?: 0) + 1, leading = Vela.icons.info)
         }
+        Menu.SETTINGS -> PlayerMenuSheet("Settings", dismissMenu) {
+            PlayerMenuRow("Quality", selected = false, onClick = { menu = Menu.QUALITY }, index = 0, leading = Vela.icons.quality, supporting = (sessionState as? SessionState.Ready)?.maxHeight?.let { "${it}p" } ?: "Auto")
+            PlayerMenuRow("Playback speed", selected = false, onClick = { menu = Menu.SPEED }, index = 1, leading = Vela.icons.speed, supporting = formatSpeed(player.speed))
+            if (audioTracks.isNotEmpty()) PlayerMenuRow("Audio track", selected = false, onClick = { menu = Menu.AUDIO }, index = 2, leading = Vela.icons.audioTrack)
+            PlayerMenuRow("Sleep timer", selected = false, onClick = { menu = Menu.SLEEP }, index = 3, leading = Vela.icons.timer, supporting = if (sleep != null) "On" else "Off")
+            if (autoplay != null && onAutoplayChange != null) PlayerMenuRow(
+                "Autoplay", selected = false, onClick = { onAutoplayChange(!autoplay) }, index = 4, leading = Vela.icons.skipNext, supporting = "Play the next video when this one ends",
+                trailing = { com.greenaltambe.vela.ui.look.VelaSwitch(autoplay, { onAutoplayChange(it) }, Modifier.testTag("video.autoplay")) },
+            )
+        }
         Menu.SPEED -> PlayerMenuSheet("Playback speed", dismissMenu) { SpeedMenuContent(player.speed) { session.setSpeed(it) } }
         Menu.SLEEP -> PlayerMenuSheet("Sleep timer", dismissMenu, subtitle = if (sleep != null) "On" else "Off") {
             SleepTimerPresets.forEachIndexed { i, m -> PlayerMenuRow(describeTimer(m), selected = sleep == m, onClick = { session.setSleepTimer(m); menu = null }, index = i, leading = Vela.icons.timer) }
@@ -463,7 +489,7 @@ fun PlayerView(
     )
 }
 
-private enum class Menu { QUALITY, SPEED, SLEEP, CAPTIONS, AUDIO }
+private enum class Menu { QUALITY, SPEED, SLEEP, CAPTIONS, AUDIO, SETTINGS }
 
 private fun describeTimer(mode: SleepTimerMode) = when (mode) {
     is SleepTimerMode.After -> "${mode.duration.inWholeMinutes} min"

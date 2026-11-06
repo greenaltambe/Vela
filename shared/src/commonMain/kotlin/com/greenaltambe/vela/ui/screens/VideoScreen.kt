@@ -107,6 +107,7 @@ import com.greenaltambe.vela.ui.look.LocalLook
 import com.greenaltambe.vela.ui.look.Vela
 import com.greenaltambe.vela.ui.components.bleed
 import com.greenaltambe.vela.ui.components.SubscribeButton
+import com.greenaltambe.vela.ui.components.formatAge
 import com.greenaltambe.vela.ui.components.formatCount
 import com.greenaltambe.vela.ui.look.pressable
 import com.greenaltambe.vela.ui.look.toColor
@@ -183,9 +184,13 @@ fun VideoScreen(
     var chaptersOpen by remember(video.id) { mutableStateOf(false) }
     var commentsState by remember(video.id) { mutableStateOf<ListState>(if (offline != null) (if (offline.comments.isEmpty()) ListState.Empty("No saved comments.") else ListState.Ready) else if (cached?.comments?.isNotEmpty() == true) ListState.Ready else ListState.Loading) }
     var commentsLoading by remember(video.id) { mutableStateOf(false) }
-    var sort by remember(video.id) { mutableStateOf(CommentSort.TOP) }
-    var replies by remember(video.id) { mutableStateOf<Map<String, List<Comment>>>(emptyMap()) }
-    var repliesLoading by remember(video.id) { mutableStateOf<Set<String>>(emptySet()) }
+    var sort by remember(video.id) { mutableStateOf(cached?.commentSort ?: CommentSort.TOP) }
+    // The order the shown list really has (a tier can fall back to Top), and what to tell the viewer when it differs from what they asked for.
+    var appliedSort by remember(video.id) { mutableStateOf(cached?.commentSort ?: CommentSort.TOP) }
+    var sortNote by remember(video.id) { mutableStateOf<String?>(null) }
+    var moreCommentsFailed by remember(video.id) { mutableStateOf(false) }
+    var skipFirstComments by remember(video.id) { mutableStateOf(cached?.comments?.isNotEmpty() == true) }
+    val replies = remember(video.id) { RepliesModel(services, scope, video.id) }
     var descriptionOpen by remember(video.id) { mutableStateOf(false) }
     var downloadDialog by remember(video.id) { mutableStateOf(false) }
     var shareOpen by remember(video.id) { mutableStateOf(false) }
@@ -229,9 +234,23 @@ fun VideoScreen(
                     comments = if (more) (comments + r.value.comments).distinctBy { it.id } else r.value.comments
                     commentsNext = r.value.continuation
                     if (!more) r.value.totalCount?.let { commentTotal = it }
+                    if (!more) {
+                        appliedSort = r.value.appliedSort ?: sort
+                        sortNote = if (appliedSort != sort) "Newest first is not available right now. Showing top comments." else null
+                    }
+                    moreCommentsFailed = false
                     commentsState = if (comments.isEmpty()) ListState.Empty("No comments yet.") else ListState.Ready
                 }
-                is ExtractorResult.Failure -> if (comments.isEmpty()) commentsState = ListState.Error("Comments unavailable: ${r.error.message}") { loadComments(false) }
+                is ExtractorResult.Failure -> when {
+                    more -> moreCommentsFailed = true
+                    comments.isEmpty() -> commentsState = ListState.Error("Comments unavailable: ${r.error.message}") { loadComments(false) }
+                    else -> {
+                        // The new order could not be loaded: keep the list that is on screen and say so, so the order shown and the chip agree.
+                        commentsState = ListState.Ready
+                        sortNote = "Could not load that order. Showing ${if (appliedSort == CommentSort.NEWEST) "newest" else "top"} comments."
+                        skipFirstComments = true; sort = appliedSort
+                    }
+                }
             }
             commentsLoading = false
         }
@@ -259,13 +278,12 @@ fun VideoScreen(
         }
     }
     LaunchedEffect(video.id) { if (offline == null && related.isEmpty()) (services.extractor.related(video.id) as? ExtractorResult.Success)?.let { related = it.value } }
-    var skipFirstComments by remember(video.id) { mutableStateOf(cached?.comments?.isNotEmpty() == true) }
     LaunchedEffect(video.id, sort) {
         if (offline == null) { if (skipFirstComments) skipFirstComments = false else loadComments(more = false) }
     }
     // What this page loaded is kept for the next time it is opened (see VideoPageCache).
     androidx.compose.runtime.SideEffect {
-        if (offline == null && pageCache != null && (info != null || related.isNotEmpty() || comments.isNotEmpty())) pageCache.put(video.id, VideoPageCache.Entry(info, related, comments, commentsNext, services.clock.now(), commentTotal))
+        if (offline == null && pageCache != null && (info != null || related.isNotEmpty() || comments.isNotEmpty())) pageCache.put(video.id, VideoPageCache.Entry(info, related, comments, commentsNext, services.clock.now(), commentTotal, appliedSort))
     }
 
     val chapters: List<Chapter> = remember(info) { info?.let { effectiveChapters(it.chapters, it.description, it.durationSeconds) }.orEmpty() }
@@ -350,11 +368,14 @@ fun VideoScreen(
     val resolveStart = androidx.compose.runtime.remember(video.id) { kotlin.time.Clock.System.now() }
     val resolvingNote = resolveNote(attemptLog, video.id, resolveStart, services.accounts.active.value.isSignedIn, services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.accountFallbackMode) != com.greenaltambe.vela.core.settings.AccountFallbackMode.NEVER)
 
+    val settingsRevision by services.settings.revision.collectAsState()
+    val autoplay = remember(settingsRevision) { services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.autoplayNext) }
     val playerBox: @Composable () -> Unit = {
         Box(Modifier.fillMaxSize().testTag("video.player")) {
             if (host != null) PlayerView(
                 host, video, chapters, markers, Modifier.fillMaxSize(), onBack = onBack ?: { navigator.back(); Unit }, seekStepSeconds = seekStep, holdSpeed = holdSpeedSetting, onPrevious = onPreviousVideo, onNext = onNextVideo,
                 onOpenChapters = if (chapters.isNotEmpty()) ({ chaptersOpen = true; commentsOpen = false; descriptionOpen = false }) else null,
+                autoplay = autoplay, onAutoplayChange = { services.settings.set(com.greenaltambe.vela.core.settings.Settings.autoplayNext, it) },
                 controlsEnabled = (fullyExpanded && !inPip),
                 isLive = info?.isLive == true, resolvingNote = resolvingNote,
                 openAgeSetting = { navigator.selectTab(com.greenaltambe.vela.ui.nav.Route.Settings) },
@@ -375,24 +396,24 @@ fun VideoScreen(
                     .padding(horizontal = Vela.sm, vertical = Vela.xs).testTag("video.titleBlock"),
                 verticalArrangement = Arrangement.spacedBy(Vela.xs),
             ) {
-                Text(shownTitle, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Medium, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("video.title"))
+                Text(shownTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("video.title"))
                 if (titleReplaced) LinkButton(if (showOriginalTitle) "Original title · use DeArrow" else "DeArrow title · show original", { showOriginalTitle = !showOriginalTitle }, Modifier.testTag("video.toggleOriginal"))
-                val meta = listOfNotNull(formatViews(info?.viewCount ?: video.viewCount), info?.likeCount?.let { "${compact(it)} likes" }).joinToString(" · ")
+                val meta = listOfNotNull(formatViews(info?.viewCount ?: video.viewCount), formatAge(info?.uploadDate ?: video.uploadedAt, services.clock.now()) ?: video.publishedText?.takeIf { it.isNotBlank() }).joinToString(" · ")
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.xs)) {
-                    if (meta.isNotEmpty()) Text(meta, Modifier.weight(1f, fill = false), style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor())
+                    if (meta.isNotEmpty()) Text(meta, Modifier.weight(1f, fill = false), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor())
                     Text("…more", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, maxLines = 1, color = Vela.colors.primary.toColor(), modifier = Modifier.testTag("video.descriptionMore"))
                 }
                 infoError?.let { Text("Details unavailable: $it", style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis) }
             }
         }
         item {
-            Row(Modifier.fillMaxWidth().clip(Vela.mediumShape).clickableChannel { (info?.channelId?.takeIf { it.isNotBlank() } ?: video.channelId).let { id -> navigator.push(Route.Channel(id, info?.channelName?.takeIf { it.isNotBlank() } ?: video.channelName, if (id.isBlank()) video.id else "")) } }.padding(horizontal = Vela.xs), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+            Row(Modifier.fillMaxWidth().clip(Vela.mediumShape).clickableChannel { (info?.channelId?.takeIf { it.isNotBlank() } ?: video.channelId).let { id -> navigator.push(Route.Channel(id, info?.channelName?.takeIf { it.isNotBlank() } ?: video.channelName, if (id.isBlank()) video.id else "")) } }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
                 val channelName = info?.channelName?.takeIf { it.isNotBlank() } ?: video.channelName
                 // The picture: the one the listing carried, else the video's own details, else the channel's picture from your subscriptions (a library or history entry has none).
                 val avatarUrl = video.channelAvatarUrl ?: info?.channelAvatarUrl ?: remember(info?.channelId, video.channelId) { services.subscriptions.all().firstOrNull { it.channelId == (info?.channelId?.takeIf { c -> c.isNotBlank() } ?: video.channelId) }?.avatarUrl }
                 Avatar(channelName, url = avatarUrl)
                 Column(Modifier.weight(1f)) {
-                    Text(channelName, Modifier.testTag("video.channel"), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(channelName, Modifier.testTag("video.channel"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     formatCount(info?.subscriberCount)?.let { Text("$it subscribers", Modifier.testTag("video.subscribers"), style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor(), maxLines = 1) }
                 }
                 // The channel id the video's own details give (a real UC… id) beats what a listing carried, which can be empty or a @handle: the account
@@ -454,20 +475,27 @@ fun VideoScreen(
         }
         // Comments are one wide button, right under the description (also in the wide layout, where related videos sit in the side column): it opens the panel here.
         item {
-            Row(
-                Modifier.fillMaxWidth().clip(Vela.mediumShape).background(Vela.colors.surface.toColor()).clickable { commentsOpen = true; chaptersOpen = false; descriptionOpen = false }.heightIn(min = Vela.minTouch).padding(horizontal = Vela.md).testTag("video.commentsButton"),
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm),
+            // The comments card: the count, and a taste of the top comment (so the card says what is inside before it is opened).
+            Column(
+                Modifier.fillMaxWidth().clip(Vela.mediumShape).background(Vela.colors.surface.toColor()).clickable { commentsOpen = true; chaptersOpen = false; descriptionOpen = false }
+                    .padding(horizontal = Vela.md, vertical = Vela.sm).testTag("video.commentsButton"),
+                verticalArrangement = Arrangement.spacedBy(Vela.sm),
             ) {
-                Text("Comments", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, maxLines = 1)
-                if (comments.isNotEmpty()) Text(commentTotal?.let { formatCount(it) } ?: "${comments.size}${if (commentsNext != null) "+" else ""}", style = MaterialTheme.typography.bodyMedium, color = Vela.colors.onSurfaceVariant.toColor())
-                Icon(Vela.icons.chevronRight, null, tint = Vela.colors.onSurfaceVariant.toColor())
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+                    Text("Comments", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1)
+                    if (comments.isNotEmpty()) Text(commentTotal?.let { formatCount(it) } ?: "${comments.size}${if (commentsNext != null) "+" else ""}", style = MaterialTheme.typography.bodyMedium, color = Vela.colors.onSurfaceVariant.toColor())
+                }
+                comments.firstOrNull()?.let { top ->
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+                        Avatar(top.author.removePrefix("@"), size = 28.dp, url = top.authorAvatarUrl)
+                        Text(top.text, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                }
             }
         }
     }
 
     // Autoplay: off unless switched on (here or in Settings). When this video ends, the queue's next video plays, else the first related one.
-    val settingsRevision by services.settings.revision.collectAsState()
-    val autoplay = remember(settingsRevision) { services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.autoplayNext) }
     var autoplayed by remember(video.id) { mutableStateOf(false) }
     LaunchedEffect(player?.status, autoplay) {
         if (!autoplay || autoplayed || offline != null || player?.status != com.greenaltambe.vela.player.PlaybackStatus.ENDED) return@LaunchedEffect
@@ -478,16 +506,11 @@ fun VideoScreen(
     val secondary: LazyListScope.() -> Unit = {
         if (relatedShown.isNotEmpty()) {
             item {
-                SectionHeader("Related") {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                        Text("Autoplay", style = MaterialTheme.typography.bodyMedium, maxLines = 1)
-                        com.greenaltambe.vela.ui.look.VelaSwitch(autoplay, { services.settings.set(com.greenaltambe.vela.core.settings.Settings.autoplayNext, it) }, Modifier.testTag("video.autoplay"))
-                    }
-                }
+                SectionHeader("Related")
             }
             items(relatedShown, key = { "rel-${it.id}" }) { v ->
                 // On a phone-sized MEDIUM window the column beside the player is narrow: a thumbnail across its width reads better than a tiny one.
-                VideoCard(v, onClick = { navigator.replaceWithVideo(v) }, style = if (size == WindowSizeClass.MEDIUM) VideoCardStyle.VERTICAL else VideoCardStyle.HORIZONTAL, onChannelClick = { navigator.push(Route.Channel(v.channelId, v.channelName)) }, trailing = { VideoMenu(services, v) })
+                VideoCard(v, onClick = { navigator.replaceWithVideo(v) }, style = if (size == WindowSizeClass.MEDIUM || size == WindowSizeClass.COMPACT) VideoCardStyle.VERTICAL else VideoCardStyle.HORIZONTAL, onChannelClick = { navigator.push(Route.Channel(v.channelId, v.channelName)) }, trailing = { VideoMenu(services, v) })
             }
         }
     }
@@ -498,20 +521,8 @@ fun VideoScreen(
         androidx.compose.animation.AnimatedVisibility(commentsOpen, m, enter = androidx.compose.animation.slideInVertically { it } + androidx.compose.animation.fadeIn(), exit = androidx.compose.animation.slideOutVertically { it } + androidx.compose.animation.fadeOut()) {
             CommentsPanel(
                 comments, commentsState, hasMore = commentsNext != null, loadingMore = commentsLoading, totalCount = commentTotal,
-                canSort = services.extractor.capabilities.supportsCommentSort, newestFirst = sort == CommentSort.NEWEST,
-                onToggleSort = { sort = if (sort == CommentSort.TOP) CommentSort.NEWEST else CommentSort.TOP },
-                replies = replies, repliesLoading = repliesLoading,
-                onToggleReplies = { c ->
-                    if (replies.containsKey(c.id)) replies = replies - c.id
-                    else {
-                        repliesLoading = repliesLoading + c.id
-                        scope.launch {
-                            val r = services.extractor.replies(video.id, c.id, c.repliesContinuation)
-                            replies = replies + (c.id to ((r as? ExtractorResult.Success)?.value?.comments ?: emptyList()))
-                            repliesLoading = repliesLoading - c.id
-                        }
-                    }
-                },
+                canSort = services.extractor.capabilities.supportsCommentSort && offline == null, sort = appliedSort, onSort = { sortNote = null; sort = it }, sortNote = sortNote, loadMoreFailed = moreCommentsFailed,
+                replies = replies, creatorName = info?.channelName?.takeIf { it.isNotBlank() } ?: video.channelName, creatorAvatarUrl = video.channelAvatarUrl ?: info?.channelAvatarUrl,
                 onSeek = { seconds -> host?.session?.seekTo(seconds * 1000) },
                 onLoadMore = { loadComments(more = true) }, onDismiss = { commentsOpen = false }, modifier = Modifier.fillMaxSize(),
             )

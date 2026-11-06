@@ -47,10 +47,10 @@ class FallbackChain(
     private val ttl = memoryTtl
     private var memoryOwner: String? = signedInAccount?.invoke()
 
-    /** Only true if every tier honours it, so the UI never offers a choice some tier would silently ignore. */
+    /** True when a tier that serves comments honours the sort (only the NewPipe tier serves comments at all; yt-dlp answers "not supported" and the chain moves on). */
     override val capabilities: ExtractorCapabilities
         get() = ExtractorCapabilities(
-            supportsCommentSort = tiers.isNotEmpty() && tiers.all { it.capabilities.supportsCommentSort },
+            supportsCommentSort = tiers.any { it.capabilities.supportsCommentSort },
             channelTabs = tiers.any { it.capabilities.channelTabs },
             channelTabFilters = tiers.any { it.capabilities.channelTabFilters },
         )

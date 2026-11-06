@@ -205,6 +205,8 @@ fun PlayerMenuRow(
     supporting: String? = null,
     leading: ImageVector? = null,
     enabled: Boolean = true,
+    /** Something at the row's end instead of the check mark (a switch). */
+    trailing: (@Composable () -> Unit)? = null,
 ) {
     val motion = Vela.motion
     val haptics = rememberPlayerHaptics()
@@ -234,6 +236,7 @@ fun PlayerMenuRow(
             Text(label, style = MaterialTheme.typography.bodyLarge, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal, color = accent, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (supporting != null) Text(supporting, style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor(), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
+        if (trailing != null) trailing()
         AnimatedVisibility(selected, enter = scaleIn(VelaMotion.bouncy(motion), initialScale = 0.3f) + fadeIn(), exit = scaleOut() + fadeOut()) {
             Icon(Vela.icons.check, "Selected", Modifier.size(22.dp), tint = Vela.colors.primary.toColor())
         }
@@ -385,7 +388,7 @@ fun ControlButton(
     pressShift: Dp = 0.dp,
     onLongClick: (() -> Unit)? = null,
     content: @Composable BoxScope.() -> Unit,
-) = PlayerIconButton(onClick, modifier, enabled, size, haptic, pressShift, background = Vela.colors.mediaScrim.toColor().copy(alpha = 0.42f), onLongClick = onLongClick, content = content)
+) = PlayerIconButton(onClick, modifier, enabled, size, haptic, pressShift, background = Vela.colors.mediaScrim.toColor().copy(alpha = 0.30f), onLongClick = onLongClick, content = content)
 
 /** A small caption between groups of rows in a menu sheet ("Send", "Copy"). */
 @Composable

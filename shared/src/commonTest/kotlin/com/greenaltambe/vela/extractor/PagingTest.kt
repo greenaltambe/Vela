@@ -70,12 +70,13 @@ class PagingTest {
     }
 
     @Test
-    fun commentSortIsOnlyOfferedWhenEveryTierHonoursIt() {
+    fun commentSortIsOfferedWhenACommentTierHonoursIt() {
         class Sorting(val ok: Boolean) : Extractor by StubExtractor() {
             override val capabilities = ExtractorCapabilities(supportsCommentSort = ok)
         }
         assertTrue(chain(ExtractorTier(TierId.ANONYMOUS, Sorting(true)), ExtractorTier(TierId.YT_DLP, Sorting(true))).capabilities.supportsCommentSort)
-        assertFalse(chain(ExtractorTier(TierId.ANONYMOUS, Sorting(true)), ExtractorTier(TierId.YT_DLP, Sorting(false))).capabilities.supportsCommentSort)
+        assertTrue(chain(ExtractorTier(TierId.ANONYMOUS, Sorting(true)), ExtractorTier(TierId.YT_DLP, Sorting(false))).capabilities.supportsCommentSort)
+        assertFalse(chain(ExtractorTier(TierId.ANONYMOUS, Sorting(false)), ExtractorTier(TierId.YT_DLP, Sorting(false))).capabilities.supportsCommentSort)
         assertFalse(chain().capabilities.supportsCommentSort)
     }
 

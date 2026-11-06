@@ -47,7 +47,7 @@ class NewPipeExtractor(downloader: () -> Downloader = { OkHttpDownloader() }, pr
     private val youtube get() = ServiceList.YouTube.also { NewPipeBootstrap.applyRegion(region()) }
 
     override val capabilities = ExtractorCapabilities(
-        supportsCommentSort = false,
+        supportsCommentSort = true,
         channelTabs = true,
         channelTabFilters = false,
     )
@@ -164,33 +164,81 @@ class NewPipeExtractor(downloader: () -> Downloader = { OkHttpDownloader() }, pr
         return collector.items.toVideoSummaries() to next
     }
 
-    override suspend fun comments(videoId: String, sort: CommentSort, continuation: String?): ExtractorResult<CommentsPage> {
-        var total: Long? = null
-        return withPage(continuation) { page ->
-            if (page == null) {
-                CommentsInfo.getInfo(youtube, videoUrl(videoId))
-                    ?.also { total = it.commentsCount.toLong().takeIf { n -> n >= 0 } }
-                    ?.let { it.relatedItems.orEmpty() to it.nextPage } ?: (emptyList<CommentsInfoItem>() to null)
-            } else {
-                CommentsInfo.getMoreItems(youtube, videoUrl(videoId), page).let { it.items to it.nextPage }
+    /**
+     * Comments, the same fields whichever way they were read. The ways, in order: the app's own reading of YouTube's response (pictures, creator
+     * flag, hearts, Newest); if the asked order cannot be had, the same reading in Top order ([CommentsPage.appliedSort] says so); and if the
+     * reading finds nothing or fails, NewPipe's own reader (no pictures, Top only). Later pages and replies do the same, page by page.
+     */
+    override suspend fun comments(videoId: String, sort: CommentSort, continuation: String?): ExtractorResult<CommentsPage> =
+        withPage(continuation) { page ->
+            if (page != null) return@withPage morePage(videoId, page)
+            var applied = sort
+            val parsed = try {
+                firstComments(videoId, sort)
+            } catch (e: InterruptedException) { throw e } catch (e: Exception) {
+                if (sort != CommentSort.TOP) {
+                    applied = CommentSort.TOP
+                    try { firstComments(videoId, CommentSort.TOP) } catch (e2: InterruptedException) { throw e2 } catch (e2: Exception) { return@withPage legacyComments(videoId) }
+                } else return@withPage legacyComments(videoId)
             }
-        }.map { (items, next) -> CommentsPage(items.map { it.toComment() }, next.toTokenOrNull(), total) }
+            if (parsed.comments.isEmpty() && applied == CommentSort.TOP) legacyComments(videoId)
+            else CommentsPage(parsed.comments, parsed.next?.let { NpPage(NEXT_URL, it).toTokenOrNull() }, parsed.total, applied)
+        }
+
+    /** A later page of a list (comments or replies): the app's reading, else NewPipe's. */
+    private fun morePage(videoId: String, page: NpPage): CommentsPage {
+        val parsed = try { CommentsParser.parse(postNext(page.id)) } catch (e: InterruptedException) { throw e } catch (e: Exception) { null }
+        if (parsed != null && parsed.comments.isNotEmpty()) return CommentsPage(parsed.comments, parsed.next?.let { NpPage(NEXT_URL, it).toTokenOrNull() })
+        val r = CommentsInfo.getMoreItems(youtube, videoUrl(videoId), page)
+        return CommentsPage(r.items.map { it.toComment() }, r.nextPage.toTokenOrNull())
+    }
+
+    /** The page parsed by the app itself found nothing: ask NewPipe's own comment reader (no pictures, no sorting) in case the response format changed. */
+    private fun legacyComments(videoId: String): CommentsPage {
+        val info = CommentsInfo.getInfo(youtube, videoUrl(videoId))
+        return CommentsPage(info?.relatedItems.orEmpty().map { it.toComment() }, info?.nextPage.toTokenOrNull(), info?.commentsCount?.toLong()?.takeIf { it >= 0 }, CommentSort.TOP)
+    }
+
+    /** The first page, in [sort] order. The comment section's header lists the orders (Top comments, Newest first) as continuations of their own. */
+    private fun firstComments(videoId: String, sort: CommentSort): CommentsParser.Parsed {
+        val loc = NewPipe.getPreferredLocalization(); val country = NewPipe.getPreferredContentCountry()
+        val watch = YoutubeParsingHelper.getJsonPostResponse("next", JsonWriter.string(YoutubeParsingHelper.prepareDesktopJsonBuilder(loc, country).value("videoId", videoId).done()).toByteArray(Charsets.UTF_8), loc)
+        val commentsToken = findAll(watch) { it.getString("sectionIdentifier") == "comment-item-section" }.firstNotNullOfOrNull { section ->
+            findAll(section) { it.has("continuationEndpoint") }.firstNotNullOfOrNull { it.getObject("continuationEndpoint").getObject("continuationCommand").getString("token")?.takeIf { t -> t.isNotEmpty() } }
+        } ?: throw ParsingException("The comments section was not found (comments may be off)")
+        val top = CommentsParser.parse(postNext(commentsToken))
+        if (sort == CommentSort.TOP) return top
+        val token = top.sortTokens.getOrNull(1) ?: throw ParsingException("This video offers no comment sorting")
+        val newest = CommentsParser.parse(postNext(token))
+        return CommentsParser.Parsed(newest.comments, newest.next, top.total, top.sortTokens)
+    }
+
+    private fun postNext(token: String): JsonObject {
+        val loc = NewPipe.getPreferredLocalization(); val country = NewPipe.getPreferredContentCountry()
+        return YoutubeParsingHelper.getJsonPostResponse("next", continuationBody(token, loc, country), loc)
+    }
+
+    /** Every object in [root] (at any depth) that satisfies [test]. */
+    private fun findAll(root: Any?, test: (JsonObject) -> Boolean): List<JsonObject> = collect(root, test, ArrayList())
+    private fun collect(root: Any?, test: (JsonObject) -> Boolean, into: MutableList<JsonObject>): MutableList<JsonObject> {
+        when (root) {
+            is JsonObject -> { if (test(root)) into.add(root); root.values.forEach { collect(it, test, into) } }
+            is JsonArray -> root.forEach { collect(it, test, into) }
+        }
+        return into
     }
 
     override suspend fun replies(videoId: String, commentId: String, continuation: String?): ExtractorResult<CommentsPage> =
         withPage(continuation) { page ->
-            if (page != null) {
-                CommentsInfo.getMoreItems(youtube, videoUrl(videoId), page).let { it.items to it.nextPage }
-            } else {
+            if (page != null) morePage(videoId, page)
+            else {
                 // No token given: the reply page hangs off the comment itself, so find the comment in the first page.
-                val comment = CommentsInfo.getInfo(youtube, videoUrl(videoId))?.relatedItems.orEmpty()
-                    .firstOrNull { it.commentId == commentId }
+                val comment = firstComments(videoId, CommentSort.TOP).comments.firstOrNull { it.id == commentId }
                     ?: throw CommentNotFound("Comment $commentId is not on the first page; pass Comment.repliesContinuation")
-                val first = comment.replies?.takeIf { NpPage.isValid(it) }
-                    ?: throw CommentNotFound("Comment $commentId has no replies")
-                CommentsInfo.getMoreItems(youtube, videoUrl(videoId), first).let { it.items to it.nextPage }
+                val first = comment.repliesContinuation?.let { pageFromContinuationToken(it) } ?: throw CommentNotFound("Comment $commentId has no replies")
+                morePage(videoId, first)
             }
-        }.map { (items, next) -> CommentsPage(items.map { it.toComment() }, next.toTokenOrNull()) }
+        }
 
     override suspend fun trending(continuation: String?): ExtractorResult<Page<VideoSummary>> =
         withPage(continuation) { page ->
@@ -345,4 +393,5 @@ class NewPipeExtractor(downloader: () -> Downloader = { OkHttpDownloader() }, pr
 }
 
 /** The `params` of the Videos tab in a browse request (the same value the channel page itself sends). */
+private const val NEXT_URL = "https://www.youtube.com/youtubei/v1/next?prettyPrint=false"
 private const val VIDEOS_TAB_PARAMS = "EgZ2aWRlb3PyBgQKAjoA"

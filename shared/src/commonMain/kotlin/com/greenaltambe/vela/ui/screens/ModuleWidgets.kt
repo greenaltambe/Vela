@@ -1,5 +1,18 @@
 package com.greenaltambe.vela.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.background
 import com.greenaltambe.vela.ui.components.PrimaryButton
 import com.greenaltambe.vela.ui.components.SecondaryButton
@@ -42,22 +55,56 @@ import com.greenaltambe.vela.ui.look.Vela
 import com.greenaltambe.vela.ui.look.toColor
 import kotlinx.coroutines.launch
 
-/** Under the picture: the Skip button of a "prompt" segment, and the notice of an automatic skip with Undo. */
+/**
+ * Over the picture, bottom-right (the player places it): the Skip button of a "prompt" segment, and the notice of an automatic skip with Undo.
+ * Both are quiet pills in the player's own language: a translucent scrim, a thin ring in the palette gradient, a squeeze and a buzz on press, and a
+ * slide in from the edge.
+ */
 @Composable
 fun SponsorBlockOverlay(prompt: Segment?, notice: SkipNotice?, onAccept: () -> Unit, onUndo: (SkipNotice) -> Unit) {
-    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
-        if (prompt != null) {
-            val label = SegmentCategory.fromId(prompt.category)?.label ?: prompt.category
-            OutlinedButton(onClick = onAccept, modifier = Modifier.background(Vela.colors.mediaScrim.toColor(), Vela.mediumShape).testTag("sponsorblock.prompt")) {
-                Text(if (prompt.isPoint) "Jump to highlight" else "Skip $label", maxLines = 1, color = Vela.colors.onMedia.toColor())
+    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
+        AnimatedVisibility(prompt != null, enter = slideInHorizontally { it / 2 } + fadeIn(), exit = slideOutHorizontally { it / 2 } + fadeOut()) {
+            // Keep the last prompt while the exit plays.
+            val shown = remember { mutableStateOf(prompt) }
+            if (prompt != null) shown.value = prompt
+            shown.value?.let { seg ->
+                val label = SegmentCategory.fromId(seg.category)?.label ?: seg.category
+                SkipPill(if (seg.isPoint) "Jump to highlight" else "Skip ${label.lowercase()}", Vela.icons.skipNext, onAccept, Modifier.testTag("sponsorblock.prompt"))
             }
         }
-        if (notice != null) {
-            Row(Modifier.background(Vela.colors.mediaScrim.toColor(), Vela.mediumShape).padding(start = Vela.md).testTag("sponsorblock.notice"), verticalAlignment = Alignment.CenterVertically) {
-                Text("Skipped: ${notice.label}", style = MaterialTheme.typography.bodyMedium, maxLines = 1, color = Vela.colors.onMedia.toColor())
-                TextButton(onClick = { onUndo(notice) }, modifier = Modifier.testTag("sponsorblock.undo")) { Text("Undo") }
+        AnimatedVisibility(notice != null, enter = slideInHorizontally { it / 2 } + fadeIn(), exit = slideOutHorizontally { it / 2 } + fadeOut()) {
+            val shown = remember { mutableStateOf(notice) }
+            if (notice != null) shown.value = notice
+            shown.value?.let { n ->
+                SkipPill("Skipped ${n.label.lowercase()}", null, { onUndo(n) }, Modifier.testTag("sponsorblock.notice"), action = "Undo", actionTag = "sponsorblock.undo")
             }
         }
+    }
+}
+
+/** One pill of the overlay. A tap anywhere on it acts; with an [action] the pill reads "message, Undo" and the action word is the accent. */
+@Composable
+private fun SkipPill(message: String, icon: androidx.compose.ui.graphics.vector.ImageVector?, onClick: () -> Unit, modifier: Modifier = Modifier, action: String? = null, actionTag: String? = null) {
+    val source = remember { MutableInteractionSource() }
+    val pressed by source.collectIsPressedAsState()
+    val motion = Vela.motion
+    val haptics = com.greenaltambe.vela.ui.player.rememberPlayerHaptics()
+    val scale by animateFloatAsState(if (pressed && !motion.reduced) 0.93f else 1f, com.greenaltambe.vela.ui.look.VelaMotion.bouncy(motion), label = "skipPillScale")
+    val ring by animateFloatAsState(if (pressed) 1f else 0.55f, com.greenaltambe.vela.ui.look.VelaMotion.tween(motion, com.greenaltambe.vela.ui.look.VelaMotion.Level.QUICK), label = "skipPillRing")
+    val wake = Vela.look.accent.wake.map { it.toColor() }
+    Row(
+        modifier
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .clip(Vela.pillShape)
+            .background(Vela.colors.mediaScrim.toColor().copy(alpha = 0.72f))
+            .border(1.5.dp, Brush.horizontalGradient(wake.map { it.copy(alpha = ring) }), Vela.pillShape)
+            .clickable(interactionSource = source, indication = null, role = androidx.compose.ui.semantics.Role.Button) { haptics.confirm(); onClick() }
+            .heightIn(min = 40.dp).padding(start = if (icon != null) Vela.sm else Vela.md, end = Vela.md),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.xs),
+    ) {
+        if (icon != null) Icon(icon, null, Modifier.size(22.dp), tint = Vela.colors.onMedia.toColor())
+        Text(message, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false, color = Vela.colors.onMedia.toColor())
+        if (action != null) Text(action, Modifier.padding(start = Vela.xs).testTag(actionTag.orEmpty()), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, maxLines = 1, color = wake.last())
     }
 }
 

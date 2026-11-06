@@ -62,4 +62,9 @@ internal fun CommentsInfoItem.toComment() = Comment(
     replyCount = replyCount.coerceAtLeast(0),
     isPinned = isPinned,
     repliesContinuation = replies.toTokenOrNull(),
+    authorAvatarUrl = uploaderAvatars.bestUrl(),
+    isByCreator = isChannelOwner,
+    isHearted = isHeartedByUploader,
+    isVerified = isUploaderVerified,
+    isEdited = isEdited,
 )

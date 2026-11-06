@@ -152,6 +152,14 @@ data class Comment(
     val isPinned: Boolean = false,
     /** Pass to [Extractor.replies] to load this comment's replies; null when it has none (or the tier can't list them). */
     val repliesContinuation: String? = null,
+    /** The commenter's profile picture. */
+    val authorAvatarUrl: String? = null,
+    /** True when the commenter is the uploader of the video (shown as a "Creator" pill). */
+    val isByCreator: Boolean = false,
+    /** The creator gave the comment a heart. */
+    val isHearted: Boolean = false,
+    val isVerified: Boolean = false,
+    val isEdited: Boolean = false,
 )
 
 /** A channel as a search lists it. */
@@ -169,7 +177,13 @@ data class PlaylistRef(
 )
 
 /** [totalCount] is the video's whole comment count when the tier knows it (first page only), else null. */
-data class CommentsPage(val comments: List<Comment>, val continuation: String? = null, val totalCount: Long? = null)
+data class CommentsPage(
+    val comments: List<Comment>,
+    val continuation: String? = null,
+    val totalCount: Long? = null,
+    /** The order the comments really come in (a tier may fall back to [CommentSort.TOP] when the asked order is not available); null: as asked. */
+    val appliedSort: CommentSort? = null,
+)
 
 /**
  * Order of a comments listing. [NEWEST] is currently ignored by the NewPipe tier (NewPipeExtractor v0.26.5 has no
