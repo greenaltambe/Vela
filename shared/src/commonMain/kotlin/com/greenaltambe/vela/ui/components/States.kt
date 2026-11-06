@@ -28,11 +28,12 @@ import com.greenaltambe.vela.ui.look.toColor
 
 /** A placeholder shaped like a video card, shown while a list loads. The blocks shimmer, unless motion is reduced or the app is in the background (then they are flat). */
 @Composable
-fun SkeletonCard(vertical: Boolean, modifier: Modifier = Modifier) {
+fun SkeletonCard(vertical: Boolean, modifier: Modifier = Modifier, fullBleed: Boolean = false) {
     if (vertical) {
-        Column(modifier.fillMaxWidth().testTag("skeleton"), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
+        val gutter = Vela.gutter
+        Column(modifier.then(if (fullBleed) Modifier.bleed(gutter) else Modifier).fillMaxWidth().testTag("skeleton"), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
             Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(Vela.mediumShape).shimmer())
-            Row(horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+            Row(Modifier.padding(horizontal = if (fullBleed) gutter else 0.dp), horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
                 Box(Modifier.size(36.dp).clip(Vela.pillShape).shimmer())
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
                     Box(Modifier.fillMaxWidth().height(14.dp).clip(Vela.smallShape).shimmer())

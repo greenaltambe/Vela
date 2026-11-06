@@ -72,39 +72,49 @@ fun DownloadDialog(services: AppServices, videos: List<VideoSummary>, onDismiss:
     var preferAvc by remember { mutableStateOf(services.settings.resolve(Settings.downloadsPreferAvc)) }
     var height by remember { mutableStateOf(services.settings.resolve(Settings.downloadsDefaultQuality).height) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (videos.size == 1) "Download" else "Download ${videos.size} videos") },
-        text = {
-            androidx.compose.foundation.layout.Column(verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                if (videos.size == 1) Text(videos.first().title, style = MaterialTheme.typography.bodyMedium, maxLines = 2)
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                    Switch(audioOnly, { audioOnly = it }, modifier = Modifier.testTag("download.audioOnly"))
-                    Text("Audio only")
+    // A bottom sheet, like every other menu: what to download at the top, the choices as big targets, one clear button at the bottom.
+    com.greenaltambe.vela.ui.player.PlayerMenuSheet(
+        title = if (videos.size == 1) "Download" else "Download ${videos.size} videos", onDismiss = onDismiss,
+        subtitle = if (videos.size == 1) videos.first().title else null,
+    ) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = Vela.gutter), verticalArrangement = Arrangement.spacedBy(Vela.md)) {
+            Row(
+                Modifier.fillMaxWidth().clip(Vela.largeShape).background(Vela.colors.surfaceVariant.toColor()).padding(horizontal = Vela.md, vertical = Vela.sm),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.md),
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Audio only", style = MaterialTheme.typography.bodyLarge)
+                    Text("Just the sound: a much smaller file", style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor())
                 }
-                if (!audioOnly) {
-                    Text("Highest quality", style = MaterialTheme.typography.bodySmall)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(Vela.xs)) {
-                        DownloadHeights.forEach { h ->
-                            FilterChip(selected = height == h, onClick = { height = h }, label = { Text(if (h == null) "Best" else "${h}p") }, modifier = Modifier.testTag("download.quality.${h ?: "best"}"))
-                        }
+                com.greenaltambe.vela.ui.look.VelaSwitch(audioOnly, { audioOnly = it }, Modifier.testTag("download.audioOnly"))
+            }
+            if (!audioOnly) {
+                Text("Highest quality", style = MaterialTheme.typography.titleSmall, color = Vela.colors.onSurfaceVariant.toColor())
+                com.greenaltambe.vela.ui.player.ChoiceChipGrid(
+                    options = DownloadHeights, isSelected = { it == height }, label = { if (it == null) "Best" else "${it}p" }, onSelect = { height = it },
+                    columns = 4, tag = { "download.quality.${it ?: "best"}" },
+                )
+                Row(
+                    Modifier.fillMaxWidth().clip(Vela.largeShape).background(Vela.colors.surfaceVariant.toColor()).padding(horizontal = Vela.md, vertical = Vela.sm),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.md),
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Prefer H.264", style = MaterialTheme.typography.bodyLarge)
+                        Text("Plays on every device", style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor())
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                        Switch(preferAvc, { preferAvc = it })
-                        Text("Prefer H.264 (plays everywhere)", style = MaterialTheme.typography.bodySmall)
-                    }
+                    com.greenaltambe.vela.ui.look.VelaSwitch(preferAvc, { preferAvc = it }, Modifier.testTag("download.preferAvc"))
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                services.player?.onBeforePlayback() // asks for the notification permission once on Android; no-op elsewhere
-                videos.forEach { downloads.manager.enqueue(DownloadRequest(it, audioOnly = audioOnly, maxHeight = height, preferAvc = preferAvc)) }
-                onDismiss()
-            }, modifier = Modifier.testTag("download.confirm")) { Text("Download") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
+            com.greenaltambe.vela.ui.components.PrimaryButton(
+                "Download", onClick = {
+                    services.player?.onBeforePlayback() // asks for the notification permission once on Android; no-op elsewhere
+                    videos.forEach { downloads.manager.enqueue(DownloadRequest(it, audioOnly = audioOnly, maxHeight = height, preferAvc = preferAvc)) }
+                    onDismiss()
+                },
+                modifier = Modifier.fillMaxWidth().testTag("download.confirm"),
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)

@@ -150,9 +150,9 @@ fun VideoCollection(
                 state = listState, contentPadding = padding, verticalArrangement = Arrangement.spacedBy(if (vertical) Vela.lg else Vela.md),
             ) {
                 header?.let { h -> item { h() } }
-                stateItems(state) { SkeletonCard(vertical = vertical) }
+                stateItems(state) { SkeletonCard(vertical = vertical, fullBleed = vertical) }
                 itemsIndexed(before, key = { _, v -> v.id }, contentType = { _, _ -> "video" }) { i, v ->
-                    VideoCard(v, { open(v) }, modifier = Modifier.appearOnce(v.id, i), style = if (vertical) VideoCardStyle.VERTICAL else VideoCardStyle.HORIZONTAL, extras = extras(v), onChannelClick = { channel(v) }, showChannelAvatar = showChannelAvatar, trailing = trailing?.let { t -> { t(v) } })
+                    VideoCard(v, { open(v) }, modifier = Modifier.appearOnce(v.id, i), style = if (vertical) VideoCardStyle.VERTICAL else VideoCardStyle.HORIZONTAL, extras = extras(v), onChannelClick = { channel(v) }, showChannelAvatar = showChannelAvatar, fullBleed = vertical, trailing = trailing?.let { t -> { t(v) } })
                     if (onEndReached != null && after.isEmpty() && v.id == before.last().id) LaunchedEffect(videos.size) { onEndReached() }
                 }
                 if (injectedContent != null && before.isNotEmpty()) {
@@ -161,7 +161,7 @@ fun VideoCollection(
                 if (after.isNotEmpty()) {
                     itemsIndexed(after, key = { _, v -> v.id }, contentType = { _, _ -> "video" }) { i, v ->
                         val idx = before.size + i
-                        VideoCard(v, { open(v) }, modifier = Modifier.appearOnce(v.id, idx), style = if (vertical) VideoCardStyle.VERTICAL else VideoCardStyle.HORIZONTAL, extras = extras(v), onChannelClick = { channel(v) }, showChannelAvatar = showChannelAvatar, trailing = trailing?.let { t -> { t(v) } })
+                        VideoCard(v, { open(v) }, modifier = Modifier.appearOnce(v.id, idx), style = if (vertical) VideoCardStyle.VERTICAL else VideoCardStyle.HORIZONTAL, extras = extras(v), onChannelClick = { channel(v) }, showChannelAvatar = showChannelAvatar, fullBleed = vertical, trailing = trailing?.let { t -> { t(v) } })
                         if (onEndReached != null && v.id == after.last().id) LaunchedEffect(videos.size) { onEndReached() }
                     }
                 }

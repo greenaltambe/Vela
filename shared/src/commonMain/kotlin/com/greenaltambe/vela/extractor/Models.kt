@@ -52,6 +52,10 @@ data class VideoInfo(
     val isShort: Boolean = false,
     val ageRestricted: Boolean = false,
     val channelAvatarUrl: String? = null,
+    /** The uploader's keywords for the video (shown as chips in the description sheet). */
+    val tags: List<String> = emptyList(),
+    /** The uploader's subscriber count when the tier reports it. */
+    val subscriberCount: Long? = null,
 )
 
 data class VideoStream(
@@ -164,7 +168,8 @@ data class PlaylistRef(
     val lessonCountText: String? = null,
 )
 
-data class CommentsPage(val comments: List<Comment>, val continuation: String? = null)
+/** [totalCount] is the video's whole comment count when the tier knows it (first page only), else null. */
+data class CommentsPage(val comments: List<Comment>, val continuation: String? = null, val totalCount: Long? = null)
 
 /**
  * Order of a comments listing. [NEWEST] is currently ignored by the NewPipe tier (NewPipeExtractor v0.26.5 has no

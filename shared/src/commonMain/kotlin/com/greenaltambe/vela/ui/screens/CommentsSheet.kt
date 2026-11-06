@@ -57,7 +57,7 @@ fun CommentsPanel(
     comments: List<Comment>, state: ListState, hasMore: Boolean, loadingMore: Boolean,
     canSort: Boolean, newestFirst: Boolean, onToggleSort: () -> Unit,
     replies: Map<String, List<Comment>>, repliesLoading: Set<String>, onToggleReplies: (Comment) -> Unit,
-    onLoadMore: () -> Unit, onDismiss: () -> Unit, modifier: Modifier = Modifier, onSeek: (Long) -> Unit = {},
+    onLoadMore: () -> Unit, onDismiss: () -> Unit, modifier: Modifier = Modifier, onSeek: (Long) -> Unit = {}, totalCount: Long? = null,
 ) {
     // Dragging the header (or the handle above it) down follows the finger and, past a short distance or a flick, dismisses the panel; otherwise it springs back.
     var drag by androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
@@ -76,7 +76,7 @@ fun CommentsPanel(
         Box(Modifier.align(Alignment.CenterHorizontally).padding(top = Vela.xs).width(36.dp).height(4.dp).clip(Vela.pillShape).background(Vela.colors.outline.toColor()))
         Row(Modifier.fillMaxWidth().padding(start = Vela.gutter, end = Vela.xs, top = Vela.xs), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
             Text("Comments", style = MaterialTheme.typography.titleMedium)
-            if (comments.isNotEmpty()) Text(comments.size.toString() + if (hasMore) "+" else "", Modifier.clip(Vela.pillShape).background(Vela.colors.surfaceVariant.toColor()).padding(horizontal = Vela.sm, vertical = 2.dp).testTag("comments.count"), style = MaterialTheme.typography.labelMedium, color = Vela.colors.onSurfaceVariant.toColor())
+            if (comments.isNotEmpty()) Text(totalCount?.let { com.greenaltambe.vela.ui.components.formatCount(it) } ?: (comments.size.toString() + if (hasMore) "+" else ""), Modifier.clip(Vela.pillShape).background(Vela.colors.surfaceVariant.toColor()).padding(horizontal = Vela.sm, vertical = 2.dp).testTag("comments.count"), style = MaterialTheme.typography.labelMedium, color = Vela.colors.onSurfaceVariant.toColor())
             androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
             androidx.compose.material3.IconButton(onClick = onDismiss, modifier = Modifier.testTag("comments.close")) { Icon(Vela.icons.close, "Close comments") }
         }
@@ -154,6 +154,7 @@ private fun CommentBlock(c: Comment, avatar: androidx.compose.ui.unit.Dp, onSeek
 class CommentsController(private val services: AppServices, private val scope: CoroutineScope, val videoId: String) {
     var comments by mutableStateOf<List<Comment>>(emptyList()); private set
     var next by mutableStateOf<String?>(null); private set
+    var total by mutableStateOf<Long?>(null); private set
     var state by mutableStateOf<ListState>(ListState.Loading); private set
     var loading by mutableStateOf(false); private set
     var sort by mutableStateOf(CommentSort.TOP); private set
@@ -169,6 +170,7 @@ class CommentsController(private val services: AppServices, private val scope: C
                 is ExtractorResult.Success -> {
                     comments = if (more) (comments + r.value.comments).distinctBy { it.id } else r.value.comments
                     next = r.value.continuation
+                    if (!more) r.value.totalCount?.let { total = it }
                     state = if (comments.isEmpty()) ListState.Empty("No comments yet.") else ListState.Ready
                 }
                 is ExtractorResult.Failure -> if (comments.isEmpty()) state = ListState.Error("Comments unavailable: ${r.error.message}") { load(false) }
@@ -196,5 +198,5 @@ fun CommentsPanel(controller: CommentsController, canSort: Boolean, onDismiss: (
     controller.comments, controller.state, hasMore = controller.next != null, loadingMore = controller.loading,
     canSort = canSort, newestFirst = controller.sort == CommentSort.NEWEST, onToggleSort = controller::toggleSort,
     replies = controller.replies, repliesLoading = controller.repliesLoading, onToggleReplies = controller::toggleReplies,
-    onLoadMore = { controller.load(true) }, onDismiss = onDismiss, modifier = modifier, onSeek = onSeek,
+    onLoadMore = { controller.load(true) }, onDismiss = onDismiss, modifier = modifier, onSeek = onSeek, totalCount = controller.total,
 )

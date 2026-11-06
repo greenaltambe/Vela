@@ -34,6 +34,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -79,7 +81,6 @@ data class SeekMarker(val startMs: Long, val endMs: Long, val color: Color)
 /** The brief "+10 s" / "−10 s" badge a double-tap shows; [token] makes each tap a new one so the badge restarts its timer. */
 private class SeekFlash(val forward: Boolean, val seconds: Int, val token: Int)
 
-private val speeds = listOf(0.25f, 0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f)
 private const val HIDE_AFTER_MS = 3_000L
 
 private fun SessionState.videoIdOrNull(): String? = when (this) {
@@ -139,6 +140,7 @@ fun PlayerView(
     val audioTrack by session.audioTrack.collectAsState()
     val activeCaption by session.activeCaption.collectAsState()
     val window = LocalWindowControls.current
+    val haptics = rememberPlayerHaptics()
     val desktop = LocalVolumeSlider.current // desktop has its own volume; Android uses the system's
     // The small portrait player (not fullscreen, not the desktop window): controls on top, only time / chapter / seek bar below.
     val compact = !fullscreen && !desktop
@@ -160,6 +162,8 @@ fun PlayerView(
     var touches by remember { mutableIntStateOf(0) }
     var preview by remember { mutableStateOf<Float?>(null) }
     var menu by remember { mutableStateOf<Menu?>(null) }
+    // Tapping the time swaps the elapsed reading for the time left ("-19:26 / 19:28"), as YouTube does; it stays that way across videos.
+    var showRemaining by remember { mutableStateOf(false) }
     var showStats by remember { mutableStateOf(false) }
     var chaptersOpen by remember(video.id) { mutableStateOf(false) }
     val showControls = controlsEnabled && (controlsVisible || menu != null || preview != null || chaptersOpen)
@@ -207,7 +211,11 @@ fun PlayerView(
     // Always attached, only its icon changes: adding / removing the modifier under a resting pointer made Compose replay a hover event, which showed the controls again.
     val cursorModifier = if (blank != null) Modifier.pointerHoverIcon(if (fullscreen && !showControls) blank else PointerIcon.Default) else Modifier
     Box(boxModifier.then(hoverModifier).then(cursorModifier).background(Vela.colors.mediaBackground.toColor()).androidx_onPos { videoBottomPx = it }.testTag("player.view")) {
-        if (video.thumbnailUrl != null) AsyncImage(video.thumbnailUrl, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        // The poster fills the box until the video has played: after that it only shows in the bars beside a letterboxed picture (fullscreen on a wide
+        // screen), where it looked like part of the home screen bleeding through.
+        var hasPlayed by remember(video.id) { mutableStateOf(false) }
+        LaunchedEffect(playing) { if (playing) hasPlayed = true }
+        if (video.thumbnailUrl != null && !hasPlayed) AsyncImage(video.thumbnailUrl, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
         host.Surface(Modifier.fillMaxSize())
 
         // The poster stands in until this video has a picture of its own.
@@ -241,23 +249,15 @@ fun PlayerView(
                             val forward = at.x > size.width / 2f
                             val target = (positionNow + (if (forward) 1 else -1) * seekStepSeconds * 1000L).coerceAtLeast(0).let { if (durationNow > 0) it.coerceAtMost(durationNow) else it }
                             session.seekTo(target)
+                            haptics.click()
                             flash = SeekFlash(forward, seekStepSeconds, (flash?.token ?: 0) + 1)
                         },
-                        onLongPress = { if (activeNow) { holding = true; session.holdSpeed(holdSpeed) } },
+                        onLongPress = { if (activeNow) { holding = true; haptics.heavy(); session.holdSpeed(holdSpeed) } },
                         onPress = { tryAwaitRelease(); if (holding) { holding = false; session.holdSpeed(null) } },
                     )
                 },
         )
-        flash?.let { f ->
-            Row(
-                Modifier.align(if (f.forward) Alignment.CenterEnd else Alignment.CenterStart).padding(horizontal = Vela.lg).clip(Vela.pillShape).background(Vela.colors.mediaScrim.toColor().copy(alpha = 0.55f)).padding(horizontal = Vela.md, vertical = Vela.sm).testTag("player.seekFlash"),
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.xs),
-            ) {
-                if (!f.forward) Icon(Vela.icons.rewind, null, tint = onMedia)
-                Text("${if (f.forward) "+" else "−"}${f.seconds} s", color = onMedia, style = MaterialTheme.typography.bodyMedium)
-                if (f.forward) Icon(Vela.icons.forward, null, tint = onMedia)
-            }
-        }
+        flash?.let { f -> key(f.token) { SeekBadge(f.forward, f.seconds, onMedia, Modifier.align(if (f.forward) Alignment.CenterEnd else Alignment.CenterStart)) } }
         val held by session.heldSpeed.collectAsState()
         held?.let { speed -> Text(
             "${if (speed == speed.toInt().toFloat()) speed.toInt().toString() else speed.toString()}× speed", color = onMedia, style = MaterialTheme.typography.bodyMedium,
@@ -321,8 +321,8 @@ fun PlayerView(
     // The player's menu buttons (mute, captions, audio, quality, speed, sleep). In fullscreen they sit in the bottom row; in the small portrait player
     // they move to the top bar, so the bottom holds only the time, the chapter and the seek bar, well away from the play buttons.
     val menuButtons: @Composable androidx.compose.foundation.layout.RowScope.(Boolean) -> Unit = { spaced ->
-                        IconButton(onClick = { touch(); session.toggleMute() }, modifier = Modifier.testTag("player.mute")) {
-                            Icon(if (muted) Vela.icons.mute else Vela.icons.volume, if (muted) "Unmute" else "Mute", tint = onMedia)
+                        ControlButton({ touch(); session.toggleMute() }, haptic = if (muted) HapticKind.TOGGLE_ON else HapticKind.TOGGLE_OFF, modifier = Modifier.testTag("player.mute")) {
+                            SwapIcon(if (muted) Vela.icons.mute else Vela.icons.volume, if (muted) "Unmute" else "Mute", onMedia)
                         }
                         if (desktop) Scrubber(
                             value = if (muted) 0f else volume, onPreview = { touches++ }, onCommit = { touch(); session.setVolume(it) },
@@ -330,36 +330,22 @@ fun PlayerView(
                             trackColor = onMedia.copy(alpha = 0.3f), style = com.greenaltambe.vela.core.settings.ProgressStyle.BOLD_DOT,
                         )
                         if (spaced) Box(Modifier.weight(1f))
-                        if (captions.isEmpty()) IconButton(onClick = {}, enabled = false, modifier = Modifier.testTag("player.captions")) { Icon(Vela.icons.captions, "No captions for this video", tint = onMedia.copy(alpha = 0.4f)) }
-                        else MenuButton(Vela.icons.captions, "Captions", Menu.CAPTIONS, menu, { menu = it }, if (activeCaption != null) Vela.colors.primary.toColor() else onMedia, ::touch) {
-                            DropdownMenuItem(text = { Text("Off", maxLines = 1) }, onClick = { session.selectCaption(null); menu = null }, enabled = activeCaption != null)
-                            captions.forEach { c -> DropdownMenuItem(text = { Text(c.label, maxLines = 1) }, onClick = { session.selectCaption(c); menu = null }, enabled = activeCaption != c) }
-                        }
+                        if (captions.isEmpty()) ControlButton({}, enabled = false, modifier = Modifier.testTag("player.captions")) { Icon(Vela.icons.captions, "No captions for this video", tint = onMedia.copy(alpha = 0.4f)) }
+                        else ControlButton({ touch(); session.toggleCaptions() }, haptic = if (activeCaption != null) HapticKind.TOGGLE_OFF else HapticKind.TOGGLE_ON, onLongClick = { touch(); menu = Menu.CAPTIONS }, modifier = Modifier.testTag("player.captions")) { SwapIcon(Vela.icons.captions, "Captions", if (activeCaption != null) Vela.colors.primary.toColor() else onMedia) }
                         // Only videos with more than one soundtrack (languages, dubs) offer a choice.
-                        if (audioTracks.isNotEmpty()) MenuButton(Vela.icons.audioTrack, "Audio track", Menu.AUDIO, menu, { menu = it }, onMedia, ::touch) {
-                            val inUse = audioTrack ?: audioTracks.firstOrNull { it.original }?.key ?: audioTracks.first().key
-                            audioTracks.forEach { t -> DropdownMenuItem(text = { Text(t.label, maxLines = 1) }, onClick = { session.selectAudioTrack(if (t.original) null else t.key); menu = null }, enabled = t.key != inUse) }
-                        }
-                        MenuButton(Vela.icons.quality, "Quality", Menu.QUALITY, menu, { menu = it }, onMedia, ::touch) {
-                            val st = sessionState as? SessionState.Ready
-                            DropdownMenuItem(text = { Text("Auto", maxLines = 1) }, onClick = { session.selectQuality(null); menu = null }, enabled = st?.maxHeight != null)
-                            st?.heights?.forEach { h -> DropdownMenuItem(text = { Text("${h}p", maxLines = 1) }, onClick = { session.selectQuality(h); menu = null }, enabled = st.maxHeight != h) }
-                            DropdownMenuItem(text = { Text("Stats for nerds", maxLines = 1) }, onClick = { showStats = true; menu = null })
-                        }
-                        MenuButton(Vela.icons.speed, "Speed", Menu.SPEED, menu, { menu = it }, onMedia, ::touch) {
-                            speeds.forEach { s -> DropdownMenuItem(text = { Text("${s}x", maxLines = 1) }, onClick = { session.setSpeed(s); menu = null }, enabled = player.speed != s) }
-                        }
-                        MenuButton(Vela.icons.timer, "Sleep timer", Menu.SLEEP, menu, { menu = it }, if (sleep != null) Vela.colors.primary.toColor() else onMedia, ::touch) {
-                            SleepTimerPresets.forEach { m -> DropdownMenuItem(text = { Text(describeTimer(m), maxLines = 1) }, onClick = { session.setSleepTimer(m); menu = null }) }
-                            if (sleep != null) DropdownMenuItem(text = { Text("Turn off", maxLines = 1) }, onClick = { session.setSleepTimer(null); menu = null })
-                        }
+                        if (audioTracks.isNotEmpty()) ControlButton({ touch(); menu = Menu.AUDIO }, modifier = Modifier.testTag("player.audio-track")) { Icon(Vela.icons.audioTrack, "Audio track", tint = onMedia) }
+                        ControlButton({ touch(); menu = Menu.QUALITY }, modifier = Modifier.testTag("player.quality")) { Icon(Vela.icons.quality, "Quality", tint = onMedia) }
+                        ControlButton({ touch(); menu = Menu.SPEED }, modifier = Modifier.testTag("player.speed")) { Icon(Vela.icons.speed, "Speed", tint = onMedia) }
+                        ControlButton({ touch(); menu = Menu.SLEEP }, modifier = Modifier.testTag("player.sleep-timer")) { SwapIcon(Vela.icons.timer, "Sleep timer", if (sleep != null) Vela.colors.primary.toColor() else onMedia) }
     }
 
         AnimatedVisibility(showControls, Modifier.fillMaxSize(), enter = fadeIn(), exit = fadeOut()) {
             Box(Modifier.fillMaxSize().background(Vela.colors.mediaScrim.toColor().copy(alpha = 0.35f))) {
+                // In fullscreen the controls keep clear of the screen's edges (a phone's rounded corners and bezel swallow anything flush against them).
+                Box(Modifier.fillMaxSize().then(if (fullscreen) Modifier.padding(horizontal = Vela.gutter * 1.5f, vertical = Vela.md) else Modifier)) {
                 // Top: back.
                 Row(Modifier.align(Alignment.TopStart).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    if (onBack != null) IconButton(onClick = { touch(); onBack() }, modifier = Modifier.testTag("player.back")) {
+                    if (onBack != null) ControlButton({ touch(); onBack() }, modifier = Modifier.testTag("player.back")) {
                         Icon(Vela.icons.back, "Back", tint = onMedia)
                     }
                     if (compact) { Box(Modifier.weight(1f)); menuButtons(false) }
@@ -369,41 +355,45 @@ fun PlayerView(
                 // In the small portrait player the seek bar and the buttons share little height: the buttons sit higher and smaller so a press on
                 // pause can never land on the seek bar.
                 // While buffering the spinner takes the centre; the buttons would be drawn on top of it.
-                if (active && !buffering) Row(Modifier.align(Alignment.Center).offset(y = if (compact) (-4).dp else 0.dp), horizontalArrangement = Arrangement.spacedBy(if (fullscreen) Vela.lg else Vela.md), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { touch(); onPrevious?.invoke() }, enabled = onPrevious != null, modifier = Modifier.size(if (fullscreen) 56.dp else 48.dp).testTag("player.previous")) { Icon(Vela.icons.skipPrevious, "Previous video", tint = onMedia.copy(alpha = if (onPrevious != null) 1f else 0.35f)) }
-                    IconButton(onClick = { touch(); if (playing) session.pause() else session.play() }, modifier = Modifier.size(if (fullscreen) 64.dp else 56.dp).testTag("player.playPause")) {
-                        Icon(if (playing) Vela.icons.pause else Vela.icons.play, if (playing) "Pause" else "Play", Modifier.size(40.dp), tint = onMedia)
+                if (active && !buffering) Row(Modifier.align(Alignment.Center).offset(y = if (compact) (-8).dp else 0.dp), horizontalArrangement = Arrangement.spacedBy(if (fullscreen) Vela.lg else Vela.md), verticalAlignment = Alignment.CenterVertically) {
+                    ControlButton({ touch(); onPrevious?.invoke() }, enabled = onPrevious != null, size = if (fullscreen) 56.dp else 48.dp, pressShift = (-5).dp, modifier = Modifier.testTag("player.previous")) { Icon(Vela.icons.skipPrevious, "Previous video", tint = onMedia.copy(alpha = if (onPrevious != null) 1f else 0.35f)) }
+                    ControlButton({ touch(); if (playing) session.pause() else session.play() }, size = if (fullscreen) 64.dp else 56.dp, haptic = if (playing) HapticKind.TOGGLE_OFF else HapticKind.TOGGLE_ON, modifier = Modifier.testTag("player.playPause")) {
+                        SwapIcon(if (playing) Vela.icons.pause else Vela.icons.play, if (playing) "Pause" else "Play", onMedia, Modifier.size(40.dp))
                     }
-                    IconButton(onClick = { touch(); onNext?.invoke() }, enabled = onNext != null, modifier = Modifier.size(if (fullscreen) 56.dp else 48.dp).testTag("player.next")) { Icon(Vela.icons.skipNext, "Next video", tint = onMedia.copy(alpha = if (onNext != null) 1f else 0.35f)) }
+                    ControlButton({ touch(); onNext?.invoke() }, enabled = onNext != null, size = if (fullscreen) 56.dp else 48.dp, pressShift = 5.dp, modifier = Modifier.testTag("player.next")) { Icon(Vela.icons.skipNext, "Next video", tint = onMedia.copy(alpha = if (onNext != null) 1f else 0.35f)) }
                 }
 
                 // Bottom: seek bar, time, icon row.
-                Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = Vela.xs)) {
+                // In the small portrait player the whole block sits 16 dp lower, so the seek bar lies on the picture's bottom edge (as in YouTube) and the
+                // time/chapter pills have the room above it, clear of the play buttons.
+                Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = Vela.xs).then(if (compact) Modifier.offset(y = 16.dp) else Modifier)) {
                     val shown = preview?.let { (it * duration).toLong() } ?: position
-                    Row(Modifier.fillMaxWidth().padding(horizontal = Vela.sm), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                        Text(if (live) (if (behind == null || behind < LIVE_EDGE_MS) "LIVE" else "-${formatTimestamp(behind / 1000)} behind live") else "${formatTimestamp(shown / 1000)} / ${formatTimestamp(duration / 1000)}", color = onMedia, style = MaterialTheme.typography.bodySmall, maxLines = 1, softWrap = false, modifier = Modifier.testTag("player.time"))
+                    // The time and the chapter are two quiet pills on one line (the way YouTube shows them), the fullscreen button at the far end.
+                    val pill = Modifier.clip(Vela.pillShape).background(Vela.colors.mediaScrim.toColor().copy(alpha = 0.42f))
+                    Row(Modifier.fillMaxWidth().padding(horizontal = Vela.sm).then(if (compact) Modifier.offset(y = 12.dp) else Modifier), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+                        Text(if (live) (if (behind == null || behind < LIVE_EDGE_MS) "LIVE" else "-${formatTimestamp(behind / 1000)} behind live") else "${if (showRemaining) "-" + formatTimestamp(((duration - shown).coerceAtLeast(0)) / 1000) else formatTimestamp(shown / 1000)} / ${formatTimestamp(duration / 1000)}", color = onMedia, style = MaterialTheme.typography.bodySmall, maxLines = 1, softWrap = false, modifier = pill.then(if (live) Modifier else Modifier.clickable(role = androidx.compose.ui.semantics.Role.Button) { touch(); haptics.tick(); showRemaining = !showRemaining }).padding(horizontal = Vela.sm, vertical = Vela.xs).testTag("player.time"))
                         if (live && behind != null && behind >= LIVE_EDGE_MS) TextButton(onClick = { touch(); session.goLive() }, modifier = Modifier.testTag("player.goLive")) { Text("Go live", color = onMedia, maxLines = 1) }
                         // The current chapter's name sits above the seek bar; tapping it opens the chapter list.
                         currentChapter(chapters, shown)?.let { ch ->
                             Row(
-                                Modifier.weight(1f).clip(Vela.mediumShape).clickable { touch(); if (onOpenChapters != null) onOpenChapters() else chaptersOpen = true }.padding(horizontal = Vela.xs, vertical = Vela.xs).testTag("player.chapterTitle"),
-                                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.xs, Alignment.End),
+                                pill.weight(1f, fill = false).clickable { touch(); if (onOpenChapters != null) onOpenChapters() else chaptersOpen = true }.padding(start = Vela.sm, end = Vela.xs, top = Vela.xs, bottom = Vela.xs).testTag("player.chapterTitle"),
+                                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.xs),
                             ) {
                                 Text(ch.title, Modifier.weight(1f, fill = false), color = onMedia, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Icon(Vela.icons.chevronRight, null, Modifier.size(16.dp), tint = onMedia)
                             }
                         }
-                        // Without a chapter name nothing pushes the button to the right edge, so an empty spacer does.
-                        if (currentChapter(chapters, shown) == null) Box(Modifier.weight(1f))
-                        if (compact && window != null) IconButton(onClick = { touch(); window.toggleFullscreen() }, modifier = Modifier.size(40.dp).testTag("player.fullscreen")) {
+                        // Whatever is left over pushes the fullscreen button to the right edge.
+                        Box(Modifier.weight(1f))
+                        if (compact && window != null) ControlButton({ touch(); window.toggleFullscreen() }, size = 40.dp, modifier = Modifier.testTag("player.fullscreen")) {
                             Icon(Vela.icons.fullscreen, "Fullscreen", tint = onMedia)
                         }
                     }
-                    Spacer(Modifier.height(if (compact) Vela.sm else 2.dp))
+                    Spacer(Modifier.height(if (compact) 0.dp else Vela.xs))
                     Scrubber(
                         value = if (live && behind != null && duration > 0) (1f - behind.toFloat() / duration).coerceIn(0f, 1f) else if (duration > 0) position.toFloat() / duration else 0f,
                         onPreview = { preview = it; touches++ },
-                        onCommit = { f -> touch(); session.seekTo((f * duration).toLong()) },
+                        onCommit = { f -> touch(); haptics.confirm(); session.seekTo((f * duration).toLong()) },
                         enabled = duration > 0,
                         buffered = if (duration > 0) ((position + stats.bufferedAheadMs).toFloat() / duration).coerceIn(0f, 1f) else null,
                         markers = if (duration > 0) markers.map { ScrubMarker(it.startMs.toFloat() / duration, it.endMs.toFloat() / duration, it.color) } else emptyList(),
@@ -420,10 +410,11 @@ fun PlayerView(
                     // Fullscreen and the desktop window (not compact) keep the menu buttons here; only the small phone player moves them to the top bar.
                     if (!compact) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                         menuButtons(true)
-                        if (window != null) IconButton(onClick = { touch(); window.toggleFullscreen() }, modifier = Modifier.testTag("player.fullscreen")) {
-                            Icon(if (window.isFullscreen) Vela.icons.fullscreenExit else Vela.icons.fullscreen, if (window.isFullscreen) "Exit fullscreen" else "Fullscreen", tint = onMedia)
+                        if (window != null) ControlButton({ touch(); window.toggleFullscreen() }, modifier = Modifier.testTag("player.fullscreen")) {
+                            SwapIcon(if (window.isFullscreen) Vela.icons.fullscreenExit else Vela.icons.fullscreen, if (window.isFullscreen) "Exit fullscreen" else "Fullscreen", onMedia)
                         }
                     }
+                }
                 }
             }
         }
@@ -441,6 +432,29 @@ fun PlayerView(
             )
         }
     }
+    val dismissMenu = { menu = null }
+    when (menu) {
+        Menu.CAPTIONS -> PlayerMenuSheet("Captions", dismissMenu, subtitle = activeCaption?.label ?: "Off") {
+            PlayerMenuRow("Off", selected = activeCaption == null, onClick = { session.selectCaption(null); menu = null }, index = 0)
+            captions.forEachIndexed { i, c -> PlayerMenuRow(c.label, selected = activeCaption == c, onClick = { session.selectCaption(c); menu = null }, index = i + 1) }
+        }
+        Menu.AUDIO -> PlayerMenuSheet("Audio track", dismissMenu) {
+            val inUse = audioTrack ?: audioTracks.firstOrNull { it.original }?.key ?: audioTracks.firstOrNull()?.key
+            audioTracks.forEachIndexed { i, t -> PlayerMenuRow(t.label, selected = t.key == inUse, onClick = { session.selectAudioTrack(if (t.original) null else t.key); menu = null }, index = i) }
+        }
+        Menu.QUALITY -> PlayerMenuSheet("Quality", dismissMenu, subtitle = (sessionState as? SessionState.Ready)?.maxHeight?.let { "${it}p" } ?: "Auto") {
+            val st = sessionState as? SessionState.Ready
+            PlayerMenuRow("Auto", selected = st?.maxHeight == null, onClick = { session.selectQuality(null); menu = null }, index = 0)
+            st?.heights?.forEachIndexed { i, h -> PlayerMenuRow("${h}p", selected = st.maxHeight == h, onClick = { session.selectQuality(h); menu = null }, index = i + 1) }
+            PlayerMenuRow("Stats for nerds", selected = false, onClick = { showStats = true; menu = null }, index = (st?.heights?.size ?: 0) + 1, leading = Vela.icons.info)
+        }
+        Menu.SPEED -> PlayerMenuSheet("Playback speed", dismissMenu) { SpeedMenuContent(player.speed) { session.setSpeed(it) } }
+        Menu.SLEEP -> PlayerMenuSheet("Sleep timer", dismissMenu, subtitle = if (sleep != null) "On" else "Off") {
+            SleepTimerPresets.forEachIndexed { i, m -> PlayerMenuRow(describeTimer(m), selected = sleep == m, onClick = { session.setSleepTimer(m); menu = null }, index = i, leading = Vela.icons.timer) }
+            if (sleep != null) PlayerMenuRow("Turn off", selected = false, onClick = { session.setSleepTimer(null); menu = null }, index = SleepTimerPresets.size)
+        }
+        null -> {}
+    }
     if (showStats) AlertDialog(
         onDismissRequest = { showStats = false },
         title = { Text("Stats for nerds") },
@@ -450,17 +464,6 @@ fun PlayerView(
 }
 
 private enum class Menu { QUALITY, SPEED, SLEEP, CAPTIONS, AUDIO }
-
-@Composable
-private fun MenuButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, which: Menu, current: Menu?, set: (Menu?) -> Unit,
-    tint: Color, touch: () -> Unit, content: @Composable () -> Unit,
-) {
-    Box {
-        IconButton(onClick = { touch(); set(which) }, modifier = Modifier.testTag("player.${label.lowercase().replace(' ', '-')}")) { Icon(icon, label, tint = tint) }
-        DropdownMenu(current == which, { set(null) }) { content() }
-    }
-}
 
 private fun describeTimer(mode: SleepTimerMode) = when (mode) {
     is SleepTimerMode.After -> "${mode.duration.inWholeMinutes} min"
@@ -484,3 +487,21 @@ private const val LIVE_EDGE_MS = 40_000L
 
 private fun Modifier.androidx_onPos(onBottom: (Float) -> Unit): Modifier =
     this.onGloballyPositioned { onBottom(it.positionInWindow().y + it.size.height) }
+
+/** The "+10 s" / "−10 s" badge of a double-tap: pops in with a spring, and its arrow leans the way the jump goes. */
+@Composable
+private fun SeekBadge(forward: Boolean, seconds: Int, onMedia: Color, modifier: Modifier) {
+    val motion = Vela.motion
+    val pop = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(if (motion.reduced) 1f else 0.5f) }
+    LaunchedEffect(Unit) { if (!motion.reduced) pop.animateTo(1f, com.greenaltambe.vela.ui.look.VelaMotion.bouncy(motion)) }
+    Row(
+        modifier.padding(horizontal = Vela.lg)
+            .graphicsLayer { scaleX = pop.value; scaleY = pop.value; alpha = pop.value.coerceIn(0f, 1f); translationX = (1f - pop.value) * (if (forward) -24.dp.toPx() else 24.dp.toPx()) }
+            .clip(Vela.pillShape).background(Vela.colors.mediaScrim.toColor().copy(alpha = 0.55f)).padding(horizontal = Vela.md, vertical = Vela.xs),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.xs),
+    ) {
+        if (!forward) Icon(Vela.icons.rewind, null, tint = onMedia)
+        Text("${if (forward) "+" else "−"}$seconds s", color = onMedia, style = MaterialTheme.typography.bodyMedium)
+        if (forward) Icon(Vela.icons.forward, null, tint = onMedia)
+    }
+}

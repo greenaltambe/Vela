@@ -119,6 +119,7 @@ class AltClientExtractor(
             d["lengthSeconds"].string?.toLongOrNull() ?: 0, d["viewCount"].string?.toLongOrNull(), null,
             d["thumbnail"]["thumbnails"].array.lastOrNull()["url"].string,
             isLive = (d["isLive"] as? JsonPrimitive)?.booleanOrNull == true,
+            tags = d["keywords"].array.mapNotNull { it.string?.takeIf { k -> k.isNotBlank() } }.distinct(),
         ))
     }
 

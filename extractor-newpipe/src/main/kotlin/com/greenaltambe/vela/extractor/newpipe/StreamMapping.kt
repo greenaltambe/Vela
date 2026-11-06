@@ -109,6 +109,8 @@ internal fun StreamInfo.toVideoInfo() = VideoInfo(
     isShort = isShortFormContent,
     ageRestricted = ageLimit != StreamExtractor.NO_AGE_LIMIT,
     channelAvatarUrl = uploaderAvatars.bestUrl(),
+    tags = tags.orEmpty().filter { it.isNotBlank() }.distinct(),
+    subscriberCount = uploaderSubscriberCount.takeIf { it >= 0 },
 )
 
 /** The largest image; images with unknown size lose to ones with a known size. */

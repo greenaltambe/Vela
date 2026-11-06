@@ -25,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -90,6 +91,17 @@ fun PlayerSheet(
         sheetState.collapse()
     }
 
+    // Opening the mini player (swipe up or tap) while the phone is sideways goes straight to fullscreen: the cramped landscape page is never wanted there.
+    val landscapeNow = androidx.compose.runtime.rememberUpdatedState(windowInfo.containerSize.width > windowInfo.containerSize.height)
+    val controlsNow = androidx.compose.runtime.rememberUpdatedState(windowControls)
+    LaunchedEffect(sheetState) {
+        var wasOpen = sheetState.progress > 0.5f
+        androidx.compose.runtime.snapshotFlow { sheetState.progress }.collect { p ->
+            if (p > 0.99f && !wasOpen && landscapeNow.value && controlsNow.value?.isFullscreen == false) controlsNow.value?.toggleFullscreen()
+            if (p > 0.99f) wasOpen = true else if (p < 0.5f) wasOpen = false
+        }
+    }
+
     val revision by services.settings.revision.collectAsState()
     val nav = remember(revision) { NavConfig.of(services.settings) }
     val isPip = nav.miniLook == MiniLook.PIP
@@ -100,6 +112,10 @@ fun PlayerSheet(
     androidx.compose.runtime.SideEffect { sheetState.windowHeightPx = winH }
     val bottomInsetPx = WindowInsets.safeDrawing.getBottom(density).toFloat()
     val topInsetPx = WindowInsets.safeDrawing.getTop(density).toFloat()
+    // Sideways, the page (rail and all) sits inside the left / right system insets (cutout, gesture area); the sheet must be placed inside them too.
+    val layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
+    val leftInsetPx = WindowInsets.safeDrawing.getLeft(density, layoutDirection).toFloat()
+    val rightInsetPx = WindowInsets.safeDrawing.getRight(density, layoutDirection).toFloat()
 
     // Progress is NOT read here: reading it in composition recomposed this sheet and the whole video page on every animation frame. It is read
     // in the layout / draw lambdas below (and through the coarse flags), so a frame only re-measures and redraws.
@@ -110,18 +126,22 @@ fun PlayerSheet(
     val marginPx = with(density) { (if (nav.barStyle == BarStyle.DOCKED) 0.dp else Vela.md).toPx() }
 
     val sizeClass = com.greenaltambe.vela.ui.layout.LocalWindowSize.current
-    val rail = sizeClass != com.greenaltambe.vela.ui.layout.WindowSizeClass.COMPACT && !isFullscreen
-    val railWidthDp = if (!rail) 0.dp else if (nav.railCollapsed) 72.dp else 176.dp
+    // The page behind has its rail whenever the window is wide, fullscreen or not; the card is placed by that layout so it does not jump when the window
+    // leaves fullscreen. Only the expanded sheet differs: in fullscreen it covers the whole window.
+    val pageRail = sizeClass != com.greenaltambe.vela.ui.layout.WindowSizeClass.COMPACT
+    val rail = pageRail && !isFullscreen
+    val railWidthDp = if (!pageRail) 0.dp else if (nav.railCollapsed) 72.dp else 176.dp
     val railWidthPx = with(density) { railWidthDp.toPx() }
-    val contentW = winW - railWidthPx
+    val contentW = winW - leftInsetPx - rightInsetPx - railWidthPx
 
     val cardBottom = winH - bottomClearPx
     val cardTop = cardBottom - cardHeightPx
-    val cardLeft = railWidthPx + marginPx
-    val cardWidth = contentW - marginPx * 2
+    // The card is as wide as the page, up to a comfortable width: stretched across a landscape screen it is a thin bar with its controls far apart.
+    val cardWidth = minOf(contentW - marginPx * 2, with(density) { 640.dp.toPx() })
+    val cardLeft = leftInsetPx + railWidthPx + marginPx + (contentW - marginPx * 2 - cardWidth) / 2f
 
     // Dynamic morphing sheet bounds:
-    val targetExpandedX = if (rail) railWidthPx else 0f
+    val targetExpandedX = if (rail) leftInsetPx + railWidthPx else 0f
     val targetExpandedW = if (rail) contentW else winW
     val pipW = with(density) { PIP_WIDTH.toPx() }
     val pipH = pipW * 9f / 16f
@@ -151,7 +171,8 @@ fun PlayerSheet(
     val showPipControls by remember(sheetState) { derivedStateOf { sheetState.progress < 0.25f } }
 
     // Gesture handler attached ONLY to the sheet container (never to full screen when collapsed)
-    val gestureModifier = Modifier.pointerInput(winW, winH, isPip) {
+    val controlsForGesture = androidx.compose.runtime.rememberUpdatedState(windowControls)
+    val gestureModifier = Modifier.pointerInput(winW, winH, isPip, isFullscreen) {
         var startProgress = 0f
         var startWindowY = 0f
         var isDragging = false
@@ -161,7 +182,10 @@ fun PlayerSheet(
             val down = awaitFirstDown(requireUnconsumed = false)
             val currentP = sheetState.progress
 
-            val canDrag = if (currentP > 0.6f) {
+            // Fullscreen has its own gestures (swipe down leaves it); the sheet must not also drag the page down under it.
+            val canDrag = if (isFullscreen) {
+                false
+            } else if (currentP > 0.6f) {
                 // Expanded: drag down from the video player header area
                 down.position.y <= (topInsetPx + winW * 9f / 16f + with(density) { 32.dp.toPx() })
             } else if (!isPip) {
@@ -191,6 +215,7 @@ fun PlayerSheet(
             val dragRangePx = (cardTop - topInsetPx).coerceAtLeast(100f) * 0.82f
             val touchSlop = with(density) { 8.dp.toPx() }
 
+            var lastTotal = 0f
             while (true) {
                 val event = awaitPointerEvent()
                 val change = event.changes.firstOrNull { it.id == down.id } ?: break
@@ -200,13 +225,17 @@ fun PlayerSheet(
                 if (!change.pressed) {
                     if (isDragging) {
                         val vY = tracker.calculateVelocity().y
-                        sheetState.settle(vY)
+                        // On the open video page, a firm swipe UP on the picture turns it fullscreen (landscape). Down still minimises (below).
+                        val swipedUp = startProgress > 0.9f && !isPip && (lastTotal < -with(density) { 72.dp.toPx() } || vY < -1500f)
+                        if (swipedUp && controlsForGesture.value?.isFullscreen == false) controlsForGesture.value?.toggleFullscreen()
+                        else sheetState.settle(vY)
                     }
                     break
                 }
 
                 tracker.addPosition(change.uptimeMillis, Offset(change.position.x, nowWindowY))
                 val totalDragY = nowWindowY - startWindowY
+                lastTotal = totalDragY
 
                 if (!isDragging && abs(totalDragY) > touchSlop) {
                     isDragging = true

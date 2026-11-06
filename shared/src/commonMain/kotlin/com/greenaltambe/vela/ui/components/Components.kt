@@ -79,6 +79,7 @@ import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.semantics.onClick
 import com.greenaltambe.vela.ui.player.playerVerticalSwipe
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
@@ -136,6 +137,8 @@ fun VideoCard(
     trailing: @Composable (() -> Unit)? = null,
     /** False on a channel's own page, where every video is by that channel. */
     showChannelAvatar: Boolean = true,
+    /** VERTICAL only: the thumbnail runs the full width of the screen (still rounded), through the list's side gutters; the text keeps them. */
+    fullBleed: Boolean = false,
 ) {
     var showOriginal by remember(video.id) { mutableStateOf(false) }
     val replaced = video.originalTitle != null || video.originalThumbnailUrl != null
@@ -148,9 +151,10 @@ fun VideoCard(
     val click = hover.clip(Vela.mediumShape).hoverable(source).pressFeedback(source).combinedClickable(interactionSource = source, indication = null, onClick = onClick, onLongClick = if (replaced) ({ showOriginal = !showOriginal }) else null)
 
     if (style == VideoCardStyle.VERTICAL) {
-        Column(modifier.fillMaxWidth().testTag(ComponentIds.VIDEO_CARD).then(click), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
+        val gutter = Vela.gutter
+        Column(modifier.then(if (fullBleed) Modifier.bleed(gutter) else Modifier).fillMaxWidth().testTag(ComponentIds.VIDEO_CARD).then(click), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
             Thumbnail(video, thumbnail, extras, Modifier.fillMaxWidth().clip(Vela.thumbnailShape))
-            Row(Modifier.fillMaxWidth().padding(horizontal = Vela.xs), horizontalArrangement = Arrangement.spacedBy(Vela.sm), verticalAlignment = Alignment.Top) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = if (fullBleed) gutter + Vela.xs else Vela.xs), horizontalArrangement = Arrangement.spacedBy(Vela.sm), verticalAlignment = Alignment.Top) {
                 if (showChannelAvatar) Avatar(video.channelName, onChannelClick, url = video.channelAvatarUrl)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("card.title"))
@@ -177,6 +181,14 @@ fun VideoCard(
             trailing?.invoke()
         }
     }
+}
+
+/** Lets this item be [extra] wider than its parent on each side (it is centred over the parent): used to run a card through a list's side gutters. */
+fun Modifier.bleed(extra: Dp): Modifier = this.layout { measurable, constraints ->
+    val e = extra.roundToPx()
+    val w = constraints.maxWidth + 2 * e
+    val placeable = measurable.measure(constraints.copy(minWidth = w, maxWidth = w))
+    layout(constraints.maxWidth, placeable.height) { placeable.place(-e, 0) }
 }
 
 @Composable
@@ -713,6 +725,8 @@ fun ActionChip(
     selected: Boolean = false,
     selectedIcon: ImageVector? = null,
     enabled: Boolean = true,
+    /** The chip's outline; a pill by default. Like and Dislike pass shapes whose touching corners are tight. */
+    chipShape: androidx.compose.ui.graphics.Shape? = null,
 ) {
     val m = Vela.motion
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -761,7 +775,7 @@ fun ActionChip(
         label = "pillContentColor"
     )
 
-    val shape = Vela.pillShape
+    val shape = chipShape ?: Vela.pillShape
     val shown = if (selected && selectedIcon != null) selectedIcon else icon
 
     Row(

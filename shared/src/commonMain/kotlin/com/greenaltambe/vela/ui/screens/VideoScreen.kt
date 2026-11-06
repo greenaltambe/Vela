@@ -105,6 +105,10 @@ import com.greenaltambe.vela.ui.layout.LocalWindowWidthDp
 import com.greenaltambe.vela.ui.layout.WindowSizeClass
 import com.greenaltambe.vela.ui.look.LocalLook
 import com.greenaltambe.vela.ui.look.Vela
+import com.greenaltambe.vela.ui.components.bleed
+import com.greenaltambe.vela.ui.components.SubscribeButton
+import com.greenaltambe.vela.ui.components.formatCount
+import com.greenaltambe.vela.ui.look.pressable
 import com.greenaltambe.vela.ui.look.toColor
 import com.greenaltambe.vela.ui.nav.Navigator
 import com.greenaltambe.vela.ui.nav.Route
@@ -174,6 +178,7 @@ fun VideoScreen(
     var related by remember(video.id) { mutableStateOf<List<VideoSummary>>(cached?.related.orEmpty()) }
     var comments by remember(video.id) { mutableStateOf<List<Comment>>(offline?.comments ?: cached?.comments.orEmpty()) }
     var commentsNext by remember(video.id) { mutableStateOf<String?>(cached?.commentsNext) }
+    var commentTotal by remember(video.id) { mutableStateOf<Long?>(cached?.commentTotal) }
     var commentsOpen by remember(video.id) { mutableStateOf(false) }
     var chaptersOpen by remember(video.id) { mutableStateOf(false) }
     var commentsState by remember(video.id) { mutableStateOf<ListState>(if (offline != null) (if (offline.comments.isEmpty()) ListState.Empty("No saved comments.") else ListState.Ready) else if (cached?.comments?.isNotEmpty() == true) ListState.Ready else ListState.Loading) }
@@ -181,8 +186,11 @@ fun VideoScreen(
     var sort by remember(video.id) { mutableStateOf(CommentSort.TOP) }
     var replies by remember(video.id) { mutableStateOf<Map<String, List<Comment>>>(emptyMap()) }
     var repliesLoading by remember(video.id) { mutableStateOf<Set<String>>(emptySet()) }
-    var descriptionExpanded by remember(video.id) { mutableStateOf(false) }
+    var descriptionOpen by remember(video.id) { mutableStateOf(false) }
     var downloadDialog by remember(video.id) { mutableStateOf(false) }
+    var shareOpen by remember(video.id) { mutableStateOf(false) }
+    var saveMenu by remember(video.id) { mutableStateOf(false) }
+    var saveRevision by remember(video.id) { mutableStateOf(0) }
     var subscribed by remember(video.id, video.channelId) { mutableStateOf(services.subscriptions.isSubscribed(video.channelId)) }
     LaunchedEffect(info?.channelId) { info?.channelId?.takeIf { it.startsWith("UC") }?.let { subscribed = services.subscriptions.isSubscribed(it) } }
     var liked by remember(video.id) { mutableStateOf(false) }
@@ -220,6 +228,7 @@ fun VideoScreen(
                 is ExtractorResult.Success -> {
                     comments = if (more) (comments + r.value.comments).distinctBy { it.id } else r.value.comments
                     commentsNext = r.value.continuation
+                    if (!more) r.value.totalCount?.let { commentTotal = it }
                     commentsState = if (comments.isEmpty()) ListState.Empty("No comments yet.") else ListState.Ready
                 }
                 is ExtractorResult.Failure -> if (comments.isEmpty()) commentsState = ListState.Error("Comments unavailable: ${r.error.message}") { loadComments(false) }
@@ -256,7 +265,7 @@ fun VideoScreen(
     }
     // What this page loaded is kept for the next time it is opened (see VideoPageCache).
     androidx.compose.runtime.SideEffect {
-        if (offline == null && pageCache != null && (info != null || related.isNotEmpty() || comments.isNotEmpty())) pageCache.put(video.id, VideoPageCache.Entry(info, related, comments, commentsNext, services.clock.now()))
+        if (offline == null && pageCache != null && (info != null || related.isNotEmpty() || comments.isNotEmpty())) pageCache.put(video.id, VideoPageCache.Entry(info, related, comments, commentsNext, services.clock.now(), commentTotal))
     }
 
     val chapters: List<Chapter> = remember(info) { info?.let { effectiveChapters(it.chapters, it.description, it.durationSeconds) }.orEmpty() }
@@ -293,9 +302,17 @@ fun VideoScreen(
     val onPreviousVideo: () -> Unit = { if (navigator.playPrevious() == null) host?.session?.seekTo(0) }
     var submitting by remember(video.id) { mutableStateOf<String?>(null) }
 
-    PlatformBackHandler(enabled = window?.isFullscreen == true) { window?.toggleFullscreen() }
+    // Fullscreen belongs to the expanded page. Turning the phone sideways while the video plays in the mini player used to switch the window to
+    // fullscreen and draw the fullscreen player into the little card (a stretched poster across the bar): leave fullscreen when the page is not open.
+    val fullscreenNow = window?.isFullscreen == true && fullyExpanded
+    // Fullscreen is one thing, whichever way it is left (back arrow, exit button, swipe down, the Back key): the window turns upright and you are on the
+    // video page. Minimising to the mini player is a separate, portrait-only move (swipe the page down).
+    val minimised by remember { derivedStateOf { progressNow() < 0.05f } }
+    LaunchedEffect(window?.isFullscreen, minimised) { if (window?.isFullscreen == true && minimised && !inPip) window.toggleFullscreen() }
+    val leaveFullscreen: () -> Unit = { window?.toggleFullscreen() }
+    PlatformBackHandler(enabled = fullscreenNow) { leaveFullscreen() }
 
-    if (host != null && (window?.isFullscreen == true || inPip)) {
+    if (host != null && (fullscreenNow || inPip)) {
         // Swipe down on the picture brings the video back to portrait: it follows the finger, then either leaves or springs back.
         var fsDrag by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
         val leaveAt = with(density) { 90.dp.toPx() }
@@ -306,12 +323,12 @@ fun VideoScreen(
                 .then(if (inPip) Modifier else Modifier.playerVerticalSwipe(
                     onDelta = { dy -> fsDrag = (fsDrag + dy).coerceAtLeast(0f) },
                     onEnd = { total, v ->
-                        if (total > leaveAt || v > 1200f) window?.toggleFullscreen()
+                        if (total > leaveAt || v > 1200f) leaveFullscreen()
                         else scope.launch { androidx.compose.animation.core.animate(fsDrag, 0f) { x, _ -> fsDrag = x } }
                     },
                 ))
                 .graphicsLayer { translationY = fsDrag; alpha = 1f - (fsDrag / (leaveAt * 4f)).coerceIn(0f, 0.4f) },
-            fullscreen = true, controlsEnabled = !inPip, onBack = if (inPip) null else ({ window?.toggleFullscreen() }),
+            fullscreen = true, controlsEnabled = !inPip, onBack = if (inPip) null else ({ leaveFullscreen() }),
         )
         return
     }
@@ -337,7 +354,7 @@ fun VideoScreen(
         Box(Modifier.fillMaxSize().testTag("video.player")) {
             if (host != null) PlayerView(
                 host, video, chapters, markers, Modifier.fillMaxSize(), onBack = onBack ?: { navigator.back(); Unit }, seekStepSeconds = seekStep, holdSpeed = holdSpeedSetting, onPrevious = onPreviousVideo, onNext = onNextVideo,
-                onOpenChapters = if (chapters.isNotEmpty()) ({ chaptersOpen = true; commentsOpen = false }) else null,
+                onOpenChapters = if (chapters.isNotEmpty()) ({ chaptersOpen = true; commentsOpen = false; descriptionOpen = false }) else null,
                 controlsEnabled = (fullyExpanded && !inPip),
                 isLive = info?.isLive == true, resolvingNote = resolvingNote,
                 openAgeSetting = { navigator.selectTab(com.greenaltambe.vela.ui.nav.Route.Settings) },
@@ -351,13 +368,20 @@ fun VideoScreen(
 
     val details: LazyListScope.() -> Unit = {
         item {
-            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
-                // A long title is cut at three lines; tapping it shows all of it, tapping again folds it back.
-                var titleOpen by remember(video.id) { mutableStateOf(false) }
-                Text(shownTitle, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Medium, maxLines = if (titleOpen) Int.MAX_VALUE else 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.clickable { titleOpen = !titleOpen }.testTag("video.title"))
+            // The title (with its numbers) is the way to everything else about the video: tapping it opens the description sheet.
+            // The press area reaches a little past the text on every side (and its corners are small), so the rounded highlight never cuts into the words.
+            Column(
+                Modifier.fillMaxWidth().bleed(Vela.sm).clip(Vela.smallShape).pressable(role = androidx.compose.ui.semantics.Role.Button) { descriptionOpen = true; commentsOpen = false; chaptersOpen = false }
+                    .padding(horizontal = Vela.sm, vertical = Vela.xs).testTag("video.titleBlock"),
+                verticalArrangement = Arrangement.spacedBy(Vela.xs),
+            ) {
+                Text(shownTitle, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Medium, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("video.title"))
                 if (titleReplaced) LinkButton(if (showOriginalTitle) "Original title · use DeArrow" else "DeArrow title · show original", { showOriginalTitle = !showOriginalTitle }, Modifier.testTag("video.toggleOriginal"))
                 val meta = listOfNotNull(formatViews(info?.viewCount ?: video.viewCount), info?.likeCount?.let { "${compact(it)} likes" }).joinToString(" · ")
-                if (meta.isNotEmpty()) Text(meta, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor())
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.xs)) {
+                    if (meta.isNotEmpty()) Text(meta, Modifier.weight(1f, fill = false), style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor())
+                    Text("…more", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, maxLines = 1, color = Vela.colors.primary.toColor(), modifier = Modifier.testTag("video.descriptionMore"))
+                }
                 infoError?.let { Text("Details unavailable: $it", style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis) }
             }
         }
@@ -367,18 +391,22 @@ fun VideoScreen(
                 // The picture: the one the listing carried, else the video's own details, else the channel's picture from your subscriptions (a library or history entry has none).
                 val avatarUrl = video.channelAvatarUrl ?: info?.channelAvatarUrl ?: remember(info?.channelId, video.channelId) { services.subscriptions.all().firstOrNull { it.channelId == (info?.channelId?.takeIf { c -> c.isNotBlank() } ?: video.channelId) }?.avatarUrl }
                 Avatar(channelName, url = avatarUrl)
-                Text(channelName, Modifier.weight(1f).testTag("video.channel"), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Column(Modifier.weight(1f)) {
+                    Text(channelName, Modifier.testTag("video.channel"), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    formatCount(info?.subscriberCount)?.let { Text("$it subscribers", Modifier.testTag("video.subscribers"), style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor(), maxLines = 1) }
+                }
                 // The channel id the video's own details give (a real UC… id) beats what a listing carried, which can be empty or a @handle: the account
                 // rejects those with HTTP 400.
                 val chId = info?.channelId?.takeIf { it.startsWith("UC") } ?: video.channelId
                 // Optimistic: the local table and the button change at once; the account call follows, and a failure puts both back and says why.
-                if (subscribed) OutlinedButton(onClick = {
-                    services.subscriptions.unsubscribe(chId); subscribed = false
-                    scope.launch { (services.actions?.unsubscribe(chId) as? ActionResult.Failed)?.let { services.subscriptions.subscribe(chId, video.channelName, video.channelAvatarUrl ?: info?.channelAvatarUrl, services.clock.now()); subscribed = true; actionError = "Could not unsubscribe on the account: ${it.message}" } }
-                }, modifier = Modifier.testTag("video.subscribe")) { Text("Subscribed", maxLines = 1) }
-                else PrimaryButton("Subscribe", onClick = {
-                    services.subscriptions.subscribe(chId, video.channelName, video.channelAvatarUrl ?: info?.channelAvatarUrl, services.clock.now()); subscribed = true
-                    scope.launch { (services.actions?.subscribe(chId) as? ActionResult.Failed)?.let { services.subscriptions.unsubscribe(chId); subscribed = false; actionError = "Could not subscribe on the account: ${it.message}" } }
+                SubscribeButton(subscribed, onClick = {
+                    if (subscribed) {
+                        services.subscriptions.unsubscribe(chId); subscribed = false
+                        scope.launch { (services.actions?.unsubscribe(chId) as? ActionResult.Failed)?.let { services.subscriptions.subscribe(chId, video.channelName, video.channelAvatarUrl ?: info?.channelAvatarUrl, services.clock.now()); subscribed = true; actionError = "Could not unsubscribe on the account: ${it.message}" } }
+                    } else {
+                        services.subscriptions.subscribe(chId, video.channelName, video.channelAvatarUrl ?: info?.channelAvatarUrl, services.clock.now()); subscribed = true
+                        scope.launch { (services.actions?.subscribe(chId) as? ActionResult.Failed)?.let { services.subscriptions.unsubscribe(chId); subscribed = false; actionError = "Could not subscribe on the account: ${it.message}" } }
+                    }
                 }, modifier = Modifier.testTag("video.subscribe"))
             }
         }
@@ -388,7 +416,6 @@ fun VideoScreen(
                 style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag(if (actionError != null) "video.actionError" else "video.actionNote"))
         }
         item {
-            var saveMenu by remember { mutableStateOf(false) }
             val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
             HScrollableRow(
                 modifier = Modifier.fillMaxWidth(),
@@ -404,60 +431,22 @@ fun VideoScreen(
                     liked = target == VideoRating.LIKE; disliked = target == VideoRating.DISLIKE
                     scope.launch { (services.actions!!.rate(video.id, target) as? ActionResult.Failed)?.let { liked = wasLiked; disliked = wasDisliked; actionError = "Could not rate on the account: ${it.message}" } }
                 }
-                ActionChip(Vela.icons.like, votes?.let { compact(it.likes) } ?: "Like", { rate(if (liked) VideoRating.NONE else VideoRating.LIKE) }, Modifier.testTag("video.votes"), selected = liked, selectedIcon = Vela.icons.likeFilled)
-                ActionChip(Vela.icons.dislike, votes?.let { compact(it.dislikes) } ?: "Dislike", { rate(if (disliked) VideoRating.NONE else VideoRating.DISLIKE) }, Modifier.testTag("video.dislike"), selected = disliked, selectedIcon = Vela.icons.dislikeFilled)
+                // Like and Dislike are one joined control: round on the outside, tight where they touch.
+                val outer = Vela.look.radii.fullDp.dp
+                val inner = Vela.look.radii.smallDp.dp
+                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    ActionChip(Vela.icons.like, votes?.let { compact(it.likes) } ?: "Like", { rate(if (liked) VideoRating.NONE else VideoRating.LIKE) }, Modifier.testTag("video.votes"), selected = liked, selectedIcon = Vela.icons.likeFilled,
+                        chipShape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = outer, bottomStart = outer, topEnd = inner, bottomEnd = inner))
+                    ActionChip(Vela.icons.dislike, votes?.let { compact(it.dislikes) } ?: "Dislike", { rate(if (disliked) VideoRating.NONE else VideoRating.DISLIKE) }, Modifier.testTag("video.dislike"), selected = disliked, selectedIcon = Vela.icons.dislikeFilled,
+                        chipShape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = inner, bottomStart = inner, topEnd = outer, bottomEnd = outer))
+                }
                 if (services.downloads != null) {
                     if (offline != null) ActionChip(Vela.icons.downloaded, "Saved", {}, Modifier.testTag("video.downloaded"), selected = true)
                     else ActionChip(Vela.icons.download, "Download", { downloadDialog = true }, Modifier.testTag("video.download"))
                 }
-                Box {
-                    val isSaved = remember(video.id) { services.playlists.all().any { services.playlists.contains(it.id, video.id) } }
-                    ActionChip(Vela.icons.save, "Save", { saveMenu = true }, Modifier.testTag("video.save"), selected = isSaved, selectedIcon = Vela.icons.saveFilled)
-                    DropdownMenu(saveMenu, { saveMenu = false }) {
-                        if (services.actions != null && services.accounts.active.value.isSignedIn) DropdownMenuItem(
-                            text = { Text("Watch later (YouTube)", maxLines = 1) },
-                            onClick = { saveMenu = false; scope.launch { when (val r = services.actions.addToPlaylist("WL", video.id)) { is ActionResult.Failed -> actionError = "Could not add to Watch later: ${r.message}"; else -> actionNote = "Added to Watch later" } } },
-                            modifier = Modifier.testTag("video.saveWatchLater"),
-                        )
-                        services.playlists.all().forEach { list ->
-                            val has = services.playlists.contains(list.id, video.id)
-                            DropdownMenuItem(
-                                text = { Text((if (has) "✓ " else "") + list.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                                onClick = { if (has) services.playlists.remove(list.id, video.id) else services.playlists.add(list.id, listOf(video), services.clock.now()); saveMenu = false },
-                            )
-                        }
-                    }
-                }
-                val share = com.greenaltambe.vela.ui.platform.LocalShare.current
-                ActionChip(Vela.icons.share, "Share", {
-                    val link = "https://youtu.be/${video.id}"
-                    if (share != null) share(shownTitle, link) else { clipboard.setText(AnnotatedString(link)); actionError = null; actionNote = "Link copied: $link" }
-                }, Modifier.testTag("video.share"))
-                ActionChip(Vela.icons.link, "Copy link", {
-                    val link = "https://youtu.be/${video.id}"
-                    clipboard.setText(AnnotatedString(link))
-                    actionError = null
-                    actionNote = "Link copied: $link"
-                }, Modifier.testTag("video.copyLink"))
-                ActionChip(Vela.icons.timer, "Copy with timestamp", {
-                    val currentMs = host?.controllerState?.value?.positionMs ?: position
-                    val currentSec = (currentMs / 1000).coerceAtLeast(0)
-                    val link = "https://youtu.be/${video.id}?t=$currentSec"
-                    clipboard.setText(AnnotatedString(link))
-                    actionError = null
-                    actionNote = "Link copied: $link"
-                }, Modifier.testTag("video.copyTimestamp"))
-            }
-        }
-        info?.takeIf { it.description.isNotBlank() }?.let { d ->
-            item {
-                val linkColor = Vela.colors.primary.toColor()
-                val text = remember(d.description, linkColor) { linkedText(d.description, linkColor) { seconds -> host?.session?.seekTo(seconds * 1000) } }
-                // The "more" button is a full touch target tall, so the card gets less padding under it.
-                Column(Modifier.fillMaxWidth().clip(Vela.mediumShape).background(Vela.colors.surface.toColor()).padding(start = Vela.md, end = Vela.md, top = Vela.md, bottom = Vela.xs)) {
-                    Text(text, style = MaterialTheme.typography.bodyMedium, maxLines = if (descriptionExpanded) Int.MAX_VALUE else 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("video.description"))
-                    LinkButton(if (descriptionExpanded) "Show less" else "more", { descriptionExpanded = !descriptionExpanded }, Modifier.testTag("video.descriptionToggle"))
-                }
+                val isSaved = remember(video.id, saveRevision) { services.playlists.all().any { services.playlists.contains(it.id, video.id) } }
+                ActionChip(Vela.icons.save, "Save", { saveMenu = true }, Modifier.testTag("video.save"), selected = isSaved, selectedIcon = Vela.icons.saveFilled)
+                ActionChip(Vela.icons.share, "Share", { shareOpen = true }, Modifier.testTag("video.share"))
             }
         }
         if (host != null && services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.showContribute)) item {
@@ -466,11 +455,11 @@ fun VideoScreen(
         // Comments are one wide button, right under the description (also in the wide layout, where related videos sit in the side column): it opens the panel here.
         item {
             Row(
-                Modifier.fillMaxWidth().clip(Vela.mediumShape).background(Vela.colors.surface.toColor()).clickable { commentsOpen = true; chaptersOpen = false }.heightIn(min = Vela.minTouch).padding(horizontal = Vela.md).testTag("video.commentsButton"),
+                Modifier.fillMaxWidth().clip(Vela.mediumShape).background(Vela.colors.surface.toColor()).clickable { commentsOpen = true; chaptersOpen = false; descriptionOpen = false }.heightIn(min = Vela.minTouch).padding(horizontal = Vela.md).testTag("video.commentsButton"),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm),
             ) {
                 Text("Comments", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, maxLines = 1)
-                if (comments.isNotEmpty()) Text("${comments.size}${if (commentsNext != null) "+" else ""}", style = MaterialTheme.typography.bodyMedium, color = Vela.colors.onSurfaceVariant.toColor())
+                if (comments.isNotEmpty()) Text(commentTotal?.let { formatCount(it) } ?: "${comments.size}${if (commentsNext != null) "+" else ""}", style = MaterialTheme.typography.bodyMedium, color = Vela.colors.onSurfaceVariant.toColor())
                 Icon(Vela.icons.chevronRight, null, tint = Vela.colors.onSurfaceVariant.toColor())
             }
         }
@@ -508,7 +497,7 @@ fun VideoScreen(
     val commentsPanel: @Composable (Modifier) -> Unit = { m ->
         androidx.compose.animation.AnimatedVisibility(commentsOpen, m, enter = androidx.compose.animation.slideInVertically { it } + androidx.compose.animation.fadeIn(), exit = androidx.compose.animation.slideOutVertically { it } + androidx.compose.animation.fadeOut()) {
             CommentsPanel(
-                comments, commentsState, hasMore = commentsNext != null, loadingMore = commentsLoading,
+                comments, commentsState, hasMore = commentsNext != null, loadingMore = commentsLoading, totalCount = commentTotal,
                 canSort = services.extractor.capabilities.supportsCommentSort, newestFirst = sort == CommentSort.NEWEST,
                 onToggleSort = { sort = if (sort == CommentSort.TOP) CommentSort.NEWEST else CommentSort.TOP },
                 replies = replies, repliesLoading = repliesLoading,
@@ -544,6 +533,34 @@ fun VideoScreen(
     }
 
     if (downloadDialog) DownloadDialog(services, listOf(video), onDismiss = { downloadDialog = false })
+    if (saveMenu) SaveSheet(
+        services, video, onMessage = { note, error -> actionNote = note; actionError = error },
+        onChanged = { saveRevision++ }, onDismiss = { saveMenu = false },
+    )
+    if (shareOpen) ShareSheet(
+        videoId = video.id, title = shownTitle, positionMs = host?.controllerState?.value?.positionMs ?: position,
+        onDone = { message -> actionError = null; if (message != null) actionNote = message; shareOpen = false }, onDismiss = { shareOpen = false },
+    )
+    // The description sits in the room under the picture too (never over it), like the comments.
+    PlatformBackHandler(enabled = descriptionOpen) { descriptionOpen = false }
+    val descriptionPanel: @Composable (Modifier) -> Unit = { m ->
+        androidx.compose.animation.AnimatedVisibility(descriptionOpen, m, enter = androidx.compose.animation.slideInVertically { it } + androidx.compose.animation.fadeIn(), exit = androidx.compose.animation.slideOutVertically { it } + androidx.compose.animation.fadeOut()) {
+            val captionTracks by (host?.session?.captions ?: remember { kotlinx.coroutines.flow.MutableStateFlow(emptyList<com.greenaltambe.vela.extractor.CaptionTrack>()) }).collectAsState()
+            DescriptionPanel(
+                title = shownTitle, info = info,
+                viewCount = info?.viewCount ?: video.viewCount, likeCount = info?.likeCount, uploadedAt = info?.uploadDate ?: video.uploadedAt,
+                channelName = info?.channelName?.takeIf { it.isNotBlank() } ?: video.channelName,
+                channelAvatarUrl = video.channelAvatarUrl ?: info?.channelAvatarUrl,
+                chapters = chapters, captions = captionTracks, positionMs = position,
+                onSeek = { ms: Long -> host?.session?.seekTo(ms) },
+                onOpenChapters = { chaptersOpen = true; commentsOpen = false; descriptionOpen = false },
+                onOpenChannel = { navigator.push(Route.Channel((info?.channelId?.takeIf { it.isNotBlank() } ?: video.channelId), info?.channelName?.takeIf { it.isNotBlank() } ?: video.channelName)) },
+                onSearchTag = { tag: String -> navigator.push(Route.Search(tag)) },
+                onDismiss = { descriptionOpen = false },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+    }
 
     val gap = Arrangement.spacedBy(Vela.sm)
     // Two columns (related videos beside the player) only in a really wide window; narrower ones, desktop windows included, stack like the phone.
@@ -628,6 +645,7 @@ fun VideoScreen(
                     }
                     commentsPanel(Modifier.fillMaxSize())
                     chaptersPanel(Modifier.fillMaxSize())
+                    descriptionPanel(Modifier.fillMaxSize())
                 }
             }
 
@@ -662,6 +680,7 @@ fun VideoScreen(
                     LazyColumn(Modifier.fillMaxSize().testTag("video.list"), state = detailsState, contentPadding = Vela.contentPadding, verticalArrangement = gap) { details() }
                     commentsPanel(Modifier.fillMaxSize())
                     chaptersPanel(Modifier.fillMaxSize())
+                    descriptionPanel(Modifier.fillMaxSize())
                 }
             }
             LazyColumn(Modifier.weight(1f).fillMaxSize().testTag("video.side"), state = sideState, contentPadding = Vela.contentPadding, verticalArrangement = gap) { secondary() }

@@ -22,6 +22,9 @@ internal fun JsonObject.bool(key: String): Boolean? = (this[key] as? JsonPrimiti
 internal fun JsonObject.objects(key: String): List<JsonObject> =
     (this[key] as? JsonArray).orEmpty().mapNotNull { it as? JsonObject }
 
+internal fun JsonObject.strings(key: String): List<String> =
+    (this[key] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p !is JsonNull && p.isString }?.content?.takeIf { c -> c.isNotBlank() } }
+
 internal fun JsonObject.stringMap(key: String): Map<String, String> =
     (this[key] as? JsonObject)?.mapNotNull { (k, v) -> (v as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content?.let { k to it } }
         ?.toMap().orEmpty()

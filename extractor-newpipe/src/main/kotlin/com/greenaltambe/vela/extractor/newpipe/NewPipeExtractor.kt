@@ -164,15 +164,18 @@ class NewPipeExtractor(downloader: () -> Downloader = { OkHttpDownloader() }, pr
         return collector.items.toVideoSummaries() to next
     }
 
-    override suspend fun comments(videoId: String, sort: CommentSort, continuation: String?): ExtractorResult<CommentsPage> =
-        withPage(continuation) { page ->
+    override suspend fun comments(videoId: String, sort: CommentSort, continuation: String?): ExtractorResult<CommentsPage> {
+        var total: Long? = null
+        return withPage(continuation) { page ->
             if (page == null) {
                 CommentsInfo.getInfo(youtube, videoUrl(videoId))
+                    ?.also { total = it.commentsCount.toLong().takeIf { n -> n >= 0 } }
                     ?.let { it.relatedItems.orEmpty() to it.nextPage } ?: (emptyList<CommentsInfoItem>() to null)
             } else {
                 CommentsInfo.getMoreItems(youtube, videoUrl(videoId), page).let { it.items to it.nextPage }
             }
-        }.map { (items, next) -> CommentsPage(items.map { it.toComment() }, next.toTokenOrNull()) }
+        }.map { (items, next) -> CommentsPage(items.map { it.toComment() }, next.toTokenOrNull(), total) }
+    }
 
     override suspend fun replies(videoId: String, commentId: String, continuation: String?): ExtractorResult<CommentsPage> =
         withPage(continuation) { page ->

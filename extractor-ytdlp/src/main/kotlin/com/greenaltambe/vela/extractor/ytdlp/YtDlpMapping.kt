@@ -147,6 +147,8 @@ internal fun JsonObject.toVideoInfo() = VideoInfo(
     // We always ask for a /watch URL, and yt-dlp then reports /watch too, so the URL cannot tell; media_type can.
     isShort = str("media_type") == "short" || listOfNotNull(str("webpage_url"), str("original_url")).any { "/shorts/" in it },
     ageRestricted = (long("age_limit") ?: 0) > 0,
+    tags = strings("tags").distinct(),
+    subscriberCount = long("channel_follower_count"),
 )
 
 /** yt-dlp lists thumbnails worst to best. */

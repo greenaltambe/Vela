@@ -138,7 +138,7 @@ class DesktopUiLiveTest {
             waitUntil(timeoutMillis = 10_000) { c.state.value.status == PlaybackStatus.PLAYING }
             showControls()
             onNodeWithTag("player.speed").performClick()
-            onNodeWithText("2.0x").performClick()
+            onNodeWithText("2×").performClick()
             waitUntil(timeoutMillis = 10_000) { c.state.value.speed == 2f }
             val before = c.stats.value.videoResolution
             showControls()

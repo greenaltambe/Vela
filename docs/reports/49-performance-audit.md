@@ -24,6 +24,7 @@ Launch cause found: the whole object graph (DB, Keystore-backed accounts, NewPip
 
 - `androidApp/build.gradle.kts`: new `measure` build type (release code, debug-signed, not debuggable; `adb install -r` over the debug app keeps data). `./gradlew :androidApp:assembleMeasure`.
 - `shared/.../ui/player/PlayerSheet.kt`, `ui/screens/VideoScreen.kt`: the mini-player morph no longer reads its progress in composition. Progress is a provider read in layout/graphicsLayer/draw lambdas; composition only follows threshold flags (`derivedStateOf`). The details list stays composed once shown and is laid out at a fixed full size; the sheet shadow fades out by 30% progress.
+- Full-width thumbnails (phone width): `VideoCard(fullBleed = true)` + `Modifier.bleed(gutter)` in `ui/components/Components.kt`, `SkeletonCard(fullBleed)` in `States.kt`; enabled in `Lists.kt` (compact `VideoCollection`) and the channel videos tab (`ChannelScreen.kt`). Rounded corners kept, text keeps the gutter. Verified on the device screenshot of Home. Not applied to the grid (wider windows), search/history rows (horizontal cards) or Related.
 
 ## Measured on the device (CPH2707, 120 Hz, adb gfxinfo, scripted swipes)
 | scenario | janky frames | 90th pct | cold start |

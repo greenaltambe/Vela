@@ -126,7 +126,7 @@ class MainActivity : ComponentActivity() {
     /** Immersive fullscreen with the same overlay controls: system bars hidden, the screen turned to landscape. */
     private val windowControls = object : WindowControls {
         override val isFullscreen: Boolean get() = fullscreen
-        override fun toggleFullscreen() = applyFullscreen(!fullscreen)
+        override fun toggleFullscreen() = applyFullscreen(!fullscreen, byUser = true)
     }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
@@ -227,6 +227,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        stopOrientationLock()
         unregisterReceiver(pipToggle)
         scope.cancel()
         super.onDestroy()
@@ -252,19 +253,40 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun applyFullscreen(on: Boolean) {
+    private fun applyFullscreen(on: Boolean, byUser: Boolean = false) {
         if (fullscreen == on) return
         fullscreen = on
         val controller = WindowCompat.getInsetsController(window, window.decorView)
         if (on) {
+            stopOrientationLock()
             controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             controller.hide(WindowInsetsCompat.Type.systemBars())
             requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         } else {
             controller.show(WindowInsetsCompat.Type.systemBars())
-            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            // Leaving fullscreen with a button or a swipe means "back to the video page": turn upright even though the phone is still held sideways, and
+            // hand rotation back to the sensor once it is held upright (otherwise the sideways phone would turn the page straight back to landscape).
+            // Turning the phone upright by hand is the other way out of fullscreen and needs no lock.
+            if (byUser) lockPortraitUntilUpright() else requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
     }
+
+    private var orientationLock: android.view.OrientationEventListener? = null
+
+    private fun lockPortraitUntilUpright() {
+        stopOrientationLock()
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        val listener = object : android.view.OrientationEventListener(this) {
+            override fun onOrientationChanged(orientation: Int) {
+                if (orientation == ORIENTATION_UNKNOWN) return
+                val upright = orientation <= 25 || orientation >= 335 || orientation in 155..205
+                if (upright) { requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED; stopOrientationLock() }
+            }
+        }
+        if (listener.canDetectOrientation()) { orientationLock = listener; listener.enable() } else requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+    }
+
+    private fun stopOrientationLock() { orientationLock?.disable(); orientationLock = null }
 
     /** Turning the phone sideways while a video plays enters fullscreen; turning it upright leaves it. */
     override fun onConfigurationChanged(newConfig: Configuration) {

@@ -63,7 +63,8 @@ fun VideoMenu(services: AppServices, video: VideoSummary, modifier: Modifier = M
     if (download) DownloadDialog(services, listOf(video), onDismiss = { download = false })
     Box(modifier) {
         IconButton(onClick = { open = true }, modifier = Modifier.testTag("video.menu")) {
-            Icon(Vela.icons.more, "More options for ${video.title}")
+            // Three horizontal dots, drawn a little smaller and in the quieter text colour so they read thin beside the title.
+            Icon(Vela.icons.more, "More options for ${video.title}", Modifier.size(20.dp), tint = Vela.colors.onSurfaceVariant.toColor())
         }
         if (open) {
             VideoMenuSheet(

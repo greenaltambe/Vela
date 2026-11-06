@@ -51,7 +51,7 @@ fun applyShortcut(action: ShortcutAction, session: PlaybackSession, player: Play
         ShortcutAction.ToggleFullscreen -> toggleFullscreen()
         ShortcutAction.ToggleMute -> session.toggleMute()
         // Off when a caption is showing; otherwise the first one the video has (nothing happens without captions).
-        ShortcutAction.ToggleCaptions -> if (session.activeCaption.value != null) session.selectCaption(null) else session.captions.value.firstOrNull()?.let(session::selectCaption)
+        ShortcutAction.ToggleCaptions -> session.toggleCaptions()
         ShortcutAction.VolumeUp -> session.setVolume(session.volume.value + VOLUME_STEP)
         ShortcutAction.VolumeDown -> session.setVolume(session.volume.value - VOLUME_STEP)
         ShortcutAction.SpeedDown -> session.setSpeed(steppedSpeed(player.speed, up = false))

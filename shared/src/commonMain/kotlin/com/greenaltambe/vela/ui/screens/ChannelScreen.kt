@@ -663,7 +663,8 @@ private fun ChannelItemCard(
                 video = item.summary,
                 onClick = { navigator.push(Route.Video(item.summary)) },
                 showChannelAvatar = false,
-                style = VideoCardStyle.VERTICAL
+                style = VideoCardStyle.VERTICAL,
+                fullBleed = com.greenaltambe.vela.ui.layout.LocalWindowSize.current == com.greenaltambe.vela.ui.layout.WindowSizeClass.COMPACT,
             )
         }
         is ChannelItem.Playlist -> {
