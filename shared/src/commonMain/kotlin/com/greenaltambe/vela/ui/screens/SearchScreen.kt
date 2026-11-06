@@ -1,7 +1,9 @@
 package com.greenaltambe.vela.ui.screens
 
+import com.greenaltambe.vela.ui.theme.AppIcons
+import androidx.compose.foundation.shape.CircleShape
+import com.greenaltambe.vela.ui.theme.Spacing
 import androidx.compose.foundation.clickable
-import com.greenaltambe.vela.ui.look.toColor
 import com.greenaltambe.vela.extractor.VideoSummary
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.background
@@ -17,6 +19,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import com.greenaltambe.vela.ui.components.SkeletonCard
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
@@ -49,7 +53,6 @@ import com.greenaltambe.vela.extractor.videoPagedList
 import com.greenaltambe.vela.modules.dearrow.DeArrowSurface
 import com.greenaltambe.vela.ui.components.SectionHeader
 import com.greenaltambe.vela.ui.components.EmptyState
-import com.greenaltambe.vela.ui.look.Vela
 import com.greenaltambe.vela.ui.nav.Navigator
 import com.greenaltambe.vela.ui.nav.Route
 import kotlinx.coroutines.launch
@@ -64,7 +67,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilterChip
+import com.greenaltambe.vela.ui.search.*
 
 /**
  * The full search view: a query field with clear and back, the history list while the field is empty, paged results
@@ -87,6 +90,8 @@ fun SearchScreen(services: AppServices, navigator: Navigator, query: String, mod
     var type by remember(query) { mutableStateOf(SearchType.ALL) }
     val channelFeed = remember(query) { TabFeed<ChannelRef>() }
     val playlistFeed = remember(query) { TabFeed<PlaylistRef>() }
+    // The video search returns almost no Shorts, so they are looked for on their own ("<query> #shorts") and kept when YouTube marks them or they last a minute or less.
+    val shortsFeed = remember(query) { TabFeed<VideoSummary>() }
     // A pasted YouTube address opens what it points at instead of being searched for.
     fun submit(q: String) { if (q.isNotBlank() && !navigator.openYoutubeLink(q)) navigator.replace(Route.Search(q.trim())) }
 
@@ -100,7 +105,7 @@ fun SearchScreen(services: AppServices, navigator: Navigator, query: String, mod
                     results = if (more) results.append(result.value) else results.replace(result.value)
                     state = if (results.items.isEmpty()) ListState.Empty("No results for \"$query\".") else ListState.Ready
                 }
-                is ExtractorResult.Failure -> if (results.items.isEmpty()) state = ListState.Error("Search failed: ${result.error.message}") { load(false) }
+                is ExtractorResult.Failure -> if (results.items.isEmpty()) state = ListState.Error("Couldn't load results. Check your connection and try again.") { loading = false; load(false) }
             }
             loading = false
         }
@@ -117,15 +122,47 @@ fun SearchScreen(services: AppServices, navigator: Navigator, query: String, mod
                     feed.next = r.value.continuation; feed.loaded = true
                     feed.state = if (feed.items.isEmpty()) ListState.Empty(empty) else ListState.Ready
                 }
-                is ExtractorResult.Failure -> if (feed.items.isEmpty()) feed.state = ListState.Error("Search failed: ${r.error.message}") { feed.loading = false; loadKind(feed, false, empty, idOf, fetch) }
+                is ExtractorResult.Failure -> if (feed.items.isEmpty()) feed.state = ListState.Error("Couldn't load these. Check your connection and try again.") { feed.loading = false; loadKind(feed, false, empty, idOf, fetch) }
             }
             feed.loading = false
         }
     }
     fun moreChannels(more: Boolean) = loadKind(channelFeed, more, "No channels for \"$query\".", { it.id }) { services.extractor.searchChannels(query, it) }
     fun morePlaylists(more: Boolean) = loadKind(playlistFeed, more, "No playlists for \"$query\".", { it.id }) { services.extractor.searchPlaylists(query, it) }
-    LaunchedEffect(type, query) {
+    val shortsPages = remember(query) { intArrayOf(0) }
+    fun moreShorts(more: Boolean) {
+        if (shortsFeed.loading) return
+        if (!more) shortsPages[0] = 0
+        shortsPages[0]++
+        shortsFeed.loading = true
+        if (!more) shortsFeed.state = ListState.Loading
+        scope.launch {
+            when (val r = services.extractor.search("$query #shorts", shortsFeed.next.takeIf { more })) {
+                is ExtractorResult.Success -> {
+                    // "#shorts" pulls in other people's Shorts: keep those whose title or channel holds every word searched for.
+                    val words = query.lowercase().split(' ', '-', '_').filter { it.length >= 2 }
+                    val shorts = r.value.items.filter { it.isShort || (it.durationSeconds ?: Long.MAX_VALUE) in 1..60 }
+                        .filter { v -> val hay = (v.title + " " + v.channelName).lowercase(); val flat = hay.filter { c -> c.isLetterOrDigit() }; words.all { w -> w in hay } || query.lowercase().filter { c -> c.isLetterOrDigit() } in flat }
+                        .map { if (it.isShort) it else it.copy(isShort = true) }
+                    shortsFeed.items = if (more) (shortsFeed.items + shorts).distinctBy { it.id } else shorts
+                    shortsFeed.next = r.value.continuation; shortsFeed.loaded = true
+                    shortsFeed.state = if (shortsFeed.items.isEmpty() && shortsFeed.next == null) ListState.Empty("No Shorts for \"$query\".") else ListState.Ready
+                }
+                is ExtractorResult.Failure -> if (shortsFeed.items.isEmpty()) shortsFeed.state = ListState.Error("Couldn't load Shorts. Check your connection and try again.") { shortsFeed.loading = false; moreShorts(false) }
+            }
+            shortsFeed.loading = false
+            // The "#shorts" search mixes in long videos; a thin page asks for the next one, a few times.
+            if (shortsFeed.items.size < 8 && shortsFeed.next != null && shortsPages[0] < 4) moreShorts(true)
+        }
+    }
+    LaunchedEffect(type, query, state) {
         if (query.isBlank()) return@LaunchedEffect
+        if (type == SearchType.SHORTS && !shortsFeed.loaded) moreShorts(false)
+        // The All page borrows a channel card, a channels shelf and Shorts blocks from these once the videos are in.
+        if (type == SearchType.ALL && state == ListState.Ready) {
+            if (!channelFeed.loaded) moreChannels(false)
+            if (!shortsFeed.loaded) moreShorts(false)
+        }
         if (type == SearchType.CHANNELS && !channelFeed.loaded) moreChannels(false)
         if (type == SearchType.PLAYLISTS && !playlistFeed.loaded) morePlaylists(false)
     }
@@ -151,21 +188,41 @@ fun SearchScreen(services: AppServices, navigator: Navigator, query: String, mod
         (services.extractor.suggestions(text.trim()) as? ExtractorResult.Success)?.let { suggestions = it.value }
     }
 
+    var sheet by remember { mutableStateOf(false) }
+    if (sheet) SearchFilterSheet(filters, { filters = it }, { sheet = false })
+    val shortsOn = services.settings.shortsEnabled()
+    val types = remember(shortsOn) { listOfNotNull(SearchType.ALL, SearchType.VIDEOS, SearchType.SHORTS.takeIf { shortsOn }, SearchType.LIVE, SearchType.CHANNELS, SearchType.PLAYLISTS) }
+    // Videos, Shorts and Live are views of the same loaded results; when one has few entries the next pages are fetched (a few, behind the placeholders).
+    val view = remember(shown, type, shortsFeed.items, filters) {
+        when (type) {
+            SearchType.VIDEOS -> shown.filter { !it.isShort && !it.isLive }
+            SearchType.SHORTS -> filters.apply(shortsFeed.items)
+            SearchType.LIVE -> shown.filter { it.isLive }
+            else -> shown
+        }
+    }
+    var autoPages by remember(query, type) { mutableStateOf(0) }
+    LaunchedEffect(type, view.size, results.continuation, loading, state) {
+        val isView = type == SearchType.VIDEOS || type == SearchType.LIVE
+        if (isView && view.size < 8 && results.continuation != null && !loading && state == ListState.Ready && autoPages < 4) { autoPages++; load(more = true) }
+    }
+
+    val searching = loading || ((type == SearchType.VIDEOS || type == SearchType.LIVE) && view.size < 8 && results.continuation != null && autoPages < 4)
     Column(modifier.fillMaxSize()) {
         Row(
-            Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)).heightIn(min = 56.dp).padding(horizontal = Vela.xs),
+            Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)).heightIn(min = 56.dp).padding(horizontal = Spacing.xs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = { navigator.back() }, modifier = Modifier.testTag("nav.back")) { Icon(Vela.icons.back, "Back") }
-            com.greenaltambe.vela.ui.components.VelaSearchField(text, { text = it }, { submit(text) }, Modifier.weight(1f).padding(end = Vela.xs), focusRequester = focus)
+            IconButton(onClick = { navigator.back() }, modifier = Modifier.testTag("nav.back")) { Icon(AppIcons.back, "Back") }
+            com.greenaltambe.vela.ui.components.VelaSearchField(text, { text = it }, { submit(text) }, Modifier.weight(1f).padding(end = Spacing.xs), focusRequester = focus)
+            if (query.isNotBlank() && type != SearchType.CHANNELS && type != SearchType.PLAYLISTS) FilterTuneButton(!filters.isDefault) { sheet = true }
         }
         if (suggestions.isNotEmpty() && text.trim() != query) {
-            LazyColumn(Modifier.fillMaxSize().testTag("search.suggestions"), contentPadding = Vela.contentPadding) {
-                items(suggestions, key = { it }) { q ->
-                    Row(Modifier.fillMaxWidth().heightIn(min = Vela.minTouch).clickable { submit(q) }, verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Vela.icons.search, null); Spacer(Modifier.width(Vela.sm)); Text(q, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge)
+            LazyColumn(Modifier.fillMaxSize().testTag("search.suggestions"), contentPadding = Spacing.contentPadding, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                itemsIndexed(suggestions, key = { _, it -> it }) { i, q ->
+                    SearchTextRow(q, AppIcons.search, i, suggestions.size, onClick = { submit(q) }) {
                         // The arrow copies the suggestion into the field to keep typing after it, without searching.
-                        IconButton(onClick = { text = "$q " }, modifier = Modifier.testTag("search.suggestion.fill")) { Icon(Vela.icons.arrowUp, "Use \"$q\" in the search field", Modifier.graphicsLayer { rotationZ = -45f }) }
+                        IconButton(onClick = { text = "$q " }, modifier = Modifier.testTag("search.suggestion.fill")) { Icon(AppIcons.arrowUp, "Use \"$q\" in the search field", Modifier.graphicsLayer { rotationZ = -45f }) }
                     }
                 }
             }
@@ -173,66 +230,71 @@ fun SearchScreen(services: AppServices, navigator: Navigator, query: String, mod
             // The start page: only while nothing is typed. Typing hides it, leaving the field and its suggestions.
             if (text.isBlank()) SearchStart(services, navigator, history, onRemove = { services.searchHistory.remove(it); historyRevision++ }, onClear = { services.searchHistory.clear(); historyRevision++ })
         } else {
-            SearchFilterRow(filters, type, showShorts = services.settings.shortsEnabled(), onType = { type = it }) { filters = it }
+            SearchTypeChips(type, types, { type = it }, Modifier.padding(bottom = Spacing.sm))
             when (type) {
                 SearchType.CHANNELS -> SearchKindList(channelFeed, "search.channels.list", { moreChannels(true) }) { c ->
-                    Row(Modifier.fillMaxWidth().clip(Vela.mediumShape).clickable { navigator.push(Route.Channel(c.id, c.name)) }.padding(vertical = Vela.xs).testTag("search.channel"), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.md)) {
+                    Row(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).background(MaterialTheme.colorScheme.surfaceContainerLow).clickable { navigator.push(Route.Channel(c.id, c.name)) }.padding(Spacing.md).testTag("search.channel"), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
                         com.greenaltambe.vela.ui.components.Avatar(c.name, size = 64.dp, url = c.avatarUrl)
                         Column(Modifier.weight(1f)) {
-                            Text(c.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            com.greenaltambe.vela.ui.components.formatCount(c.subscriberCount)?.let { Text("$it subscribers", style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor()) }
-                            if (c.description.isNotBlank()) Text(c.description, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor())
+                            Text(c.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            com.greenaltambe.vela.ui.components.formatCount(c.subscriberCount)?.let { Text("$it subscribers", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                            if (c.description.isNotBlank()) Text(c.description, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
                 SearchType.PLAYLISTS -> SearchKindList(playlistFeed, "search.playlists.list", { morePlaylists(true) }) { p -> PlaylistRow(p) { navigator.push(Route.ChannelPlaylist(p.id, p.title)) } }
-                SearchType.ALL -> {
-            // Never an unexplained empty list: say when Settings > Feed rules (minimum length, hide watched, keywords) hid results.
-            (results.items.size - shownAll.size).takeIf { it > 0 }?.let { Text("$it result${if (it == 1) "" else "s"} hidden by your feed filters (Settings > Feed).", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = Vela.gutter).testTag("search.hiddenByFeed")) }
-            if (!filters.isDefault && shown.isEmpty() && shownAll.isNotEmpty()) Text("Nothing in the ${shownAll.size} loaded results matches. Filters apply to loaded results; load more or relax them.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = Vela.gutter).testTag("search.filterEmpty"))
-            VideoCollection(
-                services, navigator, shown, state, grid = false, testTag = "search.list", scroll = store?.scrollFor(query, services.clock.now()),
-                footer = if (results.continuation != null) ({ TextButton(onClick = { load(more = true) }, enabled = !loading, modifier = Modifier.testTag("search.more")) { Text("Load more", maxLines = 1) } }) else null,
-            )
+                SearchType.SHORTS -> if (view.isEmpty()) SearchKindList(shortsFeed, "search.shorts.list", { moreShorts(true) }) { }
+                    else ShortsGrid(view, onOpen = { v -> navigator.push(Route.Video(v)) }, onEndReached = { if (shortsFeed.next != null) moreShorts(true) })
+                else -> {
+                    // Never an unexplained empty list: say when Settings > Feed rules (minimum length, hide watched, keywords) hid results.
+                    (results.items.size - shownAll.size).takeIf { it > 0 }?.let { Text("$it result${if (it == 1) "" else "s"} hidden by your feed filters (Settings > Feed).", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = Spacing.gutter).testTag("search.hiddenByFeed")) }
+                    if (!filters.isDefault && shown.isEmpty() && shownAll.isNotEmpty()) Text("Nothing in the ${shownAll.size} loaded results matches. Filters apply to loaded results; load more or relax them.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = Spacing.gutter).testTag("search.filterEmpty"))
+                    val isAll = type == SearchType.ALL
+                    val mainVideos = remember(view, isAll) { if (isAll) view.filter { !it.isShort } else view }
+                    val top = remember(query, channelFeed.items, isAll) { if (isAll) com.greenaltambe.vela.search.topChannel(query, channelFeed.items) else null }
+                    val latest = remember(top, mainVideos) { top?.let { com.greenaltambe.vela.search.latestFrom(it, mainVideos) } }
+                    val shortsPool = shortsFeed.items
+                    val slots = remember(mainVideos.size, shortsPool.size, isAll) { if (isAll) com.greenaltambe.vela.search.planShortsSlots(mainVideos.size, shortsPool.size) else emptyList() }
+                    val otherChannels = remember(channelFeed.items, top, isAll) { if (isAll) channelFeed.items.filter { it.id != top?.id }.take(12) else emptyList() }
+                    val injections = remember(slots, otherChannels, shortsPool, mainVideos.size) {
+                        val list = ArrayList<Injection>()
+                        slots.forEach { sl -> list += Injection(sl.afterVideos, "shorts-${sl.from}", "shorts") {
+                            com.greenaltambe.vela.ui.components.ShortsCarousel("Shorts", shortsPool.subList(sl.from, sl.to), tag = "search.shorts", onSeeAll = { type = SearchType.SHORTS }, onOpen = { v -> navigator.push(Route.Video(v)) })
+                        } }
+                        if (otherChannels.size >= 2 && mainVideos.size > 6) list += Injection(6, "channels", "channels") {
+                            com.greenaltambe.vela.ui.components.ChannelCarousel("Channels", otherChannels.map { com.greenaltambe.vela.data.SubscribedChannel(it.id, it.name, it.avatarUrl, kotlin.time.Instant.fromEpochMilliseconds(0)) }, tag = "search.channelShelf", seeAllLabel = "See all", onSeeAll = { type = SearchType.CHANNELS }, onOpen = { c -> navigator.push(Route.Channel(c.channelId, c.name)) })
+                        }
+                        list
+                    }
+                    var topSubscribed by remember(top?.id) { mutableStateOf(top?.let { services.subscriptions.isSubscribed(it.id) } ?: false) }
+                    VideoCollection(
+                        services, navigator, mainVideos, if (mainVideos.isEmpty() && type != SearchType.ALL && state == ListState.Ready && !searching) ListState.Empty("Nothing here for \"$query\".") else state,
+                        grid = true, testTag = "search.list", scroll = store?.scrollFor(query, services.clock.now()), injections = injections,
+                        // The channel card arrives after the first videos; the list jumps back up so it is not left above the view.
+                        scrollToTopKey = top?.id,
+                        header = if (top != null) ({
+                            Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                                TopChannelCard(top, topSubscribed, onSubscribe = {
+                                    if (topSubscribed) services.subscriptions.unsubscribe(top.id) else services.subscriptions.subscribe(top.id, top.name, top.avatarUrl, services.clock.now())
+                                    services.feed.reload(); topSubscribed = !topSubscribed
+                                }, onOpen = { navigator.push(Route.Channel(top.id, top.name)) }, bell = { ChannelBell(services, top.id) })
+                                if (latest != null) com.greenaltambe.vela.ui.components.VideoCarousel("From ${top.name}", latest, tag = "search.latest", showChannelAvatar = false, onOpen = { v -> navigator.push(Route.Video(v)) })
+                            }
+                        }) else null,
+                        // More arrives by itself a few cards before the end; while it does, a placeholder card closes the list.
+                        onEndReached = { if (results.continuation != null && !loading && state == ListState.Ready) load(more = true) },
+                        footer = if (results.continuation != null) ({ SkeletonCard(vertical = true, fullBleed = true, modifier = Modifier.testTag("search.more")) }) else null,
+                    )
                 }
             }
         }
     }
 }
 
-@Composable
-private fun SearchFilterRow(filters: com.greenaltambe.vela.extractor.SearchFilters, type: SearchType, showShorts: Boolean, onType: (SearchType) -> Unit, onChange: (com.greenaltambe.vela.extractor.SearchFilters) -> Unit) {
-    var durationMenu by remember { mutableStateOf(false) }
-    var sortMenu by remember { mutableStateOf(false) }
-    com.greenaltambe.vela.ui.components.ChipRow(Modifier.testTag("search.filters"), bleed = false) {
-        item { FilterChip(selected = type == SearchType.ALL, onClick = { onType(SearchType.ALL) }, label = { Text("Videos", maxLines = 1) }, modifier = Modifier.testTag("search.filter.videos")) }
-        item { FilterChip(selected = type == SearchType.CHANNELS, onClick = { onType(SearchType.CHANNELS) }, label = { Text("Channels", maxLines = 1) }, modifier = Modifier.testTag("search.filter.channels")) }
-        item { FilterChip(selected = type == SearchType.PLAYLISTS, onClick = { onType(SearchType.PLAYLISTS) }, label = { Text("Playlists", maxLines = 1) }, modifier = Modifier.testTag("search.filter.playlists")) }
-        // Video-only narrowing makes no sense for channels and playlists.
-        if (type != SearchType.ALL) return@ChipRow
-        // Only offered while Shorts are on in Settings.
-        if (showShorts) item { FilterChip(selected = filters.shortsOnly, onClick = { onChange(filters.copy(shortsOnly = !filters.shortsOnly)) }, label = { Text("Shorts", maxLines = 1) }, modifier = Modifier.testTag("search.filter.shorts")) }
-        item { Box {
-            FilterChip(selected = filters.duration != com.greenaltambe.vela.extractor.DurationFilter.ANY, onClick = { durationMenu = true }, label = { Text(filters.duration.label, maxLines = 1) }, modifier = Modifier.testTag("search.filter.duration"))
-            DropdownMenu(durationMenu, { durationMenu = false }) {
-                com.greenaltambe.vela.extractor.DurationFilter.entries.forEach { d -> DropdownMenuItem(text = { Text(d.label) }, onClick = { durationMenu = false; onChange(filters.copy(duration = d)) }) }
-            }
-        } }
-        item { Box {
-            FilterChip(selected = filters.sort != com.greenaltambe.vela.extractor.SearchSort.RELEVANCE, onClick = { sortMenu = true }, label = { Text(filters.sort.label, maxLines = 1) }, modifier = Modifier.testTag("search.filter.sort"))
-            DropdownMenu(sortMenu, { sortMenu = false }) {
-                com.greenaltambe.vela.extractor.SearchSort.entries.forEach { o -> DropdownMenuItem(text = { Text(o.label) }, onClick = { sortMenu = false; onChange(filters.copy(sort = o)) }) }
-            }
-        } }
-    }
-}
-
-enum class SearchType { ALL, CHANNELS, PLAYLISTS }
-
 /** A page of channel or playlist results with its loading state and a Load more button. */
 @Composable
 private fun <T> SearchKindList(feed: TabFeed<T>, tag: String, onMore: () -> Unit, row: @Composable (T) -> Unit) {
-    LazyColumn(Modifier.fillMaxSize().testTag(tag), contentPadding = Vela.contentPadding, verticalArrangement = Arrangement.spacedBy(Vela.md)) {
+    LazyColumn(Modifier.fillMaxSize().testTag(tag), contentPadding = Spacing.contentPadding, verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
         when (val st = feed.state) {
             ListState.Loading -> item { SectionHeader("Searching…") }
             is ListState.Empty -> item { EmptyState(st.message) }
@@ -254,20 +316,12 @@ private fun SearchStart(services: AppServices, navigator: Navigator, history: Li
             .map { VideoSummary(it.videoId, it.title, it.channelId, "", null, it.durationMs.takeIf { d -> d > 0 }?.div(1000)) }
     }
     val channels = remember(activeId) { services.subscriptions.all().take(24) }
-    LazyColumn(Modifier.fillMaxSize().testTag("search.list"), contentPadding = Vela.contentPadding, verticalArrangement = Arrangement.spacedBy(Vela.md)) {
-        if (history.isNotEmpty()) item {
-            Column(verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
-                SectionHeader("Recent searches") { TextButton(onClick = onClear, modifier = Modifier.testTag("search.clearHistory")) { Text("Clear", maxLines = 1) } }
-                androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(Vela.sm), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                    history.forEach { q ->
-                        Row(
-                            Modifier.clip(Vela.pillShape).background(Vela.colors.surfaceVariant.toColor()).clickable { navigator.replace(Route.Search(q)) }.heightIn(min = 36.dp).padding(start = Vela.md, end = Vela.xs).testTag("search.recent"),
-                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.xs),
-                        ) {
-                            Text(q, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.widthIn(max = 220.dp))
-                            IconButton(onClick = { onRemove(q) }, modifier = Modifier.size(28.dp)) { Icon(Vela.icons.close, "Remove from history", Modifier.size(16.dp)) }
-                        }
-                    }
+    LazyColumn(Modifier.fillMaxSize().testTag("search.list"), contentPadding = Spacing.contentPadding, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        if (history.isNotEmpty()) {
+            item(key = "recent-h") { SectionHeader("Recent searches") { TextButton(onClick = onClear, modifier = Modifier.testTag("search.clearHistory")) { Text("Clear all", maxLines = 1) } } }
+            itemsIndexed(history, key = { _, q -> "r-$q" }) { i, q ->
+                SearchTextRow(q, AppIcons.history, i, history.size, onClick = { navigator.replace(Route.Search(q)) }, modifier = Modifier.testTag("search.recent")) {
+                    IconButton(onClick = { onRemove(q) }) { Icon(AppIcons.close, "Remove from history", Modifier.size(20.dp)) }
                 }
             }
         }

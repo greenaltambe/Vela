@@ -4,6 +4,7 @@ CREATE TABLE Subscription (
     channelName TEXT NOT NULL,
     avatarUrl TEXT,
     subscribedAt INTEGER NOT NULL,
+    notifyLevel TEXT NOT NULL DEFAULT 'PERSONALIZED',
     PRIMARY KEY (accountId, channelId)
 );
 
@@ -14,6 +15,12 @@ upsert:
 INSERT OR REPLACE INTO Subscription(accountId, channelId, channelName, avatarUrl, subscribedAt)
 VALUES (?, ?, ?, ?, ?);
 
+setNotifyLevel:
+UPDATE Subscription SET notifyLevel = ? WHERE accountId = ? AND channelId = ?;
+
+notifyLevel:
+SELECT notifyLevel FROM Subscription WHERE accountId = ? AND channelId = ?;
+
 delete:
 DELETE FROM Subscription WHERE accountId = ? AND channelId = ?;
 
@@ -22,3 +29,9 @@ SELECT COUNT(*) FROM Subscription WHERE accountId = ? AND channelId = ?;
 
 count:
 SELECT COUNT(*) FROM Subscription WHERE accountId = ?;
+
+notifyLevels:
+SELECT channelId, notifyLevel FROM Subscription WHERE accountId = ?;
+
+setAllNotifyLevels:
+UPDATE Subscription SET notifyLevel = ? WHERE accountId = ?;

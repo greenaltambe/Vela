@@ -1,5 +1,6 @@
 package com.greenaltambe.vela.ui.screens
 
+import com.greenaltambe.vela.ui.theme.Spacing
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -36,9 +37,6 @@ import com.greenaltambe.vela.modules.dearrow.DeArrowSurface
 import com.greenaltambe.vela.ui.components.HScrollRow
 import com.greenaltambe.vela.ui.components.SectionHeader
 import com.greenaltambe.vela.ui.components.formatDuration
-import com.greenaltambe.vela.ui.look.Vela
-import com.greenaltambe.vela.ui.look.pressFeedback
-import com.greenaltambe.vela.ui.look.toColor
 import com.greenaltambe.vela.ui.nav.Navigator
 import com.greenaltambe.vela.ui.nav.Route
 import androidx.compose.runtime.collectAsState
@@ -215,20 +213,20 @@ fun HomeScreen(services: AppServices, navigator: Navigator, modifier: Modifier =
 
     Column(modifier.fillMaxSize()) {
     // The chips stay put above the list while it scrolls, so a filter is always one tap away.
-    if (showChips) HomeChips(filter, { filter = it }, topics, topic, { topic = it }, Modifier.padding(top = Vela.sm))
+    if (showChips) HomeChips(filter, { filter = it }, topics, topic, { topic = it }, Modifier.padding(top = Spacing.sm))
     // What the feed has to say sits here, under the chips, not as a list item: a first item that appears after the list has loaded would land above the videos, out of sight.
     note?.let {
         Box(
-            Modifier.fillMaxWidth().padding(horizontal = Vela.gutter).padding(top = Vela.sm)
-                .clip(Vela.smallShape)
-                .background(Vela.colors.surfaceVariant.toColor().copy(alpha = 0.5f))
-                .padding(horizontal = Vela.sm, vertical = Vela.xs)
+            Modifier.fillMaxWidth().padding(horizontal = Spacing.gutter).padding(top = Spacing.sm)
+                .clip(MaterialTheme.shapes.small)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f))
+                .padding(horizontal = Spacing.sm, vertical = Spacing.xs)
         ) {
-            Text(it, style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor(), modifier = Modifier.testTag("home.note"))
+            Text(it, style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.testTag("home.note"))
         }
     }
     (videos.items.size - shownBase.size).takeIf { it > 0 }?.let {
-        Text("$it hidden by your feed filters (Settings > Feed).", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor(), modifier = Modifier.padding(horizontal = Vela.gutter).padding(top = Vela.xs))
+        Text("$it hidden by your feed filters (Settings > Feed).", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = Spacing.gutter).padding(top = Spacing.xs))
     }
     com.greenaltambe.vela.ui.components.RefreshBox(isRefreshing = pulling && loading, onRefresh = { pulling = true; shelfTick++; load(more = false) }, modifier = Modifier.weight(1f)) {
     VideoCollection(

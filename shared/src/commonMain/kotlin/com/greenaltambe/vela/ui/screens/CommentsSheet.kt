@@ -1,5 +1,10 @@
 package com.greenaltambe.vela.ui.screens
 
+import com.greenaltambe.vela.ui.theme.AppIcons
+import androidx.compose.foundation.shape.ZeroCornerSize
+import androidx.compose.foundation.shape.CircleShape
+import com.greenaltambe.vela.ui.theme.Spacing
+import com.greenaltambe.vela.ui.theme.Accent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -59,8 +64,6 @@ import com.greenaltambe.vela.ui.components.Avatar
 import com.greenaltambe.vela.ui.components.ErrorRow
 import com.greenaltambe.vela.ui.components.CommentSkeleton
 import com.greenaltambe.vela.ui.components.formatCount
-import com.greenaltambe.vela.ui.look.Vela
-import com.greenaltambe.vela.ui.look.toColor
 
 /** One comment's replies as loaded so far (they come in pages; [next] is the token of the following page). */
 @Immutable
@@ -148,7 +151,7 @@ fun CommentsPanel(
     val hasTimed = remember(comments) { comments.any { firstTimestamp(it.text) != null } }
     val shown = remember(comments, timed) { if (timed) comments.filter { firstTimestamp(it.text) != null }.sortedBy { firstTimestamp(it.text) } else comments }
     Column(
-        modifier.graphicsLayer { translationY = drag }.clip(RoundedCornerShape(topStart = Vela.look.radii.largeDp.dp, topEnd = Vela.look.radii.largeDp.dp)).background(Vela.colors.surface.toColor()).testTag("comments.sheet"),
+        modifier.graphicsLayer { translationY = drag }.clip(MaterialTheme.shapes.large.copy(bottomStart = ZeroCornerSize, bottomEnd = ZeroCornerSize)).background(MaterialTheme.colorScheme.surfaceContainerLow).testTag("comments.sheet"),
     ) {
         Column(
             Modifier.fillMaxWidth().playerVerticalSwipe(
@@ -156,38 +159,38 @@ fun CommentsPanel(
                 onEnd = { _, v -> if (drag > dismissAt || v > 900f) onDismiss() else scope.launch { androidx.compose.animation.core.animate(drag, 0f) { x, _ -> drag = x } } },
             ),
         ) {
-            Box(Modifier.align(Alignment.CenterHorizontally).padding(top = Vela.xs).width(36.dp).height(4.dp).clip(Vela.pillShape).background(Vela.colors.outline.toColor()))
-            Row(Modifier.fillMaxWidth().padding(start = Vela.gutter, end = Vela.xs, top = Vela.xs), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+            Box(Modifier.align(Alignment.CenterHorizontally)) { com.greenaltambe.vela.ui.components.SheetHandle() }
+            Row(Modifier.fillMaxWidth().padding(start = Spacing.gutter, end = Spacing.xs, top = Spacing.xs), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 val open = thread
                 if (open != null) {
-                    IconButton(onClick = { thread = null }, modifier = Modifier.testTag("comments.back")) { Icon(Vela.icons.back, "Back to comments") }
+                    IconButton(onClick = { thread = null }, modifier = Modifier.testTag("comments.back")) { Icon(AppIcons.back, "Back to comments") }
                     Text("Replies", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    formatCount(open.replyCount.toLong().takeIf { it > 0 })?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = Vela.colors.onSurfaceVariant.toColor()) }
+                    formatCount(open.replyCount.toLong().takeIf { it > 0 })?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 } else {
                     Text("Comments", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    if (comments.isNotEmpty()) Text(totalCount?.let { formatCount(it) } ?: (comments.size.toString() + if (hasMore) "+" else ""), Modifier.clip(Vela.pillShape).background(Vela.colors.surfaceVariant.toColor()).padding(horizontal = Vela.sm, vertical = 2.dp).testTag("comments.count"), style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                    if (comments.isNotEmpty()) Text(totalCount?.let { formatCount(it) } ?: (comments.size.toString() + if (hasMore) "+" else ""), Modifier.clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(horizontal = Spacing.sm, vertical = 2.dp).testTag("comments.count"), style = MaterialTheme.typography.labelMedium, maxLines = 1)
                 }
                 androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
-                IconButton(onClick = onDismiss, modifier = Modifier.testTag("comments.close")) { Icon(Vela.icons.close, "Close comments") }
+                IconButton(onClick = onDismiss, modifier = Modifier.testTag("comments.close")) { Icon(AppIcons.close, "Close comments") }
             }
-            if (thread == null && sortNote != null) Text(sortNote, Modifier.padding(horizontal = Vela.gutter, vertical = Vela.xs).testTag("comments.sortNote"), style = MaterialTheme.typography.labelMedium, color = Vela.colors.onSurfaceVariant.toColor())
-            if (thread == null && (canSort || hasTimed)) Row(Modifier.padding(horizontal = Vela.gutter), horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                FilterChip(selected = !timed && sort == CommentSort.TOP, onClick = { timed = false; if (sort != CommentSort.TOP) onSort(CommentSort.TOP) }, label = { Text("Top", maxLines = 1) }, modifier = Modifier.testTag("comments.sort"))
-                if (canSort) FilterChip(selected = !timed && sort == CommentSort.NEWEST, onClick = { timed = false; if (sort != CommentSort.NEWEST) onSort(CommentSort.NEWEST) }, label = { Text("Newest", maxLines = 1) }, modifier = Modifier.testTag("comments.sort.newest"))
-                if (hasTimed) FilterChip(selected = timed, onClick = { timed = true }, label = { Text("Timed", maxLines = 1) }, modifier = Modifier.testTag("comments.sort.timed"))
+            if (thread == null && sortNote != null) Text(sortNote, Modifier.padding(horizontal = Spacing.gutter, vertical = Spacing.xs).testTag("comments.sortNote"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (thread == null && (canSort || hasTimed)) Row(Modifier.padding(horizontal = Spacing.gutter), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                com.greenaltambe.vela.ui.components.ExpressiveChip(!timed && sort == CommentSort.TOP, "Top", { timed = false; if (sort != CommentSort.TOP) onSort(CommentSort.TOP) }, Modifier.testTag("comments.sort"))
+                if (canSort) com.greenaltambe.vela.ui.components.ExpressiveChip(!timed && sort == CommentSort.NEWEST, "Newest", { timed = false; if (sort != CommentSort.NEWEST) onSort(CommentSort.NEWEST) }, Modifier.testTag("comments.sort.newest"))
+                if (hasTimed) com.greenaltambe.vela.ui.components.ExpressiveChip(timed, "Timed", { timed = true }, Modifier.testTag("comments.sort.timed"))
             }
         }
-        HorizontalDivider(color = Vela.colors.outline.toColor().copy(alpha = 0.35f))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
         val open = thread
         if (open != null) ThreadView(open, replies, onSeek, creatorName, creatorAvatarUrl, Modifier.fillMaxWidth().weight(1f))
-        else LazyColumn(Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(start = Vela.gutter, end = Vela.gutter, top = Vela.sm, bottom = Vela.lg), verticalArrangement = Arrangement.spacedBy(Vela.md)) {
+        else LazyColumn(Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(start = Spacing.gutter, end = Spacing.gutter, top = Spacing.sm, bottom = Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
             when (state) {
                 ListState.Loading -> items(5, key = { "sk-$it" }) { i -> CommentSkeleton(avatar = 40.dp, lastLineWidth = if (i % 2 == 0) 0.6f else 0.8f) }
-                is ListState.Empty -> item { Text(state.message, Modifier.testTag("video.commentsStatus"), style = MaterialTheme.typography.bodyMedium, color = Vela.colors.onSurfaceVariant.toColor()) }
+                is ListState.Empty -> item { Text(state.message, Modifier.testTag("video.commentsStatus"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 is ListState.Error -> item { ErrorRow(state.message, state.onRetry) }
                 ListState.Ready -> {}
             }
-            if (timed && shown.isEmpty() && state == ListState.Ready) item { Text("No loaded comment mentions a moment of the video yet.", style = MaterialTheme.typography.bodyMedium, color = Vela.colors.onSurfaceVariant.toColor()) }
+            if (timed && shown.isEmpty() && state == ListState.Ready) item { Text("No loaded comment mentions a moment of the video yet.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             items(shown, key = { "c-${it.id}" }) { c ->
                 CommentRow(c, avatar = 40.dp, onSeek = onSeek, creatorName = creatorName, creatorAvatarUrl = creatorAvatarUrl, modifier = Modifier.testTag("comment.item"), onReplies = if (c.replyCount > 0 && c.repliesContinuation != null) ({ thread = c; replies.open(c) }) else null)
             }
@@ -202,24 +205,24 @@ private fun ThreadView(root: Comment, replies: RepliesModel, onSeek: (Long) -> U
     val t = replies.threads[root.id] ?: ReplyThread(loading = true)
     val rows = remember(t.replies) { threadRows(t.replies) }
     val lines = remember(rows) { threadLines(rows) }
-    val wake = Vela.look.accent.wake.map { it.toColor() }
-    LazyColumn(modifier.testTag("comment.thread"), contentPadding = PaddingValues(start = Vela.gutter, end = Vela.gutter, top = Vela.sm, bottom = Vela.lg)) {
+    val wake = Accent.colors
+    LazyColumn(modifier.testTag("comment.thread"), contentPadding = PaddingValues(start = Spacing.gutter, end = Spacing.gutter, top = Spacing.sm, bottom = Spacing.lg)) {
         item(key = "root") {
             // The comment the thread belongs to. A line leaves the foot of its picture and runs down to the replies.
             CommentRow(
                 root, avatar = ThreadGeometry.RootAvatar, onSeek = onSeek, onReplies = null, expanded = true, creatorName = creatorName, creatorAvatarUrl = creatorAvatarUrl,
-                modifier = Modifier.threadLines(null, wake, rootHasReplies = rows.isNotEmpty() || t.loading).padding(bottom = Vela.xs).testTag("comment.threadRoot"),
+                modifier = Modifier.threadLines(null, wake, rootHasReplies = rows.isNotEmpty() || t.loading).padding(bottom = Spacing.xs).testTag("comment.threadRoot"),
             )
         }
         itemsIndexed(rows, key = { _, r -> "r-${r.comment.id}" }) { i, row ->
-            Row(Modifier.fillMaxWidth().threadLines(lines[i], wake).padding(top = ThreadGeometry.RowTop, bottom = Vela.xs).testTag("comment.reply")) {
+            Row(Modifier.fillMaxWidth().threadLines(lines[i], wake).padding(top = ThreadGeometry.RowTop, bottom = Spacing.xs).testTag("comment.reply")) {
                 androidx.compose.foundation.layout.Spacer(Modifier.width((ThreadGeometry.ReplyLeft + ThreadGeometry.Step * row.depth).dp))
                 CommentRow(row.comment, avatar = ThreadGeometry.ReplyAvatar, onSeek = onSeek, onReplies = null, creatorName = creatorName, creatorAvatarUrl = creatorAvatarUrl, modifier = Modifier.weight(1f))
             }
         }
         // Placeholders shaped like the replies that are coming: indented like a reply, with the smaller picture.
         if (t.loading && rows.isEmpty()) items(3, key = { "sk-$it" }) { i ->
-            Row(Modifier.fillMaxWidth().padding(top = ThreadGeometry.RowTop, bottom = Vela.xs)) {
+            Row(Modifier.fillMaxWidth().padding(top = ThreadGeometry.RowTop, bottom = Spacing.xs)) {
                 androidx.compose.foundation.layout.Spacer(Modifier.width(ThreadGeometry.ReplyLeft.dp))
                 CommentSkeleton(Modifier.weight(1f), avatar = ThreadGeometry.ReplyAvatar, lastLineWidth = if (i % 2 == 0) 0.7f else 0.5f)
             }
@@ -292,18 +295,18 @@ private fun Modifier.threadLines(info: RowLines?, wake: List<androidx.compose.ui
  */
 @Composable
 private fun CommentRow(c: Comment, avatar: Dp, onSeek: (Long) -> Unit, onReplies: (() -> Unit)?, modifier: Modifier = Modifier, expanded: Boolean = false, creatorName: String = "", creatorAvatarUrl: String? = null) {
-    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         Avatar(c.author.removePrefix("@"), size = avatar, url = c.authorAvatarUrl)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
-            if (c.isPinned) Text("Pinned", Modifier.clip(Vela.pillShape).background(Vela.wake).padding(horizontal = Vela.sm, vertical = 1.dp), style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false, color = Vela.colors.onPrimary.toColor())
-            Row(horizontalArrangement = Arrangement.spacedBy(Vela.xs), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            if (c.isPinned) Text("Pinned", Modifier.clip(CircleShape).background(Accent.brush).padding(horizontal = Spacing.sm, vertical = 1.dp), style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false, color = MaterialTheme.colorScheme.onPrimary)
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
                 val name = c.author.removePrefix("@")
-                if (c.isByCreator) Text("@$name", Modifier.weight(1f, fill = false).clip(Vela.pillShape).background(Vela.colors.primary.toColor()).padding(horizontal = Vela.sm, vertical = 1.dp).testTag("comment.creator"), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Vela.colors.onPrimary.toColor())
-                else Text("@$name", Modifier.weight(1f, fill = false), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor())
-                if (c.publishedText.isNotEmpty()) Text("\u00B7 " + c.publishedText + if (c.isEdited) " \u00B7 edited" else "", style = MaterialTheme.typography.labelMedium, maxLines = 1, softWrap = false, color = Vela.colors.onSurfaceVariant.toColor())
+                if (c.isByCreator) Text("@$name", Modifier.weight(1f, fill = false).clip(CircleShape).background(MaterialTheme.colorScheme.primary).padding(horizontal = Spacing.sm, vertical = 1.dp).testTag("comment.creator"), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onPrimary)
+                else Text("@$name", Modifier.weight(1f, fill = false), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (c.publishedText.isNotEmpty()) Text("\u00B7 " + c.publishedText + if (c.isEdited) " \u00B7 edited" else "", style = MaterialTheme.typography.labelMedium, maxLines = 1, softWrap = false, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             // Links open and timestamps seek the video, as in the description.
-            val linkColor = Vela.colors.primary.toColor()
+            val linkColor = MaterialTheme.colorScheme.primary
             // Long comments are cut after a few lines, with "Read more" (as in YouTube).
             var open by remember(c.id) { mutableStateOf(expanded) }
             var cut by remember(c.id) { mutableStateOf(false) }
@@ -311,25 +314,25 @@ private fun CommentRow(c: Comment, avatar: Dp, onSeek: (Long) -> Unit, onReplies
                 remember(c.text, linkColor) { linkedText(c.text, linkColor, onSeek) }, style = MaterialTheme.typography.bodyMedium,
                 maxLines = if (open) Int.MAX_VALUE else 5, overflow = TextOverflow.Ellipsis, onTextLayout = { if (it.hasVisualOverflow) cut = true },
             )
-            if (cut && !open) Text("Read more", Modifier.clickable { open = true }.testTag("comment.readMore"), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = Vela.colors.onSurfaceVariant.toColor())
+            if (cut && !open) Text("Read more", Modifier.clickable { open = true }.testTag("comment.readMore"), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
             // A flow, so a narrow screen puts the replies button on a second line instead of squeezing it.
             @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
-            androidx.compose.foundation.layout.FlowRow(verticalArrangement = Arrangement.spacedBy(Vela.xs), horizontalArrangement = Arrangement.spacedBy(Vela.md), itemVerticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.foundation.layout.FlowRow(verticalArrangement = Arrangement.spacedBy(Spacing.xs), horizontalArrangement = Arrangement.spacedBy(Spacing.md), itemVerticalAlignment = Alignment.CenterVertically) {
                 formatCount(c.likeCount.takeIf { it > 0 })?.let {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Icon(Vela.icons.like, null, Modifier.size(14.dp), tint = Vela.colors.onSurfaceVariant.toColor())
-                        Text(it, style = MaterialTheme.typography.labelSmall, color = Vela.colors.onSurfaceVariant.toColor(), maxLines = 1)
+                        Icon(AppIcons.like, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                     }
                 }
                 if (c.isHearted) HeartedByCreator(creatorName, creatorAvatarUrl)
             }
             // The replies are the comment's own last line, apart from the likes: an icon and the count, bold in the accent.
             if (onReplies != null) Row(
-                Modifier.clip(Vela.smallShape).clickable(onClick = onReplies).heightIn(min = 36.dp).padding(end = Vela.md).testTag("comment.repliesToggle"),
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm),
+                Modifier.clip(MaterialTheme.shapes.small).clickable(onClick = onReplies).heightIn(min = 36.dp).padding(end = Spacing.md).testTag("comment.repliesToggle"),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
-                Icon(Vela.icons.comment, null, Modifier.size(18.dp), tint = Vela.colors.primary.toColor())
-                Text("${c.replyCount} ${if (c.replyCount == 1) "reply" else "replies"}", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = Vela.colors.primary.toColor(), maxLines = 1)
+                Icon(AppIcons.comment, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                Text("${c.replyCount} ${if (c.replyCount == 1) "reply" else "replies"}", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1)
             }
         }
     }
@@ -392,11 +395,11 @@ fun CommentsPanel(controller: CommentsController, canSort: Boolean, onDismiss: (
 /** The creator's picture with a small red heart on its corner: what YouTube shows under a comment the creator hearted. */
 @Composable
 private fun HeartedByCreator(name: String, avatarUrl: String?) {
-    val heart = Vela.colors.error.toColor()
-    val ring = Vela.colors.background.toColor()
+    val heart = MaterialTheme.colorScheme.error
+    val ring = MaterialTheme.colorScheme.background
     Box(Modifier.size(30.dp).testTag("comment.hearted").semantics { contentDescription = "Hearted by the creator" }) {
         Box(Modifier.align(Alignment.TopStart)) { Avatar(name.removePrefix("@"), size = 24.dp, url = avatarUrl) }
-        Box(Modifier.align(Alignment.BottomEnd).size(16.dp).clip(Vela.pillShape).background(ring), contentAlignment = Alignment.Center) {
+        Box(Modifier.align(Alignment.BottomEnd).size(16.dp).clip(CircleShape).background(ring), contentAlignment = Alignment.Center) {
             androidx.compose.foundation.Canvas(Modifier.size(11.dp)) {
                 val w = size.width; val h = size.height
                 val path = androidx.compose.ui.graphics.Path().apply {

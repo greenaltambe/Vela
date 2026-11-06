@@ -64,14 +64,8 @@ class SelfTestActivity : Activity() {
             if (which == "seed") seed(rt, intent.getIntExtra("subs", 300), intent.getIntExtra("feed", 5000))
             if (which == "unseed") unseed(rt)
             if (which == "sample") { MainThreadSampler.run(intent.getIntExtra("seconds", 8), File(filesDir, "sample.txt")); add("sampler started", true, "writes files/sample.txt") }
-            if (which == "perfmode") {
-                val store = com.greenaltambe.vela.data.SqlDelightSettingsStore(rt.database)
-                val k = com.greenaltambe.vela.core.settings.Settings.performanceMode.key
-                if (intent.getBooleanExtra("on", false)) store.put(k, com.greenaltambe.vela.core.settings.SettingLayer.Global, "true") else store.remove(k, com.greenaltambe.vela.core.settings.SettingLayer.Global)
-                add("performance mode", true, "on=${intent.getBooleanExtra("on", false)}")
-            }
             if (which == "lookdump") add("look settings", true, com.greenaltambe.vela.core.settings.LookSettings.all.joinToString(" ") { it.key.removePrefix("look.") + "=" + rt.settings.rawValue(it) })
-            if (which == "lookreset") { com.greenaltambe.vela.core.settings.LookStore(rt.settings).reset(); add("look reset", true, "all look.* keys back to defaults") }
+            if (which == "lookreset") { com.greenaltambe.vela.core.settings.LookSettings.all.forEach { rt.settings.resetToDefault(it) }; add("look reset", true, "all look.* keys back to defaults") }
             if (which == "setlook") {
                 // --es k look.nav.barStyle --es v MINIMAL  (a look.* key only; used to try the bar and mini player options)
                 val k = intent.getStringExtra("k").orEmpty(); val v = intent.getStringExtra("v")

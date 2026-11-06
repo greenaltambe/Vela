@@ -1,5 +1,13 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package com.greenaltambe.vela.ui.screens
 
+import com.greenaltambe.vela.ui.components.LoadingSpinner
+import com.greenaltambe.vela.ui.theme.AppIcons
+import androidx.compose.foundation.shape.ZeroCornerSize
+import androidx.compose.foundation.shape.CircleShape
+import com.greenaltambe.vela.ui.theme.Spacing
+import com.greenaltambe.vela.ui.theme.LocalMotion
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
@@ -63,10 +71,8 @@ import com.greenaltambe.vela.library.Vtt
 import com.greenaltambe.vela.library.currentChapter
 import com.greenaltambe.vela.library.formatTimestamp
 import com.greenaltambe.vela.ui.components.Avatar
-import com.greenaltambe.vela.ui.look.Vela
 import com.greenaltambe.vela.ui.look.VelaMotion
 import com.greenaltambe.vela.ui.look.pressable
-import com.greenaltambe.vela.ui.look.toColor
 import com.greenaltambe.vela.ui.platform.LocalTextFetcher
 import com.greenaltambe.vela.ui.player.HapticKind
 import com.greenaltambe.vela.ui.player.PlayerIconButton
@@ -105,14 +111,14 @@ fun DescriptionPanel(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val motion = Vela.motion
+    val motion = LocalMotion.current
     val haptics = rememberPlayerHaptics()
     var page by remember { mutableStateOf(DescriptionPage.MAIN) }
-    val description = info?.description.orEmpty()
+    val description = remember(info?.description) { com.greenaltambe.vela.extractor.plainDescription(info?.description.orEmpty()) }
     val tags = info?.tags.orEmpty()
-    val onSurface = Vela.colors.onSurface.toColor()
-    val muted = Vela.colors.onSurfaceVariant.toColor()
-    val card = Vela.colors.primary.toColor().copy(alpha = 0.10f)
+    val onSurface = MaterialTheme.colorScheme.onSurface
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val card = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
 
     // Pulling the handle down follows the finger and, past a short distance or a flick, closes the panel; otherwise it springs back.
     var drag by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
@@ -125,13 +131,13 @@ fun DescriptionPanel(
     )
     Column(
         modifier.graphicsLayer { translationY = drag }
-            .clip(androidx.compose.foundation.shape.RoundedCornerShape(topStart = Vela.look.radii.largeDp.dp, topEnd = Vela.look.radii.largeDp.dp))
-            .background(Vela.colors.surface.toColor()).testTag("video.descriptionSheet"),
+            .clip(MaterialTheme.shapes.large.copy(bottomStart = ZeroCornerSize, bottomEnd = ZeroCornerSize))
+            .background(MaterialTheme.colorScheme.surfaceContainerLow).testTag("video.descriptionSheet"),
     ) {
         Box(
-            Modifier.fillMaxWidth().then(dismissSwipe).padding(vertical = Vela.xs),
+            Modifier.fillMaxWidth().then(dismissSwipe).padding(vertical = Spacing.xs),
             contentAlignment = Alignment.Center,
-        ) { Box(Modifier.width(36.dp).height(4.dp).clip(Vela.pillShape).background(Vela.colors.outline.toColor())) }
+        ) { com.greenaltambe.vela.ui.components.SheetHandle() }
         AnimatedContent(
             targetState = page, modifier = Modifier.fillMaxWidth().weight(1f),
             transitionSpec = {
@@ -143,15 +149,14 @@ fun DescriptionPanel(
             when (current) {
                 DescriptionPage.MAIN -> Column(Modifier.fillMaxSize()) {
                     // Header: title, copy, close.
-                    Row(Modifier.fillMaxWidth().then(dismissSwipe).padding(start = Vela.gutter, end = Vela.sm), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Description", Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    Row(Modifier.fillMaxWidth().then(dismissSwipe).padding(start = Spacing.gutter, end = Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
+                        Text("About this video", Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold, maxLines = 1)
                         if (description.isNotBlank()) CopyButton(description)
-                        PlayerIconButton(onDismiss, halo = onSurface, modifier = Modifier.testTag("video.descriptionClose")) { Icon(Vela.icons.close, "Close", tint = onSurface) }
+                        androidx.compose.material3.FilledTonalIconButton(onClick = onDismiss, shapes = androidx.compose.material3.IconButtonDefaults.shapes(), modifier = Modifier.testTag("video.descriptionClose")) { Icon(AppIcons.close, "Close") }
                     }
-                    Box(Modifier.fillMaxWidth().size(1.dp).background(Vela.colors.outline.toColor().copy(alpha = 0.5f)))
                     Column(
-                        Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(horizontal = Vela.gutter, vertical = Vela.md),
-                        verticalArrangement = Arrangement.spacedBy(Vela.md),
+                        Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(horizontal = Spacing.gutter, vertical = Spacing.md),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.md),
                     ) {
                         var n = 0
                         Text(title, Modifier.reveal(n++), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
@@ -162,11 +167,16 @@ fun DescriptionPanel(
                             viewCount?.let { groupedCount(it) to "Views" },
                             uploadedAt?.let { publishedParts(it) },
                         )
-                        if (stats.isNotEmpty()) Row(Modifier.fillMaxWidth().reveal(n++), horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                            stats.forEach { (value, label) ->
-                                Column(Modifier.weight(1f).clip(Vela.largeShape).background(card).padding(vertical = Vela.md, horizontal = Vela.xs), horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
-                                    Text(label, style = MaterialTheme.typography.bodySmall, color = muted, maxLines = 1)
+                        if (stats.isNotEmpty()) Row(Modifier.fillMaxWidth().reveal(n++), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                            // Each number in its own tonal tile, in the three accent roles, with rounder and squarer corners alternating.
+                            val cs = MaterialTheme.colorScheme
+                            val tiles = listOf(cs.primaryContainer to cs.onPrimaryContainer, cs.secondaryContainer to cs.onSecondaryContainer, cs.tertiaryContainer to cs.onTertiaryContainer)
+                            stats.forEachIndexed { i, (value, label) ->
+                                val (bg, fg) = tiles[i % tiles.size]
+                                val shape = if (i % 2 == 0) MaterialTheme.shapes.extraLarge else MaterialTheme.shapes.large
+                                Column(Modifier.weight(1f).clip(shape).background(bg).padding(vertical = Spacing.md, horizontal = Spacing.xs), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, color = fg)
+                                    Text(label, style = MaterialTheme.typography.labelMedium, color = fg.copy(alpha = 0.8f), maxLines = 1)
                                 }
                             }
                         }
@@ -174,50 +184,49 @@ fun DescriptionPanel(
                         // The description, with links and timestamps that work; long ones fold.
                         if (description.isNotBlank()) {
                             var expanded by remember { mutableStateOf(false) }
-                            val linkColor = Vela.colors.primary.toColor()
+                            val linkColor = MaterialTheme.colorScheme.primary
                             val text = remember(description, linkColor) { linkedText(description, linkColor) { seconds -> onSeek(seconds * 1000); onDismiss() } }
-                            Column(Modifier.fillMaxWidth().reveal(n++).clip(Vela.largeShape).background(card).animateContentSize(VelaMotion.standard(motion)).padding(Vela.md), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
+                            Column(Modifier.fillMaxWidth().reveal(n++).clip(MaterialTheme.shapes.extraLarge).background(MaterialTheme.colorScheme.surfaceContainerHigh).animateContentSize(VelaMotion.standard(motion)).padding(Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                                 Text(text, style = MaterialTheme.typography.bodyLarge, maxLines = if (expanded) Int.MAX_VALUE else 8, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("video.description"))
                                 if (description.count { it == '\n' } > 6 || description.length > 380) {
-                                    Box(
-                                        Modifier.fillMaxWidth().clip(Vela.pillShape).pressable(role = Role.Button) { haptics.click(); expanded = !expanded }.heightIn(min = Vela.minTouch)
-                                            .testTag("video.descriptionToggle"),
-                                        contentAlignment = Alignment.Center,
-                                    ) { Text(if (expanded) "See less" else "See more", style = MaterialTheme.typography.labelLarge, color = Vela.colors.primary.toColor()) }
+                                    androidx.compose.material3.FilledTonalButton(
+                                        onClick = { haptics.click(); expanded = !expanded }, shapes = androidx.compose.material3.ButtonDefaults.shapes(),
+                                        modifier = Modifier.align(Alignment.End).testTag("video.descriptionToggle"),
+                                    ) { Text(if (expanded) "Show less" else "Show more", maxLines = 1) }
                                 }
                             }
                         }
 
-                        if (chapters.isNotEmpty()) {
-                            val now = currentChapter(chapters, positionMs)
-                            NavCard("Chapters", "${chapters.size} chapter${if (chapters.size == 1) "" else "s"}${now?.let { " · now: ${it.title}" }.orEmpty()}", card, Modifier.reveal(n++).testTag("video.chaptersCard")) { haptics.click(); onOpenChapters(); onDismiss() }
+                        // Chapters, transcript and the channel: one segmented list, each with its icon in a tonal tile.
+                        val now = if (chapters.isNotEmpty()) currentChapter(chapters, positionMs) else null
+                        data class Row3(val tag: String, val icon: androidx.compose.ui.graphics.vector.ImageVector, val title: String, val subtitle: String, val avatar: Boolean, val run: () -> Unit)
+                        val rows = buildList {
+                            if (chapters.isNotEmpty()) add(Row3("video.chaptersCard", AppIcons.play, "Chapters", "${chapters.size} chapter${if (chapters.size == 1) "" else "s"}${now?.let { " · now: ${it.title}" }.orEmpty()}", false) { haptics.click(); onOpenChapters() })
+                            if (captions.isNotEmpty()) add(Row3("video.transcriptCard", AppIcons.captions, "Transcript", "Follow along using the transcript.", false) { haptics.click(); page = DescriptionPage.TRANSCRIPT })
+                            add(Row3("video.channelCard", AppIcons.info, channelName, "Open channel", true) { haptics.click(); onOpenChannel(); onDismiss() })
                         }
-                        if (captions.isNotEmpty()) {
-                            NavCard("Transcript", "Follow along using the transcript.", card, Modifier.reveal(n++).testTag("video.transcriptCard")) { haptics.click(); page = DescriptionPage.TRANSCRIPT }
-                        }
-
-                        // The channel.
-                        Row(
-                            Modifier.fillMaxWidth().reveal(n++).clip(Vela.largeShape).background(card).pressable(role = Role.Button) { haptics.click(); onOpenChannel(); onDismiss() }.padding(Vela.md).testTag("video.channelCard"),
-                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.md),
-                        ) {
-                            Avatar(channelName, url = channelAvatarUrl, size = 48.dp)
-                            Column(Modifier.weight(1f)) {
-                                Text(channelName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text("Open channel", style = MaterialTheme.typography.bodySmall, color = muted, maxLines = 1)
+                        Column(Modifier.fillMaxWidth().reveal(n++), verticalArrangement = Arrangement.spacedBy(androidx.compose.material3.ListItemDefaults.SegmentedGap)) {
+                            rows.forEachIndexed { i, r ->
+                                androidx.compose.material3.SegmentedListItem(
+                                    onClick = r.run,
+                                    shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(i, rows.size),
+                                    colors = androidx.compose.material3.ListItemDefaults.segmentedColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                                    leadingContent = {
+                                        if (r.avatar) Avatar(channelName, url = channelAvatarUrl, size = 48.dp)
+                                        else Box(Modifier.size(48.dp).clip(MaterialTheme.shapes.large).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) { Icon(r.icon, null, tint = MaterialTheme.colorScheme.onPrimaryContainer) }
+                                    },
+                                    supportingContent = { Text(r.subtitle, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                                    trailingContent = { Icon(AppIcons.chevronRight, null) },
+                                    modifier = Modifier.testTag(r.tag),
+                                ) { Text(r.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold) }
                             }
-                            Icon(Vela.icons.chevronRight, null, tint = muted)
                         }
 
-                        if (tags.isNotEmpty()) Column(Modifier.fillMaxWidth().reveal(n++), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
+                        if (tags.isNotEmpty()) Column(Modifier.fillMaxWidth().reveal(n++), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                             Text("Tags", style = MaterialTheme.typography.titleSmall, color = muted)
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(Vela.sm), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                                 tags.forEach { tag ->
-                                    Text(
-                                        tag, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Vela.colors.primary.toColor(),
-                                        modifier = Modifier.clip(Vela.pillShape).background(card).pressable(role = Role.Button) { haptics.click(); onSearchTag(tag); onDismiss() }
-                                            .heightIn(min = Vela.minTouch).padding(horizontal = Vela.md, vertical = Vela.sm).testTag("video.tag"),
-                                    )
+                                    com.greenaltambe.vela.ui.components.ExpressiveChip(false, tag, { haptics.click(); onSearchTag(tag); onDismiss() }, Modifier.testTag("video.tag"))
                                 }
                             }
                         }
@@ -235,22 +244,22 @@ private fun CopyButton(text: String) {
     val haptics = rememberPlayerHaptics()
     var done by remember { mutableStateOf(false) }
     LaunchedEffect(done) { if (done) { delay(1_400); done = false } }
-    PlayerIconButton({ clipboard.setText(AnnotatedString(text)); haptics.confirm(); done = true }, halo = Vela.colors.onSurface.toColor(), modifier = Modifier.testTag("video.descriptionCopy")) {
-        SwapIcon(if (done) Vela.icons.check else Vela.icons.link, if (done) "Copied" else "Copy description", if (done) Vela.colors.primary.toColor() else Vela.colors.onSurface.toColor())
+    PlayerIconButton({ clipboard.setText(AnnotatedString(text)); haptics.confirm(); done = true }, halo = MaterialTheme.colorScheme.onSurface, modifier = Modifier.testTag("video.descriptionCopy")) {
+        SwapIcon(if (done) AppIcons.check else AppIcons.link, if (done) "Copied" else "Copy description", if (done) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
     }
 }
 
 @Composable
 private fun NavCard(title: String, subtitle: String, background: androidx.compose.ui.graphics.Color, modifier: Modifier, onClick: () -> Unit) {
     Row(
-        modifier.fillMaxWidth().clip(Vela.largeShape).background(background).pressable(role = Role.Button, onClick = onClick).padding(Vela.md),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.md),
+        modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).background(background).pressable(role = Role.Button, onClick = onClick).padding(Spacing.md),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
         Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = Vela.colors.primary.toColor())
-            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = Vela.colors.onSurfaceVariant.toColor(), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
-        Icon(Vela.icons.chevronRight, null, tint = Vela.colors.primary.toColor())
+        Icon(AppIcons.chevronRight, null, tint = MaterialTheme.colorScheme.primary)
     }
 }
 
@@ -275,37 +284,37 @@ private fun TranscriptPage(captions: List<CaptionTrack>, positionMs: Long, onSee
     val listState = rememberLazyListState()
     val current = cues?.indexOfLast { it.startMs <= positionMs }?.takeIf { it >= 0 }
     LaunchedEffect(current) { if (current != null) runCatching { listState.animateScrollToItem((current - 2).coerceAtLeast(0)) } }
-    val muted = Vela.colors.onSurfaceVariant.toColor()
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
 
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().then(swipe).padding(start = Vela.sm, end = Vela.sm), verticalAlignment = Alignment.CenterVertically) {
-            PlayerIconButton(onBack, halo = Vela.colors.onSurface.toColor(), modifier = Modifier.testTag("video.transcriptBack")) { Icon(Vela.icons.back, "Back", tint = Vela.colors.onSurface.toColor()) }
+        Row(Modifier.fillMaxWidth().then(swipe).padding(start = Spacing.sm, end = Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
+            PlayerIconButton(onBack, halo = MaterialTheme.colorScheme.onSurface, modifier = Modifier.testTag("video.transcriptBack")) { Icon(AppIcons.back, "Back", tint = MaterialTheme.colorScheme.onSurface) }
             Text("Transcript", Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold, maxLines = 1)
-            PlayerIconButton(onClose, halo = Vela.colors.onSurface.toColor()) { Icon(Vela.icons.close, "Close", tint = Vela.colors.onSurface.toColor()) }
+            PlayerIconButton(onClose, halo = MaterialTheme.colorScheme.onSurface) { Icon(AppIcons.close, "Close", tint = MaterialTheme.colorScheme.onSurface) }
         }
-        if (captions.size > 1) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = Vela.gutter, vertical = Vela.xs), horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+        if (captions.size > 1) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = Spacing.gutter, vertical = Spacing.xs), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             captions.forEach { c ->
                 val on = c == chosen
                 Text(
                     c.label, style = MaterialTheme.typography.labelLarge, maxLines = 1,
-                    color = if (on) Vela.colors.onPrimary.toColor() else Vela.colors.onSurface.toColor(),
-                    modifier = Modifier.clip(Vela.pillShape).background(if (on) Vela.colors.primary.toColor() else Vela.colors.surfaceVariant.toColor())
-                        .pressable(role = Role.RadioButton) { haptics.confirm(); chosen = c }.heightIn(min = Vela.minTouch).padding(horizontal = Vela.md).wrapContentHeight(Alignment.CenterVertically),
+                    color = if (on) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.clip(CircleShape).background(if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .pressable(role = Role.RadioButton) { haptics.confirm(); chosen = c }.heightIn(min = Spacing.minTouch).padding(horizontal = Spacing.md).wrapContentHeight(Alignment.CenterVertically),
                 )
             }
         }
         when {
-            cues == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { androidx.compose.material3.CircularProgressIndicator(color = Vela.colors.primary.toColor()) }
-            cues!!.isEmpty() -> Box(Modifier.fillMaxSize().padding(Vela.gutter), contentAlignment = Alignment.Center) { Text("This transcript could not be loaded.", color = muted, textAlign = TextAlign.Center) }
-            else -> LazyColumn(Modifier.fillMaxSize().navigationBarsPadding(), state = listState, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = Vela.sm, vertical = Vela.sm)) {
+            cues == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { LoadingSpinner(color = MaterialTheme.colorScheme.primary) }
+            cues!!.isEmpty() -> Box(Modifier.fillMaxSize().padding(Spacing.gutter), contentAlignment = Alignment.Center) { Text("This transcript could not be loaded.", color = muted, textAlign = TextAlign.Center) }
+            else -> LazyColumn(Modifier.fillMaxSize().navigationBarsPadding(), state = listState, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = Spacing.sm, vertical = Spacing.sm)) {
                 itemsIndexed(cues!!, key = { i, c -> "${c.startMs}-$i" }) { i, cue ->
                     val now = i == current
                     Row(
-                        Modifier.fillMaxWidth().clip(Vela.mediumShape).background(if (now) Vela.colors.primary.toColor().copy(alpha = 0.14f) else androidx.compose.ui.graphics.Color.Transparent)
-                            .clickable { haptics.click(); onSeek(cue.startMs) }.padding(horizontal = Vela.md, vertical = Vela.sm).testTag("video.transcriptLine"),
-                        horizontalArrangement = Arrangement.spacedBy(Vela.md),
+                        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(if (now) MaterialTheme.colorScheme.primary.copy(alpha = 0.14f) else androidx.compose.ui.graphics.Color.Transparent)
+                            .clickable { haptics.click(); onSeek(cue.startMs) }.padding(horizontal = Spacing.md, vertical = Spacing.sm).testTag("video.transcriptLine"),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
                     ) {
-                        Text(formatTimestamp(cue.startMs / 1000), style = MaterialTheme.typography.labelMedium, color = Vela.colors.primary.toColor(), modifier = Modifier.padding(top = 2.dp))
+                        Text(formatTimestamp(cue.startMs / 1000), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 2.dp))
                         Text(cue.text, style = MaterialTheme.typography.bodyLarge, fontWeight = if (now) FontWeight.SemiBold else FontWeight.Normal)
                     }
                 }

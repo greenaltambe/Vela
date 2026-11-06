@@ -24,7 +24,6 @@ import com.greenaltambe.vela.core.http.HttpTransport
 import com.greenaltambe.vela.core.network.FixedNetworkMonitor
 import com.greenaltambe.vela.core.network.NetworkType
 import com.greenaltambe.vela.core.settings.InMemorySettingsStore
-import com.greenaltambe.vela.core.settings.LookChoice
 import com.greenaltambe.vela.core.settings.Settings
 import com.greenaltambe.vela.core.settings.SettingsResolver
 import com.greenaltambe.vela.data.DownloadKind
@@ -158,12 +157,9 @@ class FakeHost(override val session: PlaybackSession, val controller: FakeContro
 
 class Fixture(val services: AppServices, val navigator: Navigator, val settings: SettingsResolver, val controller: FakeController, val dir: File)
 
-fun buildFixture(pureBlack: Boolean = false, withDownloads: Boolean = true, login: ((AccountManager) -> com.greenaltambe.vela.auth.AccountLogin)? = null, actions: com.greenaltambe.vela.auth.AccountActions? = null, reads: com.greenaltambe.vela.auth.AccountReads? = null, extractorOverride: Extractor? = null, backupFiles: com.greenaltambe.vela.backup.BackupFiles? = null, liveChat: com.greenaltambe.vela.extractor.LiveChatSource? = null, wrapDriver: ((app.cash.sqldelight.db.SqlDriver) -> app.cash.sqldelight.db.SqlDriver)? = null): Fixture {
+fun buildFixture(dark: Boolean = false, withDownloads: Boolean = true, login: ((AccountManager) -> com.greenaltambe.vela.auth.AccountLogin)? = null, actions: com.greenaltambe.vela.auth.AccountActions? = null, reads: com.greenaltambe.vela.auth.AccountReads? = null, extractorOverride: Extractor? = null, backupFiles: com.greenaltambe.vela.backup.BackupFiles? = null, liveChat: com.greenaltambe.vela.extractor.LiveChatSource? = null, wrapDriver: ((app.cash.sqldelight.db.SqlDriver) -> app.cash.sqldelight.db.SqlDriver)? = null): Fixture {
     val settings = SettingsResolver(InMemorySettingsStore())
-    // The layout tests were written for the three-tab bar (Home, Subs, Library); the app now also offers Shorts by default.
-    settings.set(com.greenaltambe.vela.core.settings.LookSettings.navTabs, "HOME,SUBSCRIPTIONS,LIBRARY")
-    if (pureBlack) {
-        settings.set(Settings.look, LookChoice.PURE_BLACK)
+    if (dark) {
         settings.set(com.greenaltambe.vela.core.settings.LookSettings.theme, com.greenaltambe.vela.core.settings.ThemeMode.DARK)
     } else {
         settings.set(com.greenaltambe.vela.core.settings.LookSettings.theme, com.greenaltambe.vela.core.settings.ThemeMode.LIGHT)

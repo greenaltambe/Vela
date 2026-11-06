@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The window behind the app before its first frame: the page colour of the theme (light), so there is no white flash on a dark start. -->
+    <color name="vela_window">#FFFFF8F7</color>
+    <color name="vela_splash">#FFBB1614</color>
+</resources>

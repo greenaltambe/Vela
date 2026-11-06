@@ -1,5 +1,6 @@
 package com.greenaltambe.vela.ui
 
+import com.greenaltambe.vela.ui.theme.Spacing
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -76,7 +77,7 @@ fun DiagnosticsScreen(extractor: Extractor, log: DiagnosticsLog, moduleLog: Modu
         }
     }
 
-    Column(modifier.padding(horizontal = com.greenaltambe.vela.ui.look.Vela.gutter), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier.padding(horizontal = com.greenaltambe.vela.ui.theme.Spacing.gutter), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (rebuildCaches != null) {
             var rebuilt by remember { mutableStateOf<String?>(null) }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {

@@ -115,7 +115,7 @@ class BackupService(private val db: VelaDatabase, private val clock: Clock = Clo
         for (b in file.settings) {
             if (!backedUp(b.key)) continue
             val layer = runCatching { if (b.scope == SettingScope.GLOBAL.name) SettingLayer.Global else SettingLayer(SettingScope.valueOf(b.scope), b.id) }.getOrNull() ?: continue
-            if (b.key !in known && !b.key.startsWith("account.")) unknownKeys++
+            if (b.key !in known && !b.key.startsWith("account.") && !com.greenaltambe.vela.core.settings.LegacySettingKeys.isLegacy(b.key)) unknownKeys++
             if (s.get(b.key, layer) == b.value) { same++; continue }
             changed += b.key + (if (layer.id != null) " [${layer.scope.name.lowercase()} ${layer.id}]" else "")
             if (apply && includeSettings) s.put(b.key, layer, b.value)

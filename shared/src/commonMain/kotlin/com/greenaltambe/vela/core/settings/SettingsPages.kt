@@ -30,6 +30,7 @@ object SettingsPages {
         SettingsPage("extras", "SponsorBlock & extras", SettingsGroup.WATCHING, 2, owns = prefix("sponsorblock.", "ryd.", "dearrow.", "modules.")),
         SettingsPage("home", "Home", SettingsGroup.YOUR_FEED, 3, owns = keys("home.source", "content.region")),
         SettingsPage("feed", "Subscriptions & feed filters", SettingsGroup.YOUR_FEED, 4, owns = prefix("feed.hide", "feed.min", "feed.block", "feed.allow", "feed.keywords")),
+        SettingsPage("notifications", "Notifications", SettingsGroup.YOUR_FEED, 15, owns = prefix("notify.")),
         SettingsPage("shorts", "Shorts", SettingsGroup.YOUR_FEED, 5, owns = keys("feed.shortsMode")),
         SettingsPage("accounts", "Accounts", SettingsGroup.ACCOUNT_AND_SAFETY, 6, SettingsLink.ACCOUNTS),
         SettingsPage("safety", "Account safety", SettingsGroup.ACCOUNT_AND_SAFETY, 7) { it.key.startsWith("account.") || it.key in safetyKeys },
@@ -102,7 +103,7 @@ object SettingsSummaries {
     private fun num(f: Float) = if (f == f.toLong().toFloat()) f.toLong().toString() else f.toString()
 
     fun of(page: SettingsPage, s: SettingsResolver): String = when (page.id) {
-        "customize" -> "${s.label(LookSettings.theme)}${if (s.v(Settings.look) == LookChoice.PURE_BLACK) " · pure black" else ""} · ${s.label(LookSettings.barStyle)} · ${NavTabs.parse(s.v(LookSettings.navTabs)).size} tabs"
+        "customize" -> "${s.label(LookSettings.theme)} · ${s.label(LookSettings.progressStyle)} progress bar"
         "playback" -> "${s.label(Settings.maxQualityUnmetered)} on Wi-Fi · ${num(s.v(Settings.defaultPlaybackSpeed))}x${if (s.v(Settings.audioOnly)) " · audio only" else ""}"
         "extras" -> "SponsorBlock ${onOff(s.v(Settings.sponsorBlockEnabled))} · RYD ${onOff(s.v(Settings.returnYouTubeDislikeEnabled))} · DeArrow ${onOff(s.v(Settings.deArrowEnabled))}"
         "home" -> "${s.label(Settings.homeSource)} · ${s.label(Settings.contentRegion)}"
@@ -111,6 +112,7 @@ object SettingsSummaries {
             s.v(Settings.minLengthSeconds).takeIf { it > 0 }?.let { add("min ${(it / 60).toInt().coerceAtLeast(1)} min") }
             if (s.v(Settings.blockKeywords).isNotBlank() || s.v(Settings.allowKeywords).isNotBlank()) add("keyword rules")
         }.joinToString(" · ")
+        "notifications" -> "Background checks ${onOff(s.v(Settings.notifyBackground))} · system alerts ${onOff(s.v(Settings.notifySystem))}"
         "shorts" -> s.label(Settings.shortsMode)
         "accounts" -> "Sign in, switch, add"
         "safety" -> "Account ${s.label(Settings.accountFallbackMode).lowercase()} · age-restricted ${onOff(s.v(Settings.allowAgeRestricted))}${if (s.v(Settings.accountKillSwitch)) " · PAUSED" else ""}"

@@ -1,0 +1,48 @@
+CREATE TABLE NotificationItem (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    accountId TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    dedupeKey TEXT NOT NULL,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL DEFAULT '',
+    channelId TEXT NOT NULL DEFAULT '',
+    channelName TEXT NOT NULL DEFAULT '',
+    videoId TEXT NOT NULL DEFAULT '',
+    thumbnailUrl TEXT,
+    createdAt INTEGER NOT NULL,
+    readAt INTEGER,
+    UNIQUE (accountId, kind, dedupeKey)
+);
+
+CREATE INDEX NotificationItem_time ON NotificationItem(accountId, createdAt);
+
+insertIgnore:
+INSERT OR IGNORE INTO NotificationItem(accountId, kind, dedupeKey, title, body, channelId, channelName, videoId, thumbnailUrl, createdAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+recent:
+SELECT * FROM NotificationItem WHERE accountId = ? ORDER BY createdAt DESC, id DESC LIMIT ?;
+
+unreadCount:
+SELECT COUNT(*) FROM NotificationItem WHERE accountId = ? AND readAt IS NULL;
+
+markRead:
+UPDATE NotificationItem SET readAt = ? WHERE id = ? AND readAt IS NULL;
+
+markAllRead:
+UPDATE NotificationItem SET readAt = ? WHERE accountId = ? AND readAt IS NULL;
+
+delete:
+DELETE FROM NotificationItem WHERE id = ?;
+
+clear:
+DELETE FROM NotificationItem WHERE accountId = ?;
+
+trim:
+DELETE FROM NotificationItem WHERE accountId = ? AND id NOT IN (SELECT id FROM NotificationItem WHERE accountId = ? ORDER BY createdAt DESC, id DESC LIMIT ?);
+
+changes:
+SELECT changes();
+
+unreadUploadChannels:
+SELECT DISTINCT channelId FROM NotificationItem WHERE accountId = ? AND kind = 'UPLOAD' AND readAt IS NULL AND channelId != '';

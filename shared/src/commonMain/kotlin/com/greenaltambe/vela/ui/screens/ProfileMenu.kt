@@ -1,5 +1,10 @@
 package com.greenaltambe.vela.ui.screens
 
+import androidx.compose.material3.toShape
+import com.greenaltambe.vela.ui.theme.AppIcons
+import androidx.compose.foundation.shape.CircleShape
+import com.greenaltambe.vela.ui.theme.Spacing
+import com.greenaltambe.vela.ui.theme.Accent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -35,19 +40,19 @@ import com.greenaltambe.vela.AppServices
 import com.greenaltambe.vela.auth.Account
 import com.greenaltambe.vela.auth.AccountKind
 import com.greenaltambe.vela.ui.components.Avatar
-import com.greenaltambe.vela.ui.look.Vela
 import com.greenaltambe.vela.ui.look.pressable
-import com.greenaltambe.vela.ui.look.toColor
 import com.greenaltambe.vela.ui.nav.Navigator
 import com.greenaltambe.vela.ui.nav.Route
 
 /** The avatar button in the top bar: the active account's picture, or "Local" when nobody is signed in. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ProfileButton(services: AppServices, onClick: () -> Unit) {
     val account by services.accounts.active.collectAsState()
-    // A ring in the palette gradient around the picture.
-    androidx.compose.foundation.layout.Box(Modifier.size(40.dp).clip(Vela.pillShape).clickable(onClick = onClick).border(2.dp, Vela.wake, Vela.pillShape).padding(4.dp).testTag("profile.button"), contentAlignment = Alignment.Center) {
-        Avatar(if (account.kind == AccountKind.LOCAL) "Local" else account.displayName, size = 30.dp, url = account.avatarUrl.takeIf { account.kind != AccountKind.LOCAL })
+    // The picture in one of Material's expressive shapes (a nine-sided cookie), on a tonal ring of the same shape.
+    val cookie = androidx.compose.material3.MaterialShapes.Cookie9Sided.toShape()
+    androidx.compose.foundation.layout.Box(Modifier.size(44.dp).clip(cookie).background(MaterialTheme.colorScheme.primaryContainer).clickable(onClick = onClick).padding(4.dp).testTag("profile.button"), contentAlignment = Alignment.Center) {
+        Avatar(if (account.kind == AccountKind.LOCAL) "Local" else account.displayName, size = 36.dp, url = account.avatarUrl.takeIf { account.kind != AccountKind.LOCAL }, shape = cookie)
     }
 }
 
@@ -68,30 +73,30 @@ fun ProfileMenu(services: AppServices, navigator: Navigator, onDismiss: () -> Un
 
     Dialog(onDismissRequest = onDismiss) {
         Column(
-            Modifier.widthIn(max = 420.dp).clip(Vela.largeShape).background(Vela.colors.surface.toColor()).verticalScroll(rememberScrollState()).padding(Vela.md).testTag("profile.menu"),
-            verticalArrangement = Arrangement.spacedBy(Vela.xs),
+            Modifier.widthIn(max = 420.dp).clip(MaterialTheme.shapes.extraLarge).background(MaterialTheme.colorScheme.surfaceContainer).verticalScroll(rememberScrollState()).padding(Spacing.md).testTag("profile.menu"),
+            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
         ) {
-            Row(Modifier.fillMaxWidth().padding(bottom = Vela.sm).testTag("profile.card"), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.md)) {
+            Row(Modifier.fillMaxWidth().padding(bottom = Spacing.sm).testTag("profile.card"), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
                 Avatar(if (local) "Local" else account.displayName, size = 48.dp, url = account.avatarUrl.takeIf { !local })
                 Column(Modifier.weight(1f)) {
                     Text(if (local) "Local" else account.displayName, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("profile.name"))
-                    Text(if (local) "Nothing is shared: everything stays on this device." else account.maskedEmail ?: account.label, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor())
+                    Text(if (local) "Nothing is shared: everything stays on this device." else account.maskedEmail ?: account.label, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             // Account actions only. Everything else (Customize, Downloads, History, Backup, Health) has its own place: the Settings page and the Library tab.
-            if (local) MenuLine("Sign in", "profile.signIn", Vela.icons.account) { go(Route.Accounts) }
+            if (local) MenuLine("Sign in", "profile.signIn", AppIcons.account) { go(Route.Accounts) }
             // Switching is offered whenever there is another account to switch to, including from the local profile.
-            if (all.size > 1) MenuLine(if (switching) "Switch account ▴" else "Switch account ▾", "profile.switch", Vela.icons.refresh) { switching = !switching }
+            if (all.size > 1) MenuLine("Switch account", "profile.switch", if (switching) AppIcons.chevronUp else AppIcons.chevronDown) { switching = !switching }
             if (switching) all.filter { it.id != account.id }.forEach { a ->
-                MenuLine("   ${if (a.kind == AccountKind.LOCAL) "Local" else a.displayName}", "profile.switchTo", null) { services.accounts.switchTo(a.id); onDismiss() }
+                MenuLine(if (a.kind == AccountKind.LOCAL) "Local" else a.displayName, "profile.switchTo", null, leading = { Avatar(if (a.kind == AccountKind.LOCAL) "Local" else a.displayName, size = 32.dp, url = a.avatarUrl) }) { services.accounts.switchTo(a.id); onDismiss() }
             }
             if (!local) {
-                MenuLine("Add account", "profile.add", Vela.icons.add) { go(Route.Accounts) }
-                MenuLine("Sign out", "profile.signOut", Vela.icons.close) { confirmSignOut = true }
+                MenuLine("Add account", "profile.add", AppIcons.add) { go(Route.Accounts) }
+                MenuLine("Sign out", "profile.signOut", AppIcons.close) { confirmSignOut = true }
             }
-            Divider()
-            MenuLine("Settings", "profile.settings", Vela.icons.settings) { go(Route.Settings) }
-            MenuLine("About", "profile.about", Vela.icons.info) { showAbout = true }
+            androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = Spacing.xs), color = MaterialTheme.colorScheme.outlineVariant)
+            MenuLine("Settings", "profile.settings", AppIcons.settings) { go(Route.Settings) }
+            MenuLine("About", "profile.about", AppIcons.info) { showAbout = true }
         }
     }
     if (confirmSignOut) AlertDialog(
@@ -104,20 +109,16 @@ fun ProfileMenu(services: AppServices, navigator: Navigator, onDismiss: () -> Un
     if (showAbout) AboutDialog { showAbout = false }
 }
 
+/** One line of the profile menu: a Material list item (icon, text) that closes the menu when it acts. */
 @Composable
-private fun MenuLine(label: String, tag: String, icon: androidx.compose.ui.graphics.vector.ImageVector?, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().heightIn(min = Vela.minTouch).clip(Vela.mediumShape).pressable(onClick = onClick).padding(horizontal = Vela.sm).testTag(tag), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.md)) {
-        if (icon != null) androidx.compose.material3.Icon(icon, null, tint = Vela.colors.onSurfaceVariant.toColor())
-        Text(label, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
+private fun MenuLine(label: String, tag: String, icon: androidx.compose.ui.graphics.vector.ImageVector?, leading: (@Composable () -> Unit)? = null, onClick: () -> Unit) {
+    androidx.compose.material3.ListItem(
+        headlineContent = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        leadingContent = leading ?: icon?.let { i -> { androidx.compose.material3.Icon(i, null) } },
+        colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+        modifier = Modifier.clip(MaterialTheme.shapes.medium).clickable(onClick = onClick).testTag(tag),
+    )
 }
-
-@Composable
-private fun Divider() {
-    androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth().padding(vertical = Vela.xs).androidxHeight1().background(Vela.colors.outline.toColor()))
-}
-
-private fun Modifier.androidxHeight1() = this.then(Modifier.height(1.dp))
 
 @Composable
 fun AboutDialog(onDismiss: () -> Unit) {
@@ -125,11 +126,11 @@ fun AboutDialog(onDismiss: () -> Unit) {
         onDismissRequest = onDismiss,
         title = { Text("About Vela") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(Vela.xs), modifier = Modifier.testTag("about.text")) {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs), modifier = Modifier.testTag("about.text")) {
                 Text("A YouTube client that keeps working: several sources for every video, your data on your device.", style = MaterialTheme.typography.bodyMedium)
                 Text("NewPipeExtractor ${com.greenaltambe.vela.health.NewPipeVersion.VERSION}; yt-dlp (checked ${com.greenaltambe.vela.health.GeneratedVersions.YTDLP_VERIFIED}).", style = MaterialTheme.typography.bodySmall)
                 Text("Vela is free software under the GNU General Public License v3.0 or later. It is an independent project, not affiliated with or endorsed by YouTube or Google.", style = MaterialTheme.typography.bodySmall)
-                Text("Open-source parts include NewPipeExtractor and youtubedl-android (GPL-3.0), yt-dlp (Unlicense), Python and QuickJS, libmpv (GPL/LGPL), AndroidX, Compose, OkHttp, SQLDelight and Coil (Apache-2.0), Lucide icons (ISC). The full list with licences is THIRD_PARTY_NOTICES.md in the source repository.", style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor())
+                Text("Open-source parts include NewPipeExtractor and youtubedl-android (GPL-3.0), yt-dlp (Unlicense), Python and QuickJS, libmpv (GPL/LGPL), AndroidX, Compose, OkHttp, SQLDelight and Coil (Apache-2.0), Lucide icons (ISC). The full list with licences is THIRD_PARTY_NOTICES.md in the source repository.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } },

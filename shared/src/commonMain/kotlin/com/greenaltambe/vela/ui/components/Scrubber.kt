@@ -1,5 +1,10 @@
 package com.greenaltambe.vela.ui.components
 
+import com.greenaltambe.vela.ui.theme.Accent
+import com.greenaltambe.vela.ui.theme.ExtraColors
+import com.greenaltambe.vela.ui.theme.Spacing
+import com.greenaltambe.vela.ui.theme.LocalMotion
+import com.greenaltambe.vela.ui.theme.LocalProgressStyle
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
@@ -55,8 +60,6 @@ import com.greenaltambe.vela.core.settings.ProgressStyle
 import com.greenaltambe.vela.extractor.Chapter
 import com.greenaltambe.vela.library.currentChapter
 import com.greenaltambe.vela.library.formatTimestamp
-import com.greenaltambe.vela.ui.look.Vela
-import com.greenaltambe.vela.ui.look.toColor
 import kotlin.math.roundToInt
 
 /**
@@ -96,10 +99,12 @@ fun Scrubber(
     previewLabel: ((Float) -> String)? = null,
     description: String = "Seek",
     valueDescription: String? = null,
-    style: ProgressStyle = Vela.look.progress,
-    trackColor: Color = Vela.colors.outline.toColor(),
-    bufferedColor: Color = Vela.colors.onSurfaceVariant.toColor().copy(alpha = 0.5f),
-    tickColor: Color = Vela.colors.chapterMarker.toColor(),
+    style: ProgressStyle = LocalProgressStyle.current,
+    trackColor: Color = MaterialTheme.colorScheme.outline,
+    bufferedColor: Color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+    tickColor: Color = ExtraColors.chapterMarker,
+    /** False while paused: the wave stands still instead of redrawing the bar every frame. */
+    animate: Boolean = true,
 ) {
     var widthPx by remember { mutableFloatStateOf(0f) }
     var dragging by remember { mutableStateOf<Float?>(null) }
@@ -109,21 +114,21 @@ fun Scrubber(
     val isDragging = dragging != null
     val boldScale by animateFloatAsState(
         if (isDragging) 1.55f else 1f,
-        com.greenaltambe.vela.ui.look.VelaMotion.snappy(Vela.motion),
+        com.greenaltambe.vela.ui.look.VelaMotion.snappy(LocalMotion.current),
         label = "boldScale"
     )
 
     // The thumb grows while it is held, on a snappy spring
     val thumbGrow by animateFloatAsState(
         if (isDragging) 1.35f else 1f,
-        com.greenaltambe.vela.ui.look.VelaMotion.snappy(Vela.motion),
+        com.greenaltambe.vela.ui.look.VelaMotion.snappy(LocalMotion.current),
         label = "thumbGrow"
     )
 
-    val wavePhase = rememberWavePhase(style == ProgressStyle.WAVE || style == ProgressStyle.RIBBON)
+    val wavePhase = rememberWavePhase(animate && (style == ProgressStyle.WAVE || style == ProgressStyle.RIBBON || style == ProgressStyle.EXPRESSIVE))
     val metrics = style.metrics()
-    val wake = Vela.look.accent.wake.map { it.toColor() }
-    val surface = Vela.colors.surface.toColor()
+    val wake = Accent.colors
+    val surface = MaterialTheme.colorScheme.surfaceContainerLow
     val density = LocalDensity.current
     val thumbPx = with(density) { metrics.endInset.toPx() }
     val geometry = ScrubGeometry(widthPx, thumbPx)
@@ -132,7 +137,7 @@ fun Scrubber(
     Box(
         modifier
             .fillMaxWidth()
-            .height(Vela.minTouch)
+            .height(Spacing.minTouch)
             .onSizeChanged { widthPx = it.width.toFloat() }
             .semantics {
                 contentDescription = description
@@ -196,7 +201,7 @@ fun Scrubber(
             },
         contentAlignment = Alignment.CenterStart,
     ) {
-        Canvas(Modifier.fillMaxWidth().height(Vela.minTouch).testTag("scrubber.canvas")) {
+        Canvas(Modifier.fillMaxWidth().height(Spacing.minTouch).testTag("scrubber.canvas")) {
             drawProgress(
                 style = style,
                 shown = shown,
@@ -209,7 +214,7 @@ fun Scrubber(
                 markers = markers,
                 ticks = ticks,
                 grow = thumbGrow,
-                wavePhase = wavePhase,
+                wavePhase = wavePhase.value,
                 hoveredFraction = if (!isDragging) hoveredFraction else null,
                 boldScale = boldScale,
             )
@@ -233,9 +238,9 @@ fun Scrubber(
                     .wrapContentSize(unbounded = true)
                     .offset { IntOffset(cardLeftPx.roundToInt(), verticalOffset.roundToPx()) }
                     .width(cardW)
-                    .clip(Vela.mediumShape)
-                    .background(Vela.colors.surface.toColor())
-                    .border(1.dp, Vela.colors.outline.toColor().copy(alpha = 0.6f), Vela.mediumShape)
+                    .clip(MaterialTheme.shapes.medium)
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f), MaterialTheme.shapes.medium)
                     .padding(4.dp)
                     .testTag("scrubber.preview"),
             ) {
@@ -248,18 +253,18 @@ fun Scrubber(
                             Modifier
                                 .fillMaxWidth()
                                 .height(78.dp)
-                                .clip(Vela.smallShape)
-                                .background(Vela.colors.surfaceVariant.toColor())
+                                .clip(MaterialTheme.shapes.small)
+                                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                         ) {
                             AsyncImage(thumb, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                             Text(
                                 timeLabel,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = Vela.colors.onMedia.toColor(),
+                                color = ExtraColors.onMedia,
                                 modifier = Modifier
                                     .align(Alignment.BottomEnd)
                                     .padding(2.dp)
-                                    .background(Vela.colors.mediaBackground.toColor().copy(alpha = 0.75f), Vela.smallShape)
+                                    .background(ExtraColors.mediaBackground.copy(alpha = 0.75f), MaterialTheme.shapes.small)
                                     .padding(horizontal = 4.dp, vertical = 1.dp)
                             )
                         }
@@ -268,7 +273,7 @@ fun Scrubber(
                             timeLabel,
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Vela.colors.onSurface.toColor(),
+                            color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                         )
                     }
@@ -278,7 +283,7 @@ fun Scrubber(
                             activeChapter.title,
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.SemiBold,
-                            color = Vela.colors.primary.toColor(),
+                            color = MaterialTheme.colorScheme.primary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.padding(start = 2.dp, end = 2.dp, top = 2.dp)
@@ -300,6 +305,7 @@ fun ProgressStyle.metrics(): ProgressMetrics = when (this) {
     ProgressStyle.BOLD_DOT -> ProgressMetrics(6.dp, 9.dp, 10.dp)
     ProgressStyle.RIBBON -> ProgressMetrics(6.dp, 9.dp, 10.dp)
     ProgressStyle.WAVE -> ProgressMetrics(4.dp, 0.dp, 6.dp)
+    ProgressStyle.EXPRESSIVE -> ProgressMetrics(4.dp, 0.dp, 8.dp)
 }
 
 /** The palette gradient sampled at [fraction] (0..1) of its way across. */
@@ -343,6 +349,9 @@ fun DrawScope.drawProgress(
     val gapPx = if (segmentCount > 1) 2.5f.dp.toPx() else 0f
 
     val hasThumb = m.thumb > 0.dp
+    val expressive = style == ProgressStyle.EXPRESSIVE
+    // Material's wavy bar: the played part is a wave, a small gap, then the flat rest of the track; the handle is a vertical pill in the gap.
+    val handleGap = if (expressive) 6.dp.toPx() else 0f
     val baseTrackTh = m.track.toPx() * (if (hasThumb) 1f else grow) * boldScale
 
     if (style == ProgressStyle.WAVE) {
@@ -372,7 +381,7 @@ fun DrawScope.drawProgress(
         val startF = boundaries[i]
         val endF = boundaries[i + 1]
 
-        val x0 = g.xFor(startF) + (if (i == 0) 0f else gapPx / 2f)
+        val x0 = maxOf(g.xFor(startF) + (if (i == 0) 0f else gapPx / 2f), if (expressive) xNow + handleGap else Float.NEGATIVE_INFINITY)
         val x1 = g.xFor(endF) - (if (i == segmentCount - 1) 0f else gapPx / 2f)
         val segW = (x1 - x0).coerceAtLeast(0f)
         if (segW <= 0f) continue
@@ -409,7 +418,25 @@ fun DrawScope.drawProgress(
         val endF = boundaries[i + 1]
         val x0 = g.xFor(startF) + (if (i == 0) 0f else gapPx / 2f)
         val x1 = g.xFor(endF) - (if (i == segmentCount - 1) 0f else gapPx / 2f)
-        if (xNow > x0) {
+        if (expressive && xNow - handleGap > x0) {
+            val xEnd = minOf(x1, xNow - handleGap)
+            val amp = 3.dp.toPx() * (if (boldScale > 1.01f) 0.6f else 1f)
+            val k = (2 * Math.PI / 40.dp.toPx()).toFloat()
+            val ramp = 14.dp.toPx()
+            val xPlayedEnd = xNow - handleGap
+            val path = androidx.compose.ui.graphics.Path()
+            var x = x0
+            while (true) {
+                // The wave swells in at the very start of the bar and eases out just before the handle; it does not pinch at each chapter gap.
+                val t = minOf(1f, (x - g.trackStart) / ramp, (xPlayedEnd - x) / ramp).coerceIn(0f, 1f)
+                val ease = t * t * (3f - 2f * t)
+                val y = cy + amp * ease * kotlin.math.sin(k * (x - g.trackStart) - wavePhase)
+                if (x == x0) path.moveTo(x, y) else path.lineTo(x, y)
+                if (x >= xEnd) break
+                x = minOf(x + 2f, xEnd)
+            }
+            drawPath(path, brush, style = Stroke(width = baseTrackTh, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+        } else if (!expressive && xNow > x0) {
             val isHoveredSeg = hoveredFraction != null && hoveredFraction >= startF && hoveredFraction <= endF
             val segTh = if (isHoveredSeg) maxOf(baseTrackTh * 1.8f, baseTrackTh + 4.dp.toPx()) else baseTrackTh
             val round = CornerRadius(segTh / 2, segTh / 2)
@@ -447,6 +474,11 @@ fun DrawScope.drawProgress(
         strand(wavelength = 47.dp.toPx(), height = 0.9f, width = 1.0.dp.toPx(), alpha = 0.4f, laps = 2, phase = 4.7f)
     }
 
+    if (expressive) {
+        val handleH = 20.dp.toPx() * grow * boldScale
+        drawLine(sample(wake, shown), Offset(xNow, cy - handleH / 2), Offset(xNow, cy + handleH / 2), strokeWidth = 4.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+    }
+
     if (hasThumb) {
         val r = m.thumb.toPx() * grow * boldScale
         drawCircle(sample(wake, shown), r, Offset(xNow, cy))
@@ -455,9 +487,11 @@ fun DrawScope.drawProgress(
 
 /** The travelling phase of the Wave and Ribbon styles (radians). */
 @Composable
-fun rememberWavePhase(active: Boolean): Float {
-    if (!active || Vela.motion.reduced || !com.greenaltambe.vela.ui.look.LocalAnimationsActive.current) return 0f
+fun rememberWavePhase(active: Boolean): androidx.compose.runtime.State<Float> {
+    // A State read inside the draw block, so the 60 or 120 frames a second redraw the bar only and never recompose what holds it.
+    val still = remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    if (!active || LocalMotion.current.reduced || !com.greenaltambe.vela.ui.look.LocalAnimationsActive.current) return still
     val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "wave")
-    val phase by t.animateFloat(0f, (2 * Math.PI).toFloat(), androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1600, easing = androidx.compose.animation.core.LinearEasing)), label = "wavePhase")
+    val phase = t.animateFloat(0f, (2 * Math.PI).toFloat(), androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1600, easing = androidx.compose.animation.core.LinearEasing)), label = "wavePhase")
     return phase
 }

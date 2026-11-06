@@ -1,0 +1,18 @@
+-- 7 -> 8: a per-channel notification level, and the local notification feed.
+ALTER TABLE Subscription ADD COLUMN notifyLevel TEXT NOT NULL DEFAULT 'PERSONALIZED';
+CREATE TABLE NotificationItem (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    accountId TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    dedupeKey TEXT NOT NULL,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL DEFAULT '',
+    channelId TEXT NOT NULL DEFAULT '',
+    channelName TEXT NOT NULL DEFAULT '',
+    videoId TEXT NOT NULL DEFAULT '',
+    thumbnailUrl TEXT,
+    createdAt INTEGER NOT NULL,
+    readAt INTEGER,
+    UNIQUE (accountId, kind, dedupeKey)
+);
+CREATE INDEX NotificationItem_time ON NotificationItem(accountId, createdAt);

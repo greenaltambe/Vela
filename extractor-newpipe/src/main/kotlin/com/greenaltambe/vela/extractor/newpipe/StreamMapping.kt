@@ -95,7 +95,7 @@ internal fun StreamInfo.toStreamSet(): StreamSet {
 internal fun StreamInfo.toVideoInfo() = VideoInfo(
     id = id,
     title = name,
-    description = description?.content.orEmpty(),
+    description = com.greenaltambe.vela.extractor.plainDescription(description?.content.orEmpty()),
     channelId = channelIdFromUrl(uploaderUrl).orEmpty(),
     channelName = uploaderName.orEmpty(),
     durationSeconds = duration.coerceAtLeast(0),

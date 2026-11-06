@@ -1,20 +1,32 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package com.greenaltambe.vela.ui.screens
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import com.greenaltambe.vela.AppServices
 import com.greenaltambe.vela.backup.BackupException
 import com.greenaltambe.vela.backup.BackupService
 import com.greenaltambe.vela.ui.components.PrimaryButton
-import com.greenaltambe.vela.ui.components.SectionHeader
-import com.greenaltambe.vela.ui.components.VelaTopBar
-import com.greenaltambe.vela.ui.look.Vela
+import com.greenaltambe.vela.ui.components.SecondaryButton
 import com.greenaltambe.vela.ui.nav.Navigator
+import com.greenaltambe.vela.ui.settings.SettingsScaffold
+import com.greenaltambe.vela.ui.settings.SwitchRow
+import com.greenaltambe.vela.ui.settings.settingsSection
+import com.greenaltambe.vela.ui.theme.AppIcons
+import com.greenaltambe.vela.ui.theme.Spacing
 import kotlinx.coroutines.launch
 
 /** One file with settings, subscriptions, local playlists and (optionally) history; restore shows what would change first and only ever merges. */
@@ -29,32 +41,42 @@ fun BackupScreen(services: AppServices, navigator: Navigator, modifier: Modifier
     var pending by remember { mutableStateOf<String?>(null) }       // the picked file's text, until confirmed
     var preview by remember { mutableStateOf<String?>(null) }
 
-    Column(modifier.fillMaxSize()) {
-        VelaTopBar("Backup and restore", onBack = { navigator.back() })
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = Vela.gutter, end = Vela.gutter, bottom = com.greenaltambe.vela.ui.nav.LocalChromeInset.current), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
-            Text("A backup holds your settings (including per-channel and per-video overrides), subscriptions, local playlists and Watch later, and optionally history and search history. It never holds accounts, passwords, cookies or downloads.", style = MaterialTheme.typography.bodyMedium)
-            if (files == null) { Text("This platform has no file picker for backups yet.", modifier = Modifier.testTag("backup.unavailable")); return@Column }
-            SectionHeader("Create")
-            Row(horizontalArrangement = Arrangement.spacedBy(Vela.sm), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) { Checkbox(includeHistory, { includeHistory = it }, modifier = Modifier.testTag("backup.history")); Text("Include watch history") }
-            Row(horizontalArrangement = Arrangement.spacedBy(Vela.sm), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) { Checkbox(includeSearch, { includeSearch = it }); Text("Include search history") }
+    SettingsScaffold("Backup and restore", modifier, onBack = { navigator.back() }, listTag = "backup.list") {
+        settingsSection("about", "", listOf("about"), { it }) { _, shape ->
+            InfoRow("A backup holds your settings (including per-channel and per-video overrides), subscriptions, local playlists and Watch later, and optionally history and search history. It never holds accounts, passwords, cookies or downloads.", shape)
+        }
+        if (files == null) {
+            settingsSection("unavailable", "", listOf("x"), { it }) { _, shape -> InfoRow("This platform has no file picker for backups yet.", shape, Modifier.testTag("backup.unavailable")) }
+            return@SettingsScaffold
+        }
+        val options = listOf("history", "search")
+        settingsSection("create", "Create", options, { it }) { o, shape ->
+            if (o == "history") SwitchRow("Include watch history", "Everything you watched, with positions.", includeHistory, { includeHistory = it }, shape, "backup.history")
+            else SwitchRow("Include search history", "What you searched for.", includeSearch, { includeSearch = it }, shape, "backup.searchHistory")
+        }
+        item(key = "create-button") {
             PrimaryButton("Create backup", {
                 scope.launch { message = runCatching { files.save("vela-backup.json", service.create(includeHistory, includeSearch))?.let { "Saved to $it" } ?: "Cancelled." }.getOrElse { "Could not save: ${it.message}" } }
-            }, modifier = Modifier.testTag("backup.create"))
-            SectionHeader("Restore")
-            OutlinedButton(onClick = {
+            }, modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm).testTag("backup.create"))
+        }
+        settingsSection("restore", "Restore", listOf("pick"), { it }) { _, shape ->
+            InfoActionRow("Restore from a file…", "Restoring only adds: nothing you have now is deleted. Settings in the file replace the ones you have.", AppIcons.folder, shape, enabled = true, tag = "backup.pick", onClick = {
                 scope.launch {
                     message = null; preview = null; pending = null
                     val text = runCatching { files.pick() }.getOrElse { message = "Could not read the file: ${it.message}"; null } ?: return@launch
                     try { preview = service.preview(text).describe(); pending = text } catch (e: BackupException) { message = e.message }
                 }
-            }, modifier = Modifier.testTag("backup.pick")) { Text("Restore from a file…") }
-            preview?.let { Text("This restore would: $it", modifier = Modifier.testTag("backup.preview"), style = MaterialTheme.typography.bodyMedium) }
-            if (pending != null) Row(horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                PrimaryButton("Restore (merge)", { message = runCatching { service.restore(pending!!).describe() }.getOrElse { "Restore failed: ${it.message}" }.let { "Done. $it" }; pending = null; preview = null }, modifier = Modifier.testTag("backup.confirm"))
-                OutlinedButton(onClick = { pending = null; preview = null }) { Text("Cancel") }
-            }
-            message?.let { Text(it, modifier = Modifier.testTag("backup.message"), style = MaterialTheme.typography.bodyMedium) }
-            Text("Restoring only adds: nothing you have now is deleted. Settings in the file replace the ones you have.", style = MaterialTheme.typography.bodySmall)
+            })
         }
+        preview?.let { p ->
+            item(key = "preview") { Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.tertiaryContainer, contentColor = MaterialTheme.colorScheme.onTertiaryContainer) { Text("This restore would: $p", Modifier.padding(Spacing.md).testTag("backup.preview")) } }
+        }
+        if (pending != null) item(key = "confirm") {
+            Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(Spacing.sm), modifier = Modifier.fillMaxWidth().padding(top = Spacing.xs)) {
+                PrimaryButton("Restore (merge)", { message = runCatching { service.restore(pending!!).describe() }.getOrElse { "Restore failed: ${it.message}" }.let { "Done. $it" }; pending = null; preview = null }, modifier = Modifier.weight(1f).testTag("backup.confirm"))
+                SecondaryButton("Cancel", { pending = null; preview = null }, modifier = Modifier.weight(1f))
+            }
+        }
+        message?.let { m -> item(key = "message") { Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer) { Text(m, Modifier.padding(Spacing.md).testTag("backup.message")) } } }
     }
 }

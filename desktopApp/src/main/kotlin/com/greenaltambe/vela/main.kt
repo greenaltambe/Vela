@@ -132,7 +132,7 @@ fun main(args: Array<String>) {
     val autoDownloader = com.greenaltambe.vela.downloads.AutoDownloader(
         com.greenaltambe.vela.downloads.AutoDownloadStore(com.greenaltambe.vela.data.SqlDelightSettingsStore(database)), downloadChain, downloads.manager, downloads.repo,
         { com.greenaltambe.vela.data.PlaylistRepository(database, wiring.accounts.active.value.id) }, { com.greenaltambe.vela.data.HistoryLibrary(database, wiring.accounts.active.value.id) },
-        com.greenaltambe.vela.core.network.FixedNetworkMonitor(), settings, notifier = com.greenaltambe.vela.downloads.NotifySendNotifier(),
+        com.greenaltambe.vela.core.network.FixedNetworkMonitor(), settings, notifier = com.greenaltambe.vela.data.RecordingDownloadNotifier(com.greenaltambe.vela.downloads.NotifySendNotifier(), { com.greenaltambe.vela.data.NotificationRepository(database, wiring.accounts.active.value.id) }, { settings.resolve(com.greenaltambe.vela.core.settings.Settings.notifyDownloads) }),
     )
     kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO).launch {
         kotlinx.coroutines.delay(120_000)

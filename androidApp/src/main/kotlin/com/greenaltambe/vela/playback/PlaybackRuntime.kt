@@ -136,11 +136,14 @@ class PlaybackRuntime private constructor(context: Context) {
                 account = { accounts.active.value.takeIf { it.isSignedIn }?.let { a -> accounts.cookies(a.id)?.let { jar -> com.greenaltambe.vela.extractor.ytdlp.AccountCookies(a.id, a.label, jar) } } },
                 onCookiesUpdated = { id, jar -> accounts.saveCookies(id, jar) },
                 tempDir = embeddedYtDlp.cookieDir, runner = ytDlpRunner,
+                // Measured on the phone (docs/reports/65): yt-dlp's own pick for a signed-in account is WEB_EMBEDDED_PLAYER, whose
+                // googlevideo URLs answer 403 for any byte range past ~1 MiB without a PO token, so nothing plays. web_safari plays.
+                extraArgs = { listOf("--extractor-args", "youtube:player_client=web_safari") },
             ), ytDlpLabel),
             ExtractorTier(TierId.YT_DLP, PacedExtractor(com.greenaltambe.vela.extractor.ytdlp.YtDlpExtractor(ytDlpRunner, timeout = kotlin.time.Duration.parse("90s"))), ytDlpLabel),
         ).withFaults(faults)
     }
-    val health by lazy { ExtractorHealth(tiers, OkHttpStreamProbe(), DbHealthStore(database), onAlert = { HealthNotifier.show(appContext, it) }, slowTiers = setOf(TierId.YT_DLP), canaries = { ExtractorHealth.DefaultCanaries + remote.canaryVideoIds().map { com.greenaltambe.vela.health.Canary(it, "remote") } }) }
+    val health by lazy { ExtractorHealth(tiers, OkHttpStreamProbe(), DbHealthStore(database), onAlert = { HealthNotifier.show(appContext, it); runCatching { com.greenaltambe.vela.data.NotificationRepository(database, accounts.active.value.id).add(com.greenaltambe.vela.data.NotificationKind.HEALTH, it.message(), "Playback may be broken", Clock.System.now(), body = it.message()) } }, slowTiers = setOf(TierId.YT_DLP), canaries = { ExtractorHealth.DefaultCanaries + remote.canaryVideoIds().map { com.greenaltambe.vela.health.Canary(it, "remote") } }) }
     val chain by lazy {
         FallbackChain(tiers, accountMode = { settings.resolve(Settings.accountFallbackMode) }, log = log, allowAgeRestricted = { settings.resolve(Settings.allowAgeRestricted) },
             signedInAccount = { accounts.active.value.takeIf { it.isSignedIn }?.label },
@@ -173,7 +176,7 @@ class PlaybackRuntime private constructor(context: Context) {
         com.greenaltambe.vela.downloads.AutoDownloader(
             com.greenaltambe.vela.downloads.AutoDownloadStore(SqlDelightSettingsStore(database)), downloadChain, downloads.manager, downloads.repo,
             { com.greenaltambe.vela.data.PlaylistRepository(database, accounts.active.value.id) }, { com.greenaltambe.vela.data.HistoryLibrary(database, accounts.active.value.id) },
-            network, settings, notifier = com.greenaltambe.vela.downloads.AndroidDownloadNotifier(appContext),
+            network, settings, notifier = com.greenaltambe.vela.data.RecordingDownloadNotifier(com.greenaltambe.vela.downloads.AndroidDownloadNotifier(appContext), { com.greenaltambe.vela.data.NotificationRepository(database, accounts.active.value.id) }, { settings.resolve(com.greenaltambe.vela.core.settings.Settings.notifyDownloads) }),
         )
     }
 

@@ -1,10 +1,14 @@
 package com.greenaltambe.vela.ui.screens
 
+import com.greenaltambe.vela.ui.theme.Spacing
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.runtime.key
+import com.greenaltambe.vela.ui.theme.AppIcons
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -59,8 +63,6 @@ import com.greenaltambe.vela.ui.components.SecondaryButton
 import com.greenaltambe.vela.ui.components.SectionHeader
 import com.greenaltambe.vela.ui.components.VelaSearchField
 import com.greenaltambe.vela.ui.components.formatViews
-import com.greenaltambe.vela.ui.look.Vela
-import com.greenaltambe.vela.ui.look.toColor
 import com.greenaltambe.vela.ui.nav.Navigator
 import com.greenaltambe.vela.ui.nav.Route
 import com.greenaltambe.vela.ui.platform.rememberTextFilePicker
@@ -93,6 +95,8 @@ fun SubscriptionsScreen(services: AppServices, navigator: Navigator, modifier: M
 
     com.greenaltambe.vela.ui.components.RefreshBox(isRefreshing = refreshing, onRefresh = { scope.launch { services.feed.refresh() } }, modifier = modifier.fillMaxSize()) {
         val channels = rememberAsync(refreshing, entries, keepWhileLoading = true, first = { services.subscriptions.all() }, compute = { services.subscriptions.all() })
+        val notifRevision by services.notificationsRevision.collectAsState()
+        val unread = rememberAsync(notifRevision, keepWhileLoading = true, first = { emptySet<String>() }, compute = { services.notifications.unreadUploadChannels() })
         // The pipeline (watched lookup included) runs off the main thread; the cached rows show at once through the quick pass.
         val all = rememberAsync(entries, failures, branding, keepWhileLoading = true,
             first = { quickShown(services, entries) },
@@ -117,8 +121,8 @@ fun SubscriptionsScreen(services: AppServices, navigator: Navigator, modifier: M
             services, navigator, shown, state, testTag = "subs.feed",
             onEndReached = if (shown.size < all.size) ({ pageSize += PAGE }) else null,
             header = {
-                Column(verticalArrangement = Arrangement.spacedBy(Vela.md)) {
-                    if (channels.isNotEmpty()) ChannelsRow(channels, navigator)
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                    if (channels.isNotEmpty()) ChannelsRow(channels, navigator, unread)
                     if (shorts.isNotEmpty()) ShortsRow(shorts, navigator)
                     if (failures.isNotEmpty()) ErrorRow("${failures.size} channel(s) could not be refreshed; showing what was cached.", { scope.launch { services.feed.refresh() } }, Modifier.testTag("subs.failures"))
                     if (shown.isNotEmpty()) SectionHeader("New from your channels")
@@ -130,10 +134,9 @@ fun SubscriptionsScreen(services: AppServices, navigator: Navigator, modifier: M
 
 /** The channels you follow, one after another, with "View all" opening the full list. */
 @Composable
-private fun ChannelsRow(channels: List<SubscribedChannel>, navigator: Navigator) {
-    com.greenaltambe.vela.ui.components.ChannelCarousel(
-        "Channels", channels, tag = "subs.channelsRow", seeAllLabel = "View all", onSeeAll = { navigator.push(Route.ManageSubscriptions) },
-        onOpen = { c -> navigator.push(Route.Channel(c.channelId, c.name)) },
+private fun ChannelsRow(channels: List<SubscribedChannel>, navigator: Navigator, unread: Set<String>) {
+    com.greenaltambe.vela.ui.components.ChannelStrip(
+        channels, unread, onOpen = { c -> navigator.push(Route.Channel(c.channelId, c.name)) }, onAll = { navigator.push(Route.ManageSubscriptions) },
     )
 }
 
@@ -144,16 +147,17 @@ private fun ShortsRow(shorts: List<VideoSummary>, navigator: Navigator) {
 }
 
 /**
- * Every channel you follow, as a grid with a search box. Tap opens the channel; press and hold offers Unsubscribe. Import takes a YouTube Takeout
+ * Every channel you follow, as one list with a search box, a bell on each row and the notification level for all of them. Tap opens the channel; the menu offers Unsubscribe. Import takes a YouTube Takeout
  * subscriptions.csv or a NewPipe export.
  */
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun AllChannelsScreen(services: AppServices, navigator: Navigator, modifier: Modifier = Modifier) {
     var revision by remember { mutableStateOf(0) }
     var message by remember { mutableStateOf<String?>(null) }
     var query by remember { mutableStateOf("") }
     val channels = remember(revision) { services.subscriptions.all() }
+    val levels = remember(revision) { services.subscriptions.notifyLevels() }
     val shown = remember(channels, query) { if (query.isBlank()) channels else channels.filter { it.name.contains(query.trim(), ignoreCase = true) } }
     val pick = rememberTextFilePicker { text ->
         message = when {
@@ -170,41 +174,54 @@ fun AllChannelsScreen(services: AppServices, navigator: Navigator, modifier: Mod
             }
         }
     }
-    LazyVerticalGrid(
-        GridCells.Adaptive(minSize = 104.dp), modifier.fillMaxSize().testTag("subs.channels"), contentPadding = Vela.contentPadding,
-        horizontalArrangement = Arrangement.spacedBy(Vela.sm), verticalArrangement = Arrangement.spacedBy(Vela.sm),
+    com.greenaltambe.vela.ui.settings.SettingsScaffold(
+        "Channels", modifier, onBack = { navigator.back() }, listTag = "subs.channels",
+        actions = { com.greenaltambe.vela.ui.components.ActionChip(AppIcons.download, "Import", pick, Modifier.padding(end = Spacing.sm).testTag("subs.import")) },
     ) {
-        item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
-            Column(verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("${channels.size} channel${if (channels.size == 1) "" else "s"}", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-                    SecondaryButton("Import", pick, Modifier.testTag("subs.import"))
-                }
+        item(key = "summary") {
+            Column(Modifier.padding(bottom = Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                Text("${channels.size} channel${if (channels.size == 1) "" else "s"} you follow", style = MaterialTheme.typography.titleMedium)
                 if (channels.size > 8) VelaSearchField(query, { query = it }, {}, Modifier.fillMaxWidth(), placeholder = "Search channels")
-                Text("Press and hold a channel to unsubscribe. Import accepts a YouTube Takeout subscriptions.csv or a NewPipe export.", style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor())
+                // Notifications for all of them at once; each channel's own bell is on its row.
+                if (channels.isNotEmpty()) Column(
+                    Modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraLarge).background(MaterialTheme.colorScheme.surfaceContainerLow).padding(Spacing.md),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    Text("Notifications for every channel", style = MaterialTheme.typography.titleSmall)
+                    Text("All also shows a system notification; Personalized only lists new videos in Notifications; None is silent.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        com.greenaltambe.vela.data.NotifyLevel.entries.forEach { l ->
+                            com.greenaltambe.vela.ui.components.ExpressiveChip(levels.values.isNotEmpty() && levels.values.all { it == l }, l.label, { services.subscriptions.setAllNotifyLevels(l); revision++; message = "All channels set to ${l.label}." }, Modifier.testTag("subs.notifyAll.${l.name}"))
+                        }
+                    }
+                }
                 message?.let { Text(it, Modifier.testTag("subs.importMessage"), style = MaterialTheme.typography.bodySmall) }
             }
         }
-        gridItems(shown, key = { it.channelId }) { c ->
+        itemsIndexed(shown, key = { _, c -> c.channelId }) { i, c ->
             var menu by remember { mutableStateOf(false) }
-            Box {
-                Column(
-                    Modifier.fillMaxWidth().clip(Vela.mediumShape).background(Vela.colors.surface.toColor())
-                        .combinedClickable(onClick = { navigator.push(Route.Channel(c.channelId, c.name)) }, onLongClick = { menu = true })
-                        .padding(vertical = Vela.md, horizontal = Vela.xs).testTag("subs.channelTile"),
-                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Vela.xs),
-                ) {
-                    Avatar(c.name, size = 64.dp, url = c.avatarUrl)
-                    Text(c.name, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
-                }
-                DropdownMenu(menu, { menu = false }) {
-                    DropdownMenuItem(
-                        text = { Text("Unsubscribe") },
-                        onClick = { menu = false; services.subscriptions.unsubscribe(c.channelId); revision++; services.feed.reload() },
-                        modifier = Modifier.testTag("subs.unsubscribe"),
-                    )
-                }
-            }
+            androidx.compose.material3.SegmentedListItem(
+                onClick = { navigator.push(Route.Channel(c.channelId, c.name)) },
+                shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(i, shown.size), colors = com.greenaltambe.vela.ui.settings.segmentedItemColors(),
+                leadingContent = { Avatar(c.name, size = 48.dp, url = c.avatarUrl) },
+                supportingContent = { Text(levels[c.channelId]?.label ?: "Personalized", maxLines = 1) },
+                trailingContent = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        key(revision) { com.greenaltambe.vela.ui.screens.ChannelBell(services, c.channelId, connected = false, onChanged = { revision++ }) }
+                        Box {
+                            androidx.compose.material3.IconButton(onClick = { menu = true }, modifier = Modifier.testTag("subs.channelMenu")) { androidx.compose.material3.Icon(AppIcons.more, "Options") }
+                            DropdownMenu(menu, { menu = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("Unsubscribe") },
+                                    onClick = { menu = false; services.subscriptions.unsubscribe(c.channelId); revision++; services.feed.reload() },
+                                    modifier = Modifier.testTag("subs.unsubscribe"),
+                                )
+                            }
+                        }
+                    }
+                },
+                modifier = Modifier.testTag("subs.channelTile"),
+            ) { Text(c.name, maxLines = 1, overflow = TextOverflow.Ellipsis) }
         }
     }
 }

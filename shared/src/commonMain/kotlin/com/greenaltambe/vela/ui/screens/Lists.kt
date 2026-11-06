@@ -1,5 +1,6 @@
 package com.greenaltambe.vela.ui.screens
 
+import com.greenaltambe.vela.ui.theme.Spacing
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,7 +40,6 @@ import com.greenaltambe.vela.ui.components.VideoCard
 import com.greenaltambe.vela.ui.components.VideoCardStyle
 import com.greenaltambe.vela.ui.layout.WindowSizeClass
 import com.greenaltambe.vela.ui.layout.LocalWindowSize
-import com.greenaltambe.vela.ui.look.Vela
 import com.greenaltambe.vela.ui.nav.Navigator
 import com.greenaltambe.vela.ui.nav.Route
 
@@ -118,7 +118,7 @@ fun VideoCollection(
     val subscribedAvatars = sharedAvatars ?: rememberAsync(keepWhileLoading = true, first = { emptyMap<String, String?>() }, compute = { services.subscriptions.all().filter { it.avatarUrl != null }.associate { it.channelId to it.avatarUrl } })
     val videos = remember(videos, subscribedAvatars) { if (subscribedAvatars.isEmpty()) videos else videos.map { v -> if (v.channelAvatarUrl == null) subscribedAvatars[v.channelId]?.let { v.copy(channelAvatarUrl = it) } ?: v else v } }
     val extras = sharedExtras ?: rememberCardExtras(services, videos)
-    val padding = Vela.contentPadding
+    val padding = Spacing.contentPadding
     // Remembered so the per-card click lambdas below keep their identity and an unchanged card can be skipped.
     val open = remember(navigator) { { v: VideoSummary -> navigator.push(Route.Video(v)) } }
     // Some listings (shorts, certain search results) carry no channel id; ask the video itself before opening, never open a channel with a blank id.
@@ -133,10 +133,10 @@ fun VideoCollection(
         if (useGrid) gridState.animateScrollToItem(0) else listState.animateScrollToItem(0)
     }
 
-    if (grid && size != WindowSizeClass.COMPACT) {
+    if (useGrid) {
         LazyVerticalGrid(
             GridCells.Adaptive(minSize = 280.dp), modifier.fillMaxSize().testTag(testTag), state = gridState, contentPadding = padding,
-            horizontalArrangement = Arrangement.spacedBy(Vela.md), verticalArrangement = Arrangement.spacedBy(Vela.lg),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.lg),
         ) {
             header?.let { h -> item(key = "list-header", span = { GridItemSpan(maxLineSpan) }, contentType = "header") { h() } }
             // Blocks that belong above the first video come first, then the loading / empty / error state, then the videos with the other blocks between them.
@@ -155,14 +155,15 @@ fun VideoCollection(
                     }
                 }
             }
-            footer?.let { f -> item(key = "list-footer", span = { GridItemSpan(maxLineSpan) }, contentType = "footer") { f() } }
+            // Only after the first video: a list whose only item is the footer anchors its scroll to it, and jumps down to the footer when the videos arrive.
+                footer?.takeIf { rows.rest.isNotEmpty() }?.let { f -> item(key = "list-footer", span = { GridItemSpan(maxLineSpan) }, contentType = "footer") { f() } }
         }
     } else {
         val vertical = grid // a COMPACT feed uses vertical cards; list screens use horizontal rows
         Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
             LazyColumn(
                 Modifier.widthIn(max = if (vertical) Int.MAX_VALUE.dp else 900.dp).fillMaxSize().testTag(testTag),
-                state = listState, contentPadding = padding, verticalArrangement = Arrangement.spacedBy(if (vertical) Vela.lg else Vela.md),
+                state = listState, contentPadding = padding, verticalArrangement = Arrangement.spacedBy(if (vertical) Spacing.lg else Spacing.md),
             ) {
                 header?.let { h -> item(key = "list-header", contentType = "header") { h() } }
                 val problemFirst = state is ListState.Error || state is ListState.Empty
@@ -179,7 +180,8 @@ fun VideoCollection(
                         }
                     }
                 }
-                footer?.let { f -> item(key = "list-footer", contentType = "footer") { f() } }
+                // Only after the first video: a list whose only item is the footer anchors its scroll to it, and jumps down to the footer when the videos arrive.
+                footer?.takeIf { rows.rest.isNotEmpty() }?.let { f -> item(key = "list-footer", contentType = "footer") { f() } }
             }
         }
     }

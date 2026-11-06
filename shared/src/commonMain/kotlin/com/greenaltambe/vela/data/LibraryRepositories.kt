@@ -22,6 +22,17 @@ class SubscriptionRepository(private val db: VelaDatabase, private val accountId
         q.upsert(accountId, channelId, name, avatarUrl, at.toEpochMilliseconds())
     }
 
+    fun notifyLevel(channelId: String): NotifyLevel =
+        q.notifyLevel(accountId, channelId).executeAsOneOrNull()?.let { raw -> NotifyLevel.entries.firstOrNull { it.name == raw } } ?: NotifyLevel.PERSONALIZED
+
+    /** Every channel's level in one query. */
+    fun notifyLevels(): Map<String, NotifyLevel> = q.notifyLevels(accountId).executeAsList().associate { r -> r.channelId to (NotifyLevel.entries.firstOrNull { it.name == r.notifyLevel } ?: NotifyLevel.PERSONALIZED) }
+
+    /** One level for every channel at once. */
+    fun setAllNotifyLevels(level: NotifyLevel) { q.setAllNotifyLevels(level.name, accountId) }
+
+    fun setNotifyLevel(channelId: String, level: NotifyLevel) { q.setNotifyLevel(level.name, accountId, channelId) }
+
     fun unsubscribe(channelId: String) {
         q.delete(accountId, channelId)
     }

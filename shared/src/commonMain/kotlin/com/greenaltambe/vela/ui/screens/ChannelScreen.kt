@@ -1,5 +1,10 @@
 package com.greenaltambe.vela.ui.screens
 
+import com.greenaltambe.vela.ui.theme.AppIcons
+import androidx.compose.foundation.shape.CircleShape
+import com.greenaltambe.vela.ui.theme.ExtraColors
+import com.greenaltambe.vela.ui.theme.Spacing
+import com.greenaltambe.vela.ui.theme.Accent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -44,8 +49,6 @@ import com.greenaltambe.vela.core.settings.shortsEnabled
 import com.greenaltambe.vela.extractor.*
 import com.greenaltambe.vela.ui.components.*
 import com.greenaltambe.vela.ui.look.ComponentIds
-import com.greenaltambe.vela.ui.look.Vela
-import com.greenaltambe.vela.ui.look.toColor
 import com.greenaltambe.vela.ui.nav.Navigator
 import com.greenaltambe.vela.ui.nav.Route
 import kotlinx.coroutines.launch
@@ -155,7 +158,7 @@ fun ChannelScreen(
     }
 
     if (channelError != null && landing == null) {
-        Column(modifier.fillMaxSize().padding(Vela.md)) {
+        Column(modifier.fillMaxSize().padding(Spacing.md)) {
             ErrorRow(channelError!!, onRetry = { loadLanding() })
         }
         return
@@ -258,29 +261,32 @@ fun ChannelScreen(
                         }
                     }
                     .offset { IntOffset(0, headerOffsetPx.roundToInt()) }
-                    .background(Vela.colors.surface.toColor())
-                    .padding(horizontal = Vela.md, vertical = Vela.sm),
-                verticalArrangement = Arrangement.spacedBy(Vela.sm)
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
             ) {
                 pageHeader?.bannerUrl?.let { banner ->
-                    AsyncImage(banner, null, Modifier.fillMaxWidth().aspectRatio(16f / 4.5f).clip(Vela.thumbnailShape).testTag("channel.banner"), contentScale = ContentScale.Crop)
+                    AsyncImage(banner, null, Modifier.fillMaxWidth().aspectRatio(16f / 4.5f).clip(MaterialTheme.shapes.medium).testTag("channel.banner"), contentScale = ContentScale.Crop)
                 }
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.md)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
                     Avatar(name, size = 64.dp, url = pageHeader?.avatarUrl)
                     Column(Modifier.weight(1f)) {
                         Text(name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("channel.name"))
-                        formatCount(pageHeader?.subscriberCount)?.let { Text("$it subscribers", style = MaterialTheme.typography.bodySmall, maxLines = 1, color = Vela.colors.onSurfaceVariant.toColor()) }
+                        formatCount(pageHeader?.subscriberCount)?.let { Text("$it subscribers", style = MaterialTheme.typography.bodySmall, maxLines = 1, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     }
                 }
                 if (subscribed) {
-                    OutlinedButton(onClick = { services.subscriptions.unsubscribe(channelId); services.feed.reload(); subscribed = false }, modifier = Modifier.testTag("channel.subscribe")) { Text("Subscribed", maxLines = 1) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(androidx.compose.material3.ButtonGroupDefaults.ConnectedSpaceBetween), verticalAlignment = Alignment.CenterVertically) {
+                        com.greenaltambe.vela.ui.components.SubscribeButton(true, onClick = { services.subscriptions.unsubscribe(channelId); services.feed.reload(); subscribed = false }, modifier = Modifier.testTag("channel.subscribe"), position = com.greenaltambe.vela.ui.components.ActionPosition.LEADING)
+                        ChannelBell(services, channelId)
+                    }
                 } else {
                     PrimaryButton("Subscribe", onClick = { services.subscriptions.subscribe(channelId, name, pageHeader?.avatarUrl, services.clock.now()); subscribed = true }, modifier = Modifier.testTag("channel.subscribe"))
                 }
 
                 if (subscribed && services.downloads != null) {
                     var auto by remember(channelId) { mutableStateOf(services.autoDownloadRules.ruleFor(channelId)?.enabled == true) }
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                         androidx.compose.material3.Switch(auto, {
                             auto = it
                             if (it) services.autoDownloadRules.upsert(com.greenaltambe.vela.downloads.AutoDownloadRule(channelId, name, sinceMs = services.clock.now().toEpochMilliseconds()))
@@ -293,11 +299,11 @@ fun ChannelScreen(
                 // Short description snippet that opens About sheet
                 pageHeader?.description?.takeIf { it.isNotBlank() }?.let { desc ->
                     Row(
-                        Modifier.fillMaxWidth().clip(Vela.mediumShape).background(Vela.colors.surfaceVariant.toColor()).clickable { aboutSheetOpen = true }.padding(Vela.sm).testTag("channel.aboutTrigger"),
+                        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceContainerHigh).clickable { aboutSheetOpen = true }.padding(Spacing.sm).testTag("channel.aboutTrigger"),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(desc, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f), color = Vela.colors.onSurfaceVariant.toColor())
-                        Text(" More", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = Vela.colors.primary.toColor())
+                        Text(desc, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(" More", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
                     }
                 }
             }
@@ -307,18 +313,18 @@ fun ChannelScreen(
         if (tabs.isNotEmpty()) {
             ScrollableTabRow(
                 selectedTabIndex = pagerState.currentPage,
-                edgePadding = Vela.md,
-                containerColor = Vela.colors.surface.toColor(),
-                contentColor = Vela.colors.onSurface.toColor(),
+                edgePadding = Spacing.md,
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                contentColor = MaterialTheme.colorScheme.onSurface,
                 indicator = { tabPositions ->
                     if (pagerState.currentPage < tabPositions.size) {
                         TabRowDefaults.SecondaryIndicator(
                             Modifier.tabIndicatorOffset(tabPositions[pagerState.currentPage]),
-                            color = Vela.colors.primary.toColor()
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
                 },
-                divider = { HorizontalDivider(color = Vela.colors.outline.toColor()) },
+                divider = { HorizontalDivider(color = MaterialTheme.colorScheme.outline) },
                 modifier = Modifier.fillMaxWidth().testTag("channel.tabs")
             ) {
                 tabs.forEachIndexed { index, tabItem ->
@@ -331,7 +337,7 @@ fun ChannelScreen(
                                 tabItem.title,
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                                color = if (isSelected) Vela.colors.primary.toColor() else Vela.colors.onSurfaceVariant.toColor(),
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1
                             )
                         },
@@ -349,7 +355,7 @@ fun ChannelScreen(
                 // Until the landing arrives the tab list is only a placeholder; loading those tabs would hit tabs this channel/tier may not
                 // support (a flash of "Could not load: not supported" before the real page lands), so wait and show skeletons.
                 if (landing == null) {
-                    Column(Modifier.fillMaxSize().padding(Vela.contentPadding), verticalArrangement = Arrangement.spacedBy(Vela.lg)) { repeat(3) { SkeletonCard(vertical = true) } }
+                    Column(Modifier.fillMaxSize().padding(Spacing.contentPadding), verticalArrangement = Arrangement.spacedBy(Spacing.lg)) { repeat(3) { SkeletonCard(vertical = true, fullBleed = com.greenaltambe.vela.ui.layout.LocalWindowSize.current == com.greenaltambe.vela.ui.layout.WindowSizeClass.COMPACT) } }
                     return@HorizontalPager
                 }
                 val feed = st.feedFor(tab.kind.name)
@@ -371,12 +377,7 @@ fun ChannelScreen(
 
     // Full About Bottom Sheet
     if (aboutSheetOpen) {
-        ModalBottomSheet(
-            onDismissRequest = { aboutSheetOpen = false },
-            containerColor = Vela.colors.surface.toColor(),
-            contentColor = Vela.colors.onSurface.toColor(),
-            modifier = Modifier.testTag("channel.aboutSheet")
-        ) {
+        com.greenaltambe.vela.ui.components.VelaSheet({ aboutSheetOpen = false }, Modifier.testTag("channel.aboutSheet")) {
             ChannelAboutContent(
                 services = services,
                 channelId = channelId,
@@ -390,12 +391,7 @@ fun ChannelScreen(
 
     // Post Detail Sheet with comments
     activePostDetail?.let { post ->
-        ModalBottomSheet(
-            onDismissRequest = { activePostDetail = null },
-            containerColor = Vela.colors.surface.toColor(),
-            contentColor = Vela.colors.onSurface.toColor(),
-            modifier = Modifier.testTag("channel.postDetailSheet")
-        ) {
+        com.greenaltambe.vela.ui.components.VelaSheet({ activePostDetail = null }, Modifier.testTag("channel.postDetailSheet")) {
             PostDetailContent(services, navigator, post, onDismiss = { activePostDetail = null })
         }
     }
@@ -475,8 +471,8 @@ private fun ChannelTabPane(
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize().testTag("channel.list"),
-        contentPadding = Vela.contentPadding,
-        verticalArrangement = Arrangement.spacedBy(Vela.md)
+        contentPadding = Spacing.contentPadding,
+        verticalArrangement = Arrangement.spacedBy(Spacing.md)
     ) {
         // Refreshed Notice banner when continuation expired and feed reloaded from page 1
         if (feed.refreshedNotice) {
@@ -484,9 +480,9 @@ private fun ChannelTabPane(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(Vela.mediumShape)
-                        .background(Vela.colors.surfaceVariant.toColor())
-                        .padding(horizontal = Vela.md, vertical = Vela.xs)
+                        .clip(MaterialTheme.shapes.medium)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .padding(horizontal = Spacing.md, vertical = Spacing.xs)
                         .testTag("channel.refreshedNotice"),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -494,13 +490,13 @@ private fun ChannelTabPane(
                     Text(
                         "Refreshed",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Vela.colors.onSurfaceVariant.toColor()
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     IconButton(
                         onClick = { feed.refreshedNotice = false },
                         modifier = Modifier.size(24.dp)
                     ) {
-                        Icon(Vela.icons.close, contentDescription = "Dismiss", modifier = Modifier.size(16.dp))
+                        Icon(AppIcons.close, contentDescription = "Dismiss", modifier = Modifier.size(16.dp))
                     }
                 }
             }
@@ -525,9 +521,9 @@ private fun ChannelTabPane(
         if (tab.kind == ChannelTabKind.SEARCH) {
             item {
                 Row(
-                    Modifier.fillMaxWidth().padding(vertical = Vela.xs),
+                    Modifier.fillMaxWidth().padding(vertical = Spacing.xs),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Vela.sm)
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
                 ) {
                     OutlinedTextField(
                         value = searchQuery,
@@ -549,7 +545,7 @@ private fun ChannelTabPane(
         // Loading Skeleton
         if (feed.state == ListState.Loading && feed.items.isEmpty() && feed.shelves.isEmpty()) {
             items(4) {
-                SkeletonCard(vertical = true)
+                SkeletonCard(vertical = true, fullBleed = com.greenaltambe.vela.ui.layout.LocalWindowSize.current == com.greenaltambe.vela.ui.layout.WindowSizeClass.COMPACT)
             }
         }
 
@@ -580,18 +576,18 @@ private fun ChannelTabPane(
                 HScrollRow {
                     items(shelf.items) { item ->
                         if (isShortsShelf && item is ChannelItem.Video) {
-                            Box(Modifier.width(150.dp).padding(end = Vela.sm)) {
+                            Box(Modifier.width(150.dp).padding(end = Spacing.sm)) {
                                 ShortCard(
                                     video = item.summary,
                                     onClick = { navigator.push(Route.Video(item.summary)) }
                                 )
                             }
                         } else if (item is ChannelItem.Post) {
-                            Box(Modifier.width(280.dp).height(200.dp).padding(end = Vela.sm)) {
+                            Box(Modifier.width(280.dp).height(200.dp).padding(end = Spacing.sm)) {
                                 ChannelItemCard(services, navigator, item, onOpenPostDetail, inHorizontalShelf = true)
                             }
                         } else {
-                            Box(Modifier.width(280.dp).padding(end = Vela.sm)) {
+                            Box(Modifier.width(280.dp).padding(end = Spacing.sm)) {
                                 ChannelItemCard(services, navigator, item, onOpenPostDetail)
                             }
                         }
@@ -607,7 +603,7 @@ private fun ChannelTabPane(
             items(chunked) { rowItems ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(Vela.sm)
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
                 ) {
                     for (item in rowItems) {
                         Box(Modifier.weight(1f)) {
@@ -631,9 +627,9 @@ private fun ChannelTabPane(
         // Load More button / Paging
         if (feed.nextToken != null) {
             item {
-                Box(Modifier.fillMaxWidth().padding(Vela.sm), contentAlignment = Alignment.Center) {
+                Box(Modifier.fillMaxWidth().padding(Spacing.sm), contentAlignment = Alignment.Center) {
                     if (feed.loading) {
-                        CircularProgressIndicator(color = Vela.colors.primary.toColor(), modifier = Modifier.size(28.dp))
+                        LoadingSpinner(color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
                     } else {
                         TextButton(
                             onClick = { load(more = true) },
@@ -686,27 +682,27 @@ internal fun PlaylistRow(p: PlaylistRef, onClick: () -> Unit) = CourseOrPlaylist
 @Composable
 private fun CourseOrPlaylistCard(p: PlaylistRef, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(Vela.mediumShape).clickable(onClick = onClick).padding(Vela.xs).testTag("channel.playlist"),
-        horizontalArrangement = Arrangement.spacedBy(Vela.sm)
+        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).background(MaterialTheme.colorScheme.surfaceContainerLow).clickable(onClick = onClick).padding(Spacing.xs).testTag("channel.playlist"),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
     ) {
-        Box(Modifier.width(140.dp).aspectRatio(16f / 9f).clip(Vela.thumbnailShape).background(Vela.colors.surfaceVariant.toColor())) {
+        Box(Modifier.width(140.dp).aspectRatio(16f / 9f).clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceContainerHigh)) {
             p.thumbnailUrl?.let { AsyncImage(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
             Row(
-                Modifier.align(Alignment.BottomEnd).padding(Vela.xs).clip(Vela.pillShape).background(Vela.colors.surface.toColor().copy(alpha = 0.85f)).padding(horizontal = Vela.xs, vertical = 2.dp).testTag("playlist.badge"),
+                Modifier.align(Alignment.BottomEnd).padding(Spacing.xs).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.85f)).padding(horizontal = Spacing.xs, vertical = 2.dp).testTag("playlist.badge"),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                Icon(Vela.icons.playlist, null, Modifier.size(16.dp), tint = Vela.colors.onSurface.toColor())
+                Icon(AppIcons.playlist, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurface)
                 val badgeText = if (p.isCourse) "COURSE" else p.videoCount?.toString()
-                badgeText?.let { Text(it, style = MaterialTheme.typography.labelSmall, maxLines = 1, color = Vela.colors.onSurface.toColor()) }
+                badgeText?.let { Text(it, style = MaterialTheme.typography.labelSmall, maxLines = 1, color = MaterialTheme.colorScheme.onSurface) }
             }
         }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             Text(p.title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 3, overflow = TextOverflow.Ellipsis)
             if (p.isCourse && p.lessonCountText != null) {
-                Text(p.lessonCountText!!, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = Vela.colors.primary.toColor())
+                Text(p.lessonCountText!!, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
             } else if (p.videoCount != null) {
-                Text("${p.videoCount} videos", style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor())
+                Text("${p.videoCount} videos", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -721,23 +717,23 @@ private fun ShortCard(
 ) {
     val source = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     val hovered by source.collectIsHoveredAsState()
-    val hover = if (hovered) Modifier.border(2.dp, Vela.wake, Vela.mediumShape).background(Vela.colors.onSurface.toColor().copy(alpha = 0.05f), Vela.mediumShape) else Modifier
+    val hover = if (hovered) Modifier.border(2.dp, Accent.brush, MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f), MaterialTheme.shapes.medium) else Modifier
 
     Column(
         modifier = modifier
             .fillMaxWidth()
             .testTag(ComponentIds.VIDEO_CARD)
             .then(hover)
-            .clip(Vela.mediumShape)
+            .clip(MaterialTheme.shapes.medium)
             .clickable(onClick = onClick)
-            .padding(Vela.xs)
+            .padding(Spacing.xs)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(9f / 16f)
-                .clip(Vela.thumbnailShape)
-                .background(Vela.colors.surfaceVariant.toColor())
+                .clip(MaterialTheme.shapes.medium)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 .testTag("card.thumbnail")
         ) {
             val shown = video.thumbnailUrl ?: if (video.id.isNotBlank()) "https://i.ytimg.com/vi/${video.id}/frame0.jpg" else null
@@ -748,12 +744,12 @@ private fun ShortCard(
                 "SHORT",
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(Vela.xs)
-                    .clip(Vela.smallShape)
-                    .background(Vela.colors.primary.toColor())
-                    .padding(horizontal = Vela.xs),
+                    .padding(Spacing.xs)
+                    .clip(MaterialTheme.shapes.small)
+                    .background(MaterialTheme.colorScheme.primary)
+                    .padding(horizontal = Spacing.xs),
                 style = MaterialTheme.typography.bodySmall,
-                color = Vela.colors.onMedia.toColor(),
+                color = ExtraColors.onMedia,
                 maxLines = 1
             )
             val statText = video.viewCount?.let { formatViews(it) } ?: video.publishedText
@@ -762,17 +758,17 @@ private fun ShortCard(
                     statText,
                     modifier = Modifier
                         .align(Alignment.BottomStart)
-                        .padding(Vela.xs)
-                        .clip(Vela.smallShape)
-                        .background(Vela.colors.background.toColor().copy(alpha = 0.85f))
-                        .padding(horizontal = Vela.xs),
+                        .padding(Spacing.xs)
+                        .clip(MaterialTheme.shapes.small)
+                        .background(MaterialTheme.colorScheme.background.copy(alpha = 0.85f))
+                        .padding(horizontal = Spacing.xs),
                     style = MaterialTheme.typography.bodySmall,
-                    color = Vela.colors.onBackground.toColor(),
+                    color = MaterialTheme.colorScheme.onBackground,
                     maxLines = 1
                 )
             }
         }
-        Spacer(Modifier.height(Vela.xs))
+        Spacer(Modifier.height(Spacing.xs))
         Text(
             video.title,
             style = MaterialTheme.typography.bodyMedium,
@@ -793,18 +789,18 @@ private fun PostCard(
     onOpenDetail: () -> Unit,
     inHorizontalShelf: Boolean = false,
 ) {
-    val linkColor = Vela.colors.primary.toColor()
+    val linkColor = MaterialTheme.colorScheme.primary
     val baseModifier = if (inHorizontalShelf) Modifier.fillMaxSize() else Modifier.fillMaxWidth()
     Column(
-        baseModifier.clip(Vela.mediumShape).background(Vela.colors.surface.toColor()).padding(Vela.md).testTag("channel.post"),
-        verticalArrangement = Arrangement.spacedBy(Vela.sm)
+        baseModifier.clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceContainerLow).padding(Spacing.md).testTag("channel.post"),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm)
     ) {
         // Author header
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             Avatar(post.authorName, size = 36.dp, url = post.authorAvatarUrl)
             Column(Modifier.weight(1f)) {
                 Text(post.authorName, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                post.publishedText?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor()) }
+                post.publishedText?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
         }
 
@@ -822,33 +818,33 @@ private fun PostCard(
         // Post Attachment
         when (val att = post.attachment) {
             is PostAttachment.Image -> {
-                val imgMod = if (inHorizontalShelf) Modifier.fillMaxWidth().height(70.dp).clip(Vela.mediumShape) else Modifier.fillMaxWidth().clip(Vela.mediumShape)
+                val imgMod = if (inHorizontalShelf) Modifier.fillMaxWidth().height(70.dp).clip(MaterialTheme.shapes.medium) else Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium)
                 AsyncImage(att.url, null, imgMod, contentScale = if (inHorizontalShelf) ContentScale.Crop else ContentScale.FillWidth)
             }
             is PostAttachment.MultiImage -> {
                 if (inHorizontalShelf) {
                     att.images.firstOrNull()?.let { img ->
-                        AsyncImage(img.url, null, Modifier.fillMaxWidth().height(70.dp).clip(Vela.mediumShape), contentScale = ContentScale.Crop)
+                        AsyncImage(img.url, null, Modifier.fillMaxWidth().height(70.dp).clip(MaterialTheme.shapes.medium), contentScale = ContentScale.Crop)
                     }
                 } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                         att.images.forEach { img ->
-                            AsyncImage(img.url, null, Modifier.fillMaxWidth().clip(Vela.mediumShape), contentScale = ContentScale.FillWidth)
+                            AsyncImage(img.url, null, Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium), contentScale = ContentScale.FillWidth)
                         }
                     }
                 }
             }
             is PostAttachment.Poll -> {
                 val choices = if (inHorizontalShelf) att.choices.take(2) else att.choices
-                Column(Modifier.fillMaxWidth().padding(vertical = Vela.xs), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
+                Column(Modifier.fillMaxWidth().padding(vertical = Spacing.xs), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                     choices.forEach { choice ->
                         val ratio = choice.voteRatio?.toFloat() ?: 0f
                         Box(
-                            Modifier.fillMaxWidth().height(if (inHorizontalShelf) 26.dp else 40.dp).clip(Vela.smallShape).background(Vela.colors.surfaceVariant.toColor()).padding(horizontal = Vela.sm),
+                            Modifier.fillMaxWidth().height(if (inHorizontalShelf) 26.dp else 40.dp).clip(MaterialTheme.shapes.small).background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(horizontal = Spacing.sm),
                             contentAlignment = Alignment.CenterStart
                         ) {
                             if (ratio > 0f) {
-                                Box(Modifier.fillMaxHeight().fillMaxWidth(ratio).clip(Vela.smallShape).background(Vela.colors.primary.toColor().copy(alpha = 0.25f)))
+                                Box(Modifier.fillMaxHeight().fillMaxWidth(ratio).clip(MaterialTheme.shapes.small).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)))
                             }
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                 Text(choice.text, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -857,13 +853,13 @@ private fun PostCard(
                         }
                     }
                     if (!inHorizontalShelf) {
-                        att.totalVotesText?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor()) }
+                        att.totalVotesText?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     }
                 }
             }
             is PostAttachment.Video -> {
                 if (inHorizontalShelf) {
-                    Box(Modifier.fillMaxWidth().height(60.dp).clip(Vela.smallShape).background(Vela.colors.surfaceVariant.toColor()).clickable { navigator.push(Route.Video(att.video)) }.padding(Vela.xs)) {
+                    Box(Modifier.fillMaxWidth().height(60.dp).clip(MaterialTheme.shapes.small).background(MaterialTheme.colorScheme.surfaceContainerHigh).clickable { navigator.push(Route.Video(att.video)) }.padding(Spacing.xs)) {
                         Text(att.video.title, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                 } else {
@@ -878,14 +874,14 @@ private fun PostCard(
 
         // Actions: Likes & Comments
         Row(
-            Modifier.fillMaxWidth().padding(top = Vela.xs),
+            Modifier.fillMaxWidth().padding(top = Spacing.xs),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Vela.md)
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
             post.voteCountText?.let {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.xs)) {
-                    Icon(Vela.icons.like, null, Modifier.size(16.dp), tint = Vela.colors.onSurfaceVariant.toColor())
-                    Text(it, style = MaterialTheme.typography.labelMedium, color = Vela.colors.onSurfaceVariant.toColor())
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                    Icon(AppIcons.like, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             if (post.detailBrowseParams != null) {
@@ -957,7 +953,7 @@ private fun ChannelAboutContent(
 ) {
     var about by remember { mutableStateOf(initialAbout) }
     var loading by remember { mutableStateOf(about == null) }
-    val linkColor = Vela.colors.primary.toColor()
+    val linkColor = MaterialTheme.colorScheme.primary
 
     LaunchedEffect(channelId) {
         if (about == null) {
@@ -973,54 +969,54 @@ private fun ChannelAboutContent(
     }
 
     Column(
-        Modifier.fillMaxWidth().padding(Vela.md),
-        verticalArrangement = Arrangement.spacedBy(Vela.md)
+        Modifier.fillMaxWidth().padding(Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(Spacing.md)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             Text("About this channel", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             if (about?.isPartial == true) {
                 Text(
                     "Partial info (fallback mode)",
                     style = MaterialTheme.typography.labelSmall,
-                    color = Vela.colors.onSurfaceVariant.toColor(),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
-                        .clip(Vela.pillShape)
-                        .background(Vela.colors.surfaceVariant.toColor())
-                        .padding(horizontal = Vela.xs, vertical = 2.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .padding(horizontal = Spacing.xs, vertical = 2.dp)
                         .testTag("channel.about.partial")
                 )
             }
         }
         if (loading) {
-            CircularProgressIndicator(color = Vela.colors.primary.toColor(), modifier = Modifier.align(Alignment.CenterHorizontally))
+            LoadingSpinner(color = MaterialTheme.colorScheme.primary, modifier = Modifier.align(Alignment.CenterHorizontally))
         } else {
             val a = about ?: ChannelAbout()
             if (a.description.isNotBlank()) {
                 val annotated = remember(a.description, linkColor) { linkedText(a.description, linkColor) {} }
                 Text(annotated, style = MaterialTheme.typography.bodyMedium)
             }
-            HorizontalDivider(color = Vela.colors.outline.toColor())
-            Column(verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
-                a.subscriberCountText?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor()) }
-                a.videoCountText?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor()) }
-                a.viewCountText?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor()) }
-                a.joinedDateText?.let { Text("Joined $it", style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor()) }
-                a.country?.let { Text("Country: $it", style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor()) }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                a.subscriberCountText?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                a.videoCountText?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                a.viewCountText?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                a.joinedDateText?.let { Text("Joined $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                a.country?.let { Text("Country: $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
             if (a.links.isNotEmpty()) {
-                HorizontalDivider(color = Vela.colors.outline.toColor())
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
                 Text("Links", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                Column(verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                     a.links.forEach { link ->
                         Row(
-                            Modifier.fillMaxWidth().clip(Vela.mediumShape).clickable { onOpenLink(link.url) }.padding(vertical = Vela.xs),
+                            Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).clickable { onOpenLink(link.url) }.padding(vertical = Spacing.xs),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(Vela.sm)
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
                         ) {
-                            Icon(Vela.icons.link, null, Modifier.size(16.dp), tint = Vela.colors.primary.toColor())
+                            Icon(AppIcons.link, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
                             Column(Modifier.weight(1f)) {
                                 Text(link.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 1)
-                                Text(link.displayUrl, style = MaterialTheme.typography.bodySmall, color = Vela.colors.primary.toColor(), maxLines = 1)
+                                Text(link.displayUrl, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, maxLines = 1)
                             }
                         }
                     }
@@ -1055,35 +1051,35 @@ private fun PostDetailContent(
     }
 
     LazyColumn(
-        Modifier.fillMaxWidth().padding(Vela.md),
-        verticalArrangement = Arrangement.spacedBy(Vela.md)
+        Modifier.fillMaxWidth().padding(Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(Spacing.md)
     ) {
         item {
             PostCard(services, navigator, post, onOpenDetail = {})
         }
         item {
-            HorizontalDivider(color = Vela.colors.outline.toColor())
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
             Text("Comments", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         }
         if (loading) {
             item {
-                Box(Modifier.fillMaxWidth().padding(Vela.md), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Vela.colors.primary.toColor())
+                Box(Modifier.fillMaxWidth().padding(Spacing.md), contentAlignment = Alignment.Center) {
+                    LoadingSpinner(color = MaterialTheme.colorScheme.primary)
                 }
             }
         } else if (comments.isEmpty()) {
             item {
-                Text("No comments on this post.", style = MaterialTheme.typography.bodyMedium, color = Vela.colors.onSurfaceVariant.toColor())
+                Text("No comments on this post.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         } else {
             items(comments) { comment ->
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     Avatar(comment.author, size = 32.dp)
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.xs)) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                             Text(comment.author, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                             if (comment.publishedText.isNotBlank()) {
-                                Text(comment.publishedText, style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor())
+                                Text(comment.publishedText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                         Text(comment.text, style = MaterialTheme.typography.bodyMedium)

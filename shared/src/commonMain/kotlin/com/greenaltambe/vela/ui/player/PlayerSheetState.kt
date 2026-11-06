@@ -53,8 +53,11 @@ class PlayerSheetState(
     var startSeconds by mutableStateOf<Long?>(null)
         private set
 
-    val isExpanded: Boolean get() = progress > 0.85f && currentVideo != null && slideY < 100f
-    val isCollapsed: Boolean get() = progress < 0.15f && currentVideo != null
+    // Derived, so composition that reads them is invalidated only when the answer flips, not on every frame of a drag or an animation.
+    private val expandedState = androidx.compose.runtime.derivedStateOf { progress > 0.85f && currentVideo != null && slideY < 100f }
+    private val collapsedState = androidx.compose.runtime.derivedStateOf { progress < 0.15f && currentVideo != null }
+    val isExpanded: Boolean get() = expandedState.value
+    val isCollapsed: Boolean get() = collapsedState.value
     val isVisible: Boolean get() = currentVideo != null
 
     /** Restores a video into the collapsed miniplayer without auto-playing. */
@@ -129,6 +132,17 @@ class PlayerSheetState(
             }
             animatable.animateTo(target, spec)
         }
+    }
+
+    /**
+     * The Shorts player takes over the one playback session, so the mini player has nothing left to show: it goes away at once, without stopping
+     * the session (that now belongs to the Short). Not resumed afterwards.
+     */
+    fun releaseForShorts() {
+        scope.launch { slideAnimatable.snapTo(0f); animatable.snapTo(0f) }
+        currentVideo = null
+        startSeconds = null
+        navigator.clearNowPlaying()
     }
 
     /** Dismiss the miniplayer, stopping playback. */

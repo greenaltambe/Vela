@@ -1,5 +1,11 @@
 package com.greenaltambe.vela.ui.player
 
+import com.greenaltambe.vela.ui.theme.AppIcons
+import androidx.compose.foundation.shape.ZeroCornerSize
+import androidx.compose.foundation.shape.CircleShape
+import com.greenaltambe.vela.ui.theme.ExtraColors
+import com.greenaltambe.vela.ui.theme.Spacing
+import com.greenaltambe.vela.ui.theme.Accent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -45,8 +51,6 @@ import coil3.compose.AsyncImage
 import com.greenaltambe.vela.extractor.Chapter
 import com.greenaltambe.vela.library.currentChapter
 import com.greenaltambe.vela.library.formatTimestamp
-import com.greenaltambe.vela.ui.look.Vela
-import com.greenaltambe.vela.ui.look.toColor
 import kotlinx.coroutines.launch
 
 /**
@@ -72,8 +76,8 @@ fun ChaptersPanel(
     Column(
         modifier
             .graphicsLayer { translationY = drag }
-            .clip(RoundedCornerShape(topStart = Vela.look.radii.largeDp.dp, topEnd = Vela.look.radii.largeDp.dp))
-            .background(Vela.colors.surface.toColor())
+            .clip(MaterialTheme.shapes.large.copy(bottomStart = ZeroCornerSize, bottomEnd = ZeroCornerSize))
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
             .testTag("chapters.panel"),
     ) {
         Column(
@@ -85,51 +89,51 @@ fun ChaptersPanel(
                 },
             ),
         ) {
-            Box(Modifier.align(Alignment.CenterHorizontally).padding(top = Vela.xs).width(36.dp).height(4.dp).clip(Vela.pillShape).background(Vela.colors.outline.toColor()))
+            Box(Modifier.align(Alignment.CenterHorizontally)) { com.greenaltambe.vela.ui.components.SheetHandle() }
             Row(
-                Modifier.fillMaxWidth().padding(start = Vela.gutter, end = Vela.xs, top = Vela.xs),
+                Modifier.fillMaxWidth().padding(start = Spacing.gutter, end = Spacing.xs, top = Spacing.xs),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Vela.sm)
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
             ) {
                 Text("Chapters", style = MaterialTheme.typography.titleMedium)
                 if (chapters.isNotEmpty()) {
                     Text(
                         "${chapters.size}",
-                        Modifier.clip(Vela.pillShape).background(Vela.colors.surfaceVariant.toColor()).padding(horizontal = Vela.sm, vertical = 2.dp).testTag("chapters.count"),
+                        Modifier.clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(horizontal = Spacing.sm, vertical = 2.dp).testTag("chapters.count"),
                         style = MaterialTheme.typography.labelMedium,
-                        color = Vela.colors.onSurfaceVariant.toColor()
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 Spacer(Modifier.weight(1f))
                 IconButton(onClick = onDismiss, modifier = Modifier.testTag("chapters.close")) {
-                    Icon(Vela.icons.close, "Close chapters")
+                    Icon(AppIcons.close, "Close chapters")
                 }
             }
         }
 
         LazyColumn(
             Modifier.fillMaxWidth().weight(1f),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(start = Vela.gutter, end = Vela.gutter, top = Vela.sm, bottom = Vela.lg),
-            verticalArrangement = Arrangement.spacedBy(Vela.sm),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(start = Spacing.gutter, end = Spacing.gutter, top = Spacing.sm, bottom = Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
             items(chapters, key = { "chapter-${it.startSeconds}" }) { c ->
                 val isCurrent = c == current
                 Row(
-                    Modifier.fillMaxWidth().clip(Vela.mediumShape)
-                        .then(if (isCurrent) Modifier.background(Vela.colors.surfaceVariant.toColor()) else Modifier)
+                    Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium)
+                        .then(if (isCurrent) Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh) else Modifier)
                         .clickable { onSeek(c.startSeconds * 1000) }
-                        .padding(Vela.xs)
+                        .padding(Spacing.xs)
                         .testTag("chapters.row"),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Vela.md),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.md),
                 ) {
                     // 16:9 Thumbnail frame box
                     Box(
                         Modifier
                             .width(88.dp)
                             .aspectRatio(16f / 9f)
-                            .clip(Vela.thumbnailShape)
-                            .background(Vela.colors.surfaceVariant.toColor())
+                            .clip(MaterialTheme.shapes.medium)
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                     ) {
                         val thumb = c.thumbnailUrl ?: videoThumbnailUrl
                         if (thumb != null) {
@@ -139,18 +143,18 @@ fun ChaptersPanel(
                         Text(
                             formatTimestamp(c.startSeconds),
                             style = MaterialTheme.typography.labelSmall,
-                            color = Vela.colors.onMedia.toColor(),
+                            color = ExtraColors.onMedia,
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
                                 .padding(2.dp)
-                                .background(Vela.colors.mediaBackground.toColor().copy(alpha = 0.75f), Vela.smallShape)
+                                .background(ExtraColors.mediaBackground.copy(alpha = 0.75f), MaterialTheme.shapes.small)
                                 .padding(horizontal = 4.dp, vertical = 1.dp)
                         )
                         if (isCurrent) {
                             Box(
                                 Modifier
                                     .fillMaxSize()
-                                    .border(2.dp, Brush.horizontalGradient(Vela.look.accent.wake.map { it.toColor() }), Vela.thumbnailShape)
+                                    .border(2.dp, Brush.horizontalGradient(Accent.colors), MaterialTheme.shapes.medium)
                             )
                         }
                     }
@@ -164,14 +168,14 @@ fun ChaptersPanel(
                             c.title,
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Normal,
-                            color = if (isCurrent) Vela.colors.primary.toColor() else Vela.colors.onSurface.toColor(),
+                            color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             formatTimestamp(c.startSeconds),
                             style = MaterialTheme.typography.bodySmall,
-                            color = Vela.colors.onSurfaceVariant.toColor()
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
 
@@ -181,8 +185,8 @@ fun ChaptersPanel(
                             Modifier
                                 .width(4.dp)
                                 .height(28.dp)
-                                .clip(Vela.pillShape)
-                                .background(Vela.wake)
+                                .clip(CircleShape)
+                                .background(Accent.brush)
                         )
                     }
                 }

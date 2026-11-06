@@ -136,7 +136,13 @@ class FallbackChain(
         }
 
         val failures = mutableListOf<Pair<TierId, ExtractorError>>()
+        // Details are for the account only when the setting says so, or when the anonymous tiers were told to sign in (their IP is bot-checked): then nothing else can answer.
+        val detailsNeedSignIn = op == AccountOp.DETAILS && !accountMayServe(op)
         for (tier in toTry) {
+            if (tier.id == TierId.AUTHENTICATED && detailsNeedSignIn && !signInSeen) {
+                record(subject, tier.id, AttemptOutcome.SKIPPED, null, "The account is not used for this unless the other tiers ask for a sign-in", Duration.ZERO)
+                continue
+            }
             if (signInSeen && tier.id != TierId.AUTHENTICATED && TierId.AUTHENTICATED in available &&
                 signInFailures[tier.id]?.let { clock.now() - it < ttl } == true
             ) {
@@ -250,7 +256,7 @@ class FallbackChain(
         val mode = accountMode()
         var usable = tiers.filter { tier ->
             val why = if (tier.id != TierId.AUTHENTICATED) null else when {
-                op == AccountOp.NEVER || !accountMayServe(op) -> "The account is not used for this"
+                op == AccountOp.NEVER || (!accountMayServe(op) && op != AccountOp.DETAILS) -> "The account is not used for this"
                 signedInAccount != null && account == null -> "No signed-in account"
                 mode == AccountFallbackMode.NEVER -> "Account fallback is set to never"
                 else -> accountPaused()

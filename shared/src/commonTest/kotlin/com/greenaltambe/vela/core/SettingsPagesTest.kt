@@ -34,9 +34,9 @@ class SettingsPagesTest {
         assertEquals("SponsorBlock on · RYD on · DeArrow off", SettingsSummaries.of(extras, s))
         s.set(Settings.deArrowEnabled, true); assertEquals("SponsorBlock on · RYD on · DeArrow on", SettingsSummaries.of(extras, s))
         val customize = SettingsPages.byId("customize")!!
-        assertEquals("System · Floating · 4 tabs", SettingsSummaries.of(customize, s))
-        s.set(LookSettings.theme, ThemeMode.DARK); s.set(Settings.look, LookChoice.PURE_BLACK); s.set(LookSettings.navTabs, "home,search,library,downloads"); s.set(LookSettings.barStyle, BarStyle.DOCKED)
-        assertEquals("Dark · pure black · Docked · 4 tabs", SettingsSummaries.of(customize, s))
+        assertEquals("System · Wavy (Material) progress bar", SettingsSummaries.of(customize, s))
+        s.set(LookSettings.theme, ThemeMode.DARK); s.set(LookSettings.progressStyle, ProgressStyle.WAVE)
+        assertEquals("Dark · Wave (classic) progress bar", SettingsSummaries.of(customize, s))
         assertTrue(SettingsSummaries.of(SettingsPages.byId("playback")!!, s).contains("x"))
         for (p in SettingsPages.all) assertTrue(SettingsSummaries.of(p, s).isNotBlank(), "${p.id} has a summary")
     }

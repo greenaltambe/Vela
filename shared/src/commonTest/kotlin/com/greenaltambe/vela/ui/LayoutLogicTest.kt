@@ -7,7 +7,7 @@ import com.greenaltambe.vela.ui.layout.WindowSizeClass
 import com.greenaltambe.vela.ui.layout.gridColumns
 import com.greenaltambe.vela.ui.layout.gutterFor
 import com.greenaltambe.vela.ui.layout.windowSizeClassFor
-import com.greenaltambe.vela.ui.look.SpacingTokens
+import com.greenaltambe.vela.ui.theme.SpacingTokens
 import com.greenaltambe.vela.ui.nav.Navigator
 import com.greenaltambe.vela.ui.nav.Route
 import kotlin.test.Test

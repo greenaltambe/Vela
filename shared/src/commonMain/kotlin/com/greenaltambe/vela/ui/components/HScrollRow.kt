@@ -1,5 +1,9 @@
 package com.greenaltambe.vela.ui.components
 
+import com.greenaltambe.vela.ui.theme.AppIcons
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.shape.CircleShape
+import com.greenaltambe.vela.ui.theme.Spacing
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -36,8 +40,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.greenaltambe.vela.ui.look.Vela
-import com.greenaltambe.vela.ui.look.toColor
 import com.greenaltambe.vela.ui.platform.LocalVolumeSlider
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -49,7 +51,7 @@ import kotlin.math.abs
 @Composable
 fun HScrollRow(
     modifier: Modifier = Modifier,
-    horizontalArrangement: Arrangement.Horizontal = Arrangement.spacedBy(Vela.sm),
+    horizontalArrangement: Arrangement.Horizontal = Arrangement.spacedBy(Spacing.sm),
     /** Room before the first and after the last item; with a row that runs through the screen's side gutters it is the gutter, so items start in line with the page. */
     contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(0.dp),
     /** A swipe settles on a card (the next one peeks in at the edge), instead of coasting to any position. */
@@ -82,8 +84,8 @@ fun HScrollRow(
         )
         if (desktop) {
             fun page(forward: Boolean) = scope.launch { state.animateScrollBy((if (forward) 1 else -1) * state.layoutInfo.viewportSize.width * 0.8f) }
-            if (state.canScrollBackward) RowArrow(Vela.icons.chevronLeft, "Scroll left", Modifier.align(Alignment.CenterStart)) { page(false) }
-            if (state.canScrollForward) RowArrow(Vela.icons.chevronRight, "Scroll right", Modifier.align(Alignment.CenterEnd)) { page(true) }
+            if (state.canScrollBackward) RowArrow(AppIcons.chevronLeft, "Scroll left", Modifier.align(Alignment.CenterStart)) { page(false) }
+            if (state.canScrollForward) RowArrow(AppIcons.chevronRight, "Scroll right", Modifier.align(Alignment.CenterEnd)) { page(true) }
         }
     }
 }
@@ -97,7 +99,7 @@ fun HScrollRow(
 fun HScrollableRow(
     modifier: Modifier = Modifier,
     rowModifier: Modifier = Modifier,
-    horizontalArrangement: Arrangement.Horizontal = Arrangement.spacedBy(Vela.sm),
+    horizontalArrangement: Arrangement.Horizontal = Arrangement.spacedBy(Spacing.sm),
     verticalAlignment: Alignment.Vertical = Alignment.CenterVertically,
     content: @Composable RowScope.() -> Unit,
 ) {
@@ -135,7 +137,7 @@ fun HScrollableRow(
                         }
                 )
                 .horizontalScroll(scrollState)
-                .padding(vertical = Vela.xs)
+                .padding(vertical = Spacing.xs)
                 .then(rowModifier),
             horizontalArrangement = horizontalArrangement,
             verticalAlignment = verticalAlignment,
@@ -156,16 +158,16 @@ fun HScrollableRow(
                         .background(
                             Brush.horizontalGradient(
                                 colors = listOf(
-                                    Vela.colors.background.toColor(),
-                                    Vela.colors.background.toColor().copy(alpha = 0.85f),
+                                    MaterialTheme.colorScheme.background,
+                                    MaterialTheme.colorScheme.background.copy(alpha = 0.85f),
                                     Color.Transparent
                                 )
                             )
                         )
-                        .padding(end = Vela.md, start = Vela.xs),
+                        .padding(end = Spacing.md, start = Spacing.xs),
                     contentAlignment = Alignment.CenterStart
                 ) {
-                    RowArrow(Vela.icons.chevronLeft, "Scroll left") {
+                    RowArrow(AppIcons.chevronLeft, "Scroll left") {
                         scope.launch { scrollState.animateScrollBy(-stepPx) }
                     }
                 }
@@ -184,15 +186,15 @@ fun HScrollableRow(
                             Brush.horizontalGradient(
                                 colors = listOf(
                                     Color.Transparent,
-                                    Vela.colors.background.toColor().copy(alpha = 0.85f),
-                                    Vela.colors.background.toColor()
+                                    MaterialTheme.colorScheme.background.copy(alpha = 0.85f),
+                                    MaterialTheme.colorScheme.background
                                 )
                             )
                         )
-                        .padding(start = Vela.md, end = Vela.xs),
+                        .padding(start = Spacing.md, end = Spacing.xs),
                     contentAlignment = Alignment.CenterEnd
                 ) {
-                    RowArrow(Vela.icons.chevronRight, "Scroll right") {
+                    RowArrow(AppIcons.chevronRight, "Scroll right") {
                         scope.launch { scrollState.animateScrollBy(stepPx) }
                     }
                 }
@@ -211,7 +213,7 @@ fun HScrollableRow(
                         .background(
                             Brush.horizontalGradient(
                                 colors = listOf(
-                                    Vela.colors.background.toColor(),
+                                    MaterialTheme.colorScheme.background,
                                     Color.Transparent
                                 )
                             )
@@ -233,7 +235,7 @@ fun HScrollableRow(
                             Brush.horizontalGradient(
                                 colors = listOf(
                                     Color.Transparent,
-                                    Vela.colors.background.toColor()
+                                    MaterialTheme.colorScheme.background
                                 )
                             )
                         )
@@ -245,7 +247,7 @@ fun HScrollableRow(
 
 @Composable
 fun RowArrow(icon: androidx.compose.ui.graphics.vector.ImageVector, description: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Box(modifier.padding(horizontal = Vela.xs).size(36.dp).clip(Vela.pillShape).background(Vela.colors.surface.toColor().copy(alpha = 0.92f)).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
-        Icon(icon, description, tint = Vela.colors.onSurface.toColor())
+    Box(modifier.padding(horizontal = Spacing.xs).size(36.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.92f)).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+        Icon(icon, description, tint = MaterialTheme.colorScheme.onSurface)
     }
 }

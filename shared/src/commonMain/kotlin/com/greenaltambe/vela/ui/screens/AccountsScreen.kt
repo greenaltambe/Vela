@@ -1,5 +1,18 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package com.greenaltambe.vela.ui.screens
 
+import com.greenaltambe.vela.ui.nav.Route
+import com.greenaltambe.vela.ui.settings.segmentedItemColors
+import com.greenaltambe.vela.ui.settings.settingsSection
+import com.greenaltambe.vela.ui.settings.SettingsScaffold
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.background
+import androidx.compose.material3.Surface
+import androidx.compose.material3.SegmentedListItem
+import com.greenaltambe.vela.ui.theme.AppIcons
+import com.greenaltambe.vela.ui.theme.Spacing
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -42,8 +55,6 @@ import com.greenaltambe.vela.ui.components.Avatar
 import com.greenaltambe.vela.ui.components.PrimaryButton
 import com.greenaltambe.vela.ui.components.SectionHeader
 import com.greenaltambe.vela.ui.components.VelaTopBar
-import com.greenaltambe.vela.ui.look.Vela
-import com.greenaltambe.vela.ui.look.toColor
 import com.greenaltambe.vela.ui.nav.Navigator
 import com.greenaltambe.vela.ui.platform.rememberTextFilePicker
 import kotlinx.coroutines.launch
@@ -75,54 +86,50 @@ fun AccountsScreen(services: AppServices, navigator: Navigator, modifier: Modifi
         }
     }
 
-    Column(modifier.fillMaxSize()) {
-        VelaTopBar("Accounts", onBack = { navigator.back() })
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-            Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = Vela.gutter, end = Vela.gutter, top = Vela.sm, bottom = Vela.sm + com.greenaltambe.vela.ui.nav.LocalChromeInset.current), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
-                if (active.kind == AccountKind.GOOGLE && services.profiles != null && services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.accountProfilesExperimental)) ProfileSection(services)
-                if (active.kind == AccountKind.GOOGLE && active.authState != AuthState.OK) {
-                    Text("Signed out: ${active.displayName}'s session no longer works. Add the account again to sign in.", color = Vela.colors.error.toColor(), modifier = Modifier.testTag("accounts.banner"))
-                }
-                SectionHeader("Accounts")
-                all.forEach { a ->
-                    AccountRow(a, selected = a.id == active.id, onSwitch = { accounts.switchTo(a.id) }, onSignOut = { accounts.signOut(a.id) }, onRemove = { removing = a })
-                }
-                if (active.isSignedIn && services.sync != null) {
-                    SectionHeader("Sync")
-                    Text("Adds the channels you subscribe to on Google to this account's subscriptions. Nothing is removed.", style = MaterialTheme.typography.bodySmall)
-                    PrimaryButton(if (busy) "Syncing…" else "Sync subscriptions now", {
-                        busy = true; message = "Syncing…"
-                        scope.launch {
-                            val r = services.sync!!.pullSubscriptions()
-                            message = r.failure?.let { "Sync failed: $it" } ?: "Added ${r.added} new channel(s); ${r.alreadyHad} were already here."
-                            services.feed.reload(); busy = false
-                        }
-                    }, enabled = !busy, modifier = Modifier.testTag("accounts.sync"))
-                }
-                SectionHeader("Add a Google account")
-                if (login == null) {
-                    Text("Signing in is not available here: this platform has no safe place for account credentials yet.", style = MaterialTheme.typography.bodyMedium)
-                } else {
-                    Text(
-                        "Export your YouTube cookies from a PRIVATE (incognito) window where you are signed in, close that window right away, then pick the cookies.txt file. " +
-                            "Browsers rotate the cookies of windows that stay open, which would invalidate the export. A \"cookies.txt\" export extension for your browser does this.",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    services.webLogin?.let { start -> PrimaryButton("Sign in with Google", { onboarding = start }, modifier = Modifier.testTag("accounts.webLogin")) }
-                    PrimaryButton(if (busy) "Checking…" else "Import cookies.txt", { onboarding = pick }, enabled = !busy, modifier = Modifier.testTag("accounts.import"))
-                }
-                message?.let { Text(it, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("accounts.message")) }
-                SectionHeader("Privacy")
-                Text(
-                    "Cookies are kept in ${services.accounts.credentialStoreDescription}, never in Vela's database, logs or backups. " +
-                        "Signing out everywhere deletes them from this device; it does not sign you out of Google elsewhere.",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                TextButton(onClick = { wipingAll = true }, modifier = Modifier.testTag("accounts.signOutAll")) { Text("Sign out everywhere") }
-                SectionHeader("Safety")
-                Text("Account requests: ${services.accounts.credentialStoreDescription.let { "credentials in $it" }}. See Settings > Account activity for every request. Pausing the account is automatic; the button below only tests the banner and the pause.", style = MaterialTheme.typography.bodySmall)
-                TextButton(onClick = { if (active.kind == AccountKind.GOOGLE) services.governors.forAccount(active.id).trip(com.greenaltambe.vela.auth.BlockSignal.HTTP_429) }, enabled = active.kind == AccountKind.GOOGLE, modifier = Modifier.testTag("accounts.simulate429")) { Text("Test: simulate a rate limit") }
+    SettingsScaffold("Accounts", modifier, onBack = { navigator.back() }, listTag = "accounts.list") {
+        if (active.kind == AccountKind.GOOGLE && services.profiles != null && services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.accountProfilesExperimental)) item(key = "profile") { ProfileSection(services) }
+        settingsSection("accounts", "Accounts", all, { it.id }) { a, shape ->
+            AccountRow(a, selected = a.id == active.id, shape = shape, onSwitch = { accounts.switchTo(a.id) }, onSignOut = { accounts.signOut(a.id) }, onRemove = { removing = a })
+        }
+        if (active.kind == AccountKind.GOOGLE && active.authState != AuthState.OK) item(key = "signedout") {
+            Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer) {
+                Text("Signed out: ${active.displayName}'s session no longer works. Add the account again to sign in.", Modifier.padding(Spacing.md).testTag("accounts.banner"))
             }
+        }
+        if (active.isSignedIn && services.sync != null) settingsSection("sync", "Sync", listOf("sync"), { it }) { _, shape ->
+            InfoActionRow(
+                title = if (busy) "Syncing…" else "Sync subscriptions now", description = "Adds the channels you subscribe to on Google to this account's subscriptions. Nothing is removed.",
+                icon = AppIcons.refresh, shape = shape, enabled = !busy, tag = "accounts.sync",
+                onClick = {
+                    busy = true; message = "Syncing…"
+                    scope.launch {
+                        val r = services.sync!!.pullSubscriptions()
+                        message = r.failure?.let { "Sync failed: $it" } ?: "Added ${r.added} new channel(s); ${r.alreadyHad} were already here."
+                        services.feed.reload(); busy = false
+                    }
+                },
+            )
+        }
+        val add = buildList { if (login != null) { services.webLogin?.let { add("web") }; add("cookies") } }
+        settingsSection("add", "Add a Google account", if (login == null) listOf("unavailable") else listOf("how") + add, { it }) { row, shape ->
+            when (row) {
+                "unavailable" -> InfoRow("Signing in is not available here: this platform has no safe place for account credentials yet.", shape)
+                "how" -> InfoRow(
+                    "Export your YouTube cookies from a PRIVATE (incognito) window where you are signed in, close that window right away, then pick the cookies.txt file. " +
+                        "Browsers rotate the cookies of windows that stay open, which would invalidate the export. A \"cookies.txt\" export extension for your browser does this.", shape,
+                )
+                "web" -> InfoActionRow("Sign in with Google", "Opens Google's own sign-in page.", AppIcons.account, shape, enabled = true, tag = "accounts.webLogin", onClick = { onboarding = services.webLogin })
+                else -> InfoActionRow(if (busy) "Checking…" else "Import cookies.txt", "Pick the exported cookies file.", AppIcons.folder, shape, enabled = !busy, tag = "accounts.import", onClick = { onboarding = pick })
+            }
+        }
+        message?.let { m -> item(key = "message") { Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer) { Text(m, Modifier.padding(Spacing.md).testTag("accounts.message")) } } }
+        settingsSection("privacy", "Privacy", listOf("text", "signout"), { it }) { row, shape ->
+            if (row == "text") InfoRow("Cookies are kept in ${services.accounts.credentialStoreDescription}, never in Vela's database, logs or backups. Signing out everywhere deletes them from this device; it does not sign you out of Google elsewhere.", shape)
+            else InfoActionRow("Sign out everywhere", "Deletes every account's stored credentials from this device.", AppIcons.lock, shape, enabled = true, tag = "accounts.signOutAll", danger = true, onClick = { wipingAll = true })
+        }
+        settingsSection("safety", "Safety", listOf("text", "activity"), { it }) { row, shape ->
+            if (row == "text") InfoRow("Account requests use credentials in ${services.accounts.credentialStoreDescription}. Pausing the account is automatic.", shape)
+            else InfoActionRow("Account activity", "Every request the account made, and what was decided.", AppIcons.history, shape, enabled = true, tag = "accounts.activity", onClick = { navigator.push(Route.AccountActivity) })
         }
     }
 
@@ -148,31 +155,53 @@ fun AccountsScreen(services: AppServices, navigator: Navigator, modifier: Modifi
 }
 
 @Composable
-private fun AccountRow(a: Account, selected: Boolean, onSwitch: () -> Unit, onSignOut: () -> Unit, onRemove: () -> Unit) {
-    Row(Modifier.fillMaxWidth().heightIn(min = Vela.minTouch).clickable(onClick = onSwitch).testTag("accounts.row.${a.id}"), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
-        Avatar(a.displayName, url = a.avatarUrl)
-        Column(Modifier.weight(1f)) {
-            Text(a.displayName + if (selected) "  (active)" else "", maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge)
-            val detail = when {
-                a.kind == AccountKind.LOCAL -> "On this device only"
-                a.authState != AuthState.OK -> "Needs sign-in"
-                else -> a.maskedEmail ?: "Google account"
-            }
-            Text(detail, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor())
-        }
-        if (a.kind == AccountKind.GOOGLE) {
-            var open by remember { mutableStateOf(false) }
-            Box {
-                IconButton(onClick = { open = true }, modifier = Modifier.testTag("accounts.menu.${a.id}")) { Icon(Vela.icons.more, "Account options") }
-                DropdownMenu(open, { open = false }) {
-                    if (a.authState == AuthState.OK) DropdownMenuItem(text = { Text("Sign out") }, onClick = { open = false; onSignOut() })
-                    DropdownMenuItem(text = { Text("Remove") }, onClick = { open = false; onRemove() })
+private fun AccountRow(a: Account, selected: Boolean, shape: androidx.compose.ui.graphics.Shape, onSwitch: () -> Unit, onSignOut: () -> Unit, onRemove: () -> Unit) {
+    val detail = when {
+        a.kind == AccountKind.LOCAL -> "On this device only"
+        a.authState != AuthState.OK -> "Needs sign-in"
+        else -> a.maskedEmail ?: "Google account"
+    }
+    SegmentedListItem(
+        onClick = onSwitch, selected = selected, shapes = androidx.compose.material3.ListItemShapes(shape, shape, shape, shape, shape, shape), colors = segmentedItemColors(),
+        leadingContent = { Avatar(a.displayName, url = a.avatarUrl) },
+        supportingContent = { Text(detail, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        trailingContent = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (selected) androidx.compose.material3.AssistChip(onClick = {}, label = { Text("Active") }, leadingIcon = { Icon(AppIcons.check, null, Modifier.size(18.dp)) })
+                if (a.kind == AccountKind.GOOGLE) {
+                    var open by remember { mutableStateOf(false) }
+                    Box {
+                        IconButton(onClick = { open = true }, modifier = Modifier.testTag("accounts.menu.${a.id}")) { Icon(AppIcons.more, "Account options") }
+                        DropdownMenu(open, { open = false }) {
+                            if (a.authState == AuthState.OK) DropdownMenuItem(text = { Text("Sign out") }, onClick = { open = false; onSignOut() })
+                            DropdownMenuItem(text = { Text("Remove") }, onClick = { open = false; onRemove() })
+                        }
+                    }
                 }
             }
-        }
+        },
+        modifier = Modifier.fillMaxWidth().testTag("accounts.row.${a.id}"),
+    ) { Text(a.displayName, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge) }
+}
+
+/** A plain explanation inside a segmented stack. */
+@Composable
+internal fun InfoRow(text: String, shape: androidx.compose.ui.graphics.Shape, modifier: Modifier = Modifier) {
+    Box(modifier.fillMaxWidth().clip(shape).background(MaterialTheme.colorScheme.surfaceContainer).padding(Spacing.md)) {
+        Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
+/** A tappable row of a segmented stack: icon, title, one line of description. [danger] colours the title as a destructive action. */
+@Composable
+internal fun InfoActionRow(title: String, description: String, icon: androidx.compose.ui.graphics.vector.ImageVector, shape: androidx.compose.ui.graphics.Shape, enabled: Boolean, tag: String, onClick: () -> Unit, danger: Boolean = false) {
+    SegmentedListItem(
+        onClick = onClick, enabled = enabled, shapes = androidx.compose.material3.ListItemShapes(shape, shape, shape, shape, shape, shape), colors = segmentedItemColors(),
+        leadingContent = { Icon(icon, null, tint = if (danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary) },
+        supportingContent = { Text(description, maxLines = 3, overflow = TextOverflow.Ellipsis) },
+        modifier = Modifier.fillMaxWidth().testTag(tag),
+    ) { Text(title, color = if (danger) MaterialTheme.colorScheme.error else androidx.compose.ui.graphics.Color.Unspecified, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+}
 
 /** Experimental (Settings > Account switch, off by default): which channel of the account is used. Choosing one is checked with a read first and reverted if YouTube does not confirm it. */
 @Composable
@@ -182,7 +211,7 @@ private fun ProfileSection(services: AppServices) {
     var message by remember { mutableStateOf<String?>(null) }
     var options by remember { mutableStateOf<List<com.greenaltambe.vela.auth.AccountProfile>?>(null) }
     var current by remember { mutableStateOf(profiles.current()) }
-    Column(Modifier.testTag("accounts.profile"), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
+    Column(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).background(MaterialTheme.colorScheme.surfaceContainer).padding(Spacing.md).testTag("accounts.profile"), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
         Text("Profile (experimental)", style = MaterialTheme.typography.titleMedium)
         Text(current?.let { "${it.profile.name}${if (it.verified) " (confirmed by YouTube)" else ""}" } ?: "Main channel (default)", modifier = Modifier.testTag("accounts.profile.current"))
         OutlinedButton(onClick = { message = "Reading your profiles…"; scope.launch { options = profiles.list(); message = if (options == null) "Could not read the profiles." else null } }, modifier = Modifier.testTag("accounts.profile.change")) { Text("Change profile", maxLines = 1) }

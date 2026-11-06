@@ -1,5 +1,19 @@
 package com.greenaltambe.vela.ui.components
 
+import androidx.compose.material3.LargeFlexibleTopAppBar
+import androidx.compose.material3.ToggleButtonDefaults
+import androidx.compose.material3.ToggleButton
+import androidx.compose.material3.ButtonGroupDefaults
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.FilterChip
+import com.greenaltambe.vela.ui.theme.AppIcons
+import androidx.compose.foundation.shape.CircleShape
+import com.greenaltambe.vela.ui.theme.ExtraColors
+import com.greenaltambe.vela.ui.theme.Spacing
+import com.greenaltambe.vela.ui.theme.Accent
+import com.greenaltambe.vela.ui.theme.LocalMotion
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -41,6 +55,7 @@ import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TooltipBox
@@ -52,11 +67,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import com.greenaltambe.vela.core.settings.NavTab
-import com.greenaltambe.vela.core.settings.MiniLook
-import com.greenaltambe.vela.core.settings.NavLabels
 import com.greenaltambe.vela.ui.look.pressable
 import com.greenaltambe.vela.ui.look.VelaMotion
-import com.greenaltambe.vela.ui.look.glassEnabled
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.ui.unit.lerp
 import androidx.compose.foundation.layout.wrapContentHeight
@@ -95,11 +107,6 @@ import com.greenaltambe.vela.extractor.Comment
 import com.greenaltambe.vela.extractor.VideoSummary
 import com.greenaltambe.vela.library.formatTimestamp
 import com.greenaltambe.vela.ui.look.ComponentIds
-import com.greenaltambe.vela.ui.look.Vela
-import com.greenaltambe.vela.ui.look.pressFeedback
-import com.greenaltambe.vela.ui.look.focusRing
-import com.greenaltambe.vela.ui.look.popOnSelect
-import com.greenaltambe.vela.ui.look.toColor
 import com.greenaltambe.vela.ui.nav.Route
 import kotlin.time.Clock
 
@@ -139,47 +146,46 @@ fun VideoCard(
     showChannelAvatar: Boolean = true,
     /** VERTICAL only: the thumbnail runs the full width of the screen (still rounded), through the list's side gutters; the text keeps them. */
     fullBleed: Boolean = false,
+    /** HORIZONTAL only: draw the row as a tonal container in this shape (a segmented stack passes [segmentedShape] here). */
+    containerShape: androidx.compose.ui.graphics.Shape? = null,
 ) {
     var showOriginal by remember(video.id) { mutableStateOf(false) }
     val replaced = video.originalTitle != null || video.originalThumbnailUrl != null
     val title = if (showOriginal) video.originalTitle ?: video.title else video.title
     val thumbnail = if (showOriginal) video.originalThumbnailUrl ?: video.thumbnailUrl else video.thumbnailUrl
-    val source = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-    // Mouse over a video (desktop): a palette-gradient outline and a faint wash, rounded like the cards.
-    val hovered by source.collectIsHoveredAsState()
-    val hover = if (hovered) Modifier.border(2.dp, Vela.wake, Vela.mediumShape).background(Vela.colors.onSurface.toColor().copy(alpha = 0.05f), Vela.mediumShape) else Modifier
-    val press = Modifier.hoverable(source).pressFeedback(source).combinedClickable(interactionSource = source, indication = null, onClick = onClick, onLongClick = if (replaced) ({ showOriginal = !showOriginal }) else null)
-    val click = hover.clip(Vela.mediumShape).then(press)
-    // A vertical card is not clipped as a whole: only its picture is rounded. The rounded clip used to run over the text block too, and the first
-    // letters of the last line (4 dp from the edge) were cut by the corner. The hover wash and the press squeeze need no clip.
+    // Material's own press indication (the ripple, with its hover and focus states on desktop); a long press shows the original title and picture when DeArrow replaced them.
+    val press = Modifier.combinedClickable(onClick = onClick, onLongClick = if (replaced) ({ showOriginal = !showOriginal }) else null)
+    val cardShape = MaterialTheme.shapes.large
 
     if (style == VideoCardStyle.VERTICAL) {
-        val gutter = Vela.gutter
-        Column(modifier.then(if (fullBleed) Modifier.bleed(gutter) else Modifier).fillMaxWidth().testTag(ComponentIds.VIDEO_CARD).then(hover).then(press), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
-            Thumbnail(video, thumbnail, extras, Modifier.fillMaxWidth().clip(Vela.thumbnailShape))
-            Row(Modifier.fillMaxWidth().padding(horizontal = if (fullBleed) gutter + Vela.xs else Vela.sm).padding(bottom = Vela.xs), horizontalArrangement = Arrangement.spacedBy(Vela.sm), verticalAlignment = Alignment.Top) {
+        val gutter = Spacing.gutter
+        Column(modifier.then(if (fullBleed) Modifier.bleed(gutter) else Modifier).fillMaxWidth().testTag(ComponentIds.VIDEO_CARD).clip(cardShape).then(press), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            Thumbnail(video, thumbnail, extras, Modifier.fillMaxWidth().clip(cardShape))
+            Row(Modifier.fillMaxWidth().padding(horizontal = if (fullBleed) gutter + Spacing.xs else Spacing.sm).padding(bottom = Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalAlignment = Alignment.Top) {
                 if (showChannelAvatar) Avatar(video.channelName, onChannelClick, url = video.channelAvatarUrl)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("card.title"))
-                    if (video.channelName.isNotBlank()) Text(video.channelName, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor(), modifier = Modifier.testTag("card.channel"))
+                    if (video.channelName.isNotBlank()) Text(video.channelName, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.testTag("card.channel"))
                     val stats = remember(video.viewCount, video.uploadedAt, video.publishedText, extras.badge, showOriginal) { listOfNotNull(formatViews(video.viewCount), (formatAge(video.uploadedAt, Clock.System.now()) ?: video.publishedText), extras.badge, if (showOriginal) "original" else null).joinToString(" • ") }
-                    if (stats.isNotEmpty()) Text(stats, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor(), modifier = Modifier.testTag("card.meta"))
+                    if (stats.isNotEmpty()) Text(stats, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.testTag("card.meta"))
                 }
                 trailing?.invoke()
             }
         }
     } else {
-        Row(modifier.fillMaxWidth().testTag(ComponentIds.VIDEO_CARD).then(click).padding(Vela.xs), horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
-            Thumbnail(video, thumbnail, extras, Modifier.fillMaxWidth(0.36f).widthIn(max = 168.dp).clip(Vela.thumbnailShape))
+        val rowShape = containerShape ?: cardShape
+        val tonal = if (containerShape != null) Modifier.background(MaterialTheme.colorScheme.surfaceContainerLow) else Modifier
+        Row(modifier.fillMaxWidth().testTag(ComponentIds.VIDEO_CARD).clip(rowShape).then(tonal).then(press).padding(Spacing.xs), horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
+            Thumbnail(video, thumbnail, extras, Modifier.fillMaxWidth(0.36f).widthIn(max = 168.dp).clip(MaterialTheme.shapes.medium))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("card.title"))
                 if (video.channelName.isNotBlank()) Text(
                     video.channelName, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    color = Vela.colors.onSurfaceVariant.toColor(),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.testTag("card.channel"),
                 )
                 val stats = remember(video.viewCount, video.uploadedAt, video.publishedText, extras.badge, showOriginal) { listOfNotNull(formatViews(video.viewCount), (formatAge(video.uploadedAt, Clock.System.now()) ?: video.publishedText), extras.badge, if (showOriginal) "original" else null).joinToString(" • ") }
-                if (stats.isNotEmpty()) Text(stats, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor(), modifier = Modifier.testTag("card.meta"))
+                if (stats.isNotEmpty()) Text(stats, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.testTag("card.meta"))
             }
             trailing?.invoke()
         }
@@ -196,40 +202,40 @@ fun Modifier.bleed(extra: Dp): Modifier = this.layout { measurable, constraints 
 
 @Composable
 private fun Thumbnail(video: VideoSummary, url: String?, extras: CardExtras, modifier: Modifier) {
-    Box(modifier.aspectRatio(16f / 9f).background(Vela.colors.surfaceVariant.toColor()).testTag("card.thumbnail")) {
+    Box(modifier.aspectRatio(16f / 9f).background(MaterialTheme.colorScheme.surfaceContainerHigh).testTag("card.thumbnail")) {
         // Some feeds (Home recommendations, account playlists) arrive without a picture; YouTube serves one for every video id.
         val shown = url ?: if (video.id.isNotBlank()) "https://i.ytimg.com/vi/${video.id}/mqdefault.jpg" else null
         if (shown != null) AsyncImage(shown, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
-        if (video.isLive) Badge("LIVE", Vela.colors.error.toColor(), Modifier.align(Alignment.TopStart).padding(Vela.xs))
-        else if (video.isShort) Badge("SHORT", Vela.colors.primary.toColor(), Modifier.align(Alignment.TopStart).padding(Vela.xs))
-        formatDuration(video.durationSeconds)?.takeIf { !video.isLive }?.let { Badge(it, Vela.colors.background.toColor().copy(alpha = 0.85f), Modifier.align(Alignment.BottomEnd).padding(Vela.xs), textColor = Vela.colors.onBackground.toColor()) }
+        if (video.isLive) Badge("LIVE", MaterialTheme.colorScheme.error, Modifier.align(Alignment.TopStart).padding(Spacing.xs))
+        else if (video.isShort) Badge("SHORT", MaterialTheme.colorScheme.primary, Modifier.align(Alignment.TopStart).padding(Spacing.xs))
+        formatDuration(video.durationSeconds)?.takeIf { !video.isLive }?.let { Badge(it, MaterialTheme.colorScheme.background.copy(alpha = 0.85f), Modifier.align(Alignment.BottomEnd).padding(Spacing.xs), textColor = MaterialTheme.colorScheme.onBackground) }
         if (extras.downloaded) Icon(
-            Vela.icons.downloaded, "Downloaded",
-            Modifier.align(Alignment.TopEnd).padding(Vela.xs).size(20.dp).testTag("card.downloaded"), tint = Vela.colors.primary.toColor(),
+            AppIcons.downloaded, "Downloaded",
+            Modifier.align(Alignment.TopEnd).padding(Spacing.xs).size(20.dp).testTag("card.downloaded"), tint = MaterialTheme.colorScheme.primary,
         )
         extras.watched?.takeIf { it > 0f }?.let { w ->
-            Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Vela.colors.outline.toColor())) {
-                Box(Modifier.fillMaxWidth(w.coerceIn(0f, 1f)).fillMaxHeight().background(Vela.wake).testTag("card.watched"))
+            Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(MaterialTheme.colorScheme.outline)) {
+                Box(Modifier.fillMaxWidth(w.coerceIn(0f, 1f)).fillMaxHeight().background(Accent.brush).testTag("card.watched"))
             }
         }
     }
 }
 
 @Composable
-private fun Badge(text: String, background: androidx.compose.ui.graphics.Color, modifier: Modifier, textColor: androidx.compose.ui.graphics.Color = Vela.colors.onMedia.toColor()) {
+private fun Badge(text: String, background: androidx.compose.ui.graphics.Color, modifier: Modifier, textColor: androidx.compose.ui.graphics.Color = ExtraColors.onMedia) {
     Text(
-        text, modifier.clip(Vela.smallShape).background(background).padding(horizontal = 6.dp, vertical = 2.dp),
+        text, modifier.clip(androidx.compose.foundation.shape.CircleShape).background(background).padding(horizontal = 6.dp, vertical = 2.dp),
         style = MaterialTheme.typography.labelSmall, color = textColor, maxLines = 1, softWrap = false,
     )
 }
 
 /** The channel's picture; until avatars are available it is the first letter on the surface colour. */
 @Composable
-fun Avatar(name: String, onClick: (() -> Unit)? = null, size: Dp = 36.dp, url: String? = null) {
+fun Avatar(name: String, onClick: (() -> Unit)? = null, size: Dp = 36.dp, url: String? = null, shape: androidx.compose.ui.graphics.Shape = CircleShape) {
     Box(
         // The touch target is the full minimum size, but the press highlight is clipped to the circle (clip comes before clickable).
         Modifier.let { if (onClick != null) it.minimumInteractiveComponentSize() else it }
-            .size(size).clip(Vela.pillShape).let { if (onClick != null) it.clickable(onClick = onClick) else it }.background(Vela.colors.surfaceVariant.toColor()),
+            .size(size).clip(shape).let { if (onClick != null) it.clickable(onClick = onClick) else it }.background(MaterialTheme.colorScheme.surfaceContainerHigh),
         contentAlignment = Alignment.Center,
     ) {
         if (url != null) AsyncImage(url, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
@@ -240,13 +246,13 @@ fun Avatar(name: String, onClick: (() -> Unit)? = null, size: Dp = 36.dp, url: S
 @Composable
 fun ChannelRow(name: String, subtitle: String?, avatarUrl: String?, onClick: () -> Unit, modifier: Modifier = Modifier, trailing: @Composable (() -> Unit)? = null) {
     Row(
-        modifier.fillMaxWidth().heightIn(min = Vela.minTouch).clip(Vela.mediumShape).testTag(ComponentIds.CHANNEL_ROW).clickable(onClick = onClick).padding(horizontal = Vela.sm),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.md),
+        modifier.fillMaxWidth().heightIn(min = Spacing.minTouch).clip(MaterialTheme.shapes.medium).testTag(ComponentIds.CHANNEL_ROW).clickable(onClick = onClick).padding(horizontal = Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
         Avatar(name, url = avatarUrl, size = 40.dp)
         Column(Modifier.weight(1f)) {
             Text(name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor())
+            if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         trailing?.invoke()
     }
@@ -254,7 +260,7 @@ fun ChannelRow(name: String, subtitle: String?, avatarUrl: String?, onClick: () 
 
 @Composable
 fun SectionHeader(title: String, modifier: Modifier = Modifier, action: @Composable (() -> Unit)? = null) {
-    Row(modifier.fillMaxWidth().heightIn(min = Vela.minTouch).testTag(ComponentIds.SECTION_HEADER), verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier.fillMaxWidth().heightIn(min = Spacing.minTouch).testTag(ComponentIds.SECTION_HEADER), verticalAlignment = Alignment.CenterVertically) {
         Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         action?.invoke()
     }
@@ -262,23 +268,23 @@ fun SectionHeader(title: String, modifier: Modifier = Modifier, action: @Composa
 
 @Composable
 fun CommentItem(comment: Comment, replies: List<Comment>?, repliesLoading: Boolean, onToggleReplies: () -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier.fillMaxWidth().testTag(ComponentIds.COMMENT_ITEM), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+    Column(modifier.fillMaxWidth().testTag(ComponentIds.COMMENT_ITEM), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             Text(comment.author, Modifier.weight(1f, fill = false), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (comment.publishedText.isNotEmpty()) Text(comment.publishedText, style = MaterialTheme.typography.bodySmall, maxLines = 1, softWrap = false, color = Vela.colors.onSurfaceVariant.toColor())
-            if (comment.isPinned) Text("Pinned", style = MaterialTheme.typography.bodySmall, maxLines = 1, softWrap = false, color = Vela.colors.primary.toColor())
+            if (comment.publishedText.isNotEmpty()) Text(comment.publishedText, style = MaterialTheme.typography.bodySmall, maxLines = 1, softWrap = false, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (comment.isPinned) Text("Pinned", style = MaterialTheme.typography.bodySmall, maxLines = 1, softWrap = false, color = MaterialTheme.colorScheme.primary)
         }
         Text(comment.text, style = MaterialTheme.typography.bodyMedium, maxLines = 12, overflow = TextOverflow.Ellipsis)
         val likes = formatCount(comment.likeCount.takeIf { it > 0 })
-        if (likes != null) Text("$likes likes", style = MaterialTheme.typography.bodySmall, maxLines = 1, color = Vela.colors.onSurfaceVariant.toColor())
+        if (likes != null) Text("$likes likes", style = MaterialTheme.typography.bodySmall, maxLines = 1, color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (comment.replyCount > 0 && comment.repliesContinuation != null) {
             TextButton(onClick = onToggleReplies) {
                 Text(if (replies != null) "Hide replies" else if (repliesLoading) "Loading replies..." else "${comment.replyCount} replies", maxLines = 1)
             }
         }
         replies?.forEach { reply ->
-            Column(Modifier.padding(start = Vela.lg)) {
-                Text(reply.author, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor())
+            Column(Modifier.padding(start = Spacing.lg)) {
+                Text(reply.author, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(reply.text, style = MaterialTheme.typography.bodyMedium, maxLines = 8, overflow = TextOverflow.Ellipsis)
             }
         }
@@ -288,11 +294,11 @@ fun CommentItem(comment: Comment, replies: List<Comment>?, repliesLoading: Boole
 @Composable
 fun ChapterRow(chapter: Chapter, current: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Row(
-        modifier.fillMaxWidth().heightIn(min = Vela.minTouch).clip(Vela.mediumShape).testTag(ComponentIds.CHAPTER_ROW).clickable(onClick = onClick).padding(horizontal = Vela.sm),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.md),
+        modifier.fillMaxWidth().heightIn(min = Spacing.minTouch).clip(MaterialTheme.shapes.medium).testTag(ComponentIds.CHAPTER_ROW).clickable(onClick = onClick).padding(horizontal = Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
-        Text(formatTimestamp(chapter.startSeconds), style = MaterialTheme.typography.bodySmall, maxLines = 1, softWrap = false, color = Vela.colors.primary.toColor())
-        Text(chapter.title, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, color = if (current) Vela.colors.primary.toColor() else Vela.colors.onSurface.toColor())
+        Text(formatTimestamp(chapter.startSeconds), style = MaterialTheme.typography.bodySmall, maxLines = 1, softWrap = false, color = MaterialTheme.colorScheme.primary)
+        Text(chapter.title, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, color = if (current) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
     }
 }
 
@@ -304,421 +310,114 @@ fun navEntries(tabs: List<NavTab>) = tabs.map { NavEntry(it, when (it) {
 }) }
 
 @Composable
-private fun NavEntry.icon(selected: Boolean = false): ImageVector = when (tab) {
-    NavTab.HOME -> if (selected) Vela.icons.homeFilled else Vela.icons.home
-    NavTab.SHORTS -> if (selected) Vela.icons.boltFilled else Vela.icons.bolt
-    NavTab.SUBSCRIPTIONS -> if (selected) Vela.icons.subscriptionsFilled else Vela.icons.subscriptions
-    NavTab.LIBRARY -> if (selected) Vela.icons.libraryFilled else Vela.icons.library
-    NavTab.SEARCH -> if (selected) Vela.icons.searchFilled else Vela.icons.search
-    NavTab.DOWNLOADS -> if (selected) Vela.icons.downloadFilled else Vela.icons.download
-    NavTab.EXPLORE -> if (selected) Vela.icons.exploreFilled else Vela.icons.explore
-}
-
-/** The line that marks the selected tab: the palette gradient. */
-@Composable
-private fun SelectedMarker(modifier: Modifier = Modifier) {
-    Box(modifier.height(2.dp).width(Vela.lg).clip(Vela.pillShape).background(Vela.wake).testTag("nav.marker"))
-}
-
-/**
- * The tab bar. [shrink] (0..1) is how far it has contracted: at 0 the tabs share the full width with their labels; at 1 it is a small
- * pill of icons only. Everything between is the same layout evaluated at that fraction (width, height, spacing between the icons and the
- * labels' height and opacity all interpolate), so the contraction is one smooth motion with the icons moving together, never a switch
- * between two layouts. The caller decides where it sits and gives it a [shape]; its surface is the bar tint (at least the Look's bar
- * opacity when glass is on), so page text never reads through it.
- */
-@Composable
-fun BottomNav(entries: List<NavEntry>, selected: NavTab?, labelsVisible: Boolean, marker: Boolean = true, shrink: Float, shape: androidx.compose.ui.graphics.Shape, onSelect: (NavTab) -> Unit, modifier: Modifier = Modifier, bottomInset: Boolean = false) {
-    val tint = if (glassEnabled()) Vela.look.effects.barTintAlpha else 1f
-    val surface = Vela.colors.surface.toColor().copy(alpha = tint)
-    val n = entries.size.coerceAtLeast(1)
-    val f = shrink.coerceIn(0f, 1f)
-    BoxWithConstraints(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        val pad = Vela.xs
-        val iconGap = Vela.xs * f
-        val compactWidth = Vela.minTouch * n + Vela.xs * (n - 1) + pad * 2
-        val barWidth = lerp(maxWidth, compactWidth, f)
-        val itemWidth = (barWidth - pad * 2 - iconGap * (n - 1)) / n
-        val fullHeight = if (labelsVisible) Vela.minTouch + Vela.md else Vela.minTouch + Vela.xs
-        val itemHeight = lerp(fullHeight, Vela.minTouch, f) - pad * 2   // the bar's own padding above and below keeps its overall height
-        Row(
-            Modifier.testTag(ComponentIds.BOTTOM_NAV).width(barWidth).clip(shape).background(surface)
-                // A docked bar is painted behind the gesture area, so its content keeps clear of it.
-                .then(if (bottomInset) Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)) else Modifier).padding(pad),
-            horizontalArrangement = Arrangement.spacedBy(iconGap), verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // The highlight sits one inset inside the bar's edge, so its corner is the bar's minus that inset (concentric, not a different curve).
-            val highlightShape = RoundedCornerShape((Vela.look.radii.largeDp.dp - pad - Vela.xs / 2).coerceAtLeast(0.dp))
-            entries.forEach { e ->
-                val isSelected = e.tab == selected
-                Column(
-                    Modifier.width(itemWidth).height(itemHeight).padding(Vela.xs / 2).clip(highlightShape)
-                        .background(if (isSelected) Vela.colors.surfaceVariant.toColor() else androidx.compose.ui.graphics.Color.Transparent)
-                        .semantics { contentDescription = e.label; this.selected = isSelected }.pressable(role = Role.Tab) { onSelect(e.tab) }.testTag("nav.tab.${e.tab.name}"),
-                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
-                ) {
-                    Icon(e.icon(isSelected), null, tint = if (isSelected) Vela.colors.onSurface.toColor() else Vela.colors.onSurfaceVariant.toColor())
-                    // The label's room and opacity fade out as the bar contracts; it is gone from the tree once the pill is complete.
-                    if (labelsVisible && f < 0.99f) Box(Modifier.height(NAV_LABEL_HEIGHT * (1f - f)).alpha(1f - f), contentAlignment = Alignment.TopCenter) {
-                        Text(e.label, maxLines = 1, softWrap = false, style = MaterialTheme.typography.bodySmall, color = if (isSelected) Vela.colors.onSurface.toColor() else Vela.colors.onSurfaceVariant.toColor(), modifier = Modifier.wrapContentHeight(unbounded = true, align = Alignment.Top).testTag("nav.label"))
-                    }
-                    if (marker) { if (isSelected) SelectedMarker() else Spacer(Modifier.height(2.dp)) }
-                }
-            }
-        }
-    }
-}
-
-/** The height reserved for a tab's label while the bar is full size. */
-private val NAV_LABEL_HEIGHT = 18.dp
-
-/**
- * The left rail on wide windows and Linux: the same tab list, collapsible to icons. Keyboard: Tab moves between items (a ring shows
- * the focus), Enter opens one; hovering or focusing a collapsed item shows its name as a tooltip.
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun SideRail(entries: List<NavEntry>, selected: NavTab?, collapsed: Boolean, marker: Boolean = true, onToggleCollapsed: () -> Unit, onSelect: (NavTab) -> Unit, modifier: Modifier = Modifier) {
-    val width by androidx.compose.animation.core.animateDpAsState(if (collapsed) 72.dp else 176.dp, VelaMotion.standard(Vela.motion), label = "railWidth")
-    Column(
-        modifier.fillMaxHeight().width(width).background(Vela.colors.surface.toColor()).windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Vertical + WindowInsetsSides.Start))
-            .padding(horizontal = Vela.xs, vertical = Vela.sm).testTag(ComponentIds.SIDE_RAIL),
-        verticalArrangement = Arrangement.spacedBy(Vela.xs),
-    ) {
-        Box(Modifier.heightIn(min = Vela.minTouch).widthIn(min = Vela.minTouch).clip(Vela.mediumShape).semantics { contentDescription = if (collapsed) "Expand the rail" else "Collapse the rail" }.pressable(role = Role.Button, onClick = onToggleCollapsed).testTag("rail.toggle"), contentAlignment = Alignment.Center) {
-            androidx.compose.material3.Icon(if (collapsed) com.greenaltambe.vela.ui.look.Vela.icons.chevronRight else com.greenaltambe.vela.ui.look.Vela.icons.chevronLeft, null)
-        }
-        entries.forEach { e ->
-            val isSelected = e.tab == selected
-            TooltipBox(
-                positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(), tooltip = { if (collapsed) PlainTooltip { Text(e.label) } },
-                state = rememberTooltipState(),
-            ) {
-                Row(
-                    Modifier.fillMaxWidth().heightIn(min = Vela.minTouch).clip(Vela.mediumShape)
-                        .background(if (isSelected) Vela.colors.surfaceVariant.toColor() else androidx.compose.ui.graphics.Color.Transparent)
-                        .semantics { contentDescription = e.label; this.selected = isSelected }.pressable(role = Role.Tab) { onSelect(e.tab) }.padding(horizontal = Vela.sm).testTag("rail.tab.${e.tab.name}"),
-                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm),
-                ) {
-                    // A short upright gradient bar at the row's left edge (a horizontal line does not fit a side rail); the space is kept when off or unselected.
-                    if (marker) Box(Modifier.width(3.dp).height(20.dp).clip(Vela.pillShape).then(if (isSelected) Modifier.background(Vela.wake).testTag("nav.marker") else Modifier))
-                    Icon(e.icon(isSelected), null, tint = if (isSelected) Vela.colors.onSurface.toColor() else Vela.colors.onSurfaceVariant.toColor())
-                    if (!collapsed) Text(e.label, maxLines = 1, softWrap = false, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f, fill = false).testTag("nav.label"))
-                }
-            }
-        }
-    }
+internal fun NavEntry.icon(selected: Boolean = false): ImageVector = when (tab) {
+    NavTab.HOME -> if (selected) AppIcons.homeFilled else AppIcons.home
+    NavTab.SHORTS -> if (selected) AppIcons.boltFilled else AppIcons.bolt
+    NavTab.SUBSCRIPTIONS -> if (selected) AppIcons.subscriptionsFilled else AppIcons.subscriptions
+    NavTab.LIBRARY -> if (selected) AppIcons.libraryFilled else AppIcons.library
+    NavTab.SEARCH -> AppIcons.search
+    NavTab.DOWNLOADS -> if (selected) AppIcons.downloadFilled else AppIcons.download
+    NavTab.EXPLORE -> if (selected) AppIcons.exploreFilled else AppIcons.explore
 }
 
 /** One entry of a top bar's overflow menu. */
 class MenuAction(val label: String, val onClick: () -> Unit)
 
+/** True while a screen is drawn inside the right pane of the two-pane Settings: it has no Back arrow there (the list on the left is the way around). */
+val LocalEmbeddedInPane = androidx.compose.runtime.compositionLocalOf { false }
+
 /**
- * The bar at the top of every screen: back (when there is somewhere to go back to), the title on one line, search, and
- * an overflow menu. Insets for the status bar and display cutout are applied here, so content below never needs them.
+ * The bar at the top of every screen, the standard Material top app bar: back (when there is somewhere to go back to) or the app's mark,
+ * the title on one line, search, an overflow menu and the profile button. It takes the status-bar and display-cutout insets itself.
+ * [large] is Material's large flexible bar for pages that are lists (Settings); give it a [scrollBehavior] and the big title collapses as the list scrolls.
  */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun VelaTopBar(
     title: String,
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
     onSearch: (() -> Unit)? = null,
+    /** The bell: opens the notifications page; [unread] puts a dot on it. */
+    onNotifications: (() -> Unit)? = null,
+    unread: Boolean = false,
     menu: List<MenuAction> = emptyList(),
     actions: @Composable () -> Unit = {},
     /** The profile button (avatar), at the right end; shown only where there is no Back button, where the app's mark takes the left. */
     profile: (@Composable () -> Unit)? = null,
+    large: Boolean = false,
+    scrollBehavior: androidx.compose.material3.TopAppBarScrollBehavior? = null,
 ) {
-    Row(
-        modifier.fillMaxWidth()
-            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
-            .heightIn(min = 56.dp).padding(horizontal = Vela.xs).testTag("topbar"),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (onBack != null) IconButton(onClick = onBack, modifier = Modifier.testTag("nav.back")) { Icon(Vela.icons.back, "Back") }
-        else if (profile != null) com.greenaltambe.vela.ui.look.VelaMark(Modifier.padding(start = Vela.xs).testTag("topbar.logo"), size = 32.dp)
-        else Spacer(Modifier.size(Vela.sm))
-        Text(title, Modifier.weight(1f).padding(horizontal = Vela.xs), style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
-        actions()
-        if (onSearch != null) IconButton(onClick = onSearch, modifier = Modifier.testTag("nav.search")) { Icon(Vela.icons.search, "Search") }
-        if (menu.isNotEmpty()) {
-            var open by remember { mutableStateOf(false) }
-            Box {
-                IconButton(onClick = { open = true }, modifier = Modifier.testTag("nav.overflow")) { Icon(Vela.icons.more, "More options") }
-                DropdownMenu(open, { open = false }) {
-                    menu.forEach { a -> DropdownMenuItem(text = { Text(a.label, maxLines = 1) }, onClick = { open = false; a.onClick() }) }
+    val back = if (LocalEmbeddedInPane.current) null else onBack
+    if (large) {
+        LargeFlexibleTopAppBar(
+            title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            modifier = modifier.testTag("topbar"),
+            navigationIcon = { if (back != null) IconButton(onClick = back, modifier = Modifier.testTag("nav.back")) { Icon(AppIcons.back, "Back") } },
+            actions = { actions() },
+            scrollBehavior = scrollBehavior,
+        )
+        return
+    }
+    TopAppBar(
+        title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        modifier = modifier.testTag("topbar"),
+        scrollBehavior = scrollBehavior,
+        navigationIcon = {
+            if (back != null) IconButton(onClick = back, modifier = Modifier.testTag("nav.back")) { Icon(AppIcons.back, "Back") }
+            else if (profile != null) com.greenaltambe.vela.ui.look.VelaMark(Modifier.padding(start = Spacing.md).testTag("topbar.logo"), size = 32.dp)
+        },
+        actions = {
+            actions()
+            if (onSearch != null) IconButton(onClick = onSearch, modifier = Modifier.testTag("nav.search")) { Icon(AppIcons.search, "Search") }
+            if (onNotifications != null) IconButton(onClick = onNotifications, modifier = Modifier.testTag("nav.notifications")) {
+                androidx.compose.material3.BadgedBox(badge = { if (unread) androidx.compose.material3.Badge(Modifier.testTag("nav.notifications.unread")) }) {
+                    Icon(if (unread) AppIcons.notificationsFilled else AppIcons.notifications, if (unread) "Notifications, unread" else "Notifications")
                 }
             }
-        }
-        if (onBack == null && profile != null) profile()
-    }
+            if (menu.isNotEmpty()) {
+                var open by remember { mutableStateOf(false) }
+                Box {
+                    IconButton(onClick = { open = true }, modifier = Modifier.testTag("nav.overflow")) { Icon(AppIcons.more, "More options") }
+                    DropdownMenu(open, { open = false }) {
+                        menu.forEach { a -> DropdownMenuItem(text = { Text(a.label, maxLines = 1) }, onClick = { open = false; a.onClick() }) }
+                    }
+                }
+            }
+            if (back == null && profile != null) profile()
+        },
+    )
 }
 
-/** What the mini player shows and does; built once from the player host and used by every layout (bar over/under the page, wide rail). */
-class MiniState(
-    val title: String, val thumbnailUrl: String?, val playing: Boolean, val progress: Float,
-    val onToggle: () -> Unit, val onExpand: () -> Unit, val onClose: () -> Unit,
-    /** Draws the playing video into the given box (the mini player shows the live picture, not just the thumbnail); null shows the thumbnail only. */
-    val surface: (@Composable (Modifier) -> Unit)? = null,
-    /** Dragging the card up: the page grows out of it as [progress] (0..1) rises; null where that is not supported. [onExpandRelease] ends it (true: keep the page open). */
-    val onExpandDrag: ((progress: Float) -> Unit)? = null,
-    val onExpandRelease: (open: Boolean) -> Unit = {},
-    /** Where the mini player's picture is in the window, so the page's picture can start from and return to exactly that place. */
-    val onPictureBounds: (androidx.compose.ui.geometry.Rect) -> Unit = {},
-    val alpha: () -> Float = { 1f },
-    val interactive: Boolean = true,
-)
 
-/**
- * The mini player while something plays and its page is closed. REGULAR (CARD) is a bar-wide card: thumbnail, title, play/pause,
- * close and a thin progress line. PIP is a small picture-in-picture style card (the thumbnail with the controls on it). Both take
- * their [shape] from the corner-radius setting (the caller passes it, because attached to the bar only the outer corners are round).
- */
-@Composable
-fun MiniPlayer(state: MiniState, look: MiniLook, shape: androidx.compose.ui.graphics.Shape, modifier: Modifier = Modifier) {
-    when (look) {
-        MiniLook.CARD -> {
-          // Dragging the card up pulls the video page up out of it; dragging down dismisses/closes it.
-          var lift by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
-          var isClosing by remember { mutableStateOf(false) }
-          var topPx by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
-          val scope = androidx.compose.runtime.rememberCoroutineScope()
-          val density = androidx.compose.ui.platform.LocalDensity.current
-          val expandDistance = with(density) { 160.dp.toPx() }
-          val dismissDistance = with(density) { 110.dp.toPx() }
-          val slopPx = with(density) { 4.dp.toPx() }
-
-          val currentState by androidx.compose.runtime.rememberUpdatedState(state)
-
-          val handleClose: () -> Unit = {
-              if (!isClosing) {
-                  isClosing = true
-                  scope.launch {
-                      androidx.compose.animation.core.animate(
-                          initialValue = lift,
-                          targetValue = dismissDistance * 1.4f,
-                          animationSpec = androidx.compose.animation.core.tween(180, easing = androidx.compose.animation.core.FastOutLinearInEasing),
-                      ) { x, _ -> lift = x }
-                      currentState.onClose()
-                  }
-              }
-          }
-          val currentHandleClose by androidx.compose.runtime.rememberUpdatedState(handleClose)
-
-          val gestureModifier = if (state.interactive) {
-              Modifier.pointerInput(Unit) {
-                  awaitEachGesture {
-                      val down = awaitFirstDown(requireUnconsumed = false)
-                      val downId = down.id
-                      val downPos = down.position
-                      val tracker = VelocityTracker()
-                      tracker.addPosition(down.uptimeMillis, down.position)
-                      var isDrag = false
-                      var dragMode = 0 // -1: up, 1: down
-
-                      while (true) {
-                          val event = awaitPointerEvent()
-                          val change = event.changes.firstOrNull { it.id == downId }
-                          if (change == null || !change.pressed) {
-                              if (isDrag) {
-                                  val velocityY = tracker.calculateVelocity().y
-                                  if (dragMode < 0) {
-                                      val pUp = (-lift / expandDistance).coerceIn(0f, 1f)
-                                      val open = pUp > 0.15f || velocityY < -300f
-                                      lift = 0f
-                                      currentState.onExpandRelease(open)
-                                  } else if (dragMode > 0) {
-                                      val pDown = (lift / dismissDistance).coerceIn(0f, 1f)
-                                      val dismiss = pDown > 0.22f || velocityY > 300f
-                                      if (dismiss) {
-                                          currentHandleClose()
-                                      } else {
-                                          scope.launch {
-                                              androidx.compose.animation.core.animate(
-                                                  initialValue = lift,
-                                                  targetValue = 0f,
-                                                  animationSpec = androidx.compose.animation.core.spring(
-                                                      dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
-                                                      stiffness = androidx.compose.animation.core.Spring.StiffnessMedium,
-                                                  ),
-                                              ) { x, _ -> lift = x }
-                                          }
-                                      }
-                                  }
-                              } else {
-                                  val dy = (change?.position?.y ?: downPos.y) - downPos.y
-                                  val dx = (change?.position?.x ?: downPos.x) - downPos.x
-                                  val moved = kotlin.math.abs(dy) > slopPx || kotlin.math.abs(dx) > slopPx
-                                  if (change?.isConsumed == false && !moved) {
-                                      change.consume()
-                                      currentState.onExpand()
-                                  }
-                              }
-                              break
-                          }
-
-                          tracker.addPosition(change.uptimeMillis, change.position)
-                          val dy = change.position.y - downPos.y
-                          val dx = change.position.x - downPos.x
-
-                          if (!isDrag) {
-                              if (kotlin.math.abs(dy) > slopPx && kotlin.math.abs(dy) > kotlin.math.abs(dx)) {
-                                  isDrag = true
-                                  dragMode = if (dy < 0) -1 else 1
-                                  change.consume()
-                                  val currentLift = if (dragMode < 0) dy + slopPx else dy - slopPx
-                                  lift = currentLift
-                                  if (dragMode < 0) {
-                                      val pUp = (-lift / expandDistance).coerceIn(0f, 1f)
-                                      currentState.onExpandDrag?.invoke(pUp)
-                                  }
-                              }
-                          } else {
-                              change.consume()
-                              if (isClosing) break
-                              val currentLift = if (dragMode < 0) (dy + slopPx).coerceAtMost(0f) else (dy - slopPx).coerceAtLeast(0f)
-                              lift = currentLift
-                              if (dragMode < 0) {
-                                  val pUp = (-lift / expandDistance).coerceIn(0f, 1f)
-                                  currentState.onExpandDrag?.invoke(pUp)
-                              }
-                          }
-                      }
-                  }
-              }
-          } else Modifier
-
-          Column(
-            modifier.onGloballyPositioned { topPx = it.boundsInWindow().top }
-                .then(gestureModifier)
-                .graphicsLayer {
-                    val currentAlpha = currentState.alpha()
-                    if (lift > 0f) {
-                        val pDown = (lift / dismissDistance).coerceIn(0f, 1.5f)
-                        translationY = lift
-                        alpha = (1f - pDown * 0.75f).coerceIn(0f, 1f) * currentAlpha
-                        scaleX = (1f - 0.05f * pDown).coerceIn(0.88f, 1f)
-                        scaleY = (1f - 0.05f * pDown).coerceIn(0.88f, 1f)
-                    } else {
-                        val pUp = (-lift / expandDistance).coerceIn(0f, 1f)
-                        translationY = lift * 0.2f
-                        alpha = (1f - 1.5f * pUp).coerceIn(0f, 1f) * currentAlpha
-                    }
-                }
-                .semantics { role = Role.Button; onClick(label = "Expand") { if (state.interactive) { currentState.onExpand(); true } else false } }
-                .clip(shape).background(Vela.colors.surfaceVariant.toColor()).testTag(ComponentIds.MINI_PLAYER),
-          ) {
-            Row(Modifier.fillMaxWidth().padding(start = Vela.sm), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                Box(Modifier.size(width = 64.dp, height = 36.dp).onGloballyPositioned { currentState.onPictureBounds(it.boundsInWindow()) }.clip(Vela.smallShape).background(Vela.colors.mediaBackground.toColor())) {
-                    if (currentState.thumbnailUrl != null) AsyncImage(currentState.thumbnailUrl, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
-                    currentState.surface?.invoke(Modifier.matchParentSize())
-                }
-                Text(currentState.title, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                IconButton(onClick = { if (state.interactive) currentState.onToggle() }, enabled = state.interactive, modifier = Modifier.testTag("mini.toggle")) { Icon(if (currentState.playing) Vela.icons.pause else Vela.icons.play, if (currentState.playing) "Pause" else "Play") }
-                IconButton(onClick = { if (state.interactive) handleClose() }, enabled = state.interactive, modifier = Modifier.testTag("mini.close")) { Icon(Vela.icons.close, "Close player") }
-            }
-            // The progress line is the card's bottom edge.
-            Box(Modifier.fillMaxWidth().height(2.dp).background(Vela.colors.outline.toColor())) {
-                Box(Modifier.fillMaxWidth(state.progress.coerceIn(0f, 1f)).fillMaxHeight().background(Vela.wake))
-            }
-          }
-        }
-        MiniLook.PIP -> {
-            var lift by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
-            var isClosing by remember { mutableStateOf(false) }
-            val scope = androidx.compose.runtime.rememberCoroutineScope()
-            val density = androidx.compose.ui.platform.LocalDensity.current
-            val dismissDistance = with(density) { 90.dp.toPx() }
-
-            val handleClose: () -> Unit = {
-                if (!isClosing) {
-                    isClosing = true
-                    scope.launch {
-                        androidx.compose.animation.core.animate(
-                            initialValue = lift,
-                            targetValue = dismissDistance * 1.4f,
-                            animationSpec = androidx.compose.animation.core.tween(180, easing = androidx.compose.animation.core.FastOutLinearInEasing),
-                        ) { x, _ -> lift = x }
-                        state.onClose()
-                    }
-                }
-            }
-
-            val pipGestureModifier = if (state.interactive) {
-                Modifier.playerVerticalSwipe(
-                    startsOn = { true },
-                    onDelta = { dy ->
-                        if (!isClosing) lift = (lift + dy).coerceAtLeast(0f)
-                    },
-                    onEnd = { _, v ->
-                        if (isClosing) return@playerVerticalSwipe
-                        val pDown = (lift / dismissDistance).coerceIn(0f, 1f)
-                        if (pDown > 0.28f || v > 350f) {
-                            handleClose()
-                        } else {
-                            scope.launch {
-                                androidx.compose.animation.core.animate(lift, 0f, animationSpec = androidx.compose.animation.core.spring(dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy, stiffness = androidx.compose.animation.core.Spring.StiffnessMedium)) { x, _ -> lift = x }
-                            }
-                        }
-                    },
-                ).clickable(onClick = state.onExpand)
-            } else Modifier
-
-            Box(
-                modifier.size(PIP_WIDTH, PIP_WIDTH * 9 / 16)
-                    .onGloballyPositioned { state.onPictureBounds(it.boundsInWindow()) }
-                    .then(pipGestureModifier)
-                    .graphicsLayer {
-                        val currentAlpha = state.alpha()
-                        if (lift > 0f) {
-                            val pDown = (lift / dismissDistance).coerceIn(0f, 1.5f)
-                            translationY = lift
-                            alpha = (1f - pDown * 0.75f).coerceIn(0f, 1f) * currentAlpha
-                            scaleX = (1f - 0.05f * pDown).coerceIn(0.88f, 1f)
-                            scaleY = (1f - 0.05f * pDown).coerceIn(0.88f, 1f)
-                        } else {
-                            alpha = currentAlpha
-                        }
-                    }
-                    .clip(shape).background(Vela.colors.mediaBackground.toColor()).testTag(ComponentIds.MINI_PLAYER),
-            ) {
-                if (state.thumbnailUrl != null) AsyncImage(state.thumbnailUrl, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
-                state.surface?.invoke(Modifier.matchParentSize())
-                Box(Modifier.matchParentSize().background(Vela.colors.mediaScrim.toColor().copy(alpha = 0.35f)))
-                IconButton(onClick = { if (state.interactive) state.onToggle() }, enabled = state.interactive, modifier = Modifier.align(Alignment.Center).testTag("mini.toggle")) { Icon(if (state.playing) Vela.icons.pause else Vela.icons.play, if (state.playing) "Pause" else "Play", tint = Vela.colors.onMedia.toColor()) }
-                IconButton(onClick = { if (state.interactive) handleClose() }, enabled = state.interactive, modifier = Modifier.align(Alignment.TopEnd).testTag("mini.close")) { Icon(Vela.icons.close, "Close player", tint = Vela.colors.onMedia.toColor()) }
-                Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Vela.colors.outline.toColor().copy(alpha = 0.5f))) {
-                    Box(Modifier.fillMaxWidth(state.progress.coerceIn(0f, 1f)).fillMaxHeight().background(Vela.wake))
-                }
-            }
-        }
-    }
-}
-
-/** The picture-in-picture style mini player is this wide (16:9). */
-val PIP_WIDTH = 176.dp
-
+/** The main button: Material's expressive filled button (medium size, its shape morphs while pressed) with a text label. */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun PrimaryButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
-    val source = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-    // The palette gradient is the button's fill, darkened just enough for white text to read on every part of it.
-    val onGradient = Vela.onButton
     Button(
-        onClick = onClick, modifier = modifier.pressFeedback(source).alpha(if (enabled) 1f else 0.4f).background(Vela.buttonFill, Vela.buttonShape), enabled = enabled, shape = Vela.buttonShape, interactionSource = source,
-        colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color.Transparent, disabledContainerColor = androidx.compose.ui.graphics.Color.Transparent, contentColor = onGradient, disabledContentColor = onGradient),
-    ) { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+        onClick = onClick, shapes = ButtonDefaults.shapes(), modifier = modifier.heightIn(min = ButtonDefaults.MediumContainerHeight), enabled = enabled,
+        contentPadding = ButtonDefaults.contentPaddingFor(ButtonDefaults.MediumContainerHeight),
+    ) { Text(label, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis) }
 }
 
-/** The quieter button next to a [PrimaryButton]: an outline in the Look's button shape, so a row of options all look like one family. */
+/** The quieter button next to a [PrimaryButton]: Material's expressive outlined button, same size. */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SecondaryButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
-    val source = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     androidx.compose.material3.OutlinedButton(
-        onClick = onClick, modifier = modifier.pressFeedback(source), enabled = enabled, shape = Vela.buttonShape, interactionSource = source,
-        border = androidx.compose.foundation.BorderStroke(1.dp, Vela.colors.outline.toColor()),
-    ) { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+        onClick = onClick, shapes = ButtonDefaults.shapes(), modifier = modifier.heightIn(min = ButtonDefaults.MediumContainerHeight), enabled = enabled,
+        contentPadding = ButtonDefaults.contentPaddingFor(ButtonDefaults.MediumContainerHeight),
+    ) { Text(label, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis) }
 }
 
-/** A pill button for the video page's action row (Like, Dislike, Download, Save, Share) with a bouncy tap animation. */
+/** Where an [ActionChip] sits in a connected group: alone, or the first / last of two that touch. */
+enum class ActionPosition { ALONE, LEADING, TRAILING }
+
+/**
+ * The video page's actions (Like, Dislike, Download, Save, Share): Material's expressive toggle buttons. A button that is on turns primary and its
+ * shape morphs from round to square; Like and Dislike sit as one connected group ([ActionPosition]).
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ActionChip(
     icon: ImageVector,
@@ -728,119 +427,23 @@ fun ActionChip(
     selected: Boolean = false,
     selectedIcon: ImageVector? = null,
     enabled: Boolean = true,
-    /** The chip's outline; a pill by default. Like and Dislike pass shapes whose touching corners are tight. */
-    chipShape: androidx.compose.ui.graphics.Shape? = null,
+    position: ActionPosition = ActionPosition.ALONE,
 ) {
-    val m = Vela.motion
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val isHovered by interactionSource.collectIsHoveredAsState()
-
-    // Tactile pill tap animation: smooth scale compression on press, bouncy spring rebound on release
-    val scale = remember { androidx.compose.animation.core.Animatable(1f) }
-
-    androidx.compose.runtime.LaunchedEffect(isPressed) {
-        if (m.reduced) {
-            scale.snapTo(1f)
-            return@LaunchedEffect
-        }
-        if (isPressed) {
-            scale.animateTo(
-                targetValue = 0.91f,
-                animationSpec = androidx.compose.animation.core.tween(durationMillis = 80, easing = androidx.compose.animation.core.FastOutSlowInEasing)
-            )
-        } else {
-            scale.animateTo(
-                targetValue = 1f,
-                animationSpec = androidx.compose.animation.core.spring(
-                    dampingRatio = 0.42f,
-                    stiffness = 380f
-                )
-            )
-        }
-    }
-
-    val animatedBgColor by androidx.compose.animation.animateColorAsState(
-        targetValue = when {
-            selected -> Vela.colors.primary.toColor().copy(alpha = 0.22f)
-            isPressed -> Vela.colors.surfaceVariant.toColor().copy(alpha = 0.70f)
-            isHovered -> Vela.colors.surfaceVariant.toColor().copy(alpha = 0.88f)
-            else -> Vela.colors.surfaceVariant.toColor()
+    ToggleButton(
+        checked = selected, onCheckedChange = { onClick() }, enabled = enabled, modifier = modifier,
+        shapes = when (position) {
+            ActionPosition.LEADING -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+            ActionPosition.TRAILING -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+            ActionPosition.ALONE -> ToggleButtonDefaults.shapes()
         },
-        animationSpec = androidx.compose.animation.core.tween(durationMillis = 150),
-        label = "pillBgColor"
-    )
-
-    val animatedContentColor by androidx.compose.animation.animateColorAsState(
-        targetValue = if (selected) Vela.colors.primary.toColor() else Vela.colors.onSurface.toColor(),
-        animationSpec = androidx.compose.animation.core.tween(durationMillis = 150),
-        label = "pillContentColor"
-    )
-
-    val shape = chipShape ?: Vela.pillShape
-    val shown = if (selected && selectedIcon != null) selectedIcon else icon
-
-    Row(
-        modifier = modifier
-            .graphicsLayer {
-                scaleX = scale.value
-                scaleY = scale.value
-            }
-            .clip(shape)
-            .background(animatedBgColor)
-            .focusRing(interactionSource, shape)
-            .hoverable(interactionSource)
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                enabled = enabled,
-                role = Role.Button,
-                onClick = {
-                    if (!m.reduced && scale.value > 0.95f) {
-                        scope.launch {
-                            scale.animateTo(0.91f, androidx.compose.animation.core.tween(durationMillis = 60, easing = androidx.compose.animation.core.FastOutSlowInEasing))
-                            scale.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.42f, stiffness = 380f))
-                        }
-                    }
-                    onClick()
-                }
-            )
-            .height(38.dp)
-            .padding(horizontal = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Icon(
-            imageVector = shown,
-            contentDescription = null,
-            modifier = Modifier
-                .size(19.dp)
-                .popOnSelect(selected),
-            tint = animatedContentColor
-        )
-        if (label.isNotBlank()) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                softWrap = false,
-                color = animatedContentColor
-            )
-        }
+        Icon(if (selected && selectedIcon != null) selectedIcon else icon, null, Modifier.size(ToggleButtonDefaults.IconSize))
+        if (label.isNotBlank()) { Spacer(Modifier.width(ToggleButtonDefaults.IconSpacing)); Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false) }
     }
 }
 
-/**
- * A text link-style button that starts exactly at the content edge (Material's text button centres its label in a
- * 48 dp box, which leaves it indented). The touch area is still at least 48 dp each way.
- */
+/** A text button: Material's own. */
 @Composable
 fun LinkButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
-    // Clipped to the Look's radius and padded, so the press highlight is a rounded patch around the text, not a bare rectangle.
-    Box(modifier.heightIn(min = Vela.minTouch).widthIn(min = Vela.minTouch).clip(Vela.mediumShape).clickable(enabled = enabled, onClick = onClick).padding(horizontal = Vela.sm), contentAlignment = Alignment.CenterStart) {
-        Text(label, style = MaterialTheme.typography.labelLarge, color = (if (enabled) Vela.colors.primary else Vela.colors.onSurfaceVariant).toColor(), maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
+    TextButton(onClick = onClick, modifier = modifier, enabled = enabled) { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) }
 }

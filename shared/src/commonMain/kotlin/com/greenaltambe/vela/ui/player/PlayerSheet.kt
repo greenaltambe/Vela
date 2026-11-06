@@ -1,5 +1,9 @@
 package com.greenaltambe.vela.ui.player
 
+import com.greenaltambe.vela.ui.theme.AppIcons
+import com.greenaltambe.vela.ui.theme.ExtraColors
+import com.greenaltambe.vela.ui.theme.Spacing
+import com.greenaltambe.vela.ui.theme.Accent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -20,6 +24,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -50,15 +56,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.greenaltambe.vela.AppServices
-import com.greenaltambe.vela.core.settings.BarStyle
-import com.greenaltambe.vela.core.settings.MiniLook
 import com.greenaltambe.vela.player.PlaybackStatus
-import com.greenaltambe.vela.ui.components.PIP_WIDTH
 import com.greenaltambe.vela.ui.look.ComponentIds
-import com.greenaltambe.vela.ui.look.Vela
-import com.greenaltambe.vela.ui.look.toColor
-import com.greenaltambe.vela.ui.nav.LocalPipPosition
-import com.greenaltambe.vela.ui.nav.NavConfig
+import com.greenaltambe.vela.ui.nav.MiniPlayerHeight
 import com.greenaltambe.vela.ui.nav.Navigator
 import com.greenaltambe.vela.ui.platform.LocalWindowControls
 import com.greenaltambe.vela.ui.platform.PlatformBackHandler
@@ -73,6 +73,7 @@ import kotlin.math.roundToInt
  * - Collapsed (Miniplayer bar or PiP card, progress == 0f)
  * - Expanded (Full video screen, progress == 1f)
  */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun PlayerSheet(
     services: AppServices,
@@ -84,7 +85,10 @@ fun PlayerSheet(
 ) {
     val video = sheetState.currentVideo ?: return
     val host = services.player ?: return
-    val controllerState by host.controllerState.collectAsState()
+    // Only what changes the mini player's look is read in composition (playing or not); the position is read when the bar is drawn, so a tick every
+    // half second does not recompose the whole sheet.
+    val controllerFlow = host.controllerState.collectAsState()
+    val miniPlaying by remember(controllerFlow) { androidx.compose.runtime.derivedStateOf { controllerFlow.value.status == PlaybackStatus.PLAYING } }
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
     val windowControls = LocalWindowControls.current
@@ -107,80 +111,45 @@ fun PlayerSheet(
         }
     }
 
-    val revision by services.settings.revision.collectAsState()
-    val nav = remember(revision) { NavConfig.of(services.settings) }
-    val isPip = nav.miniLook == MiniLook.PIP
-    val pipPos = LocalPipPosition.current
-
     val winW = windowInfo.containerSize.width.toFloat().coerceAtLeast(100f)
     val winH = windowInfo.containerSize.height.toFloat().coerceAtLeast(100f)
     androidx.compose.runtime.SideEffect { sheetState.windowHeightPx = winH }
     val bottomInsetPx = WindowInsets.safeDrawing.getBottom(density).toFloat()
     val topInsetPx = WindowInsets.safeDrawing.getTop(density).toFloat()
-    // Sideways, the page (rail and all) sits inside the left / right system insets (cutout, gesture area); the sheet must be placed inside them too.
-    val layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
-    val leftInsetPx = WindowInsets.safeDrawing.getLeft(density, layoutDirection).toFloat()
-    val rightInsetPx = WindowInsets.safeDrawing.getRight(density, layoutDirection).toFloat()
 
     // Progress is NOT read here: reading it in composition recomposed this sheet and the whole video page on every animation frame. It is read
     // in the layout / draw lambdas below (and through the coarse flags), so a frame only re-measures and redraws.
-    val cardHeightPx = with(density) { 56.dp.toPx() }
+    val cardHeightPx = with(density) { MiniPlayerHeight.toPx() }
     val thumbWidthDp = 64.dp
-    val thumbWidthPx = with(density) { thumbWidthDp.toPx() }
-    val bottomClearPx = bottomInsetPx + with(density) { (if (nav.barStyle == BarStyle.DOCKED) 64.dp else 72.dp).toPx() }
-    val marginPx = with(density) { (if (nav.barStyle == BarStyle.DOCKED) 0.dp else Vela.md).toPx() }
 
+    // The mini player is a standard bar on the navigation bar: the shell sets aside its room (a strip between the page and the bar) and tells us
+    // where it is, so the sheet needs no sizes of its own, with a rail or without. Before the first layout it lies along the bottom edge.
     val sizeClass = com.greenaltambe.vela.ui.layout.LocalWindowSize.current
-    // The page behind has its rail whenever the window is wide, fullscreen or not; the card is placed by that layout so it does not jump when the window
-    // leaves fullscreen. Only the expanded sheet differs: in fullscreen it covers the whole window.
-    val pageRail = sizeClass != com.greenaltambe.vela.ui.layout.WindowSizeClass.COMPACT
-    val rail = pageRail && !isFullscreen
-    val railWidthDp = if (!pageRail) 0.dp else if (nav.railCollapsed) 72.dp else 176.dp
-    val railWidthPx = with(density) { railWidthDp.toPx() }
-    val contentW = winW - leftInsetPx - rightInsetPx - railWidthPx
-
-    val cardBottom = winH - bottomClearPx
-    val cardTop = cardBottom - cardHeightPx
+    // On a wide window the open page sits beside the rail (the same strip's left and width); in fullscreen, or on a phone, it covers the window.
+    val beside = sizeClass != com.greenaltambe.vela.ui.layout.WindowSizeClass.COMPACT && !isFullscreen
+    var rootLeftPx by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
     var rootTopPx by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
-    // With the bar showing, the card is where the bar has left room for it; otherwise (a rail, before the first layout) at the fixed place. Read in layout, not composition.
-    val cardTopNow = { val t = miniSlot?.top; if (t != null && !t.isNaN() && !isPip && !rail) t - rootTopPx else cardTop }
-    // The card is as wide as the page, up to a comfortable width: stretched across a landscape screen it is a thin bar with its controls far apart.
-    val cardWidth = minOf(contentW - marginPx * 2, with(density) { 640.dp.toPx() })
-    val cardLeft = leftInsetPx + railWidthPx + marginPx + (contentW - marginPx * 2 - cardWidth) / 2f
-
-    // Dynamic morphing sheet bounds:
-    val targetExpandedX = if (rail) leftInsetPx + railWidthPx else 0f
-    val targetExpandedW = if (rail) contentW else winW
-    val pipW = with(density) { PIP_WIDTH.toPx() }
-    val pipH = pipW * 9f / 16f
+    val slot = miniSlot
+    val cardLeftNow = { if (slot != null && slot.isSet) slot.left - rootLeftPx else 0f }
+    val cardTopNow = { if (slot != null && slot.isSet) slot.top - rootTopPx else winH - bottomInsetPx - cardHeightPx }
+    val cardWidthNow = { if (slot != null && slot.isSet) slot.width else winW }
+    val expandedXNow = { if (beside) cardLeftNow() else 0f }
+    val expandedWNow = { if (beside) cardWidthNow() else winW }
 
     // Each is a function of the progress `p` (0 collapsed .. 1 expanded); called from layout/draw lambdas only.
-    val sheetXAt = { p: Float ->
-        if (isPip) {
-            val at = pipPos?.pos ?: Offset(winW - pipW - marginPx, cardBottom - pipH)
-            at.x * (1f - p) + targetExpandedX * p
-        } else cardLeft * (1f - p) + targetExpandedX * p
-    }
-    val sheetYAt = { p: Float ->
-        if (isPip) {
-            val at = pipPos?.pos ?: Offset(winW - pipW - marginPx, cardBottom - pipH)
-            at.y * (1f - p)
-        } else cardTopNow() * (1f - p)
-    }
-    val sheetWAt = { p: Float -> if (isPip) pipW + (targetExpandedW - pipW) * p else cardWidth + (targetExpandedW - cardWidth) * p }
-    val sheetHAt = { p: Float -> if (isPip) pipH + (winH - pipH) * p else cardHeightPx + (winH - cardHeightPx) * p }
-    val largeRadiusDp = Vela.look.radii.largeDp
-    val cornerDpAt = { p: Float -> (if (isPip) 16f else largeRadiusDp) * (1f - p) }
+    val sheetXAt = { p: Float -> cardLeftNow() * (1f - p) + expandedXNow() * p }
+    val sheetYAt = { p: Float -> cardTopNow() * (1f - p) }
+    val sheetWAt = { p: Float -> cardWidthNow() + (expandedWNow() - cardWidthNow()) * p }
+    val sheetHAt = { p: Float -> cardHeightPx + (winH - cardHeightPx) * p }
     val progressNow = { sheetState.progress.coerceIn(0f, 1f) }
-    val backgroundExpanded = Vela.colors.background.toColor()
-    val backgroundCollapsed = Vela.colors.surfaceVariant.toColor()
-    // Coarse flags: composition only changes when one of these flips, not on every frame in between.
+    val backgroundExpanded = MaterialTheme.colorScheme.background
+    val backgroundCollapsed = MaterialTheme.colorScheme.surfaceContainer
+    // Coarse flag: composition only changes when it flips, not on every frame in between.
     val showCardControls by remember(sheetState) { derivedStateOf { sheetState.progress < 0.6f } }
-    val showPipControls by remember(sheetState) { derivedStateOf { sheetState.progress < 0.25f } }
 
     // Gesture handler attached ONLY to the sheet container (never to full screen when collapsed)
     val controlsForGesture = androidx.compose.runtime.rememberUpdatedState(windowControls)
-    val gestureModifier = Modifier.pointerInput(winW, winH, isPip, isFullscreen) {
+    val gestureModifier = Modifier.pointerInput(winW, winH, isFullscreen) {
         var startProgress = 0f
         var startWindowY = 0f
         var isDragging = false
@@ -196,22 +165,14 @@ fun PlayerSheet(
             } else if (currentP > 0.6f) {
                 // Expanded: drag down from the video player header area
                 down.position.y <= (topInsetPx + winW * 9f / 16f + with(density) { 32.dp.toPx() })
-            } else if (!isPip) {
+            } else {
                 // Collapsed card: anywhere on the card
                 true
-            } else {
-                false
             }
 
             if (!canDrag || sheetState.slideY > 50f) return@awaitEachGesture
 
-            fun currentSheetY(): Float = if (isPip) {
-                val pipW = with(density) { PIP_WIDTH.toPx() }
-                val at = pipPos?.pos ?: Offset(winW - pipW - marginPx, cardBottom - pipW * 9f / 16f)
-                at.y * (1f - sheetState.progress)
-            } else {
-                cardTopNow() * (1f - sheetState.progress)
-            }
+            fun currentSheetY(): Float = cardTopNow() * (1f - sheetState.progress)
 
             startProgress = currentP
             startWindowY = down.position.y + currentSheetY()
@@ -234,7 +195,7 @@ fun PlayerSheet(
                     if (isDragging) {
                         val vY = tracker.calculateVelocity().y
                         // On the open video page, a firm swipe UP on the picture turns it fullscreen (landscape). Down still minimises (below).
-                        val swipedUp = startProgress > 0.9f && !isPip && (lastTotal < -with(density) { 72.dp.toPx() } || vY < -1500f)
+                        val swipedUp = startProgress > 0.9f && (lastTotal < -with(density) { 72.dp.toPx() } || vY < -1500f)
                         if (swipedUp && controlsForGesture.value?.isFullscreen == false) controlsForGesture.value?.toggleFullscreen()
                         else sheetState.settle(vY)
                     }
@@ -271,16 +232,10 @@ fun PlayerSheet(
                     val placeable = measurable.measure(androidx.compose.ui.unit.Constraints.fixed(w, h))
                     layout(w, h) { placeable.place(0, 0) }
                 }
-                .graphicsLayer {
-                    val p = progressNow()
-                    shape = RoundedCornerShape(cornerDpAt(p).dp.toPx())
-                    clip = true
-                    // The shadow only shows around the small card; drawing it for a near-full-screen layer is wasted GPU work, so it fades out early.
-                    shadowElevation = 8.dp.toPx() * (1f - p / 0.3f).coerceIn(0f, 1f)
-                }
+                .graphicsLayer { clip = true }
                 .drawBehind { drawRect(if (progressNow() > 0.4f) backgroundExpanded else backgroundCollapsed) }
                 .then(gestureModifier)
-                // Collapsed, the sheet is the mini player (or the picture-in-picture card): named as such for the tests and for accessibility tooling.
+                // Collapsed, the sheet is the mini player: named as such for the tests and for accessibility tooling.
                 .then(if (sheetState.isCollapsed) Modifier.testTag(com.greenaltambe.vela.ui.look.ComponentIds.MINI_PLAYER) else Modifier)
         ) {
             // LAYER 0: The persistent VideoScreen with the live video surface
@@ -293,13 +248,13 @@ fun PlayerSheet(
                 onBack = { sheetState.collapse() },
                 onExpand = { sheetState.expand() },
                 modifier = Modifier.fillMaxSize(),
-                pageWidthPx = targetExpandedW,
+                pageWidthPx = expandedWNow(),
             )
 
             // LAYER 1: MiniPlayer Controls & Progress bar (only in card mode when near collapsed)
-            if (!isPip && showCardControls) {
+            if (showCardControls) {
                 val cardAlphaNow = { ((0.6f - progressNow()) / 0.6f).coerceIn(0f, 1f) }
-                val controlsLeftDp = thumbWidthDp + 16.dp
+                val controlsLeftDp = thumbWidthDp + 24.dp   // the picture sits 12 dp in; its text starts 12 dp after it
 
                 // Action controls to the right of thumbnail
                 Box(
@@ -311,9 +266,9 @@ fun PlayerSheet(
                         .clickable { sheetState.expand() }
                 ) {
                     Row(
-                        Modifier.fillMaxSize().padding(end = Vela.sm),
+                        Modifier.fillMaxSize().padding(end = Spacing.sm),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(Vela.sm)
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
                     ) {
                         Text(
                             video.title,
@@ -324,79 +279,35 @@ fun PlayerSheet(
                         )
                         IconButton(
                             onClick = {
-                                if (controllerState.status == PlaybackStatus.PLAYING) host.session.pause()
+                                if (miniPlaying) host.session.pause()
                                 else host.session.play()
                             },
                             modifier = Modifier.testTag("mini.toggle")
                         ) {
                             Icon(
-                                if (controllerState.status == PlaybackStatus.PLAYING) Vela.icons.pause else Vela.icons.play,
-                                if (controllerState.status == PlaybackStatus.PLAYING) "Pause" else "Play"
+                                if (miniPlaying) AppIcons.pause else AppIcons.play,
+                                if (miniPlaying) "Pause" else "Play"
                             )
                         }
                         IconButton(
                             onClick = { sheetState.dismiss() },
                             modifier = Modifier.testTag("mini.close")
                         ) {
-                            Icon(Vela.icons.close, "Close player")
+                            Icon(AppIcons.close, "Close player")
                         }
                     }
                 }
 
                 // Miniplayer progress line at the bottom
-                val progressFrac = if (controllerState.durationMs > 0) {
-                    controllerState.positionMs.toFloat() / controllerState.durationMs.toFloat()
-                } else 0f
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(2.dp)
-                        .align(Alignment.BottomStart)
-                        .graphicsLayer { alpha = cardAlphaNow() }
-                        .background(Vela.colors.outline.toColor())
-                ) {
-                    Box(Modifier.fillMaxWidth(progressFrac.coerceIn(0f, 1f)).fillMaxHeight().background(Vela.wake))
-                }
-            }
-
-            // LAYER 2: PiP overlay controls (only in PiP mode when collapsed)
-            if (isPip && showPipControls) {
-                Box(
-                    Modifier.fillMaxSize()
-                        .background(Vela.colors.mediaBackground.toColor().copy(alpha = 0.35f))
-                        .pointerInput(winW, winH) {
-                            detectDragGestures { change, drag ->
-                                change.consume()
-                                pipPos?.let {
-                                    it.pos = Offset(
-                                        (it.pos?.x ?: (winW - pipW - marginPx)) + drag.x,
-                                        (it.pos?.y ?: (cardBottom - pipH)) + drag.y
-                                    )
-                                }
-                            }
-                        }
-                        .clickable { sheetState.expand() }
-                ) {
-                    IconButton(
-                        onClick = {
-                            if (controllerState.status == PlaybackStatus.PLAYING) host.session.pause()
-                            else host.session.play()
-                        },
-                        modifier = Modifier.align(Alignment.Center).testTag("mini.toggle")
-                    ) {
-                        Icon(
-                            if (controllerState.status == PlaybackStatus.PLAYING) Vela.icons.pause else Vela.icons.play,
-                            if (controllerState.status == PlaybackStatus.PLAYING) "Pause" else "Play",
-                            tint = Vela.colors.onMedia.toColor()
-                        )
-                    }
-                    IconButton(
-                        onClick = { sheetState.dismiss() },
-                        modifier = Modifier.align(Alignment.TopEnd).testTag("mini.close")
-                    ) {
-                        Icon(Vela.icons.close, "Close player", tint = Vela.colors.onMedia.toColor())
-                    }
-                }
+                androidx.compose.material3.LinearWavyProgressIndicator(
+                    progress = { controllerFlow.value.let { c -> if (c.durationMs > 0) (c.positionMs.toFloat() / c.durationMs).coerceIn(0f, 1f) else 0f } },
+                    // Paused: a flat bar, no wave running in the background.
+                    amplitude = { if (miniPlaying) 1f else 0f }, waveSpeed = if (miniPlaying) 40.dp else 0.dp,
+                    modifier = Modifier.fillMaxWidth().align(Alignment.BottomStart).graphicsLayer { alpha = cardAlphaNow() },
+                    color = MaterialTheme.colorScheme.primary, trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                )
+                // The bar's top edge, so it reads as a bar between the page and the navigation.
+                HorizontalDivider(Modifier.align(Alignment.TopStart).graphicsLayer { alpha = cardAlphaNow() }, color = MaterialTheme.colorScheme.outlineVariant)
             }
         }
     }

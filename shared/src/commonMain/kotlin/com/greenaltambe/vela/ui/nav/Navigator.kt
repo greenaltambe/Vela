@@ -27,6 +27,7 @@ sealed interface Route {
     data class Channel(val id: String, val name: String, val viaVideoId: String = "") : Route
     data class Playlist(val id: Long) : Route
     data object History : Route
+    data object Notifications : Route
     /** The whole list of one Home shelf ([shelfId] is a `HomeShelf` name), opened from its "See all". */
     data class HomeShelf(val shelfId: String) : Route
     data object ManageSubscriptions : Route
@@ -47,7 +48,7 @@ val TopLevelRoutes: List<Route> = listOf(Route.Home, Route.Explore, Route.Shorts
 
 /** The part of the stack that top-level destination [route] belongs to. */
 fun Route.topLevel(): Route = when (this) {
-    Route.Home, is Route.Video, is Route.ShortsPlayer, is Route.Search, is Route.Channel, is Route.ChannelPlaylist, is Route.HomeShelf -> Route.Home
+    Route.Home, is Route.Video, is Route.ShortsPlayer, is Route.Search, is Route.Channel, is Route.ChannelPlaylist, is Route.HomeShelf, Route.Notifications -> Route.Home
     Route.Shorts -> Route.Shorts
     Route.Explore -> Route.Explore
     Route.Subscriptions, Route.ManageSubscriptions -> Route.Subscriptions

@@ -27,12 +27,12 @@ class SearchFiltersUiTest {
         val f = buildFixture(withDownloads = false)
         f.navigator.push(Route.Search("lofi"))
         setContent { AppUnderTest(f) }; waitForIdle()
-        waitUntil(timeoutMillis = 3_000) { runCatching { onNodeWithTag("search.filter.duration").assertIsDisplayed() }.isSuccess }
-        onNodeWithTag("search.filter.duration").performClick(); waitForIdle()
-        onNodeWithText("Under 4 min").performClick(); waitForIdle()
-        onNodeWithTag("search.filter.sort").performClick(); waitForIdle()
-        onNodeWithText("Most viewed").performClick(); waitForIdle()
-        onNodeWithTag("search.filter.sort").assertIsDisplayed()
+        waitUntil(timeoutMillis = 3_000) { runCatching { onNodeWithTag("search.filter.tune").assertIsDisplayed() }.isSuccess }
+        onNodeWithTag("search.filter.tune").performClick(); waitForIdle()
+        onNodeWithTag("search.filter.duration.SHORT").performClick(); waitForIdle()
+        onNodeWithTag("search.filter.sort.VIEWS").performClick(); waitForIdle()
+        onNodeWithTag("search.filter.sort.VIEWS").assertIsDisplayed()
+        onNodeWithTag("search.filter.reset").assertIsDisplayed()
     }
 
     @Test fun resultsHiddenByTheFeedRulesAreExplainedNotSilentlyEmpty() = runDesktopComposeUiTest(800, 1000) {

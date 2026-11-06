@@ -2,19 +2,10 @@ package com.greenaltambe.vela.ui.nav
 
 import com.greenaltambe.vela.core.settings.*
 
-/** The navigation settings, read once: which tabs, how they look, which side the profile button is on. */
+/** The navigation as the shell and the player sheet see it: the fixed tabs (Shorts only while Shorts are on) and whether the wide rail is collapsed. */
 data class NavConfig(
     val tabs: List<NavTab> = NavTabs.default,
-    val labels: NavLabels = NavLabels.ALWAYS,
-    val barStyle: BarStyle = BarStyle.FLOATING,
     val railCollapsed: Boolean = false,
-    val shrinkOnScroll: Boolean = false,
-    /** The gradient mark on the selected tab. */
-    val marker: Boolean = true,
-    val miniLook: MiniLook = MiniLook.CARD,
-    val miniPlacement: MiniPlacement = MiniPlacement.ATTACHED,
-    val miniGapDp: Float = 8f,
-    val openOn: NavTab = NavTab.HOME,
 ) {
     /** The tab that shows as selected on [route], or null (Settings and its pages have none). Downloads is its own tab only when the list has it. */
     fun selected(route: Route): NavTab? {
@@ -33,10 +24,8 @@ data class NavConfig(
 
     companion object {
         fun of(s: SettingsResolver) = NavConfig(
-            // The Shorts tab only exists while Shorts are on.
-            tabs = NavTabs.parse(s.resolve(LookSettings.navTabs)).filter { it != NavTab.SHORTS || s.shortsEnabled() }.let { if (it.size >= 2) it else NavTabs.default.filter { t -> t != NavTab.SHORTS || s.shortsEnabled() } }, labels = s.resolve(LookSettings.navLabels),
-            barStyle = s.resolve(LookSettings.barStyle), railCollapsed = s.resolve(LookSettings.railCollapsed), openOn = s.resolve(LookSettings.navOpenOn),
-            shrinkOnScroll = s.resolve(LookSettings.navShrink), marker = s.resolve(LookSettings.navMarker), miniLook = s.resolve(LookSettings.miniLook), miniPlacement = s.resolve(LookSettings.miniPlacement), miniGapDp = s.resolve(LookSettings.miniGap),
+            tabs = NavTabs.default.filter { it != NavTab.SHORTS || s.shortsEnabled() },
+            railCollapsed = s.resolve(LookSettings.railCollapsed),
         )
     }
 }

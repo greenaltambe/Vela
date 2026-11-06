@@ -1,323 +1,194 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class, androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.greenaltambe.vela.ui.screens
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.SegmentedListItem
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.layout.layout
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.selection.toggleable
 import com.greenaltambe.vela.AppServices
 import com.greenaltambe.vela.core.settings.*
-import com.greenaltambe.vela.extractor.VideoSummary
-import com.greenaltambe.vela.ui.components.*
-import com.greenaltambe.vela.ui.fontFamilyFor
-import androidx.compose.foundation.layout.width
-import com.greenaltambe.vela.ui.look.*
 import com.greenaltambe.vela.ui.components.drawProgress
+import com.greenaltambe.vela.ui.look.LocalUndoToasts
+import com.greenaltambe.vela.ui.look.UndoToasts
 import com.greenaltambe.vela.ui.nav.Navigator
 import com.greenaltambe.vela.ui.nav.Route
+import com.greenaltambe.vela.ui.settings.SettingItem
+import com.greenaltambe.vela.ui.settings.SettingsScaffold
+import com.greenaltambe.vela.ui.settings.segmentedItemColors
+import com.greenaltambe.vela.ui.settings.segmentedShape
+import com.greenaltambe.vela.ui.settings.settingsSection
+import com.greenaltambe.vela.ui.theme.AppIcons
+import com.greenaltambe.vela.ui.theme.Accent
+import com.greenaltambe.vela.ui.theme.Spacing
 
-/** Which Customize page shows which look setting, and which pages exist. The ones marked [stubs] arrive in the next update. */
+/** Which Customize page shows which setting. The hub shows the theme and the rail; the progress bar and Home have their own pages. */
 object CustomizePages {
-    val stubs = mapOf(
-        "looks" to "Looks", "feeds" to "Feeds & cards", "video" to "Video page & Player",
-    )
-    val titles = mapOf("color" to "Colour palette", "progress" to "Progress bar", "text" to "Text", "icons" to "Icons & shapes", "glass" to "Glass & backgrounds", "tabs" to "Tabs & mini player", "home" to "Home") + stubs
+    val titles = mapOf("progress" to "Progress bar", "home" to "Home")
 
     fun pageFor(s: Setting<*>): String = when {
-        s.key in setOf("look.palette", "look.colorMode", "look.customColor") -> "color"
         s.key == "look.progressStyle" -> "progress"
-        s.key in setOf("look.font", "look.titleWeight", "look.textScale", "look.density") -> "text"
-        s.key in setOf("look.glass", "look.reduceMotion", "appearance.performanceMode") -> "glass"
-        s.key.startsWith("look.nav.") || s.key.startsWith("look.mini.") -> "tabs"
         s.key.startsWith("look.home.") -> "home"
-        s.key in setOf("look.theme", "appearance.look") -> "hub"
-        else -> "icons"
+        else -> "hub"
     }
 
     fun settingsOn(page: String): List<Setting<*>> = LookSettings.all.filter { pageFor(it) == page }
 
-    private val sample = VideoSummary("preview", "A video title long enough to wrap onto two lines", "c", "A channel", null, 754, 1_200_000)
-
-    /** All the look settings are shown by one of the pages or the hub: used by a test. */
-    fun covered(): Set<String> = (titles.keys - stubs.keys).flatMap { settingsOn(it) }.map { it.key }.toSet() + setOf("look.theme")
-    val previewVideo get() = sample
-    val sampleMini = MiniState(sample.title, null, true, 0.4f, {}, {}, {})
+    /** Every look setting has a visible row on the hub or on one of the pages: used by a test. */
+    fun covered(): Set<String> = titles.keys.flatMap { settingsOn(it) }.map { it.key }.toSet() + setOf("look.theme", "look.nav.railCollapsed")
 }
 
-
+/** The top bar's menu of a Customize screen: "Reset this page" for the settings [settings] on it, with one Undo. */
 @Composable
-private fun CustomizeFrame(title: String, navigator: Navigator, modifier: Modifier, tag: String, content: @Composable (LazyColumnScopeAlias) -> Unit) {
-    Column(modifier.fillMaxSize()) {
-        VelaTopBar(title, onBack = { navigator.back() })
-        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
-            LazyColumn(Modifier.widthIn(max = 720.dp).fillMaxSize().testTag(tag), contentPadding = Vela.contentPadding, verticalArrangement = Arrangement.spacedBy(Vela.sm)) { item { content(Unit) } }
+private fun CustomizeMenu(resolver: SettingsResolver, settings: List<Setting<*>>, toasts: UndoToasts, resetTag: String) {
+    var menu by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { menu = true }, modifier = Modifier.testTag("customize.menu")) { Icon(AppIcons.more, "More options") }
+        DropdownMenu(menu, { menu = false }) {
+            DropdownMenuItem(text = { Text("Reset this page") }, onClick = { menu = false; resetPage(resolver, settings, toasts) }, modifier = Modifier.testTag(resetTag))
         }
     }
 }
-private typealias LazyColumnScopeAlias = Unit
 
-/** The Customize hub: Theme + Pure black, and one row per part of the look. */
-@OptIn(ExperimentalLayoutApi::class)
+/** The Customize hub: the theme, one row per page (each with a live summary), and the rail. */
 @Composable
 fun CustomizeScreen(services: AppServices, navigator: Navigator, modifier: Modifier = Modifier) {
     val revision by services.settings.revision.collectAsState()
     val toasts = LocalUndoToasts.current
-    CustomizeFrame("Customize Vela", navigator, modifier, "customize.list") {
-        Column(verticalArrangement = Arrangement.spacedBy(Vela.md)) {
-            SettingRow(services.settings, LookSettings.theme, revision)
-            SettingRow(services.settings, Settings.look, revision)
-            listOf("color", "progress", "text", "icons", "glass", "tabs").forEach { id -> CustomizeRow(id, navigator) }
-            val all = LookSettings.all + Settings.look
-            ResetPageButton(services.settings, all, toasts, "customize.reset")
-        }
-    }
-}
-
-@Composable
-private fun CustomizeRow(id: String, navigator: Navigator) {
-    val stub = id in CustomizePages.stubs
-    Row(
-        Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(Vela.largeShape).background(Vela.colors.surface.toColor()).pressable { navigator.push(Route.CustomizePage(id)) }.padding(horizontal = Vela.md).testTag("customize.row.$id"),
-        verticalAlignment = Alignment.CenterVertically,
+    val s = services.settings
+    SettingsScaffold(
+        "Customize Vela", modifier, onBack = { navigator.back() }, listTag = "customize.list",
+        actions = { CustomizeMenu(s, LookSettings.all, toasts, "customize.reset") },
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(CustomizePages.titles.getValue(id), style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (stub) Text("Next update", style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor())
+        settingsSection("look", "Look", listOf(LookSettings.theme), { it.key }) { st, shape -> SettingItem(s, st, revision, shape) }
+        val pages = CustomizePages.titles.keys.toList()
+        settingsSection("pages", "Make it yours", pages, { it }) { id, _ ->
+            val index = pages.indexOf(id)
+            SegmentedListItem(
+                onClick = { navigator.push(Route.CustomizePage(id)) }, shapes = ListItemDefaults.segmentedShapes(index, pages.size),
+                trailingContent = { Icon(AppIcons.chevronRight, null) }, colors = segmentedItemColors(),
+                supportingContent = { Text(remember(revision) { customizeSummary(id, s) }, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                modifier = Modifier.fillMaxWidth().testTag("customize.row.$id"),
+            ) { Text(CustomizePages.titles.getValue(id), maxLines = 1, overflow = TextOverflow.Ellipsis) }
         }
-        androidx.compose.material3.Icon(com.greenaltambe.vela.ui.look.Vela.icons.chevronRight, null, tint = com.greenaltambe.vela.ui.look.Vela.colors.onSurfaceVariant.toColor())
+        settingsSection("layout", "Layout", listOf(LookSettings.railCollapsed), { it.key }) { st, shape -> SettingItem(s, st, revision, shape) }
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+private fun customizeSummary(id: String, s: SettingsResolver): String = when (id) {
+    "progress" -> LookSettings.progressStyle.choices.first { it.raw == s.rawValue(LookSettings.progressStyle) }.label
+    else -> "${HomeShelves.parse(s.resolve(LookSettings.homeShelves)).size} shelves · ${LookSettings.homeDensity.choices.first { it.raw == s.rawValue(LookSettings.homeDensity) }.label.substringBefore(" (")}"
+}
+
 @Composable
 fun CustomizePageScreen(services: AppServices, navigator: Navigator, page: String, modifier: Modifier = Modifier) {
     val revision by services.settings.revision.collectAsState()
     val toasts = LocalUndoToasts.current
     val s = services.settings
-    CustomizeFrame(CustomizePages.titles[page] ?: "Customize", navigator, modifier, "customize.page.$page") {
-        Column(verticalArrangement = Arrangement.spacedBy(Vela.md)) {
-            if (page in CustomizePages.stubs) {
-                Text("This part arrives in the next update. Everything it will hold is already stored the same way as the other settings, so nothing you set now is lost.", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("customize.stub"))
-                return@Column
-            }
-            when (page) {
-                "color" -> {
-                    PaletteGrid(s.resolve(LookSettings.palette)) { p -> s.setWithUndo(LookSettings.palette, p.name, toasts) { LookSettings.palette.choices.first { c -> c.raw == it }.label } }
-                    CustomizePages.settingsOn("color").filter { it.key != "look.palette" }.forEach { SettingRow(s, it, revision) }
-                }
-                "progress" -> ProgressGrid(s.resolve(LookSettings.progressStyle)) { st -> s.setWithUndo(LookSettings.progressStyle, st.name, toasts) { LookSettings.progressStyle.choices.first { c -> c.raw == it }.label } }
-                "text" -> {
-                    Text("Font", style = MaterialTheme.typography.bodyLarge)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(Vela.sm), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                        FontChoice.entries.forEach { f -> FontCard(f, s.resolve(LookSettings.font) == f) { s.setWithUndo(LookSettings.font, f.name, toasts) { LookSettings.font.choices.first { c -> c.raw == it }.label } } }
-                    }
-                    CustomizePages.settingsOn("text").filter { it.key != "look.font" }.forEach { SettingRow(s, it, revision) }
-                }
-                "icons" -> {
-                    Text("Icon pack", style = MaterialTheme.typography.bodyLarge)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(Vela.sm), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                        IconStyle.entries.forEach { st -> IconPackCard(st, s.resolve(LookSettings.iconStyle) == st, s.resolve(LookSettings.iconWeight), s.resolve(LookSettings.iconRounded)) { s.setWithUndo(LookSettings.iconStyle, st.name, toasts) { LookSettings.iconStyle.choices.first { c -> c.raw == it }.label } } }
-                    }
-                    CustomizePages.settingsOn("icons").filter { it.key != "look.iconStyle" }.forEach { SettingRow(s, it, revision) }
-                }
-                "glass" -> {
-                    CustomizePages.settingsOn("glass").forEach { SettingRow(s, it, revision) }
-                    Text("Performance mode switches glass off and motion to the minimum whatever is set here.", style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor())
-                }
-                "home" -> {
-                    HomeShelvesChecklist(s, toasts)
-                    CustomizePages.settingsOn("home").filter { it.key != "look.home.shelves" }.forEach { SettingRow(s, it, revision) }
-                    Text("Home also lists Recommended (signed in) or Trending below the shelves. Hidden videos and channels (Not interested, Hide this channel) stay hidden until you bring them back.", style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor())
-                    TextButton(onClick = { services.homePrefs.clearDismissed(); toasts.show("Home shows everything again") }, modifier = Modifier.testTag("customize.home.clearDismissed")) { Text("Bring back hidden videos and channels", maxLines = 1) }
-                }
-                "tabs" -> {
-                    TabsChecklist(s, toasts)
-                    CustomizePages.settingsOn("tabs").filter { it.key != "look.nav.tabs" }.forEach { SettingRow(s, it, revision) }
-                    Text("Swipe to skip, bar height and the progress style come in the next update.", style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor())
-                }
-            }
-            ResetPageButton(s, CustomizePages.settingsOn(page), toasts, "customize.resetPage")
+    SettingsScaffold(
+        CustomizePages.titles[page] ?: "Customize", modifier, onBack = { navigator.back() }, listTag = "customize.page.$page",
+        actions = { CustomizeMenu(s, CustomizePages.settingsOn(page), toasts, "customize.resetPage") },
+    ) {
+        when (page) {
+            "progress" -> progressItems(s, toasts)
+            "home" -> homeItems(services, revision, toasts)
         }
     }
 }
 
-/** The seek-bar styles as cards, each with a live preview drawn by the real scrubber's own drawing code, 40 % played. */
-@Composable
-private fun ProgressGrid(current: ProgressStyle, onPick: (ProgressStyle) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(Vela.sm), modifier = Modifier.testTag("progress.styles")) {
-        ProgressStyle.entries.forEach { st ->
-            val label = LookSettings.progressStyle.choices.first { it.raw == st.name }.label
-            val selected = st == current
-            val border = androidx.compose.ui.graphics.Brush.horizontalGradient(Vela.look.accent.wake.map { it.toColor() })
-            Column(
-                Modifier.fillMaxWidth().clip(Vela.mediumShape).background(Vela.colors.surface.toColor())
-                    .then(if (selected) Modifier.border(2.dp, border, Vela.mediumShape) else Modifier)
-                    .semantics { contentDescription = label; this.selected = selected }.pressable(role = androidx.compose.ui.semantics.Role.RadioButton, onClick = { onPick(st) }).padding(Vela.md).testTag("progress.${st.name}"),
-                verticalArrangement = Arrangement.spacedBy(Vela.xs),
-            ) {
-                Text(label, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
-                ProgressPreview(st)
-            }
-        }
+/** The seek-bar styles as a radio list: the chosen one animates its preview (40 % played, drawn by the scrubber's own code), the others are still. */
+private fun LazyListScope.progressItems(s: SettingsResolver, toasts: UndoToasts) {
+    item(key = "progress-intro") { Text("How the player's seek bar looks. The change shows in every video.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm)) }
+    val styles = ProgressStyle.entries
+    settingsSection("progress", "", styles, { it.name }) { st, _ ->
+        val current = s.resolve(LookSettings.progressStyle)
+        val label = LookSettings.progressStyle.choices.first { it.raw == st.name }.label
+        SegmentedListItem(
+            selected = st == current, onClick = { s.setWithUndo(LookSettings.progressStyle, st.name, toasts) { LookSettings.progressStyle.choices.first { c -> c.raw == it }.label } },
+            shapes = ListItemDefaults.segmentedShapes(styles.indexOf(st), styles.size), colors = segmentedItemColors(),
+            leadingContent = { RadioButton(selected = st == current, onClick = null) },
+            supportingContent = { ProgressPreview(st, animate = st == current) },
+            modifier = Modifier.fillMaxWidth().semantics { role = Role.RadioButton }.testTag("progress.${st.name}"),
+        ) { Text(label, maxLines = 1) }
     }
 }
 
 @Composable
-private fun ProgressPreview(style: ProgressStyle) {
-    val wake = Vela.look.accent.wake.map { it.toColor() }
-    val surface = Vela.colors.surface.toColor()
-    val track = Vela.colors.outline.toColor()
-    val phase = com.greenaltambe.vela.ui.components.rememberWavePhase(style == ProgressStyle.WAVE || style == ProgressStyle.RIBBON)
-    androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(40.dp)) {
-        drawProgress(style, 0.4f, wake, surface, track, track, track, wavePhase = phase)
-    }
+private fun ProgressPreview(style: ProgressStyle, animate: Boolean) {
+    val wake = Accent.colors
+    val surface = MaterialTheme.colorScheme.surfaceContainer
+    val track = MaterialTheme.colorScheme.outline
+    val phase = com.greenaltambe.vela.ui.components.rememberWavePhase(animate && (style == ProgressStyle.WAVE || style == ProgressStyle.RIBBON || style == ProgressStyle.EXPRESSIVE))
+    Canvas(Modifier.fillMaxWidth().height(40.dp)) { drawProgress(style, 0.4f, wake, surface, track, track, track, wavePhase = phase.value) }
 }
 
-/** The palettes as a grid of cards: the gradient, its name, a ring on the chosen one. One tap applies it everywhere. */
-@Composable
-private fun PaletteGrid(current: Palette, onPick: (Palette) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
-        Palette.entries.chunked(2).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                row.forEach { p -> PaletteCard(p, p == current, Modifier.weight(1f)) { onPick(p) } }
-                if (row.size == 1) Spacer(Modifier.weight(1f))
-            }
-        }
-    }
-}
-
-@Composable
-private fun PaletteCard(p: Palette, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    val brush = androidx.compose.ui.graphics.Brush.horizontalGradient(Palettes.stops(p).map { it.toColor() })
-    val label = LookSettings.palette.choices.first { it.raw == p.name }.label
-    Column(
-        modifier.clip(Vela.mediumShape).background(Vela.colors.surface.toColor())
-            .then(if (selected) Modifier.border(2.dp, brush, Vela.mediumShape) else Modifier)
-            .semantics { contentDescription = label; this.selected = selected }.pressable(role = androidx.compose.ui.semantics.Role.RadioButton, onClick = onClick).padding(Vela.sm).testTag("palette.${p.name}"),
-        verticalArrangement = Arrangement.spacedBy(Vela.xs),
-    ) {
-        Box(Modifier.fillMaxWidth().height(40.dp).clip(Vela.smallShape).background(brush))
-        Text(label, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
-    }
-}
-
-@Composable
-private fun FontCard(f: FontChoice, selected: Boolean, onClick: () -> Unit) {
-    val label = LookSettings.font.choices.first { it.raw == f.name }.label
-    Column(
-        Modifier.size(96.dp, 88.dp).clip(Vela.mediumShape).background(Vela.colors.surface.toColor()).then(if (selected) Modifier.border(2.dp, androidx.compose.ui.graphics.Brush.horizontalGradient(Vela.look.accent.wake.map { it.toColor() }), Vela.mediumShape) else Modifier).pressable(onClick = onClick).testTag("font.${f.name}"),
-        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
-    ) {
-        Text("Aa", style = MaterialTheme.typography.titleLarge.copy(fontFamily = fontFamilyFor(f.name.lowercase())))
-        Text(label, style = MaterialTheme.typography.bodySmall, maxLines = 1)
-    }
-}
-
-/** One icon pack as a card: its name and four of its real icons, drawn with the weight and end style currently chosen. */
-@Composable
-private fun IconPackCard(style: IconStyle, selected: Boolean, weight: IconWeight, rounded: Boolean, onClick: () -> Unit) {
-    val set = VelaIcons.forTokens(IconTokens(style, weight, rounded))
-    val label = LookSettings.iconStyle.choices.first { it.raw == style.name }.label
-    Column(
-        Modifier.width(152.dp).clip(Vela.mediumShape).background(Vela.colors.surface.toColor()).then(if (selected) Modifier.border(2.dp, androidx.compose.ui.graphics.Brush.horizontalGradient(Vela.look.accent.wake.map { it.toColor() }), Vela.mediumShape) else Modifier)
-            .pressable(onClick = onClick).padding(vertical = Vela.sm).testTag("iconpack.${style.name}"),
-        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Vela.xs),
-    ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(Vela.sm)) { listOf(set.home, set.search, set.play, set.download).forEach { androidx.compose.material3.Icon(it, null, tint = Vela.colors.onSurface.toColor()) } }
-        Text(label, style = MaterialTheme.typography.bodySmall, maxLines = 1)
-    }
-}
-
-/** The tab list as a checklist with order arrows. Fewer than two tabs is refused with a message instead of being saved. */
-/** Home's shelves: switch each on or off and move it up or down. A shelf that has nothing to show stays out of Home whatever is set here. */
-@Composable
-private fun HomeShelvesChecklist(s: SettingsResolver, toasts: UndoToasts) {
-    val revision by s.revision.collectAsState()
-    val on = remember(revision) { HomeShelves.parse(s.resolve(LookSettings.homeShelves)) }
+/** Home: the shelves (switch each and move it up or down), then density and chips, then the way back for hidden videos and channels. */
+private fun LazyListScope.homeItems(services: AppServices, revision: Int, toasts: UndoToasts) {
+    val s = services.settings
+    val on = HomeShelves.parse(s.resolve(LookSettings.homeShelves))
     val ordered = HomeShelves.ordered(on)
     fun save(shelves: List<HomeShelf>) = s.setWithUndo(LookSettings.homeShelves, HomeShelves.encode(shelves), toasts) { r -> "${HomeShelves.parse(r).size} shelves" }
-    Column(Modifier.testTag("home.shelvesChecklist"), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
-        Text("Shelves on Home", style = MaterialTheme.typography.bodyLarge)
-        ordered.forEach { shelf ->
-            val enabled = shelf in on
-            Row(Modifier.fillMaxWidth().heightIn(min = Vela.minTouch).testTag("home.shelfRow.${shelf.name}"), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                VelaSwitch(enabled, { checked -> save(if (checked) on + shelf else on - shelf) }, Modifier.testTag("home.shelfToggle.${shelf.name}"))
-                Column(Modifier.weight(1f)) {
-                    Text(shelf.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(shelf.hint, style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor(), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                }
-                if (enabled) {
-                    val i = on.indexOf(shelf)
-                    TextButton(onClick = { save(on.toMutableList().also { it.add(i - 1, it.removeAt(i)) }) }, enabled = i > 0, modifier = Modifier.testTag("home.shelfUp.${shelf.name}")) { Text("Up") }
-                    TextButton(onClick = { save(on.toMutableList().also { it.add(i + 1, it.removeAt(i)) }) }, enabled = i < on.lastIndex, modifier = Modifier.testTag("home.shelfDown.${shelf.name}")) { Text("Down") }
-                }
-            }
+    settingsSection("shelves", "Shelves on Home", ordered, { it.name }) { shelf, shape ->
+        val enabled = shelf in on
+        val i = on.indexOf(shelf)
+        Box(Modifier.fillMaxWidth().clip(shape).testTag("home.shelfRow.${shelf.name}")) {
+            ListItem(
+                headlineContent = { Text(shelf.label, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                supportingContent = { Text(shelf.hint, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                trailingContent = {
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        // Always laid out (invisible while the shelf is off), so switching a shelf never moves the others.
+                        IconButton(onClick = { save(on.toMutableList().also { it.add(i - 1, it.removeAt(i)) }) }, enabled = enabled && i > 0, modifier = Modifier.alpha(if (enabled) 1f else 0f).testTag("home.shelfUp.${shelf.name}")) { Icon(AppIcons.arrowUp, "Move up") }
+                        IconButton(onClick = { save(on.toMutableList().also { it.add(i + 1, it.removeAt(i)) }) }, enabled = enabled && i < on.lastIndex, modifier = Modifier.alpha(if (enabled) 1f else 0f).testTag("home.shelfDown.${shelf.name}")) { Icon(AppIcons.arrowDown, "Move down") }
+                        Switch(enabled, { checked -> save(if (checked) on + shelf else on - shelf) }, Modifier.testTag("home.shelfToggle.${shelf.name}"))
+                    }
+                },
+                colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            )
         }
     }
-}
-
-@Composable
-private fun TabsChecklist(s: SettingsResolver, toasts: UndoToasts) {
-    val revision by s.revision.collectAsState()
-    val on = remember(revision) { NavTabs.parse(s.resolve(LookSettings.navTabs)) }
-    val ordered = on + NavTab.entries.filter { it !in on }
-    fun save(tabs: List<NavTab>) {
-        if (tabs.size < 2) { toasts.show("Keep at least two tabs"); return }
-        s.setWithUndo(LookSettings.navTabs, NavTabs.encode(tabs.take(NavTabs.MAX)), toasts) { r -> "${NavTabs.parse(r).size} tabs" }
-    }
-    Column(Modifier.testTag("tabs.checklist"), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
-        Text("Tabs in the bar", style = MaterialTheme.typography.bodyLarge)
-        ordered.forEach { tab ->
-            val enabled = tab in on
-            Row(Modifier.fillMaxWidth().heightIn(min = Vela.minTouch).testTag("tabs.row.${tab.name}"), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                // Shorts cannot be a tab while Shorts are hidden in Settings.
-                val unavailable = tab == NavTab.SHORTS && !s.shortsEnabled()
-                VelaSwitch(enabled && !unavailable, { checked -> if (!unavailable) save(if (checked) on + tab else on - tab) }, Modifier.testTag("tabs.toggle.${tab.name}"), enabled = !unavailable)
-                Column(Modifier.weight(1f)) {
-                    Text(navEntries(listOf(tab)).first().label, maxLines = 1)
-                    if (unavailable) Text("Hidden in Settings > Shorts", style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor(), maxLines = 1)
-                }
-                if (enabled) {
-                    val i = on.indexOf(tab)
-                    TextButton(onClick = { save(on.toMutableList().also { it.add(i - 1, it.removeAt(i)) }) }, enabled = i > 0, modifier = Modifier.testTag("tabs.up.${tab.name}")) { androidx.compose.material3.Icon(com.greenaltambe.vela.ui.look.Vela.icons.arrowUp, "Move up") }
-                    TextButton(onClick = { save(on.toMutableList().also { it.add(i + 1, it.removeAt(i)) }) }, enabled = i < on.lastIndex, modifier = Modifier.testTag("tabs.down.${tab.name}")) { androidx.compose.material3.Icon(com.greenaltambe.vela.ui.look.Vela.icons.arrowDown, "Move down") }
-                }
-            }
-        }
+    val feed = CustomizePages.settingsOn("home").filter { it.key != "look.home.shelves" }
+    settingsSection("feed", "Feed", feed, { it.key }) { st, shape -> SettingItem(s, st, revision, shape) }
+    settingsSection("hidden", "Hidden", listOf("hidden"), { it }) { _, shape ->
+        SegmentedListItem(
+            onClick = { services.homePrefs.clearDismissed(); toasts.show("Home shows everything again") },
+            shapes = androidx.compose.material3.ListItemShapes(shape, shape, shape, shape, shape, shape), colors = segmentedItemColors(),
+            leadingContent = { Icon(AppIcons.refresh, null) },
+            supportingContent = { Text("Videos and channels you sent away with Not interested or Hide this channel come back.", maxLines = 3, overflow = TextOverflow.Ellipsis) },
+            modifier = Modifier.fillMaxWidth().testTag("customize.home.clearDismissed"),
+        ) { Text("Bring back hidden videos and channels", maxLines = 2, overflow = TextOverflow.Ellipsis) }
     }
 }

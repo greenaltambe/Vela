@@ -38,7 +38,8 @@ fun createAndroidDownloads(
     val manager = DownloadManager(
         repo, StreamLeases(extractor), provider::get, fetcher, merger,
         OfflineCollector(extractor, modules, fetcher, provider::get, settings),
-        settings, network, scope, AndroidDownloadNotifier(app),
+        settings, network, scope,
+        com.greenaltambe.vela.data.RecordingDownloadNotifier(AndroidDownloadNotifier(app), { com.greenaltambe.vela.data.NotificationRepository(database, accountId()) }, { settings.resolve(com.greenaltambe.vela.core.settings.Settings.notifyDownloads) }),
     )
     manager.start()
     scope.launch {

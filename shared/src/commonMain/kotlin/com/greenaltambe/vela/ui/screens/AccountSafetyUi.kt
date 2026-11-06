@@ -1,5 +1,7 @@
 package com.greenaltambe.vela.ui.screens
 
+import com.greenaltambe.vela.ui.settings.settingsSection
+import com.greenaltambe.vela.ui.theme.Spacing
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -35,8 +37,6 @@ import com.greenaltambe.vela.core.settings.Settings
 import com.greenaltambe.vela.core.settings.setRaw
 import com.greenaltambe.vela.ui.components.EmptyState
 import com.greenaltambe.vela.ui.components.VelaTopBar
-import com.greenaltambe.vela.ui.look.Vela
-import com.greenaltambe.vela.ui.look.toColor
 import com.greenaltambe.vela.ui.nav.Navigator
 import com.greenaltambe.vela.ui.nav.Route
 import kotlinx.coroutines.delay
@@ -58,9 +58,9 @@ fun AccountBanner(services: AppServices, navigator: Navigator) {
         else -> null
     }
     if (message == null) return
-    Surface(color = Vela.colors.surface.toColor(), modifier = Modifier.fillMaxWidth().testTag("account.banner")) {
-        Row(Modifier.padding(horizontal = Vela.gutter, vertical = Vela.xs), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.xs)) {
-            Text(message, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = Vela.colors.error.toColor(), maxLines = 4, overflow = TextOverflow.Ellipsis)
+    Surface(color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth().testTag("account.banner")) {
+        Row(Modifier.padding(horizontal = Spacing.gutter, vertical = Spacing.xs), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            Text(message, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, maxLines = 4, overflow = TextOverflow.Ellipsis)
             if (account.authState != AuthState.OK) TextButton(onClick = { navigator.push(Route.Accounts) }) { Text("Accounts") }
             else TextButton(onClick = { confirming = true }, modifier = Modifier.testTag("account.tryNow")) { Text("Try now") }
         }
@@ -100,7 +100,7 @@ fun AccountOnboardingDialog(services: AppServices, onDismiss: () -> Unit, onAcce
         onDismissRequest = onDismiss,
         title = { Text("Before you add an account") },
         text = {
-            Column(Modifier.widthIn(max = 520.dp), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
+            Column(Modifier.widthIn(max = 520.dp), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                 Text("Vela is not made by YouTube. Using a third-party app with your Google account goes against YouTube's terms, and Google can limit or close an account it dislikes. Use a throwaway account, not your main one.", style = MaterialTheme.typography.bodyMedium)
                 Text("Vela uses the account only when a video cannot be opened without signing in (age limits, bot checks), keeps requests few and spaced out, and sends them only to YouTube and Google sign-in hosts. It never sends the account to search, trending, comments, downloads, SponsorBlock, or other sites. Every request is listed under Diagnostics > Account activity.", style = MaterialTheme.typography.bodyMedium)
                 Text("Remove everything: Accounts > Remove, or Sign out everywhere. Both delete the stored cookies from this device.", style = MaterialTheme.typography.bodyMedium)
@@ -117,24 +117,27 @@ fun AccountOnboardingDialog(services: AppServices, onDismiss: () -> Unit, onAcce
     )
 }
 
-/** Diagnostics > Account activity: everything the account did, newest first, with the governor's decision. */
+/** Account activity: everything the account did, newest first, with the governor's decision. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun AccountActivityScreen(services: AppServices, navigator: Navigator, modifier: Modifier = Modifier) {
     val account by services.accounts.active.collectAsState()
     var revision by remember { mutableStateOf(0) }
     val rows = remember(revision, account.id) { services.audit.recent(account.id, 300) }
-    Column(modifier.fillMaxSize()) {
-        VelaTopBar("Account activity", onBack = { navigator.back() })
-        Row(Modifier.padding(horizontal = Vela.gutter), verticalAlignment = Alignment.CenterVertically) {
-            Text("${rows.size} request(s) with ${account.label}", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-            TextButton(onClick = { revision++ }) { Text("Refresh") }
-            TextButton(onClick = { services.audit.purge(account.id); revision++ }, modifier = Modifier.testTag("activity.purge")) { Text("Clear") }
-        }
-        if (rows.isEmpty()) EmptyState("The account has not been used yet.")
-        else LazyColumn(Modifier.fillMaxSize().padding(horizontal = Vela.gutter), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = com.greenaltambe.vela.ui.nav.LocalChromeInset.current)) {
-            items(rows) { r ->
-                Text("${r.at.toString().substring(0, 19).replace('T', ' ')}  ${r.kind}  ${r.host}  ${r.result}  [${r.decision}]", style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(vertical = 2.dp))
+    com.greenaltambe.vela.ui.settings.SettingsScaffold("Account activity", modifier, onBack = { navigator.back() }, listTag = "activity.list") {
+        item(key = "summary") {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("${rows.size} request(s) with ${account.label}", Modifier.weight(1f).padding(start = Spacing.md), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(onClick = { revision++ }) { Text("Refresh") }
+                TextButton(onClick = { services.audit.purge(account.id); revision++ }, modifier = Modifier.testTag("activity.purge")) { Text("Clear") }
             }
+        }
+        if (rows.isEmpty()) item(key = "none") { EmptyState("The account has not been used yet.") }
+        settingsSection("activity", "", rows, { "${it.at}-${it.kind}-${it.host}" }) { r, shape ->
+            androidx.compose.material3.SegmentedListItem(
+                onClick = {}, enabled = false, shapes = androidx.compose.material3.ListItemShapes(shape, shape, shape, shape, shape, shape), colors = com.greenaltambe.vela.ui.settings.segmentedItemColors(),
+                supportingContent = { Text("${r.at.toString().substring(0, 19).replace('T', ' ')} · ${r.result} · ${r.decision}", maxLines = 2, overflow = TextOverflow.Ellipsis) },
+            ) { Text("${r.kind} · ${r.host}", maxLines = 1, overflow = TextOverflow.Ellipsis) }
         }
     }
 }
@@ -150,9 +153,9 @@ fun HealthBanner(services: AppServices, navigator: Navigator) {
     var dismissedAt by remember { mutableStateOf(0) }
     val a = alert ?: return
     if (a.streak <= dismissedAt) return
-    Surface(color = Vela.colors.surface.toColor(), modifier = Modifier.fillMaxWidth().testTag("health.banner")) {
-        Row(Modifier.padding(horizontal = Vela.gutter, vertical = Vela.xs), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.xs)) {
-            Text(a.message(), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = Vela.colors.error.toColor(), maxLines = 4, overflow = TextOverflow.Ellipsis)
+    Surface(color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth().testTag("health.banner")) {
+        Row(Modifier.padding(horizontal = Spacing.gutter, vertical = Spacing.xs), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            Text(a.message(), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, maxLines = 4, overflow = TextOverflow.Ellipsis)
             TextButton(onClick = { navigator.push(Route.Health) }) { Text("Details") }
             TextButton(onClick = { dismissedAt = a.streak }, modifier = Modifier.testTag("health.banner.dismiss")) { Text("Dismiss") }
         }

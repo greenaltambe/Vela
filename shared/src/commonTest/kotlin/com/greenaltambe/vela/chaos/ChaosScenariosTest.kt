@@ -168,4 +168,16 @@ class AnonymousOnlyOperationsTest {
         val on = ChaosExtractor(OK); val c2 = chain(on, details = true, channels = true)
         c2.channel("UC1"); c2.videoInfo("v"); assertEquals(2, on.calls)
     }
+
+    @Test fun detailsGoToTheAccountWhenTheAnonymousTiersAreToldToSignIn() = runTest {
+        // The details setting is off, but a bot-checked IP leaves nothing else that can answer.
+        val auth = ChaosExtractor(OK)
+        val c = FallbackChain(
+            listOf(ExtractorTier(ANONYMOUS, ChaosExtractor(LOGIN_REQUIRED)), ExtractorTier(AUTHENTICATED, auth)),
+            { ONLY_ON_FAILURE }, DiagnosticsLog(), signedInAccount = { "google:ab12cd" }, tierOrder = { TierOrder.Default },
+            accountMayServe = { op -> op == AccountOp.PLAYBACK },
+        )
+        assertIs<ExtractorResult.Success<*>>(c.videoInfo("v"))
+        assertEquals(1, auth.calls)
+    }
 }

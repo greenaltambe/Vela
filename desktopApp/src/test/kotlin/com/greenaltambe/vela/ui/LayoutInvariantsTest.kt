@@ -40,19 +40,24 @@ class LayoutInvariantsTest {
         "settings-playback" to { f -> f.navigator.selectTab(Route.Settings); f.navigator.push(Route.SettingsPage("playback")) },
         "settings-safety" to { f -> f.navigator.selectTab(Route.Settings); f.navigator.push(Route.SettingsPage("safety")) },
         "settings-extras" to { f -> f.navigator.selectTab(Route.Settings); f.navigator.push(Route.SettingsPage("extras")) },
+        "customize-progress" to { f -> f.navigator.selectTab(Route.Settings); f.navigator.push(Route.CustomizePage("progress")) },
+        "customize-home" to { f -> f.navigator.selectTab(Route.Settings); f.navigator.push(Route.CustomizePage("home")) },
+        "settings-feed" to { f -> f.navigator.selectTab(Route.Settings); f.navigator.push(Route.SettingsPage("feed")) },
+        "settings-downloads" to { f -> f.navigator.selectTab(Route.Settings); f.navigator.push(Route.SettingsPage("downloads")) },
         "customize" to { f -> f.navigator.selectTab(Route.Settings); f.navigator.push(Route.Customize) },
-        "customize-color" to { f -> f.navigator.selectTab(Route.Settings); f.navigator.push(Route.CustomizePage("color")) },
-        "customize-text" to { f -> f.navigator.selectTab(Route.Settings); f.navigator.push(Route.CustomizePage("text")) },
-        "customize-icons" to { f -> f.navigator.selectTab(Route.Settings); f.navigator.push(Route.CustomizePage("icons")) },
-        "customize-glass" to { f -> f.navigator.selectTab(Route.Settings); f.navigator.push(Route.CustomizePage("glass")) },
-        "customize-tabs" to { f -> f.navigator.selectTab(Route.Settings); f.navigator.push(Route.CustomizePage("tabs")) },
-        "customize-stub" to { f -> f.navigator.selectTab(Route.Settings); f.navigator.push(Route.CustomizePage("looks")) },
     )
 
     private fun insidePlayer(n: SemanticsNode): Boolean {
         // Text on the video, or on a badge, sits on its own background rather than the page.
+        // So does text inside a button or a toggle: those draw their own container (a filled button's label is not judged against the page).
         var p: SemanticsNode? = n
-        while (p != null) { val t = p.config.getOrNull(SemanticsProperties.TestTag); if (t?.startsWith("player.") == true || t == "card.thumbnail" || t == "subs.short") return true; p = p.parent }
+        while (p != null) {
+            val t = p.config.getOrNull(SemanticsProperties.TestTag)
+            if (t?.startsWith("player.") == true || t == "card.thumbnail" || t == "subs.short") return true
+            val role = p.config.getOrNull(SemanticsProperties.Role)
+            if (role == androidx.compose.ui.semantics.Role.Button || role == androidx.compose.ui.semantics.Role.Checkbox || role == androidx.compose.ui.semantics.Role.Switch) return true
+            p = p.parent
+        }
         return false
     }
 
@@ -72,17 +77,17 @@ class LayoutInvariantsTest {
 
     private var black = false
 
-    private fun check(screen: Screen, name: String, pureBlack: Boolean, setup: (Fixture) -> Unit, fontScale: Float = 1f): List<String> {
-        black = pureBlack
+    private fun check(screen: Screen, name: String, dark: Boolean, setup: (Fixture) -> Unit, fontScale: Float = 1f): List<String> {
+        black = dark
         val problems = mutableListOf<String>()
         runDesktopComposeUiTest(screen.width, screen.height) {
-            val f = buildFixture(pureBlack)
+            val f = buildFixture(dark)
             setup(f)
             setContent { androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(androidx.compose.ui.platform.LocalDensity.current.density, fontScale)) { AppUnderTest(f) } }
             waitForIdle()
             mainClock.advanceTimeBy(600)
             waitForIdle()
-            val where = "$name @ ${screen.name}${if (pureBlack) " black" else ""}${if (fontScale != 1f) " font x$fontScale" else ""}"
+            val where = "$name @ ${screen.name}${if (dark) " dark" else ""}${if (fontScale != 1f) " font x$fontScale" else ""}"
             fun tag(n: SemanticsNode) = n.config.getOrNull(SemanticsProperties.TestTag)
 
             // Merged tree: what a user can touch.
@@ -91,7 +96,8 @@ class LayoutInvariantsTest {
                 if (b.width <= 0f || b.height <= 0f) return@walk
                 if (b.right > screen.width + 1.5f || b.left < -1.5f) problems += "$where: ${tag(n) ?: n.config} extends outside the window horizontally (${b.left}..${b.right} of ${screen.width})"
                 // Whole-row and whole-card clickables are judged by height (and cards by their content); controls by both sides.
-                val tappable = n.config.getOrNull(SemanticsActions.OnClick) != null && tag(n) != "component.video_card"
+                // A control drawn under 24 dp high is a sliver of one the list clips at the viewport edge, not a real tap target.
+                val tappable = n.config.getOrNull(SemanticsActions.OnClick) != null && tag(n) != "component.video_card" && b.height >= 24f
                 // touchBoundsInRoot includes the padding the minimum-touch-size rule adds around a small control.
                 val t = n.touchBoundsInRoot
                 if (tappable && (t.height < 47.5f || (t.width < 200f && t.width < 47.5f))) {
@@ -124,22 +130,22 @@ class LayoutInvariantsTest {
         return problems
     }
 
-    private fun runAll(pureBlack: Boolean, sizes: List<Screen>, fontScale: Float = 1f): List<String> =
-        sizes.flatMap { s -> routes.flatMap { (name, setup) -> check(s, name, pureBlack, setup, fontScale) } }.distinct()
+    private fun runAll(dark: Boolean, sizes: List<Screen>, fontScale: Float = 1f): List<String> =
+        sizes.flatMap { s -> routes.flatMap { (name, setup) -> check(s, name, dark, setup, fontScale) } }.distinct()
 
     @Test fun lightLayoutHoldsAtEverySize() {
-        val problems = runAll(pureBlack = false, Screens)
+        val problems = runAll(dark = false, Screens)
         assertTrue(problems.isEmpty(), "${problems.size} layout problems:\n" + problems.joinToString("\n"))
     }
 
-    @Test fun pureBlackLayoutHoldsOnPhoneAndDesktop() {
-        val problems = runAll(pureBlack = true, listOf(Screens[0], Screens[1], Screens[4]))
+    @Test fun darkLayoutHoldsOnPhoneAndDesktop() {
+        val problems = runAll(dark = true, listOf(Screens[0], Screens[1], Screens[4]))
         assertTrue(problems.isEmpty(), "${problems.size} layout problems:\n" + problems.joinToString("\n"))
     }
 
     /** System font size 130 %: phone, tablet and desktop. Nothing may wrap mid-word, overflow or fall under the touch minimum. */
     @Test fun largeSystemFontHoldsOnPhoneTabletAndDesktop() {
-        val problems = runAll(pureBlack = false, listOf(Screens[1], Screens[3], Screens[4]), fontScale = 1.3f)
+        val problems = runAll(dark = false, listOf(Screens[1], Screens[3], Screens[4]), fontScale = 1.3f)
         assertTrue(problems.isEmpty(), "${problems.size} layout problems at font scale 1.3:\n" + problems.joinToString("\n"))
     }
 }

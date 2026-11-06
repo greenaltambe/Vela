@@ -1,5 +1,14 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package com.greenaltambe.vela.ui.screens
 
+import androidx.compose.material3.toShape
+import com.greenaltambe.vela.ui.components.LoadingSpinner
+import com.greenaltambe.vela.ui.theme.AppIcons
+import androidx.compose.foundation.shape.CircleShape
+import com.greenaltambe.vela.ui.theme.ExtraColors
+import com.greenaltambe.vela.ui.theme.Spacing
+import com.greenaltambe.vela.ui.theme.Accent
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -24,7 +33,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -61,9 +69,6 @@ import com.greenaltambe.vela.player.SessionState
 import com.greenaltambe.vela.ui.components.Avatar
 import com.greenaltambe.vela.ui.components.EmptyState
 import com.greenaltambe.vela.ui.components.formatViews
-import com.greenaltambe.vela.ui.look.Vela
-import com.greenaltambe.vela.ui.look.toColor
-import com.greenaltambe.vela.ui.nav.LocalChromeInset
 import com.greenaltambe.vela.ui.nav.Navigator
 import com.greenaltambe.vela.ui.nav.Route
 import com.greenaltambe.vela.ui.platform.LocalShare
@@ -169,10 +174,10 @@ fun ShortsScreen(services: AppServices, navigator: Navigator, modifier: Modifier
 
     val items = list.items
     if (items.isEmpty()) {
-        Box(modifier.fillMaxSize().background(Vela.colors.background.toColor()), contentAlignment = Alignment.Center) {
+        Box(modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
             when {
                 failed != null -> EmptyState("Shorts could not load: $failed", actionLabel = "Try again", onAction = { failed = null; load(false) })
-                else -> CircularProgressIndicator(Modifier.size(40.dp), color = Vela.colors.primary.toColor())
+                else -> LoadingSpinner(Modifier.size(40.dp), color = MaterialTheme.colorScheme.primary)
             }
         }
         return
@@ -214,7 +219,6 @@ fun ShortsScreen(services: AppServices, navigator: Navigator, modifier: Modifier
     LaunchedEffect(note) { if (note != null) { kotlinx.coroutines.delay(2500); note = null } }
     // A short that ends starts over.
     LaunchedEffect(player.status) { if (player.status == PlaybackStatus.ENDED) { host?.session?.seekTo(0); host?.session?.play() } }
-    val inset = LocalChromeInset.current
     val clipboard = LocalClipboardManager.current
     val share = LocalShare.current
     val canRate = services.actions != null && services.accounts.active.value.isSignedIn
@@ -222,7 +226,7 @@ fun ShortsScreen(services: AppServices, navigator: Navigator, modifier: Modifier
     val disliked = remember { androidx.compose.runtime.mutableStateMapOf<String, Boolean>() }
 
     PlatformBackHandler(enabled = commentsOpen) { commentsOpen = false }
-    Column(modifier.fillMaxSize().background(Vela.colors.mediaBackground.toColor())) {
+    Column(modifier.fillMaxSize().background(ExtraColors.mediaBackground)) {
         Box(Modifier.fillMaxWidth().weight(1f - 0.58f * open)) {
             VerticalPager(pager, Modifier.fillMaxSize().testTag("shorts.pager"), beyondViewportPageCount = 0) { page ->
                 val v = items[page]
@@ -240,45 +244,51 @@ fun ShortsScreen(services: AppServices, navigator: Navigator, modifier: Modifier
                 }) {
                     AsyncImage("https://i.ytimg.com/vi/${v.id}/hq720.jpg", null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
                     if (current && host != null) host.Surface(Modifier.fillMaxSize())
-                    if (current && (player.status == PlaybackStatus.BUFFERING || !live)) CircularProgressIndicator(Modifier.align(Alignment.Center).size(40.dp), color = Vela.colors.onMedia.toColor())
-                    if (current && paused && player.status != PlaybackStatus.PLAYING) Icon(Vela.icons.play, "Play", Modifier.align(Alignment.Center).size(72.dp), tint = Vela.colors.onMedia.toColor())
+                    if (current && (player.status == PlaybackStatus.BUFFERING || !live)) LoadingSpinner(Modifier.align(Alignment.Center).size(40.dp), color = ExtraColors.onMedia)
+                    if (current && paused && player.status != PlaybackStatus.PLAYING) Box(
+                        Modifier.align(Alignment.Center).size(80.dp).clip(androidx.compose.material3.MaterialShapes.Cookie9Sided.toShape()).background(ExtraColors.mediaScrim.copy(alpha = 0.45f)), contentAlignment = Alignment.Center,
+                    ) { Icon(AppIcons.play, "Play", Modifier.size(40.dp), tint = ExtraColors.onMedia) }
 
                     // The title and channel, bottom left, clear of the tab bar that floats over the page.
                     Column(
-                        Modifier.align(Alignment.BottomStart).fillMaxWidth(0.72f).padding(start = Vela.md, bottom = inset * (1f - open) + Vela.md),
-                        verticalArrangement = Arrangement.spacedBy(Vela.sm),
+                        Modifier.align(Alignment.BottomStart).fillMaxWidth(0.72f).padding(start = Spacing.md, bottom = Spacing.md),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                     ) {
                         Row(
-                            Modifier.clip(Vela.pillShape).clickable { navigator.push(Route.Channel(v.channelId, v.channelName, if (v.channelId.isBlank()) v.id else "")) }.padding(end = Vela.sm).testTag("shorts.channel"),
-                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm),
+                            Modifier.clip(CircleShape).background(ExtraColors.mediaScrim.copy(alpha = 0.35f)).clickable { navigator.push(Route.Channel(v.channelId, v.channelName, if (v.channelId.isBlank()) v.id else "")) }.padding(start = Spacing.xs, top = Spacing.xs, bottom = Spacing.xs, end = Spacing.md).testTag("shorts.channel"),
+                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                         ) {
                             Avatar(v.channelName, size = 32.dp, url = v.channelAvatarUrl)
-                            Text(v.channelName, color = Vela.colors.onMedia.toColor(), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(v.channelName, color = ExtraColors.onMedia, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
-                        Text(v.title, color = Vela.colors.onMedia.toColor(), style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        formatViews(v.viewCount)?.let { Text(it, color = Vela.colors.onMedia.toColor().copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall) }
+                        Text(v.title, color = ExtraColors.onMedia, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        formatViews(v.viewCount)?.let { Text(it, color = ExtraColors.onMedia.copy(alpha = 0.85f), style = MaterialTheme.typography.bodySmall) }
                     }
                     // Down the right edge: like and dislike with their counts, comments, mute, share, open as a normal video.
-                    val onMedia = Vela.colors.onMedia.toColor()
-                    Column(Modifier.align(Alignment.BottomEnd).padding(end = Vela.xs, bottom = inset * (1f - open) + Vela.sm), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
-                        ShortsAction(if (liked[v.id] == true) Vela.icons.likeFilled else Vela.icons.like, "Like", votes?.let { compact(it.likes) }, liked[v.id] == true, onMedia, Modifier.testTag("shorts.like")) { rate(if (liked[v.id] == true) VideoRating.NONE else VideoRating.LIKE) }
-                        ShortsAction(if (disliked[v.id] == true) Vela.icons.dislikeFilled else Vela.icons.dislike, "Dislike", votes?.let { compact(it.dislikes) }, disliked[v.id] == true, onMedia, Modifier.testTag("shorts.dislike")) { rate(if (disliked[v.id] == true) VideoRating.NONE else VideoRating.DISLIKE) }
-                        ShortsAction(if (commentsOpen) Vela.icons.commentFilled else Vela.icons.comment, "Comments", null, commentsOpen, onMedia, Modifier.testTag("shorts.comments")) { commentsOpen = !commentsOpen }
-                        ShortsAction(if (muted) Vela.icons.mute else Vela.icons.volume, if (muted) "Unmute" else "Mute", null, false, onMedia, Modifier.testTag("shorts.mute")) { host?.session?.toggleMute() }
-                        ShortsAction(Vela.icons.share, "Share", null, false, onMedia, Modifier.testTag("shorts.share")) { val link = "https://youtu.be/${v.id}"; if (share != null) share(v.title, link) else clipboard.setText(AnnotatedString(link)) }
-                        ShortsAction(Vela.icons.fullscreen, "Open as a video", null, false, onMedia, Modifier.testTag("shorts.open")) { host?.session?.stop(); navigator.push(Route.Video(v, null, asVideoPage = true)) }
+                    val onMedia = ExtraColors.onMedia
+                    Column(Modifier.align(Alignment.BottomEnd).padding(end = Spacing.xs, bottom = Spacing.sm), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                        ShortsAction(if (liked[v.id] == true) AppIcons.likeFilled else AppIcons.like, "Like", votes?.let { compact(it.likes) }, liked[v.id] == true, onMedia, Modifier.testTag("shorts.like")) { rate(if (liked[v.id] == true) VideoRating.NONE else VideoRating.LIKE) }
+                        ShortsAction(if (disliked[v.id] == true) AppIcons.dislikeFilled else AppIcons.dislike, "Dislike", votes?.let { compact(it.dislikes) }, disliked[v.id] == true, onMedia, Modifier.testTag("shorts.dislike")) { rate(if (disliked[v.id] == true) VideoRating.NONE else VideoRating.DISLIKE) }
+                        ShortsAction(if (commentsOpen) AppIcons.commentFilled else AppIcons.comment, "Comments", null, commentsOpen, onMedia, Modifier.testTag("shorts.comments")) { commentsOpen = !commentsOpen }
+                        ShortsAction(if (muted) AppIcons.mute else AppIcons.volume, if (muted) "Unmute" else "Mute", null, false, onMedia, Modifier.testTag("shorts.mute")) { host?.session?.toggleMute() }
+                        ShortsAction(AppIcons.share, "Share", null, false, onMedia, Modifier.testTag("shorts.share")) { val link = "https://youtu.be/${v.id}"; if (share != null) share(v.title, link) else clipboard.setText(AnnotatedString(link)) }
+                        ShortsAction(AppIcons.fullscreen, "Open as a video", null, false, onMedia, Modifier.testTag("shorts.open")) { host?.session?.stop(); navigator.push(Route.Video(v, null, asVideoPage = true)) }
                     }
-                    // Progress along the bottom edge, in the palette gradient.
-                    if (current && player.durationMs > 0) Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Vela.colors.outline.toColor().copy(alpha = 0.4f))) {
-                        Box(Modifier.fillMaxWidth((player.positionMs.toFloat() / player.durationMs).coerceIn(0f, 1f)).fillMaxHeight().background(Vela.wake))
-                    }
+                    // Progress along the bottom edge: Material's wavy bar.
+                    if (current && player.durationMs > 0) androidx.compose.material3.LinearWavyProgressIndicator(
+                        progress = { (player.positionMs.toFloat() / player.durationMs).coerceIn(0f, 1f) },
+                        modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(horizontal = Spacing.md).testTag("shorts.progress"),
+                        trackColor = ExtraColors.onMedia.copy(alpha = 0.3f),
+                    )
                 }
             }
             // Back, when opened from elsewhere in the app.
-            if (start != null) IconButton(onClick = { navigator.back() }, modifier = Modifier.align(Alignment.TopStart).windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Start)).testTag("shorts.back")) {
-                Icon(Vela.icons.back, "Back", tint = Vela.colors.onMedia.toColor())
-            }
-            note?.let { Text(it, Modifier.align(Alignment.TopCenter).windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)).padding(top = Vela.md).clip(Vela.pillShape).background(Vela.colors.mediaScrim.toColor().copy(alpha = 0.6f)).padding(horizontal = Vela.md, vertical = Vela.xs).testTag("shorts.note"), color = Vela.colors.onMedia.toColor(), style = MaterialTheme.typography.bodySmall) }
+            if (start != null) androidx.compose.material3.FilledIconButton(
+                onClick = { navigator.back() }, shapes = androidx.compose.material3.IconButtonDefaults.shapes(),
+                colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(containerColor = ExtraColors.mediaScrim.copy(alpha = 0.35f), contentColor = ExtraColors.onMedia),
+                modifier = Modifier.align(Alignment.TopStart).windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Start)).padding(Spacing.sm).testTag("shorts.back"),
+            ) { Icon(AppIcons.back, "Back") }
+            note?.let { Text(it, Modifier.align(Alignment.TopCenter).windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)).padding(top = Spacing.md).clip(CircleShape).background(ExtraColors.mediaScrim.copy(alpha = 0.6f)).padding(horizontal = Spacing.md, vertical = Spacing.xs).testTag("shorts.note"), color = ExtraColors.onMedia, style = MaterialTheme.typography.bodySmall) }
         }
         // The comments take the lower part of the screen; the picture above them shrinks to make room.
         if (open > 0.01f && comments != null) Box(Modifier.fillMaxWidth().weight(0.58f * open)) {
@@ -287,11 +297,18 @@ fun ShortsScreen(services: AppServices, navigator: Navigator, modifier: Modifier
     }
 }
 
-/** One button down the Shorts player's right edge: just the icon, with a [caption] only where there is a number to show (like and dislike counts). [on] marks it chosen. */
+/** One button down the Shorts player's right edge: an expressive toggle icon button on a scrim (it morphs when pressed and fills when chosen), with a [caption] only where there is a number to show. */
 @Composable
 private fun ShortsAction(icon: androidx.compose.ui.graphics.vector.ImageVector, description: String, caption: String?, on: Boolean, tint: androidx.compose.ui.graphics.Color, modifier: Modifier, onClick: () -> Unit) {
-    Column(modifier.clip(Vela.mediumShape).clickable(onClick = onClick).padding(horizontal = Vela.xs, vertical = Vela.xs), horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(icon, description, tint = if (on) Vela.colors.primary.toColor() else tint)
-        if (caption != null) Text(caption, color = tint, style = MaterialTheme.typography.bodySmall, maxLines = 1, softWrap = false)
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        androidx.compose.material3.FilledIconToggleButton(
+            checked = on, onCheckedChange = { onClick() }, modifier = modifier.size(52.dp),
+            shapes = androidx.compose.material3.IconButtonDefaults.toggleableShapes(),
+            colors = androidx.compose.material3.IconButtonDefaults.filledIconToggleButtonColors(
+                containerColor = ExtraColors.mediaScrim.copy(alpha = 0.35f), contentColor = tint,
+                checkedContainerColor = MaterialTheme.colorScheme.primaryContainer, checkedContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            ),
+        ) { Icon(icon, description) }
+        if (caption != null) Text(caption, color = tint, style = MaterialTheme.typography.labelMedium, maxLines = 1, softWrap = false)
     }
 }

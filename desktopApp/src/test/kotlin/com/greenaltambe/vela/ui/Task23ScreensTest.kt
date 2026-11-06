@@ -43,5 +43,5 @@ class Task23ScreensTest {
     @Test fun settingsHome() = shot("settings-home") { it.navigator.push(Route.Settings) }
     @Test fun settingsPage() = shot("settings-playback") { it.navigator.push(Route.Settings); it.navigator.push(Route.SettingsPage("playback")) }
     @Test fun customizeHub() = shot("customize-hub") { it.navigator.push(Route.Settings); it.navigator.push(Route.Customize) }
-    @Test fun customizePages() = listOf("color", "text", "icons", "glass", "tabs", "looks").forEach { p -> shot("customize-$p") { it.navigator.push(Route.Settings); it.navigator.push(Route.CustomizePage(p)) } }
+    @Test fun customizePages() = listOf("progress", "home").forEach { p -> shot("customize-$p") { it.navigator.push(Route.Settings); it.navigator.push(Route.CustomizePage(p)) } }
 }

@@ -1,7 +1,7 @@
 package com.greenaltambe.vela.ui.layout
 
 import androidx.compose.runtime.staticCompositionLocalOf
-import com.greenaltambe.vela.ui.look.SpacingTokens
+import com.greenaltambe.vela.ui.theme.SpacingTokens
 
 /**
  * How much room the window has, from its real width. Every screen branches on this, never on ad-hoc dp checks:

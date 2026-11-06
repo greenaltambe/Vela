@@ -94,14 +94,19 @@ class AppServices(
     /** The repositories below follow the active account: each read builds one for the id that is active right now. */
     val activeId: String get() = accounts.active.value.id
     val subscriptions get() = SubscriptionRepository(db, activeId)
+    /** Raised whenever a notification row is added, read or removed, so the bell badge and the page re-read. */
+    val notificationsRevision = kotlinx.coroutines.flow.MutableStateFlow(0)
+    val notifications get() = com.greenaltambe.vela.data.NotificationRepository(db, activeId) { notificationsRevision.value++ }
     val history get() = HistoryLibrary(db, activeId)
     val searchHistory get() = SearchHistoryRepository(db, activeId)
     val playlists get() = PlaylistRepository(db, activeId)
     /** What Home remembers (dismissed videos and channels, last visit) for the active account. */
     val homePrefs get() = com.greenaltambe.vela.home.HomePrefs(homeStore, activeId)
+    /** Set by the platform: shows a system notification for uploads of channels set to All. */
+    var onNewUploads: (List<com.greenaltambe.vela.extractor.VideoSummary>) -> Unit = {}
     val homeSources by lazy { com.greenaltambe.vela.home.HomeSources(this) }
 
     /** One feed service per account, so each keeps its own entries and refresh state. */
     val feed: FeedService
-        get() = activeId.let { id -> feeds.getOrPut(id) { FeedService(extractor, SubscriptionRepository(db, id), FeedRepository(db, id), clock) } }
+        get() = activeId.let { id -> feeds.getOrPut(id) { FeedService(extractor, SubscriptionRepository(db, id), FeedRepository(db, id), clock, notifications = com.greenaltambe.vela.data.NotificationRepository(db, id) { notificationsRevision.value++ }, onNewUploads = { list -> onNewUploads(list) }) } }
 }

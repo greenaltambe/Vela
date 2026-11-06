@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The activities' native theme: no action bar (the app draws its own), and the window colour of the app's scheme behind the first frame. -->
+    <style name="Theme.Vela" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/vela_window</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>

@@ -19,7 +19,6 @@ enum class PreferredCodec { AV1, VP9, AVC }
 enum class HomeSource { RECOMMENDED, TRENDING }
 
 /** The saved appearance to use; both follow nothing but their own palette except [DEFAULT], which follows system light/dark. */
-enum class LookChoice { DEFAULT, PURE_BLACK }
 
 /** How DeArrow titles are cased. DeArrow titles are community-written; many are fine as submitted. */
 /** Mirrors the SponsorBlock engine's actions; kept here so the schema does not depend on the module. */
@@ -142,30 +141,6 @@ object Settings {
             SettingChoice(YtDlpAutoUpdate.ASK.name, "Ask me"),
             SettingChoice(YtDlpAutoUpdate.AUTO.name, "Automatically"),
         ),
-    )
-
-    val look = Setting(
-        key = "appearance.look",
-        default = LookChoice.DEFAULT,
-        scope = SettingScope.GLOBAL,
-        label = "Look",
-        keywords = listOf("theme", "dark", "light", "black", "amoled", "appearance", "colour", "color"),
-        codec = SettingCodecs.enum(LookChoice.entries),
-        section = SettingSection.APPEARANCE,
-        choices = listOf(
-            SettingChoice(LookChoice.DEFAULT.name, "Default (follows system)"),
-            SettingChoice(LookChoice.PURE_BLACK.name, "Pure black"),
-        ),
-    )
-
-    val performanceMode = Setting(
-        key = "appearance.performanceMode",
-        default = false,
-        scope = SettingScope.GLOBAL,
-        label = "Performance mode",
-        keywords = listOf("blur", "glass", "effects", "slow", "battery", "fast"),
-        codec = SettingCodecs.boolean,
-        section = SettingSection.APPEARANCE,
     )
 
     val localOnlyHistory = Setting(
@@ -490,6 +465,7 @@ object Settings {
         label = "Home shows (Recommended needs a signed-in account; otherwise Trending)",
         keywords = listOf("home", "recommended", "trending", "feed"),
         codec = SettingCodecs.enum(HomeSource.entries), section = SettingSection.FEED,
+        choices = listOf(SettingChoice(HomeSource.RECOMMENDED.name, "Recommended"), SettingChoice(HomeSource.TRENDING.name, "Trending")),
     )
 
     /** Countries YouTube serves its own trending / recommendations for (ISO 3166-1 alpha-2). */
@@ -522,6 +498,19 @@ object Settings {
         label = "Allow videos behind a content warning (off by default; the alternate client then answers YouTube's \"viewer discretion\" check)",
         keywords = listOf("controversial", "content warning", "viewer discretion", "sensitive", "mature"),
         codec = SettingCodecs.boolean, section = SettingSection.PLAYBACK,
+    )
+
+    val notifyBackground = Setting(
+        key = "notify.background", default = true, scope = SettingScope.GLOBAL, label = "Check for new videos in the background",
+        keywords = listOf("notifications", "new videos", "uploads", "background", "check"), codec = SettingCodecs.boolean, section = SettingSection.FEED,
+    )
+    val notifySystem = Setting(
+        key = "notify.system", default = true, scope = SettingScope.GLOBAL, label = "Show system notifications",
+        keywords = listOf("notifications", "alerts", "system", "push"), codec = SettingCodecs.boolean, section = SettingSection.FEED,
+    )
+    val notifyDownloads = Setting(
+        key = "notify.downloads", default = true, scope = SettingScope.GLOBAL, label = "Download results in the notification feed",
+        keywords = listOf("notifications", "downloads", "finished", "failed"), codec = SettingCodecs.boolean, section = SettingSection.FEED,
     )
 
     val slowStreamFailover = Setting(
@@ -592,8 +581,8 @@ object Settings {
     )
 
     val all: List<Setting<*>> = listOf(
-        look, performanceMode, localOnlyHistory, hideWatched, minLengthSeconds, blockKeywords, allowKeywords, keywordsAreRegex,
-        debugFrameStats, homeSource, contentRegion, allowAgeRestricted, allowControversial, slowStreamFailover, accountFallbackMode, accountProfilesExperimental, accountUseForChannels, accountUseForDetails, accountDownloadsMayUse, accountKillSwitch, accountTierOrder, remoteConfigUrl, ytDlpAutoUpdate,
+        localOnlyHistory, hideWatched, minLengthSeconds, blockKeywords, allowKeywords, keywordsAreRegex,
+        debugFrameStats, homeSource, contentRegion, allowAgeRestricted, allowControversial, slowStreamFailover, notifyBackground, notifySystem, notifyDownloads, accountFallbackMode, accountProfilesExperimental, accountUseForChannels, accountUseForDetails, accountDownloadsMayUse, accountKillSwitch, accountTierOrder, remoteConfigUrl, ytDlpAutoUpdate,
         accountPlaybackPerHour, accountBrowsePerMinute, accountWritesPerHour, shortsMode, defaultPlaybackSpeed, autoplayNext, seekStepSeconds, holdSpeed, maxQualityUnmetered, maxQualityMetered, preferredCodec, audioOnly, ytDlpPath,
         sponsorBlockEnabled, returnYouTubeDislikeEnabled, deArrowEnabled,
         sponsorBlockMinSegmentSeconds, sponsorBlockNotifications, showContribute, sponsorBlockServer, sponsorBlockUserId, rydInFeed, rydServer,

@@ -1,5 +1,7 @@
 package com.greenaltambe.vela.ui.screens
 
+import com.greenaltambe.vela.ui.theme.AppIcons
+import com.greenaltambe.vela.ui.theme.Spacing
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -13,8 +15,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import com.greenaltambe.vela.AppServices
 import com.greenaltambe.vela.extractor.VideoSummary
-import com.greenaltambe.vela.ui.look.Vela
-import com.greenaltambe.vela.ui.look.toColor
 import com.greenaltambe.vela.ui.player.PlayerMenuRow
 import com.greenaltambe.vela.ui.player.PlayerMenuSheet
 import com.greenaltambe.vela.auth.ActionResult
@@ -34,7 +34,7 @@ fun SaveSheet(services: AppServices, video: VideoSummary, onMessage: (note: Stri
     PlayerMenuSheet("Save to", onDismiss, subtitle = video.title) {
         var i = 0
         if (signedIn) PlayerMenuRow(
-            "Watch later", selected = false, index = i++, leading = Vela.icons.watchLater, supporting = "On your YouTube account",
+            "Watch later", selected = false, index = i++, leading = AppIcons.watchLater, supporting = "On your YouTube account",
             onClick = {
                 scope.launch {
                     when (val r = services.actions!!.addToPlaylist("WL", video.id)) {
@@ -47,11 +47,11 @@ fun SaveSheet(services: AppServices, video: VideoSummary, onMessage: (note: Stri
             },
             modifier = Modifier.testTag("video.saveWatchLater"),
         )
-        if (lists.isEmpty() && !signedIn) Text("No playlists yet. Create one in Library.", Modifier.padding(horizontal = Vela.gutter), style = MaterialTheme.typography.bodyMedium, color = Vela.colors.onSurfaceVariant.toColor())
+        if (lists.isEmpty() && !signedIn) Text("No playlists yet. Create one in Library.", Modifier.padding(horizontal = Spacing.gutter), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         lists.forEach { list ->
             val has = remember(revision, list.id) { services.playlists.contains(list.id, video.id) }
             PlayerMenuRow(
-                list.name, selected = has, index = i++, leading = if (list.isWatchLater) Vela.icons.watchLater else Vela.icons.playlist,
+                list.name, selected = has, index = i++, leading = if (list.isWatchLater) AppIcons.watchLater else AppIcons.playlist,
                 supporting = (if (list.isWatchLater) "On this device · " else "") + "${list.itemCount} video${if (list.itemCount == 1) "" else "s"}",
                 onClick = {
                     if (has) services.playlists.remove(list.id, video.id) else services.playlists.add(list.id, listOf(video), services.clock.now())

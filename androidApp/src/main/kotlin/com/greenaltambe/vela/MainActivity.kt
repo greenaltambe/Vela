@@ -72,7 +72,7 @@ class MainActivity : ComponentActivity() {
     }
     private val runtime by lazy { PlaybackRuntime.get(this) }
     private val host by lazy { AndroidPlayerHost(runtime, ::ensureNotificationPermission) }
-    private val healthSchedule by lazy { com.greenaltambe.vela.playback.HealthWorker.schedule(applicationContext); com.greenaltambe.vela.playback.AutoDownloadWorker.schedule(applicationContext) }
+    private val healthSchedule by lazy { com.greenaltambe.vela.playback.HealthWorker.schedule(applicationContext); com.greenaltambe.vela.playback.AutoDownloadWorker.schedule(applicationContext); com.greenaltambe.vela.playback.FeedRefreshWorker.schedule(applicationContext) }
     private val remoteConfigJob by lazy {
         // Fetched once per start in the background; a failure only changes the Diagnostics line and keeps the last good config.
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
@@ -196,6 +196,7 @@ class MainActivity : ComponentActivity() {
             false
         }
 
+        services.onNewUploads = { videos -> if (runtime.settings.resolve(com.greenaltambe.vela.core.settings.Settings.notifySystem)) com.greenaltambe.vela.playback.UploadNotifier.show(applicationContext, videos) }
         setContent {
             CompositionLocalProvider(LocalInPictureInPicture provides inPip, LocalWindowControls provides windowControls, com.greenaltambe.vela.ui.platform.LocalShare provides { title, url ->
                 val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {

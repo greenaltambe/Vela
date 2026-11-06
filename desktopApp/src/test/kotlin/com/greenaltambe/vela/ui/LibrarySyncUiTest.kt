@@ -3,6 +3,7 @@
 package com.greenaltambe.vela.ui
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -28,7 +29,7 @@ class LibrarySyncUiTest {
         setContent { AppUnderTest(f) }; waitForIdle()
         onNodeWithTag("library.syncAccount").performClick(); waitForIdle()
         waitUntil(timeoutMillis = 3_000) { runCatching { onNodeWithText("Watch later (YouTube)").assertIsDisplayed() }.isSuccess }
-        onNodeWithText("YouTube account · 1 video").assertIsDisplayed()
+        onNodeWithText("1 video").assertIsDisplayed(); onNodeWithContentDescription("On your YouTube account").assertIsDisplayed()
         assertTrue(f.services.playlists.all().any { it.isMirror })
     }
 

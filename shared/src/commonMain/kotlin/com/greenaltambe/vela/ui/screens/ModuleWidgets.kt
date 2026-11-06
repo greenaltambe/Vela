@@ -1,5 +1,11 @@
 package com.greenaltambe.vela.ui.screens
 
+import com.greenaltambe.vela.ui.theme.AppIcons
+import com.greenaltambe.vela.ui.theme.Accent
+import androidx.compose.foundation.shape.CircleShape
+import com.greenaltambe.vela.ui.theme.ExtraColors
+import com.greenaltambe.vela.ui.theme.Spacing
+import com.greenaltambe.vela.ui.theme.LocalMotion
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
@@ -51,8 +57,6 @@ import com.greenaltambe.vela.modules.sponsorblock.SegmentCategory
 import com.greenaltambe.vela.modules.sponsorblock.SkipNotice
 import com.greenaltambe.vela.modules.sponsorblock.SubmitOutcome
 import com.greenaltambe.vela.ui.components.SectionHeader
-import com.greenaltambe.vela.ui.look.Vela
-import com.greenaltambe.vela.ui.look.toColor
 import kotlinx.coroutines.launch
 
 /**
@@ -62,14 +66,14 @@ import kotlinx.coroutines.launch
  */
 @Composable
 fun SponsorBlockOverlay(prompt: Segment?, notice: SkipNotice?, onAccept: () -> Unit, onUndo: (SkipNotice) -> Unit) {
-    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
+    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         AnimatedVisibility(prompt != null, enter = slideInHorizontally { it / 2 } + fadeIn(), exit = slideOutHorizontally { it / 2 } + fadeOut()) {
             // Keep the last prompt while the exit plays.
             val shown = remember { mutableStateOf(prompt) }
             if (prompt != null) shown.value = prompt
             shown.value?.let { seg ->
                 val label = SegmentCategory.fromId(seg.category)?.label ?: seg.category
-                SkipPill(if (seg.isPoint) "Jump to highlight" else "Skip ${label.lowercase()}", Vela.icons.skipNext, onAccept, Modifier.testTag("sponsorblock.prompt"))
+                SkipPill(if (seg.isPoint) "Jump to highlight" else "Skip ${label.lowercase()}", AppIcons.skipNext, onAccept, Modifier.testTag("sponsorblock.prompt"))
             }
         }
         AnimatedVisibility(notice != null, enter = slideInHorizontally { it / 2 } + fadeIn(), exit = slideOutHorizontally { it / 2 } + fadeOut()) {
@@ -87,24 +91,24 @@ fun SponsorBlockOverlay(prompt: Segment?, notice: SkipNotice?, onAccept: () -> U
 private fun SkipPill(message: String, icon: androidx.compose.ui.graphics.vector.ImageVector?, onClick: () -> Unit, modifier: Modifier = Modifier, action: String? = null, actionTag: String? = null) {
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
-    val motion = Vela.motion
+    val motion = LocalMotion.current
     val haptics = com.greenaltambe.vela.ui.player.rememberPlayerHaptics()
     val scale by animateFloatAsState(if (pressed && !motion.reduced) 0.93f else 1f, com.greenaltambe.vela.ui.look.VelaMotion.bouncy(motion), label = "skipPillScale")
     val ring by animateFloatAsState(if (pressed) 1f else 0.55f, com.greenaltambe.vela.ui.look.VelaMotion.tween(motion, com.greenaltambe.vela.ui.look.VelaMotion.Level.QUICK), label = "skipPillRing")
-    val wake = Vela.look.accent.wake.map { it.toColor() }
+    val wake = Accent.colors
     Row(
         modifier
             .graphicsLayer { scaleX = scale; scaleY = scale }
-            .clip(Vela.pillShape)
-            .background(Vela.colors.mediaScrim.toColor().copy(alpha = 0.72f))
-            .border(1.5.dp, Brush.horizontalGradient(wake.map { it.copy(alpha = ring) }), Vela.pillShape)
+            .clip(CircleShape)
+            .background(ExtraColors.mediaScrim.copy(alpha = 0.72f))
+            .border(1.5.dp, Brush.horizontalGradient(wake.map { it.copy(alpha = ring) }), CircleShape)
             .clickable(interactionSource = source, indication = null, role = androidx.compose.ui.semantics.Role.Button) { haptics.confirm(); onClick() }
-            .heightIn(min = 40.dp).padding(start = if (icon != null) Vela.sm else Vela.md, end = Vela.md),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.xs),
+            .heightIn(min = 40.dp).padding(start = if (icon != null) Spacing.sm else Spacing.md, end = Spacing.md),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
-        if (icon != null) Icon(icon, null, Modifier.size(22.dp), tint = Vela.colors.onMedia.toColor())
-        Text(message, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false, color = Vela.colors.onMedia.toColor())
-        if (action != null) Text(action, Modifier.padding(start = Vela.xs).testTag(actionTag.orEmpty()), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, maxLines = 1, color = wake.last())
+        if (icon != null) Icon(icon, null, Modifier.size(22.dp), tint = ExtraColors.onMedia)
+        Text(message, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false, color = ExtraColors.onMedia)
+        if (action != null) Text(action, Modifier.padding(start = Spacing.xs).testTag(actionTag.orEmpty()), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, maxLines = 1, color = wake.last())
     }
 }
 
@@ -131,22 +135,22 @@ fun ContributeSection(
     var confirmFrame by remember { mutableStateOf(false) }
 
     // One card: a header row that opens it, then the two kinds of contribution, each with its own small heading and the same button family.
-    Column(Modifier.fillMaxWidth().clip(Vela.mediumShape).background(Vela.colors.surface.toColor())) {
+    Column(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceContainerLow)) {
         Row(
-            Modifier.fillMaxWidth().clickable { expanded = !expanded }.heightIn(min = Vela.minTouch).padding(horizontal = Vela.md).testTag("contribute.toggle"),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm),
+            Modifier.fillMaxWidth().clickable { expanded = !expanded }.heightIn(min = Spacing.minTouch).padding(horizontal = Spacing.md).testTag("contribute.toggle"),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
             Text("Contribute", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, maxLines = 1)
-            Icon(if (expanded) Vela.icons.chevronUp else Vela.icons.chevronDown, null, tint = Vela.colors.onSurfaceVariant.toColor())
+            Icon(if (expanded) AppIcons.chevronUp else AppIcons.chevronDown, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        if (expanded) Column(Modifier.fillMaxWidth().padding(start = Vela.md, end = Vela.md, bottom = Vela.md), verticalArrangement = Arrangement.spacedBy(Vela.md)) {
-            Column(verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                Text("SponsorBlock segment", style = MaterialTheme.typography.bodyMedium, color = Vela.colors.onSurfaceVariant.toColor())
-                Row(horizontalArrangement = Arrangement.spacedBy(Vela.sm), modifier = Modifier.fillMaxWidth()) {
+        if (expanded) Column(Modifier.fillMaxWidth().padding(start = Spacing.md, end = Spacing.md, bottom = Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                Text("SponsorBlock segment", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), modifier = Modifier.fillMaxWidth()) {
                     SecondaryButton("Mark start" + (start?.let { " (${formatTimestamp(it / 1000)})" } ?: ""), { start = positionMs }, Modifier.weight(1f).testTag("contribute.markStart"))
                     SecondaryButton("Mark end" + (end?.let { " (${formatTimestamp(it / 1000)})" } ?: ""), { end = positionMs }, Modifier.weight(1f).testTag("contribute.markEnd"))
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(Vela.sm), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     androidx.compose.foundation.layout.Box(Modifier.weight(1f)) {
                         SecondaryButton(category.label, { menu = true }, Modifier.fillMaxWidth())
                         DropdownMenu(menu, { menu = false }) {
@@ -158,11 +162,11 @@ fun ContributeSection(
                     PrimaryButton("Review and submit", { confirmSegment = true }, Modifier.weight(1f).testTag("contribute.review"), enabled = valid)
                 }
             }
-            Column(verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                Text("DeArrow thumbnail", style = MaterialTheme.typography.bodyMedium, color = Vela.colors.onSurfaceVariant.toColor())
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                Text("DeArrow thumbnail", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 SecondaryButton("Use the frame at ${formatTimestamp(positionMs / 1000)}", { confirmFrame = true }, Modifier.fillMaxWidth().testTag("contribute.frame"), enabled = durationMs > 0)
             }
-            status?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor(), modifier = Modifier.testTag("contribute.status")) }
+            status?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.testTag("contribute.status")) }
         }
     }
 

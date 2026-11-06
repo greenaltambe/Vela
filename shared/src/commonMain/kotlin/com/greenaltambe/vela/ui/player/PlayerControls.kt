@@ -1,5 +1,11 @@
 package com.greenaltambe.vela.ui.player
 
+import com.greenaltambe.vela.ui.theme.AppIcons
+import androidx.compose.foundation.shape.ZeroCornerSize
+import androidx.compose.foundation.shape.CircleShape
+import com.greenaltambe.vela.ui.theme.ExtraColors
+import com.greenaltambe.vela.ui.theme.Spacing
+import com.greenaltambe.vela.ui.theme.LocalMotion
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -65,10 +71,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.greenaltambe.vela.ui.look.Vela
 import com.greenaltambe.vela.ui.look.VelaMotion
 import com.greenaltambe.vela.ui.look.pressable
-import com.greenaltambe.vela.ui.look.toColor
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
@@ -108,6 +112,7 @@ fun rememberPlayerHaptics(): PlayerHaptics {
  * the icon, [pressShift] nudges the icon sideways (previous / next lean towards where they go), and a haptic fires the moment the finger lands.
  * With Reduce motion or Performance mode only the halo (and the haptic) remain.
  */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun PlayerIconButton(
     onClick: () -> Unit,
@@ -116,7 +121,7 @@ fun PlayerIconButton(
     size: Dp = 48.dp,
     haptic: HapticKind = HapticKind.CLICK,
     pressShift: Dp = 0.dp,
-    halo: Color = Vela.colors.onMedia.toColor(),
+    halo: Color = ExtraColors.onMedia,
     /** A filled disc behind the icon (the player's buttons wear a translucent scrim so they read over any picture); it deepens while pressed. */
     background: Color = Color.Transparent,
     /** A press-and-hold action (a second, heavier gesture; the buzz is stronger when it fires). */
@@ -125,19 +130,39 @@ fun PlayerIconButton(
 ) {
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
-    val motion = Vela.motion
+    val motion = LocalMotion.current
     val haptics = rememberPlayerHaptics()
+    if (onLongClick == null) {
+        // Material 3 Expressive's own icon button: it morphs from a circle to a rounded square while pressed, on the scrim disc when there is one.
+        LaunchedEffect(pressed) { if (pressed && enabled) haptics.perform(haptic) }
+        val body: @Composable () -> Unit = { Box(contentAlignment = Alignment.Center) { content() } }
+        if (background != Color.Transparent) androidx.compose.material3.FilledIconButton(
+            onClick = onClick, modifier = modifier.size(size), enabled = enabled, interactionSource = source,
+            shapes = androidx.compose.material3.IconButtonDefaults.shapes(),
+            colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(containerColor = background, contentColor = ExtraColors.onMedia, disabledContainerColor = background.copy(alpha = 0.12f)),
+            content = body,
+        ) else androidx.compose.material3.IconButton(
+            onClick = onClick, modifier = modifier.size(size), enabled = enabled, interactionSource = source,
+            shapes = androidx.compose.material3.IconButtonDefaults.shapes(), content = body,
+        )
+        return
+    }
     val squeeze = pressed && !motion.reduced
     val scale by animateFloatAsState(if (squeeze) 0.82f else 1f, VelaMotion.bouncy(motion), label = "playerButtonScale")
     val shift by animateDpAsState(if (squeeze) pressShift else 0.dp, VelaMotion.snappy(motion), label = "playerButtonShift")
     val glow by animateFloatAsState(if (pressed) 0.28f else 0f, VelaMotion.tween(motion, VelaMotion.Level.QUICK), label = "playerButtonGlow")
+    // The disc morphs towards a rounded square while pressed (Material 3 Expressive's pressed icon-button shape), and springs back.
+    val corner by animateFloatAsState(if (pressed && !motion.reduced) 0.30f else 0.5f, VelaMotion.bouncy(motion), label = "playerButtonCorner")
     LaunchedEffect(pressed) { if (pressed && enabled) haptics.perform(haptic) }
     Box(
         modifier
             .size(size)
             .graphicsLayer { scaleX = scale; scaleY = scale; alpha = if (enabled) 1f else 0.4f }
             .drawBehind {
-                if (background != Color.Transparent) drawCircle(background.copy(alpha = (background.alpha + 0.22f * glow / 0.28f).coerceAtMost(1f)), radius = this.size.minDimension / 2f * 0.88f)
+                if (background != Color.Transparent) {
+                    val d = this.size.minDimension * 0.88f
+                    drawRoundRect(background.copy(alpha = (background.alpha + 0.22f * glow / 0.28f).coerceAtMost(1f)), topLeft = androidx.compose.ui.geometry.Offset((this.size.width - d) / 2f, (this.size.height - d) / 2f), size = androidx.compose.ui.geometry.Size(d, d), cornerRadius = androidx.compose.ui.geometry.CornerRadius(d * corner, d * corner))
+                }
                 if (glow > 0f) drawCircle(halo.copy(alpha = glow))
             }
             .combinedClickable(
@@ -155,7 +180,7 @@ fun PlayerIconButton(
 /** An icon that swaps with a short pop (play becomes pause, mute becomes volume) instead of cutting. */
 @Composable
 fun SwapIcon(icon: ImageVector, description: String?, tint: Color, modifier: Modifier = Modifier) {
-    val motion = Vela.motion
+    val motion = LocalMotion.current
     val color by animateColorAsState(tint, VelaMotion.tween(motion, VelaMotion.Level.QUICK), label = "swapIconTint")
     AnimatedContent(
         targetState = icon, modifier = modifier,
@@ -175,19 +200,11 @@ fun SwapIcon(icon: ImageVector, description: String?, tint: Color, modifier: Mod
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlayerMenuSheet(title: String, onDismiss: () -> Unit, modifier: Modifier = Modifier, subtitle: String? = null, content: @Composable ColumnScope.() -> Unit) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        // Opens at its full height: a half-height first stop hid the bottom of long menus (the Download button) until dragged.
-        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = Vela.look.radii.largeDp.dp, topEnd = Vela.look.radii.largeDp.dp),
-        containerColor = Vela.colors.surface.toColor(),
-        contentColor = Vela.colors.onSurface.toColor(),
-        modifier = modifier.testTag("player.menu.sheet"),
-    ) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(bottom = Vela.lg), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
-            Column(Modifier.padding(horizontal = Vela.gutter).padding(bottom = Vela.sm), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
+    com.greenaltambe.vela.ui.components.VelaSheet(onDismiss, modifier.testTag("player.menu.sheet")) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(bottom = Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            Column(Modifier.padding(horizontal = Spacing.gutter).padding(bottom = Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                 Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor(), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             content()
         }
@@ -195,6 +212,7 @@ fun PlayerMenuSheet(title: String, onDismiss: () -> Unit, modifier: Modifier = M
 }
 
 /** One row of a menu: slides and fades in by [index], tints and shows a check that pops when it is the chosen one, and gives a haptic on tap. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun PlayerMenuRow(
     label: String,
@@ -208,39 +226,35 @@ fun PlayerMenuRow(
     /** Something at the row's end instead of the check mark (a switch). */
     trailing: (@Composable () -> Unit)? = null,
 ) {
-    val motion = Vela.motion
+    val motion = LocalMotion.current
     val haptics = rememberPlayerHaptics()
     val enter = remember { Animatable(if (motion.reduced) 1f else 0f) }
     LaunchedEffect(Unit) {
         if (!motion.reduced) { delay(VelaMotion.staggerDelayMs(motion, index).toLong()); enter.animateTo(1f, VelaMotion.tween(motion, VelaMotion.Level.STANDARD)) }
     }
-    val tint by animateColorAsState(
-        if (selected) Vela.colors.primary.toColor().copy(alpha = 0.14f) else Color.Transparent,
-        VelaMotion.tween(motion, VelaMotion.Level.QUICK), label = "menuRowTint",
-    )
-    val accent = if (selected) Vela.colors.primary.toColor() else Vela.colors.onSurface.toColor()
-    Row(
-        modifier.fillMaxWidth().padding(horizontal = Vela.sm)
+    // Material's selectable list item: the chosen row fills with the primary container; entrance stagger and haptic stay.
+    val shape = MaterialTheme.shapes.large
+    androidx.compose.material3.SegmentedListItem(
+        selected = selected,
+        onClick = { haptics.perform(if (selected) HapticKind.TICK else HapticKind.CONFIRM); onClick() },
+        shapes = androidx.compose.material3.ListItemShapes(shape, shape, shape, shape, shape, shape),
+        enabled = enabled,
+        colors = androidx.compose.material3.ListItemDefaults.segmentedColors(
+            containerColor = Color.Transparent, selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+            selectedContentColor = MaterialTheme.colorScheme.onPrimaryContainer, selectedSupportingContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        ),
+        leadingContent = leading?.let { icon -> { Icon(icon, null, Modifier.size(24.dp)) } },
+        supportingContent = supporting?.let { sup -> { Text(sup, maxLines = 1, overflow = TextOverflow.Ellipsis) } },
+        trailingContent = {
+            if (trailing != null) trailing()
+            else AnimatedVisibility(selected, enter = scaleIn(VelaMotion.bouncy(motion), initialScale = 0.3f) + fadeIn(), exit = scaleOut() + fadeOut()) {
+                Icon(AppIcons.check, "Selected", Modifier.size(22.dp))
+            }
+        },
+        modifier = modifier.fillMaxWidth().padding(horizontal = Spacing.sm)
             .graphicsLayer { alpha = enter.value * (if (enabled) 1f else 0.5f); translationY = (1f - enter.value) * 18.dp.toPx() }
-            .clip(Vela.mediumShape).background(tint)
-            .pressable(enabled = enabled, role = Role.RadioButton) { haptics.perform(if (selected) HapticKind.TICK else HapticKind.CONFIRM); onClick() }
-            .heightIn(min = if (supporting != null) 64.dp else 56.dp).padding(horizontal = Vela.md, vertical = Vela.sm)
             .testTag("player.menu.row"),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.md),
-    ) {
-        if (leading != null) Box(
-            Modifier.size(40.dp).clip(Vela.pillShape).background(if (selected) Vela.colors.primary.toColor().copy(alpha = 0.18f) else Vela.colors.surfaceVariant.toColor()),
-            contentAlignment = Alignment.Center,
-        ) { Icon(leading, null, Modifier.size(22.dp), tint = accent) }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(label, style = MaterialTheme.typography.bodyLarge, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal, color = accent, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (supporting != null) Text(supporting, style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor(), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        if (trailing != null) trailing()
-        AnimatedVisibility(selected, enter = scaleIn(VelaMotion.bouncy(motion), initialScale = 0.3f) + fadeIn(), exit = scaleOut() + fadeOut()) {
-            Icon(Vela.icons.check, "Selected", Modifier.size(22.dp), tint = Vela.colors.primary.toColor())
-        }
-    }
+    ) { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal) }
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------
@@ -274,30 +288,30 @@ private fun snapSpeed(raw: Float): Float = ((raw / SPEED_STEP).roundToInt() * SP
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SpeedMenuContent(current: Float, onPick: (Float) -> Unit) {
-    val motion = Vela.motion
+    val motion = LocalMotion.current
     val haptics = rememberPlayerHaptics()
     var dragging by remember { mutableStateOf<Float?>(null) }
     val shown = dragging ?: current
-    val primary = Vela.colors.primary.toColor()
-    val onSurface = Vela.colors.onSurface.toColor()
-    val sliderColors = SliderDefaults.colors(thumbColor = primary, activeTrackColor = primary, inactiveTrackColor = Vela.colors.surfaceVariant.toColor())
+    val primary = MaterialTheme.colorScheme.primary
+    val onSurface = MaterialTheme.colorScheme.onSurface
+    val sliderColors = SliderDefaults.colors(thumbColor = primary, activeTrackColor = primary, inactiveTrackColor = MaterialTheme.colorScheme.surfaceContainerHigh)
     val caption = when {
         kotlin.math.abs(shown - 1f) < 0.005f -> "Normal speed"
         shown < 1f -> "Slower than normal"
         else -> "Faster than normal"
     }
 
-    Column(Modifier.fillMaxWidth().padding(horizontal = Vela.gutter), verticalArrangement = Arrangement.spacedBy(Vela.md)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.gutter), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
         Column(Modifier.fillMaxWidth().testTag("player.speed.readout"), horizontalAlignment = Alignment.CenterHorizontally) {
             AnimatedContent(
                 targetState = formatSpeed(shown),
                 transitionSpec = { (slideInVertically(VelaMotion.snappy(motion)) { it / 3 } + fadeIn()) togetherWith (slideOutVertically(VelaMotion.snappy(motion)) { -it / 3 } + fadeOut()) },
                 label = "speedReadout",
             ) { text -> Text(text, style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold, color = primary, textAlign = TextAlign.Center) }
-            Text(caption, style = MaterialTheme.typography.bodyMedium, color = Vela.colors.onSurfaceVariant.toColor())
+            Text(caption, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             StepButton("−", enabled = shown > SPEED_MIN + 0.001f, tag = "player.speed.slower") { haptics.tick(); onPick(snapSpeed(shown - SPEED_STEP)) }
             Slider(
                 value = shown,
@@ -308,7 +322,7 @@ fun SpeedMenuContent(current: Float, onPick: (Float) -> Unit) {
                 },
                 onValueChangeFinished = { dragging = null; haptics.confirm() },
                 valueRange = SPEED_MIN..SPEED_MAX, modifier = Modifier.weight(1f).testTag("player.speed.slider"), colors = sliderColors,
-                thumb = { Box(Modifier.size(28.dp).clip(Vela.pillShape).background(primary)) },
+                thumb = { Box(Modifier.size(28.dp).clip(CircleShape).background(primary)) },
                 track = { state -> SliderDefaults.Track(sliderState = state, modifier = Modifier.height(8.dp), colors = sliderColors, drawStopIndicator = null, thumbTrackGapSize = 0.dp) },
             )
             StepButton("+", enabled = shown < SPEED_MAX - 0.001f, tag = "player.speed.faster") { haptics.tick(); onPick(snapSpeed(shown + SPEED_STEP)) }
@@ -325,9 +339,9 @@ fun SpeedMenuContent(current: Float, onPick: (Float) -> Unit) {
 @Composable
 private fun StepButton(label: String, enabled: Boolean, tag: String, onClick: () -> Unit) {
     PlayerIconButton(
-        onClick, enabled = enabled, size = 44.dp, haptic = HapticKind.TICK, halo = Vela.colors.primary.toColor(),
-        background = Vela.colors.surfaceVariant.toColor(), modifier = Modifier.testTag(tag),
-    ) { Text(label, style = MaterialTheme.typography.titleLarge, color = Vela.colors.onSurface.toColor()) }
+        onClick, enabled = enabled, size = 44.dp, haptic = HapticKind.TICK, halo = MaterialTheme.colorScheme.primary,
+        background = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.testTag(tag),
+    ) { Text(label, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface) }
 }
 
 /** Options as a grid of equal chips, [columns] to a row, so labels of any length line up. One is chosen; they pop in one after another. */
@@ -336,9 +350,9 @@ fun <T> ChoiceChipGrid(
     options: List<T>, isSelected: (T) -> Boolean, label: (T) -> String, onSelect: (T) -> Unit,
     modifier: Modifier = Modifier, columns: Int = 4, tag: (T) -> String = { "" },
 ) {
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         options.chunked(columns).forEachIndexed { r, row ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 row.forEachIndexed { c, option ->
                     ChoiceChip(label(option), isSelected(option), r * columns + c, Modifier.weight(1f).testTag(tag(option))) { onSelect(option) }
                 }
@@ -350,26 +364,20 @@ fun <T> ChoiceChipGrid(
 
 @Composable
 private fun ChoiceChip(text: String, selected: Boolean, index: Int, modifier: Modifier, onClick: () -> Unit) {
-    val motion = Vela.motion
+    val motion = LocalMotion.current
     val haptics = rememberPlayerHaptics()
     val enter = remember { Animatable(if (motion.reduced) 1f else 0f) }
     LaunchedEffect(Unit) { if (!motion.reduced) { delay(VelaMotion.staggerDelayMs(motion, index / 2).toLong()); enter.animateTo(1f, VelaMotion.bouncy(motion)) } }
-    val bg by animateColorAsState(if (selected) Vela.colors.primary.toColor() else Vela.colors.surfaceVariant.toColor(), VelaMotion.tween(motion, VelaMotion.Level.QUICK), label = "chipBg")
-    val fg by animateColorAsState(if (selected) Vela.colors.onPrimary.toColor() else Vela.colors.onSurface.toColor(), VelaMotion.tween(motion, VelaMotion.Level.QUICK), label = "chipFg")
-    Box(
-        modifier
-            .graphicsLayer { val sc = 0.6f + 0.4f * enter.value; scaleX = sc; scaleY = sc; alpha = enter.value.coerceIn(0f, 1f) }
-            .clip(Vela.mediumShape).background(bg)
-            .pressable(role = Role.RadioButton) { haptics.perform(HapticKind.CONFIRM); onClick() }
-            .heightIn(min = Vela.minTouch),
-        contentAlignment = Alignment.Center,
-    ) { Text(text, color = fg, style = MaterialTheme.typography.labelLarge, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1) }
+    // The app's expressive toggle button (it morphs between round and square, shows a check), arriving with the sheet's stagger.
+    Box(modifier.graphicsLayer { val sc = 0.6f + 0.4f * enter.value; scaleX = sc; scaleY = sc; alpha = enter.value.coerceIn(0f, 1f) }, contentAlignment = Alignment.Center) {
+        com.greenaltambe.vela.ui.components.ExpressiveChip(selected, text, { haptics.perform(HapticKind.CONFIRM); onClick() }, Modifier.fillMaxWidth())
+    }
 }
 
 /** Slides up and fades in, [index] places after the first, so the parts of a sheet arrive one by one. Instant with Reduce motion. */
 @Composable
 fun Modifier.reveal(index: Int): Modifier {
-    val motion = Vela.motion
+    val motion = LocalMotion.current
     val enter = remember { Animatable(if (motion.reduced) 1f else 0f) }
     LaunchedEffect(Unit) {
         if (!motion.reduced) { delay(VelaMotion.staggerDelayMs(motion, index).toLong()); enter.animateTo(1f, VelaMotion.tween(motion, VelaMotion.Level.STANDARD)) }
@@ -388,10 +396,10 @@ fun ControlButton(
     pressShift: Dp = 0.dp,
     onLongClick: (() -> Unit)? = null,
     content: @Composable BoxScope.() -> Unit,
-) = PlayerIconButton(onClick, modifier, enabled, size, haptic, pressShift, background = Vela.colors.mediaScrim.toColor().copy(alpha = 0.30f), onLongClick = onLongClick, content = content)
+) = PlayerIconButton(onClick, modifier, enabled, size, haptic, pressShift, background = ExtraColors.mediaScrim.copy(alpha = 0.30f), onLongClick = onLongClick, content = content)
 
 /** A small caption between groups of rows in a menu sheet ("Send", "Copy"). */
 @Composable
 fun PlayerMenuSection(title: String, modifier: Modifier = Modifier) {
-    Text(title, modifier.padding(horizontal = Vela.gutter).padding(top = Vela.sm), style = MaterialTheme.typography.labelLarge, color = Vela.colors.onSurfaceVariant.toColor())
+    Text(title, modifier.padding(horizontal = Spacing.gutter).padding(top = Spacing.sm), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }

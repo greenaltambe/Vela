@@ -2,13 +2,16 @@
 
 package com.greenaltambe.vela.ui
 
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.layout.Column
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runDesktopComposeUiTest
 import com.greenaltambe.vela.ui.components.SkeletonCard
 import com.greenaltambe.vela.ui.look.*
-import com.greenaltambe.vela.ui.look.Vela
+import com.greenaltambe.vela.ui.theme.Appearance
+import com.greenaltambe.vela.ui.theme.AppTheme
+import com.greenaltambe.vela.ui.theme.MotionTokens
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import org.junit.Test
@@ -16,23 +19,20 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class MotionTest {
-    private fun look(reduce: Boolean = false, performance: Boolean = false) =
-        LookBuilder.build(LookSnapshot(reduceMotion = reduce, performance = performance), systemDark = true)
+    private fun look(reduce: Boolean = false) = Appearance.Default.copy(motion = MotionTokens(reduced = reduce))
 
     @Test fun skeletonShimmerRunsOnlyWhenMotionIsNotReduced() = runDesktopComposeUiTest(400, 600) {
         val l = mutableStateOf(look())
-        setContent { VelaTheme(l.value, false) { Column { SkeletonCard(vertical = true); SkeletonCard(vertical = false) } } }
+        setContent { AppTheme(l.value, false) { Column { SkeletonCard(vertical = true); SkeletonCard(vertical = false) } } }
         mainClock.autoAdvance = false; mainClock.advanceTimeBy(500)
         assertTrue(ActiveLoops.count >= 2, "positive control: the shimmer is a looping animation (${ActiveLoops.count})")
         l.value = look(reduce = true); mainClock.advanceTimeBy(100)
         assertEquals(0, ActiveLoops.count, "Reduce motion leaves no looping animation")
-        l.value = look(performance = true); mainClock.advanceTimeBy(100)
-        assertEquals(0, ActiveLoops.count, "Performance mode leaves none either")
     }
 
     @Test fun shimmerStopsWhileTheAppIsInTheBackground() = runDesktopComposeUiTest(400, 600) {
         val active = mutableStateOf(true)
-        setContent { VelaTheme(look(), false) { CompositionLocalProvider(LocalAnimationsActive provides active.value) { SkeletonCard(vertical = true) } } }
+        setContent { AppTheme(look(), false) { CompositionLocalProvider(LocalAnimationsActive provides active.value) { SkeletonCard(vertical = true) } } }
         mainClock.autoAdvance = false; mainClock.advanceTimeBy(300)
         assertTrue(ActiveLoops.count > 0)
         active.value = false; mainClock.advanceTimeBy(100)
@@ -50,18 +50,10 @@ class MotionTest {
 
     @Test fun theUndoToastAppearsRunsUndoOnceAndGoes() = runDesktopComposeUiTest(400, 600) {
         val toasts = UndoToasts(); var undone = 0
-        setContent { VelaTheme(look(), false) { UndoHost(toasts) { androidx.compose.foundation.text.BasicText("page") } } }
+        setContent { AppTheme(look(), false) { UndoHost(toasts) { androidx.compose.foundation.text.BasicText("page") } } }
         toasts.show("Corners → Round") { undone++ }
         waitForIdle(); onNodeWithTag("undo.toast").assertExists()
         onNodeWithTag("undo.action").performClick(); waitForIdle()
         assertEquals(1, undone); assertEquals(null, toasts.current)
-    }
-
-    @Test fun theSwitchTogglesAndSegmentedPillsReportTheChoice() = runDesktopComposeUiTest(400, 600) {
-        var on = false; var picked = 0
-        setContent { VelaTheme(look(), false) { Column { VelaSwitch(on, { on = it }); SegmentedPills(listOf("Compact", "Comfortable", "Roomy"), 1, { picked = it }) } } }
-        onNodeWithTag("pills.2").performClick(); waitForIdle()
-        assertEquals(2, picked)
-        onNodeWithTag("pills.outline").assertExists()
     }
 }

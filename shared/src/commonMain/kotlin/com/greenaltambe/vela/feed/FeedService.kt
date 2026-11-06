@@ -26,6 +26,10 @@ class FeedService(
     private val cache: FeedRepository,
     private val clock: Clock = Clock.System,
     private val concurrency: Int = 6,
+    /** Where new uploads of subscribed channels are recorded for the notification feed (null: not recorded). */
+    private val notifications: com.greenaltambe.vela.data.NotificationRepository? = null,
+    /** Called with the new uploads of channels whose level is All, for a system notification. */
+    private val onNewUploads: (List<com.greenaltambe.vela.extractor.VideoSummary>) -> Unit = {},
 ) {
     private val _entries = MutableStateFlow(cache.entries())
     val entries: StateFlow<List<FeedEntry>> = _entries
@@ -72,6 +76,21 @@ class FeedService(
                 }.awaitAll().flatten()
             }
             val cached = cache.entries().filter { it.video.channelId in subscribed }
+            // A first fill (nothing cached yet) only seeds the cache: it must not announce a channel's whole back catalogue.
+            if (cached.isNotEmpty() && notifications != null) {
+                val known = cached.mapTo(HashSet()) { it.video.id }
+                val loud = ArrayList<com.greenaltambe.vela.extractor.VideoSummary>()
+                val levels = subscriptions.notifyLevels()
+                // At most the newest few per refresh: one burst of uploads must not become hundreds of rows (or database calls).
+                fresh.filter { it.video.id !in known }.sortedByDescending { it.video.uploadedAt }.take(MAX_NEW_PER_REFRESH).forEach { e ->
+                    val level = levels[e.video.channelId] ?: com.greenaltambe.vela.data.NotifyLevel.PERSONALIZED
+                    if (level != com.greenaltambe.vela.data.NotifyLevel.NONE) {
+                        notifications.add(com.greenaltambe.vela.data.NotificationKind.UPLOAD, e.video.id, e.video.title, now, channelId = e.video.channelId, channelName = e.video.channelName, videoId = e.video.id, thumbnailUrl = e.video.thumbnailUrl)
+                        if (level == com.greenaltambe.vela.data.NotifyLevel.ALL) loud += e.video
+                    }
+                }
+                if (loud.isNotEmpty()) onNewUploads(loud)
+            }
             val merged = mergeFeed(cached, fresh)
             cache.replaceAll(merged)
             _entries.value = merged
@@ -82,4 +101,6 @@ class FeedService(
             _refreshing.value = false
         }
     }
+
+    companion object { const val MAX_NEW_PER_REFRESH = 20 }
 }

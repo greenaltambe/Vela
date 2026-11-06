@@ -1,11 +1,11 @@
 package com.greenaltambe.vela.ui.screens
 
+import com.greenaltambe.vela.ui.theme.AppIcons
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
 import com.greenaltambe.vela.library.formatTimestamp
-import com.greenaltambe.vela.ui.look.Vela
 import com.greenaltambe.vela.ui.player.PlayerMenuRow
 import com.greenaltambe.vela.ui.player.PlayerMenuSection
 import com.greenaltambe.vela.ui.player.PlayerMenuSheet
@@ -29,12 +29,12 @@ fun ShareSheet(videoId: String, title: String, positionMs: Long, onDone: (String
     PlayerMenuSheet("Share", onDismiss, subtitle = title) {
         var i = 0
         PlayerMenuSection("Send")
-        PlayerMenuRow(if (share != null) "Share link" else "Copy link", selected = false, index = i++, leading = Vela.icons.share, supporting = "youtu.be/$videoId", onClick = { if (share != null) { share(title, link); onDone(null) } else copy(link) })
-        if (atTime) PlayerMenuRow("Share at ${formatTimestamp(seconds)}", selected = false, index = i++, leading = Vela.icons.timer, supporting = "Starts where you are now", onClick = { if (share != null) { share(title, timed); onDone(null) } else copy(timed) })
+        PlayerMenuRow(if (share != null) "Share link" else "Copy link", selected = false, index = i++, leading = AppIcons.share, supporting = "youtu.be/$videoId", onClick = { if (share != null) { share(title, link); onDone(null) } else copy(link) })
+        if (atTime) PlayerMenuRow("Share at ${formatTimestamp(seconds)}", selected = false, index = i++, leading = AppIcons.timer, supporting = "Starts where you are now", onClick = { if (share != null) { share(title, timed); onDone(null) } else copy(timed) })
         PlayerMenuSection("Copy")
-        if (share != null) PlayerMenuRow("Copy link", selected = false, index = i++, leading = Vela.icons.link, supporting = "youtu.be/$videoId", onClick = { copy(link) })
-        if (atTime) PlayerMenuRow("Copy link at ${formatTimestamp(seconds)}", selected = false, index = i++, leading = Vela.icons.link, supporting = "…?t=$seconds", onClick = { copy(timed) })
+        if (share != null) PlayerMenuRow("Copy link", selected = false, index = i++, leading = AppIcons.link, supporting = "youtu.be/$videoId", onClick = { copy(link) })
+        if (atTime) PlayerMenuRow("Copy link at ${formatTimestamp(seconds)}", selected = false, index = i++, leading = AppIcons.link, supporting = "…?t=$seconds", onClick = { copy(timed) })
         PlayerMenuSection("Elsewhere")
-        PlayerMenuRow("Open in browser", selected = false, index = i, leading = Vela.icons.explore, supporting = "youtube.com", onClick = { runCatching { uri.openUri("https://www.youtube.com/watch?v=$videoId" + if (atTime) "&t=${seconds}s" else "") }; onDone(null) })
+        PlayerMenuRow("Open in browser", selected = false, index = i, leading = AppIcons.explore, supporting = "youtube.com", onClick = { runCatching { uri.openUri("https://www.youtube.com/watch?v=$videoId" + if (atTime) "&t=${seconds}s" else "") }; onDone(null) })
     }
 }

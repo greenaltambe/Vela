@@ -28,7 +28,7 @@ object HealthNotifier {
         }
         val open = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val n = NotificationCompat.Builder(context, CHANNEL)
-            .setSmallIcon(android.R.drawable.stat_notify_error).setContentTitle("Playback may be broken").setContentText(alert.message())
+            .setSmallIcon(com.greenaltambe.vela.R.drawable.ic_stat_vela).setContentTitle("Playback may be broken").setContentText(alert.message())
             .setStyle(NotificationCompat.BigTextStyle().bigText(alert.message())).setAutoCancel(true).setContentIntent(open).build()
         runCatching { NotificationManagerCompat.from(context).notify(ID, n) }
     }

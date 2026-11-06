@@ -1,5 +1,7 @@
 package com.greenaltambe.vela.ui.components
 
+import androidx.compose.foundation.shape.CircleShape
+import com.greenaltambe.vela.ui.theme.Spacing
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -35,9 +37,7 @@ import coil3.compose.AsyncImage
 import com.greenaltambe.vela.extractor.VideoSummary
 import com.greenaltambe.vela.ui.layout.LocalWindowSize
 import com.greenaltambe.vela.ui.layout.WindowSizeClass
-import com.greenaltambe.vela.ui.look.Vela
 import com.greenaltambe.vela.ui.look.shimmer
-import com.greenaltambe.vela.ui.look.toColor
 
 /**
  * The one way a row of things scrolls sideways in Vela: a title (and, when the row has a reason, a line under it), "See all" at the end of the
@@ -58,18 +58,18 @@ fun <T> Carousel(
     fixedCardWidth: Dp? = null,
     content: @Composable (item: T, cardWidth: Dp) -> Unit,
 ) {
-    val gutter = Vela.gutter
+    val gutter = Spacing.gutter
     val size = LocalWindowSize.current
-    Column(modifier.fillMaxWidth().testTag(tag), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
+    Column(modifier.fillMaxWidth().testTag(tag), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
         Column {
             SectionHeader(title) {
                 if (onSeeAll != null) TextButton(onClick = onSeeAll, modifier = Modifier.testTag("$tag.all")) { Text(seeAllLabel, maxLines = 1) }
             }
-            if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor(), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(bottom = Vela.xs))
+            if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(bottom = Spacing.xs))
         }
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val width = fixedCardWidth ?: when (size) { WindowSizeClass.COMPACT -> maxWidth * 0.82f; WindowSizeClass.MEDIUM -> 320.dp; WindowSizeClass.EXPANDED -> 340.dp }
-            HScrollRow(Modifier.bleed(gutter).testTag("$tag.row"), Arrangement.spacedBy(Vela.md), PaddingValues(horizontal = gutter), snap = fixedCardWidth == null) {
+            HScrollRow(Modifier.bleed(gutter).testTag("$tag.row"), Arrangement.spacedBy(Spacing.md), PaddingValues(horizontal = gutter), snap = fixedCardWidth == null) {
                 items(items, key = key) { item -> content(item, width) }
             }
         }
@@ -112,14 +112,14 @@ fun ShortsCarousel(
     onOpen: (VideoSummary) -> Unit,
 ) {
     Carousel(title, videos, { it.id }, modifier, subtitle, onSeeAll, tag, fixedCardWidth = 150.dp) { v, width ->
-        Column(Modifier.width(width).clickable { onOpen(v) }.testTag("$tag.item"), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
-            Box(Modifier.fillMaxWidth().aspectRatio(9f / 16f).clip(Vela.thumbnailShape).background(Vela.colors.surfaceVariant.toColor())) {
+        Column(Modifier.width(width).clickable { onOpen(v) }.testTag("$tag.item"), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            Box(Modifier.fillMaxWidth().aspectRatio(9f / 16f).clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceContainerHigh)) {
                 AsyncImage(v.thumbnailUrl ?: "https://i.ytimg.com/vi/${v.id}/hq720.jpg", null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             }
-            Column(Modifier.padding(horizontal = Vela.sm).padding(bottom = Vela.xs), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(Modifier.padding(horizontal = Spacing.sm).padding(bottom = Spacing.xs), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(v.title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                if (v.channelName.isNotBlank()) Text(v.channelName, style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor(), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                formatViews(v.viewCount)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor(), maxLines = 1) }
+                if (v.channelName.isNotBlank()) Text(v.channelName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                formatViews(v.viewCount)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1) }
             }
         }
     }
@@ -131,23 +131,23 @@ fun ShortsCarousel(
  */
 @Composable
 fun CarouselSkeleton(modifier: Modifier = Modifier, portrait: Boolean = false) {
-    val gutter = Vela.gutter
+    val gutter = Spacing.gutter
     val size = LocalWindowSize.current
-    Column(modifier.fillMaxWidth().testTag("carousel.skeleton"), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
-        Box(Modifier.fillMaxWidth().heightIn(min = Vela.minTouch), contentAlignment = Alignment.CenterStart) {
-            Box(Modifier.width(160.dp).height(18.dp).clip(Vela.smallShape).shimmer())
+    Column(modifier.fillMaxWidth().testTag("carousel.skeleton"), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        Box(Modifier.fillMaxWidth().heightIn(min = Spacing.minTouch), contentAlignment = Alignment.CenterStart) {
+            Box(Modifier.width(160.dp).height(18.dp).clip(MaterialTheme.shapes.small).shimmer())
         }
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val width = if (portrait) 150.dp else when (size) { WindowSizeClass.COMPACT -> maxWidth * 0.82f; WindowSizeClass.MEDIUM -> 320.dp; WindowSizeClass.EXPANDED -> 340.dp }
-            Row(Modifier.bleed(gutter).padding(horizontal = gutter), horizontalArrangement = Arrangement.spacedBy(Vela.md)) {
+            Row(Modifier.bleed(gutter).padding(horizontal = gutter), horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
                 repeat(if (portrait) 3 else 2) {
-                    Column(Modifier.width(width), verticalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                        Box(Modifier.fillMaxWidth().aspectRatio(if (portrait) 9f / 16f else 16f / 9f).clip(Vela.thumbnailShape).shimmer())
-                        Row(Modifier.padding(horizontal = Vela.sm), horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
-                            if (!portrait) Box(Modifier.size(36.dp).clip(Vela.pillShape).shimmer())
-                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Vela.xs)) {
-                                Box(Modifier.fillMaxWidth().height(14.dp).clip(Vela.smallShape).shimmer())
-                                Box(Modifier.fillMaxWidth(0.6f).height(12.dp).clip(Vela.smallShape).shimmer())
+                    Column(Modifier.width(width), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        Box(Modifier.fillMaxWidth().aspectRatio(if (portrait) 9f / 16f else 16f / 9f).clip(MaterialTheme.shapes.medium).shimmer())
+                        Row(Modifier.padding(horizontal = Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                            if (!portrait) Box(Modifier.size(36.dp).clip(CircleShape).shimmer())
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                                Box(Modifier.fillMaxWidth().height(14.dp).clip(MaterialTheme.shapes.small).shimmer())
+                                Box(Modifier.fillMaxWidth(0.6f).height(12.dp).clip(MaterialTheme.shapes.small).shimmer())
                             }
                         }
                     }
@@ -160,9 +160,9 @@ fun CarouselSkeleton(modifier: Modifier = Modifier, portrait: Boolean = false) {
 /** A strip of chips (filters, topics, sort orders): the same scroller as the carousels, running through the gutters, no snapping. */
 @Composable
 fun ChipRow(modifier: Modifier = Modifier, bleed: Boolean = true, content: LazyListScope.() -> Unit) {
-    val gutter = Vela.gutter
+    val gutter = Spacing.gutter
     // [bleed]: the parent is padded by the gutter (a list's content padding), so the row reaches through it; otherwise the row sits in the full width and only pads itself.
-    HScrollRow(if (bleed) modifier.bleed(gutter) else modifier, Arrangement.spacedBy(Vela.sm), PaddingValues(horizontal = gutter), content = content)
+    HScrollRow(if (bleed) modifier.bleed(gutter) else modifier, Arrangement.spacedBy(Spacing.sm), PaddingValues(horizontal = gutter), content = content)
 }
 
 /** A row of channels (picture and name): same carousel header and scroller, narrow tiles. */
@@ -178,11 +178,11 @@ fun ChannelCarousel(
 ) {
     Carousel(title, channels, { it.channelId }, modifier, null, onSeeAll, tag, seeAllLabel, fixedCardWidth = 80.dp) { c, width ->
         Column(
-            Modifier.width(width).clip(Vela.mediumShape).clickable { onOpen(c) }.padding(vertical = Vela.xs).testTag("$tag.item"),
-            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Vela.xs),
+            Modifier.width(width).clip(MaterialTheme.shapes.medium).clickable { onOpen(c) }.padding(vertical = Spacing.xs).testTag("$tag.item"),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.xs),
         ) {
             Avatar(c.name, size = 64.dp, url = c.avatarUrl)
-            Text(c.name, Modifier.padding(horizontal = Vela.xs), style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            Text(c.name, Modifier.padding(horizontal = Spacing.xs), style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         }
     }
 }

@@ -21,8 +21,7 @@ the artifacts declare in their POM; the licence texts are in each project's repo
 | Coil | Image loading | Apache-2.0 |
 | JNA | Native calls (secure storage, mpv) | Apache-2.0 or LGPL-2.1-or-later |
 | dbus-java (hypfvieh) | MPRIS media controls on Linux | MIT |
-| Lucide icons (`com.composables:icons-lucide-cmp`) | One of the selectable icon packs | ISC (Lucide) and MIT (Feather portions) |
-| Material Icons Extended | Filled, Rounded, Outlined, Sharp and Two-tone icon packs | Apache-2.0 |
+| Material Icons Extended | The app's icons (filled and outlined) | Apache-2.0 |
 
 ## Fonts
 
@@ -194,9 +193,6 @@ The Vela icon and the app's own line/filled icon set (`VelaIcons`) are original 
 | app.cash.sqldelight:runtime | 2.4.1 | Apache-2.0 |
 | app.cash.sqldelight:runtime-jvm | 2.4.1 | Apache-2.0 |
 | app.cash.sqldelight:sqlite-driver | 2.4.1 | Apache-2.0 |
-| com.composables:icons-lucide-cmp | 2.2.1 | MIT License |
-| com.composables:icons-lucide-cmp-android | 2.2.1 | MIT License |
-| com.composables:icons-lucide-cmp-jvm | 2.2.1 | MIT License |
 | com.fasterxml.jackson.core:jackson-annotations | 2.11.1 | The Apache Software License, Version 2.0 |
 | com.fasterxml.jackson.core:jackson-core | 2.11.1 | The Apache Software License, Version 2.0 |
 | com.fasterxml.jackson.core:jackson-databind | 2.11.1 | The Apache Software License, Version 2.0 |

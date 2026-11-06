@@ -1,5 +1,7 @@
 package com.greenaltambe.vela.ui.screens
 
+import com.greenaltambe.vela.ui.theme.AppIcons
+import com.greenaltambe.vela.ui.theme.Spacing
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -103,14 +105,11 @@ import com.greenaltambe.vela.ui.components.formatViews
 import com.greenaltambe.vela.ui.layout.LocalWindowSize
 import com.greenaltambe.vela.ui.layout.LocalWindowWidthDp
 import com.greenaltambe.vela.ui.layout.WindowSizeClass
-import com.greenaltambe.vela.ui.look.LocalLook
-import com.greenaltambe.vela.ui.look.Vela
 import com.greenaltambe.vela.ui.components.bleed
 import com.greenaltambe.vela.ui.components.SubscribeButton
 import com.greenaltambe.vela.ui.components.formatAge
 import com.greenaltambe.vela.ui.components.formatCount
 import com.greenaltambe.vela.ui.look.pressable
-import com.greenaltambe.vela.ui.look.toColor
 import com.greenaltambe.vela.ui.nav.Navigator
 import com.greenaltambe.vela.ui.nav.Route
 import com.greenaltambe.vela.ui.platform.LocalInPictureInPicture
@@ -224,7 +223,6 @@ fun VideoScreen(
 
     val seekStep = services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.seekStepSeconds).toInt()
     val holdSpeedSetting = services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.holdSpeed)
-    val miniOnRight = services.settings.resolve(com.greenaltambe.vela.core.settings.LookSettings.miniLook) == com.greenaltambe.vela.core.settings.MiniLook.PIP
 
     fun loadComments(more: Boolean) {
         if (commentsLoading) return
@@ -288,11 +286,12 @@ fun VideoScreen(
         if (offline == null && pageCache != null && (info != null || related.isNotEmpty() || comments.isNotEmpty())) pageCache.put(video.id, VideoPageCache.Entry(info, related, comments, commentsNext, services.clock.now(), commentTotal, appliedSort))
     }
 
-    val chapters: List<Chapter> = remember(info) { info?.let { effectiveChapters(it.chapters, it.description, it.durationSeconds) }.orEmpty() }
+    val chapters: List<Chapter> = remember(info) { info?.let { effectiveChapters(it.chapters, com.greenaltambe.vela.extractor.plainDescription(it.description), it.durationSeconds) }.orEmpty() }
 
     // ---- modules: none of these may delay or break anything above; each fills in when its answer arrives ----
     val modules = services.modules
-    val look = LocalLook.current
+    val markerColors = com.greenaltambe.vela.ui.theme.ExtraColors.markers
+    val markerFallback = com.greenaltambe.vela.ui.theme.ExtraColors.onMedia
     val brandingRevision by modules.dearrow.revision.collectAsState()
     val votesRevision by modules.ryd.revision.collectAsState()
     val segments by modules.sponsorBlock.segments.collectAsState()
@@ -302,9 +301,9 @@ fun VideoScreen(
     LaunchedEffect(video.id) { if (offline == null) modules.dearrow.prefetch(listOf(video.id)) }
     LaunchedEffect(video.id) { if (offline == null) modules.ryd.votes(video.id) }
     LaunchedEffect(video.id) { modules.sponsorBlock.notices.collectLatest { notice = it; delay(6_000); notice = null } }
-    val markers = remember(segments, look) {
+    val markers = remember(segments, markerColors) {
         segments.map { s ->
-            val color = Color((look.colors.markers[s.category] ?: 0xFFFFFFFF).toInt())
+            val color = markerColors[s.category] ?: markerFallback
             SeekMarker(s.startMs, if (s.isPoint) s.startMs + 1_500 else s.endMs, color)
         }
     }
@@ -353,7 +352,10 @@ fun VideoScreen(
         return
     }
 
-    val player = host?.controllerState?.collectAsState()?.value
+    // The page reads the player state rounded to 2 s: the seek bar and the time have their own live reads, and the rest of this big page
+    // (lists, cards, panels) is not rebuilt twice a second while a video plays.
+    val playerRaw = host?.controllerState?.collectAsState()
+    val player by remember(playerRaw) { androidx.compose.runtime.derivedStateOf { playerRaw?.value?.let { it.copy(positionMs = it.positionMs / 2000 * 2000) } } }
     val position = player?.positionMs ?: 0
     val current = currentChapter(chapters, position)
     // An ended stream is recognised by its chat, not by NewPipe's stream type (measured: a real stream replay came back as a normal video).
@@ -383,7 +385,7 @@ fun VideoScreen(
                 openAgeSetting = { navigator.selectTab(com.greenaltambe.vela.ui.nav.Route.Settings) },
                 tryAccountNow = services.accounts.active.value.takeIf { it.isSignedIn }?.let { a -> { services.governors.forAccount(a.id).tryNow() } }, showChapterTitle = size != WindowSizeClass.COMPACT,
                 overlay = { SponsorBlockOverlay(prompt, notice, onAccept = modules.sponsorBlock::acceptPrompt, onUndo = { n -> modules.sponsorBlock.undo(n); notice = null }) },
-            ) else Box(Modifier.fillMaxSize().padding(Vela.gutter), contentAlignment = Alignment.Center) {
+            ) else Box(Modifier.fillMaxSize().padding(Spacing.gutter), contentAlignment = Alignment.Center) {
                 Text("No video player is available on this system: nothing will play. (On Linux install mpv-libs.)", Modifier.testTag("video.noPlayer"), maxLines = 4, overflow = TextOverflow.Ellipsis)
             }
         }
@@ -394,35 +396,42 @@ fun VideoScreen(
             // The title (with its numbers) is the way to everything else about the video: tapping it opens the description sheet.
             // The press area reaches a little past the text on every side (and its corners are small), so the rounded highlight never cuts into the words.
             Column(
-                Modifier.fillMaxWidth().bleed(Vela.sm).clip(Vela.smallShape).pressable(role = androidx.compose.ui.semantics.Role.Button) { descriptionOpen = true; commentsOpen = false; chaptersOpen = false }
-                    .padding(horizontal = Vela.sm, vertical = Vela.xs).testTag("video.titleBlock"),
-                verticalArrangement = Arrangement.spacedBy(Vela.xs),
+                Modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraLarge).background(MaterialTheme.colorScheme.surfaceContainerLow).pressable(role = androidx.compose.ui.semantics.Role.Button) { descriptionOpen = true; commentsOpen = false; chaptersOpen = false }
+                    .padding(horizontal = Spacing.md, vertical = Spacing.md).testTag("video.titleBlock"),
+                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
             ) {
-                Text(shownTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("video.title"))
+                Text(shownTitle, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("video.title"))
                 if (titleReplaced) LinkButton(if (showOriginalTitle) "Original title · use DeArrow" else "DeArrow title · show original", { showOriginalTitle = !showOriginalTitle }, Modifier.testTag("video.toggleOriginal"))
                 val meta = listOfNotNull(formatViews(info?.viewCount ?: video.viewCount), formatAge(info?.uploadDate ?: video.uploadedAt, services.clock.now()) ?: video.publishedText?.takeIf { it.isNotBlank() }).joinToString(" · ")
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.xs)) {
-                    if (meta.isNotEmpty()) Text(meta, Modifier.weight(1f, fill = false), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Vela.colors.onSurfaceVariant.toColor())
-                    Text("…more", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, maxLines = 1, color = Vela.colors.primary.toColor(), modifier = Modifier.testTag("video.descriptionMore"))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                    if (meta.isNotEmpty()) Text(meta, Modifier.weight(1f, fill = false), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                infoError?.let { Text("Details unavailable: $it", style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+                // A taste of the description, so the card says what is inside before it is opened.
+                val teaser = info?.description?.let { com.greenaltambe.vela.extractor.plainDescription(it) }?.trim()?.takeIf { it.isNotEmpty() }?.lineSequence()?.firstOrNull { it.isNotBlank() }
+                if (teaser != null) Text(teaser, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                // "…more" comes last, after the description line (or after the views line when there is no description).
+                Text("…more", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, maxLines = 1, color = MaterialTheme.colorScheme.primary, modifier = Modifier.testTag("video.descriptionMore"))
+                // A failed details request is a passing notice, not text on the page.
+                val toasts = com.greenaltambe.vela.ui.look.LocalUndoToasts.current
+                LaunchedEffect(infoError) { if (infoError != null) toasts.show("Some details couldn't be loaded right now.") }
             }
         }
         item {
-            Row(Modifier.fillMaxWidth().clip(Vela.mediumShape).clickableChannel { (info?.channelId?.takeIf { it.isNotBlank() } ?: video.channelId).let { id -> navigator.push(Route.Channel(id, info?.channelName?.takeIf { it.isNotBlank() } ?: video.channelName, if (id.isBlank()) video.id else "")) } }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+            Row(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).clickableChannel { (info?.channelId?.takeIf { it.isNotBlank() } ?: video.channelId).let { id -> navigator.push(Route.Channel(id, info?.channelName?.takeIf { it.isNotBlank() } ?: video.channelName, if (id.isBlank()) video.id else "")) } }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 val channelName = info?.channelName?.takeIf { it.isNotBlank() } ?: video.channelName
                 // The picture: the one the listing carried, else the video's own details, else the channel's picture from your subscriptions (a library or history entry has none).
                 val avatarUrl = video.channelAvatarUrl ?: info?.channelAvatarUrl ?: remember(info?.channelId, video.channelId) { services.subscriptions.all().firstOrNull { it.channelId == (info?.channelId?.takeIf { c -> c.isNotBlank() } ?: video.channelId) }?.avatarUrl }
                 Avatar(channelName, url = avatarUrl)
                 Column(Modifier.weight(1f)) {
                     Text(channelName, Modifier.testTag("video.channel"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    formatCount(info?.subscriberCount)?.let { Text("$it subscribers", Modifier.testTag("video.subscribers"), style = MaterialTheme.typography.bodySmall, color = Vela.colors.onSurfaceVariant.toColor(), maxLines = 1) }
+                    formatCount(info?.subscriberCount)?.let { Text("$it subscribers", Modifier.testTag("video.subscribers"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1) }
                 }
                 // The channel id the video's own details give (a real UC… id) beats what a listing carried, which can be empty or a @handle: the account
                 // rejects those with HTTP 400.
                 val chId = info?.channelId?.takeIf { it.startsWith("UC") } ?: video.channelId
                 // Optimistic: the local table and the button change at once; the account call follows, and a failure puts both back and says why.
-                SubscribeButton(subscribed, onClick = {
+                Row(horizontalArrangement = Arrangement.spacedBy(androidx.compose.material3.ButtonGroupDefaults.ConnectedSpaceBetween)) {
+                SubscribeButton(subscribed, position = if (subscribed) com.greenaltambe.vela.ui.components.ActionPosition.LEADING else com.greenaltambe.vela.ui.components.ActionPosition.ALONE, onClick = {
                     if (subscribed) {
                         services.subscriptions.unsubscribe(chId); subscribed = false
                         scope.launch { val r = services.actions?.unsubscribe(chId); (r as? ActionResult.Queued)?.let { actionNote = it.message }; (r as? ActionResult.Failed)?.let { services.subscriptions.subscribe(chId, video.channelName, video.channelAvatarUrl ?: info?.channelAvatarUrl, services.clock.now()); subscribed = true; actionError = "Could not unsubscribe on the account: ${it.message}" } }
@@ -431,11 +440,13 @@ fun VideoScreen(
                         scope.launch { val r = services.actions?.subscribe(chId); (r as? ActionResult.Queued)?.let { actionNote = it.message }; (r as? ActionResult.Failed)?.let { services.subscriptions.unsubscribe(chId); subscribed = false; actionError = "Could not subscribe on the account: ${it.message}" } }
                     }
                 }, modifier = Modifier.testTag("video.subscribe"))
+                if (subscribed) ChannelBell(services, chId)
+                }
             }
         }
         if (services.liveChat != null && (liveNow || replayChat != null)) item { LiveChatPanel(services.liveChat, video.id, replay = !liveNow, position = position, preopened = replayChat) }
         if (actionError != null || actionNote != null) item {
-            Text(actionError ?: actionNote.orEmpty(), color = if (actionError != null) Vela.colors.error.toColor() else androidx.compose.ui.graphics.Color.Unspecified,
+            Text(actionError ?: actionNote.orEmpty(), color = if (actionError != null) MaterialTheme.colorScheme.error else androidx.compose.ui.graphics.Color.Unspecified,
                 style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag(if (actionError != null) "video.actionError" else "video.actionNote"))
         }
         item {
@@ -443,7 +454,7 @@ fun VideoScreen(
             HScrollableRow(
                 modifier = Modifier.fillMaxWidth(),
                 rowModifier = Modifier.testTag("video.actions"),
-                horizontalArrangement = Arrangement.spacedBy(Vela.sm),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
                 // The viewer's own like and dislike (account only); the counts next to them are Return YouTube Dislike's. With RYD off or
                 // unreachable there is no count: the like says "Like", the dislike button stays and says "Dislike".
@@ -454,22 +465,39 @@ fun VideoScreen(
                     liked = target == VideoRating.LIKE; disliked = target == VideoRating.DISLIKE
                     scope.launch { val r = services.actions!!.rate(video.id, target); (r as? ActionResult.Queued)?.let { actionNote = it.message }; (r as? ActionResult.Failed)?.let { liked = wasLiked; disliked = wasDisliked; actionError = "Could not rate on the account: ${it.message}" } }
                 }
-                // Like and Dislike are one joined control: round on the outside, tight where they touch.
-                val outer = Vela.look.radii.fullDp.dp
-                val inner = Vela.look.radii.smallDp.dp
-                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                    ActionChip(Vela.icons.like, votes?.let { compact(it.likes) } ?: "Like", { rate(if (liked) VideoRating.NONE else VideoRating.LIKE) }, Modifier.testTag("video.votes"), selected = liked, selectedIcon = Vela.icons.likeFilled,
-                        chipShape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = outer, bottomStart = outer, topEnd = inner, bottomEnd = inner))
-                    ActionChip(Vela.icons.dislike, votes?.let { compact(it.dislikes) } ?: "Dislike", { rate(if (disliked) VideoRating.NONE else VideoRating.DISLIKE) }, Modifier.testTag("video.dislike"), selected = disliked, selectedIcon = Vela.icons.dislikeFilled,
-                        chipShape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = inner, bottomStart = inner, topEnd = outer, bottomEnd = outer))
+                Row(horizontalArrangement = Arrangement.spacedBy(androidx.compose.material3.ButtonGroupDefaults.ConnectedSpaceBetween)) {
+                    ActionChip(AppIcons.like, votes?.let { compact(it.likes) } ?: "Like", { rate(if (liked) VideoRating.NONE else VideoRating.LIKE) }, Modifier.testTag("video.votes"), selected = liked, selectedIcon = AppIcons.likeFilled, position = com.greenaltambe.vela.ui.components.ActionPosition.LEADING)
+                    ActionChip(AppIcons.dislike, votes?.let { compact(it.dislikes) } ?: "Dislike", { rate(if (disliked) VideoRating.NONE else VideoRating.DISLIKE) }, Modifier.testTag("video.dislike"), selected = disliked, selectedIcon = AppIcons.dislikeFilled, position = com.greenaltambe.vela.ui.components.ActionPosition.TRAILING)
                 }
                 if (services.downloads != null) {
-                    if (offline != null) ActionChip(Vela.icons.downloaded, "Saved", {}, Modifier.testTag("video.downloaded"), selected = true)
-                    else ActionChip(Vela.icons.download, "Download", { downloadDialog = true }, Modifier.testTag("video.download"))
+                    if (offline != null) ActionChip(AppIcons.downloaded, "Saved", {}, Modifier.testTag("video.downloaded"), selected = true)
+                    else androidx.compose.material3.SplitButtonLayout(
+                        // Download starts at once with the download settings; the arrow opens the choices (quality, audio only).
+                        leadingButton = {
+                            androidx.compose.material3.SplitButtonDefaults.TonalLeadingButton(
+                                onClick = {
+                                    val st = services.settings
+                                    services.player?.onBeforePlayback()
+                                    services.downloads.manager.enqueue(com.greenaltambe.vela.downloads.DownloadRequest(video, audioOnly = st.resolve(com.greenaltambe.vela.core.settings.Settings.downloadsAudioOnlyDefault), maxHeight = st.resolve(com.greenaltambe.vela.core.settings.Settings.downloadsDefaultQuality).height, preferAvc = st.resolve(com.greenaltambe.vela.core.settings.Settings.downloadsPreferAvc)))
+                                    actionNote = "Download queued"
+                                },
+                                modifier = Modifier.testTag("video.download"),
+                            ) {
+                                Icon(AppIcons.download, null, Modifier.size(androidx.compose.material3.SplitButtonDefaults.LeadingIconSize))
+                                Spacer(Modifier.width(androidx.compose.material3.ButtonDefaults.IconSpacing))
+                                Text("Download", maxLines = 1, softWrap = false)
+                            }
+                        },
+                        trailingButton = {
+                            androidx.compose.material3.SplitButtonDefaults.TonalTrailingButton(checked = false, onCheckedChange = { downloadDialog = true }, modifier = Modifier.testTag("video.download.options")) {
+                                Icon(AppIcons.arrowDown, "Download options", Modifier.size(androidx.compose.material3.SplitButtonDefaults.TrailingIconSize))
+                            }
+                        },
+                    )
                 }
-                val isSaved = remember(video.id, saveRevision) { services.playlists.all().any { services.playlists.contains(it.id, video.id) } }
-                ActionChip(Vela.icons.save, "Save", { saveMenu = true }, Modifier.testTag("video.save"), selected = isSaved, selectedIcon = Vela.icons.saveFilled)
-                ActionChip(Vela.icons.share, "Share", { shareOpen = true }, Modifier.testTag("video.share"))
+                val isSaved = rememberAsync(video.id, saveRevision, keepWhileLoading = true, first = { false }, compute = { services.playlists.all().any { services.playlists.contains(it.id, video.id) } })
+                ActionChip(AppIcons.save, "Save", { saveMenu = true }, Modifier.testTag("video.save"), selected = isSaved, selectedIcon = AppIcons.saveFilled)
+                ActionChip(AppIcons.share, "Share", { shareOpen = true }, Modifier.testTag("video.share"))
             }
         }
         if (host != null && services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.showContribute)) item {
@@ -479,16 +507,16 @@ fun VideoScreen(
         item {
             // The comments card: the count, and a taste of the top comment (so the card says what is inside before it is opened).
             Column(
-                Modifier.fillMaxWidth().clip(Vela.mediumShape).background(Vela.colors.surface.toColor()).clickable { commentsOpen = true; chaptersOpen = false; descriptionOpen = false }
-                    .padding(horizontal = Vela.md, vertical = Vela.sm).testTag("video.commentsButton"),
-                verticalArrangement = Arrangement.spacedBy(Vela.sm),
+                Modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraLarge).background(MaterialTheme.colorScheme.surfaceContainerLow).clickable { commentsOpen = true; chaptersOpen = false; descriptionOpen = false }
+                    .padding(horizontal = Spacing.md, vertical = Spacing.md).testTag("video.commentsButton"),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     Text("Comments", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1)
-                    if (comments.isNotEmpty()) Text(commentTotal?.let { formatCount(it) } ?: "${comments.size}${if (commentsNext != null) "+" else ""}", style = MaterialTheme.typography.bodyMedium, color = Vela.colors.onSurfaceVariant.toColor())
+                    if (comments.isNotEmpty()) Text(commentTotal?.let { formatCount(it) } ?: "${comments.size}${if (commentsNext != null) "+" else ""}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 comments.firstOrNull()?.let { top ->
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Vela.sm)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                         Avatar(top.author.removePrefix("@"), size = 28.dp, url = top.authorAvatarUrl)
                         Text(top.text, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
@@ -575,24 +603,17 @@ fun VideoScreen(
         }
     }
 
-    val gap = Arrangement.spacedBy(Vela.sm)
+    val gap = Arrangement.spacedBy(Spacing.sm)
     // Two columns (related videos beside the player) only in a really wide window; narrower ones, desktop windows included, stack like the phone.
     val twoColumn = LocalWindowWidthDp.current >= 1000f
     if (!twoColumn || notFullyOpen) {
         val topInsetPx = WindowInsets.safeDrawing.getTop(density).toFloat()
         val topInsetDp = with(density) { topInsetPx.toDp() }
         val bottomInsetPx = WindowInsets.safeDrawing.getBottom(density).toFloat()
-        val bg = Vela.colors.background.toColor()
-        val miniPip = miniOnRight
-        val pipPos = com.greenaltambe.vela.ui.nav.LocalPipPosition.current
+        val bg = MaterialTheme.colorScheme.background
         // The page is laid out once at its open size (the sheet clips and moves it): the width the sheet will have, which beside a rail is less than the window.
         val winW = (pageWidthPx ?: containerSize.width.toFloat()).coerceAtLeast(100f)
         val winH = containerSize.height.toFloat().coerceAtLeast(100f)
-
-        val nav = remember { com.greenaltambe.vela.ui.nav.NavConfig.of(services.settings) }
-        val cardHeightPx = with(density) { 56.dp.toPx() }
-        val bottomClearPx = bottomInsetPx + with(density) { (if (nav.barStyle == com.greenaltambe.vela.core.settings.BarStyle.DOCKED) 64.dp else 72.dp).toPx() }
-        val marginPx = with(density) { (if (nav.barStyle == com.greenaltambe.vela.core.settings.BarStyle.DOCKED) 0.dp else Vela.md).toPx() }
 
         val fullWidthDp = with(density) { winW.toDp() }
         val fullHeightDp = with(density) { (winW * 9f / 16f).toDp() }
@@ -602,19 +623,13 @@ fun VideoScreen(
         val targetWidthDp: androidx.compose.ui.unit.Dp
         val targetHeightDp: androidx.compose.ui.unit.Dp
 
-        if (miniPip) {
-            targetLeftDp = 0.dp
-            targetTopDp = 0.dp
-            targetWidthDp = com.greenaltambe.vela.ui.components.PIP_WIDTH
-            targetHeightDp = com.greenaltambe.vela.ui.components.PIP_WIDTH * 9f / 16f
-        } else {
-            targetLeftDp = 8.dp
-            targetTopDp = 10.dp
-            targetWidthDp = 64.dp
-            targetHeightDp = 36.dp
-        }
+        // In the mini player the picture is a small thumbnail at the left of the 64 dp bar.
+        targetLeftDp = 12.dp
+        targetTopDp = 14.dp
+        targetWidthDp = 64.dp
+        targetHeightDp = 36.dp
 
-        val cornerBaseDp = if (miniPip) 16f else 8f
+        val cornerBaseDp = 8f
         // Position and size of the video box as functions of the progress, evaluated in the layout/draw lambdas below.
         val fullWidthPx = with(density) { fullWidthDp.roundToPx() }
         val fullHeightPx = with(density) { fullHeightDp.roundToPx() }
@@ -651,7 +666,7 @@ fun VideoScreen(
                         Modifier.fillMaxSize().testTag("video.list"),
                         state = detailsState,
                         userScrollEnabled = detailsScrollable,
-                        contentPadding = Vela.contentPadding,
+                        contentPadding = Spacing.contentPadding,
                         verticalArrangement = gap
                     ) {
                         details()
@@ -682,7 +697,7 @@ fun VideoScreen(
             }
         }
     } else {
-        val bg = Vela.colors.background.toColor()
+        val bg = MaterialTheme.colorScheme.background
         val topInsetDp = with(density) { WindowInsets.safeDrawing.getTop(density).toDp() }
         Row(modifier.fillMaxSize().drawBehind { drawRect(bg) }) {
             Column(Modifier.weight(1.6f).fillMaxSize()) {
@@ -691,13 +706,13 @@ fun VideoScreen(
                     playerBox()
                 }
                 Box(Modifier.weight(1f).fillMaxWidth()) {
-                    LazyColumn(Modifier.fillMaxSize().testTag("video.list"), state = detailsState, contentPadding = Vela.contentPadding, verticalArrangement = gap) { details() }
+                    LazyColumn(Modifier.fillMaxSize().testTag("video.list"), state = detailsState, contentPadding = Spacing.contentPadding, verticalArrangement = gap) { details() }
                     commentsPanel(Modifier.fillMaxSize())
                     chaptersPanel(Modifier.fillMaxSize())
                     descriptionPanel(Modifier.fillMaxSize())
                 }
             }
-            LazyColumn(Modifier.weight(1f).fillMaxSize().testTag("video.side"), state = sideState, contentPadding = Vela.contentPadding, verticalArrangement = gap) { secondary() }
+            LazyColumn(Modifier.weight(1f).fillMaxSize().testTag("video.side"), state = sideState, contentPadding = Spacing.contentPadding, verticalArrangement = gap) { secondary() }
         }
     }
 }

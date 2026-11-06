@@ -1,5 +1,8 @@
 package com.greenaltambe.vela.ui.screens
 
+import com.greenaltambe.vela.ui.theme.AppIcons
+import androidx.compose.foundation.shape.ZeroCornerSize
+import com.greenaltambe.vela.ui.theme.Spacing
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -49,8 +52,6 @@ import com.greenaltambe.vela.feed.standardFeedPipeline
 import com.greenaltambe.vela.modules.dearrow.DeArrowStep
 import com.greenaltambe.vela.modules.dearrow.DeArrowSurface
 import com.greenaltambe.vela.modules.ryd.summary
-import com.greenaltambe.vela.ui.look.Vela
-import com.greenaltambe.vela.ui.look.toColor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -64,7 +65,7 @@ fun VideoMenu(services: AppServices, video: VideoSummary, modifier: Modifier = M
     Box(modifier) {
         IconButton(onClick = { open = true }, modifier = Modifier.testTag("video.menu")) {
             // Three horizontal dots, drawn a little smaller and in the quieter text colour so they read thin beside the title.
-            Icon(Vela.icons.more, "More options for ${video.title}", Modifier.size(20.dp), tint = Vela.colors.onSurfaceVariant.toColor())
+            Icon(AppIcons.more, "More options for ${video.title}", Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (open) {
             VideoMenuSheet(
@@ -97,29 +98,20 @@ fun VideoMenuSheet(
     val isDownloaded = remember(video.id, revision) { services.downloads?.isDownloaded(video.id) == true }
     val lists = remember(revision) { services.playlists.all() }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(
-            topStart = Vela.look.radii.largeDp.dp,
-            topEnd = Vela.look.radii.largeDp.dp
-        ),
-        containerColor = Vela.colors.surface.toColor(),
-        contentColor = Vela.colors.onSurface.toColor(),
-        modifier = Modifier.testTag("video.menu.sheet"),
-    ) {
+    com.greenaltambe.vela.ui.components.VelaSheet(onDismiss, Modifier.testTag("video.menu.sheet")) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(bottom = Vela.md)
+                .padding(bottom = Spacing.md)
         ) {
             // Header with thumbnail, title, and channel
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = Vela.md, vertical = Vela.xs),
+                    .padding(horizontal = Spacing.md, vertical = Spacing.xs),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Vela.md)
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md)
             ) {
                 val thumbUrl = video.thumbnailUrl ?: "https://i.ytimg.com/vi/${video.id}/mqdefault.jpg"
                 coil3.compose.AsyncImage(
@@ -128,8 +120,8 @@ fun VideoMenuSheet(
                     modifier = Modifier
                         .width(72.dp)
                         .aspectRatio(16f / 9f)
-                        .clip(Vela.smallShape)
-                        .background(Vela.colors.surfaceVariant.toColor()),
+                        .clip(MaterialTheme.shapes.small)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh),
                     contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                 )
                 Column(
@@ -141,7 +133,7 @@ fun VideoMenuSheet(
                         style = MaterialTheme.typography.titleSmall,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                        color = Vela.colors.onSurface.toColor()
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     if (video.channelName.isNotBlank()) {
                         Text(
@@ -149,15 +141,15 @@ fun VideoMenuSheet(
                             style = MaterialTheme.typography.bodySmall,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            color = Vela.colors.onSurfaceVariant.toColor()
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
             }
 
             HorizontalDivider(
-                modifier = Modifier.padding(vertical = Vela.sm),
-                color = Vela.colors.outline.toColor().copy(alpha = 0.2f)
+                modifier = Modifier.padding(vertical = Spacing.sm),
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
             )
 
             Column(
@@ -166,14 +158,14 @@ fun VideoMenuSheet(
                     .verticalScroll(rememberScrollState())
             ) {
                 if (onNotInterested != null) VideoMenuSheetItem(
-                    icon = Vela.icons.close, title = "Not interested", onClick = { onDismiss(); onNotInterested() }, modifier = Modifier.testTag("video.menu.notInterested"),
+                    icon = AppIcons.close, title = "Not interested", onClick = { onDismiss(); onNotInterested() }, modifier = Modifier.testTag("video.menu.notInterested"),
                 )
                 if (onHideChannel != null && video.channelId.isNotBlank()) VideoMenuSheetItem(
-                    icon = Vela.icons.close, title = "Hide ${video.channelName.ifBlank { "this channel" }} from Home", onClick = { onDismiss(); onHideChannel() }, modifier = Modifier.testTag("video.menu.hideChannel"),
+                    icon = AppIcons.close, title = "Hide ${video.channelName.ifBlank { "this channel" }} from Home", onClick = { onDismiss(); onHideChannel() }, modifier = Modifier.testTag("video.menu.hideChannel"),
                 )
                 if (services.downloads != null) {
                     VideoMenuSheetItem(
-                        icon = if (isDownloaded) Vela.icons.downloaded else Vela.icons.download,
+                        icon = if (isDownloaded) AppIcons.downloaded else AppIcons.download,
                         title = if (isDownloaded) "Downloaded" else "Download video",
                         onClick = {
                             onDismiss()
@@ -184,7 +176,7 @@ fun VideoMenuSheet(
                 }
 
                 VideoMenuSheetItem(
-                    icon = Vela.icons.share,
+                    icon = AppIcons.share,
                     title = if (share != null) "Share" else "Copy link",
                     onClick = {
                         onDismiss()
@@ -198,9 +190,9 @@ fun VideoMenuSheet(
                 lists.forEach { list ->
                     val has = remember(revision, list.id) { services.playlists.contains(list.id, video.id) }
                     VideoMenuSheetItem(
-                        icon = if (list.isWatchLater) Vela.icons.watchLater else Vela.icons.playlist,
+                        icon = if (list.isWatchLater) AppIcons.watchLater else AppIcons.playlist,
                         title = if (list.isWatchLater && !has) "Save to Watch later" else list.name,
-                        trailingIcon = if (has) Vela.icons.check else null,
+                        trailingIcon = if (has) AppIcons.check else null,
                         trailingContentDescription = if (has) "In this playlist" else null,
                         highlightTrailing = true,
                         onClick = {
@@ -232,20 +224,20 @@ private fun VideoMenuSheetItem(
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .heightIn(min = 48.dp)
-            .padding(horizontal = Vela.md, vertical = Vela.xs),
+            .padding(horizontal = Spacing.md, vertical = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Vela.md)
+        horizontalArrangement = Arrangement.spacedBy(Spacing.md)
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = Vela.colors.onSurfaceVariant.toColor(),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(24.dp)
         )
         Text(
             text = title,
             style = MaterialTheme.typography.bodyLarge,
-            color = Vela.colors.onSurface.toColor(),
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -254,7 +246,7 @@ private fun VideoMenuSheetItem(
             Icon(
                 imageVector = trailingIcon,
                 contentDescription = trailingContentDescription,
-                tint = if (highlightTrailing) Vela.colors.primary.toColor() else Vela.colors.onSurfaceVariant.toColor(),
+                tint = if (highlightTrailing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp)
             )
         }
@@ -268,7 +260,7 @@ fun ShareMenuItem(video: VideoSummary, onDone: () -> Unit) {
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     DropdownMenuItem(
         text = { Text(if (share != null) "Share" else "Copy link") },
-        leadingIcon = { androidx.compose.material3.Icon(com.greenaltambe.vela.ui.look.Vela.icons.share, null) },
+        leadingIcon = { androidx.compose.material3.Icon(AppIcons.share, null) },
         onClick = {
             onDone()
             val link = "https://youtu.be/${video.id}"
