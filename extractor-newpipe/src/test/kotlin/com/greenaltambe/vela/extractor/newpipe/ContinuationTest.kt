@@ -25,7 +25,7 @@ class ContinuationTest {
     }
 
     @Test fun tokensAreStampedWithTheTier() {
-        assertTrue(Page("https://x").toContinuationToken().startsWith("newpipe:"))
+        assertTrue(Page("https://x").toContinuationToken().startsWith("np:"))
     }
 
     @Test fun tokensFromAnotherTierAreRejected() {

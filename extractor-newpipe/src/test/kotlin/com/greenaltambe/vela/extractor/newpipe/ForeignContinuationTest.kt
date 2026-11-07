@@ -20,9 +20,9 @@ class ForeignContinuationTest {
     private val foreign = "ytdlp:21"
 
     private fun assertForeign(result: ExtractorResult<*>) {
+        // A token from another tier is "not mine": the chain then moves on to the tier that issued it.
         val error = assertIs<ExtractorResult.Failure>(result).error
-        assertIs<ExtractorError.Unplayable>(error)
-        assertEquals(ContinuationToken.FOREIGN_MESSAGE, error.message)
+        assertIs<ExtractorError.TokenNotMine>(error)
     }
 
     @Test fun search() = runTest { assertForeign(extractor.search("q", foreign)) }
@@ -31,5 +31,5 @@ class ForeignContinuationTest {
     @Test fun comments() = runTest { assertForeign(extractor.comments("v", continuation = foreign)) }
     @Test fun replies() = runTest { assertForeign(extractor.replies("v", "c", foreign)) }
     @Test fun garbage() = runTest { assertForeign(extractor.search("q", "not even a token")) }
-    @Test fun doesNotClaimCommentSortSupport() { assertEquals(false, extractor.capabilities.supportsCommentSort) }
+    @Test fun claimsCommentSortSupport() { assertEquals(true, extractor.capabilities.supportsCommentSort) }
 }

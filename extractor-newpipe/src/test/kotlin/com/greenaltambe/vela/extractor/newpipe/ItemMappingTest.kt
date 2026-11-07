@@ -40,7 +40,7 @@ class ItemMappingTest {
 
     @Test fun commentsCarryTheirRepliesContinuation() {
         val with = CommentsInfoItem(0, "u", "n").apply { replies = org.schabi.newpipe.extractor.Page("https://u", "reply-token") }.toComment()
-        assertTrue(with.repliesContinuation!!.startsWith("newpipe:"))
+        assertTrue(with.repliesContinuation!!.startsWith("np:"))
         assertNull(CommentsInfoItem(0, "u", "n").toComment().repliesContinuation)
     }
 
