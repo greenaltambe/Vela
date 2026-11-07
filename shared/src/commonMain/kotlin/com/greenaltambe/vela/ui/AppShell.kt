@@ -262,7 +262,7 @@ private fun AppShellContent(services: AppServices, navigator: Navigator) {
             com.greenaltambe.vela.ui.screens.LocalSearchStore provides searchStore,
             com.greenaltambe.vela.ui.screens.LocalChannelStore provides channelStore,
             com.greenaltambe.vela.ui.screens.LocalExploreStore provides exploreStore,
-            com.greenaltambe.vela.ui.platform.LocalTextFetcher provides { url -> (services.modules.client.get(url, ttl = kotlin.time.Duration.parse("6h")) as? com.greenaltambe.vela.core.http.ApiResult.Ok)?.body },
+            com.greenaltambe.vela.ui.platform.LocalTextFetcher provides { url -> com.greenaltambe.vela.ui.platform.OfflineSubtitles.get(url) ?: (services.modules.client.get(url, ttl = kotlin.time.Duration.parse("6h")) as? com.greenaltambe.vela.core.http.ApiResult.Ok)?.body },
         ) {
             androidx.compose.runtime.SideEffect { navigator.shortsInPlayer = services.settings.shortsEnabled() }
             Row(Modifier.fillMaxSize().then(if (chrome) Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)) else Modifier)) {
@@ -295,7 +295,7 @@ private fun AppShellContent(services: AppServices, navigator: Navigator) {
                             androidx.compose.runtime.key(activeAccount.id) { AnimatedDestination(services, navigator, uiRoute, Modifier.fillMaxSize()) }
                         }
                         // The undo snackbar sits in the page's own area, above the mini player and the bar.
-                        com.greenaltambe.vela.ui.look.UndoSnackbarHost(com.greenaltambe.vela.ui.look.LocalUndoToasts.current, Modifier.align(Alignment.BottomCenter).padding(Spacing.sm))
+                        if (!sheetState.isExpanded) com.greenaltambe.vela.ui.look.UndoSnackbarHost(com.greenaltambe.vela.ui.look.LocalUndoToasts.current, Modifier.align(Alignment.BottomCenter).padding(Spacing.sm))
                     }
                     // While a video is open its mini player sits on the bar: this strip is its room, and it tells the player sheet where it is.
                     if (chrome && sheetState.isVisible) com.greenaltambe.vela.ui.nav.MiniPlayerSlotSpacer(miniSlot)
@@ -311,6 +311,11 @@ private fun AppShellContent(services: AppServices, navigator: Navigator) {
                 sheetState = sheetState,
                 miniSlot = miniSlot,
                 modifier = Modifier.fillMaxSize(),
+            )
+            // With the video page open it covers the page area, so the toast is drawn above it (it was hidden underneath).
+            if (sheetState.isExpanded) com.greenaltambe.vela.ui.look.UndoSnackbarHost(
+                com.greenaltambe.vela.ui.look.LocalUndoToasts.current,
+                Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)).padding(Spacing.sm),
             )
         }
     }

@@ -13,6 +13,7 @@ import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.SkipNext
 import androidx.compose.material.icons.outlined.SkipPrevious
 import androidx.compose.material.icons.outlined.Bookmark
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.ChevronRight
@@ -89,7 +90,7 @@ internal object MaterialOutlined {
             "mute" to Icons.Outlined.VolumeOff,
             "download" to Icons.Outlined.Download,
             "downloaded" to Icons.Outlined.DownloadDone,
-            "save" to Icons.Outlined.Bookmark,
+            "save" to Icons.Outlined.BookmarkBorder,
             "share" to Icons.Outlined.Share,
             "speed" to Icons.Outlined.Speed,
             "timer" to Icons.Outlined.Timer,

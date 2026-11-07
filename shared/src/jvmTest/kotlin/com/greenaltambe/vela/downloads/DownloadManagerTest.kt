@@ -77,6 +77,12 @@ class DownloadManagerTest {
 
     // ---- the happy path ----
 
+    @Test fun workingFilesNoDownloadOwnsAreRemovedAtStartup() = test {
+        storage.work["old.video.part"] = ByteArray(10); storage.work["old.audio.webm"] = ByteArray(10)
+        started()
+        assertTrue(storage.work.isEmpty(), "leftovers are gone: ${storage.work.keys}")
+    }
+
     @Test fun separateStreamsAreDownloadedInRangesMergedAndPublished() = test {
         val m = started()
         val id = m.enqueue(DownloadRequest(SomeVideo, preferAvc = true))

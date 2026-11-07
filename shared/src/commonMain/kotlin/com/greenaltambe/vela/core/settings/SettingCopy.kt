@@ -18,6 +18,7 @@ object SettingCopy {
         "playback.maxQualityCellular" to Copy("Maximum quality on mobile data", "The highest resolution on a metered connection."),
         "playback.preferredCodec" to Copy("Preferred video codec", "VP9 and AV1 save data; AVC (H.264) plays everywhere."),
         "playback.audioOnly" to Copy("Audio only", "Play only the sound, without the picture."),
+        "downloads.subtitles" to Copy("Save subtitles", "Keep the available subtitles with each download so they work offline."),
         "notify.background" to Copy("Check for new videos", "Look for new uploads of your subscriptions in the background, a few times a day."),
         "notify.system" to Copy("System notifications", "Show a notification for new videos of channels set to All."),
         "notify.downloads" to Copy("Download results", "Add finished and failed downloads to the notification feed."),

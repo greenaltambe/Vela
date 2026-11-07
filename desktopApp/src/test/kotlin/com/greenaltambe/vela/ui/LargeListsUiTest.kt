@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.runDesktopComposeUiTest
 import com.greenaltambe.vela.data.*
 import com.greenaltambe.vela.downloads.DownloadRepository
@@ -41,7 +42,7 @@ class LargeListsUiTest {
         println("LARGE history first frame ${firstFrameMs} ms, composed rows=${composedRows("card.title")}")
         assertTrue(composedRows("card.title") in 1..60, "only visible rows are composed, not 2000")
         assertTrue(firstFrameMs < 15_000, "opens in a sane time: $firstFrameMs ms")
-        onNodeWithTag("history.list").performScrollToIndex(1); waitForIdle()
+        onNodeWithTag("history.list").performScrollToNode(androidx.compose.ui.test.hasTestTag("history.older")); waitForIdle()
         onNodeWithTag("history.older").assertIsDisplayed()
         onNodeWithTag("history.older").performClick(); waitForIdle()
         assertTrue(composedRows("card.title") in 1..60, "still lazy after loading 500 more")

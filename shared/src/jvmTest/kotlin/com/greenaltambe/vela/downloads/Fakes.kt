@@ -20,6 +20,7 @@ class FakeStorage : DownloadStorage {
             override fun close() {}
         }
     }
+    override fun workingFiles() = work.keys.toList()
     override fun delete(name: String) { work.remove(name) }
     override fun rename(from: String, to: String) { work[to] = work.remove(from) ?: error("no $from") }
     override fun localPath(name: String) = "/work/$name"

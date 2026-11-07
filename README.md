@@ -1,16 +1,21 @@
 # Vela
 
 A YouTube client for Android and the desktop that keeps working. Every video can come from several sources, tried in order (anonymous first, your account last),
-your subscriptions, history, playlists and downloads stay on your device, and the whole look (colours, icons, shapes, bars) is yours to change.
+your subscriptions, history, playlists and downloads stay on your device, and the look is Material 3 Expressive, in light, dark or following your system.
 
 > **Beta (0.2.0-beta.1).** Android is the primary platform and Linux is supported. **Windows is experimental** (see below).
 
 | | | |
 |---|---|---|
-| ![Home on a phone](docs/screenshots/home-phone.png) | ![Video page](docs/screenshots/video-phone.png) | ![Library](docs/screenshots/library-phone.png) |
-| ![Settings](docs/screenshots/settings-phone.png) | ![Desktop home with the side rail](docs/screenshots/home-desktop.png) | ![Customize](docs/screenshots/customize-desktop.png) |
+| ![Home on a phone](docs/screenshots/home-phone.png) | ![Video page](docs/screenshots/video-phone.png) | ![Search](docs/screenshots/search-phone.png) |
+| ![Library](docs/screenshots/library-phone.png) | ![Settings](docs/screenshots/settings-phone.png) | |
 
-*(Screens of the test build with sample data; the interface evolves between betas.)*
+| |
+|---|
+| ![Desktop home with the side rail](docs/screenshots/home-desktop.png) |
+| ![Desktop video page](docs/screenshots/video-desktop.png) |
+
+*(Screens of a test build with sample data, so pictures are grey placeholders; the interface evolves between betas.)*
 
 ## Disclaimer
 
@@ -25,7 +30,7 @@ Accounts are optional and used last: the default is "only on failure", with paci
 - **Reliability chain**: anonymous NewPipeExtractor, an alternate client, yt-dlp, then your account; it remembers what works, shows which source served each video and runs health checks. Signed remote configuration can retune client profiles without a new build.
 - **Accounts and safety**: optional Google accounts (several), credentials in the platform secret store, a governor that paces and budgets every account request, a kill switch.
 - **Offline**: downloads (quality, queue, storage cap), automatic download rules, per-account local history, subscriptions and playlists, backup and restore.
-- **Customisation**: colour palettes, light/dark/pure black, icon packs, corner radius, glass, bar styles, choosable tabs, performance mode.
+- **Look**: Material 3 Expressive in red, light / dark / system theme, a choice of seek-bar styles (wavy by default), Home shelves you can reorder.
 - **Keyboard**: shortcuts for playback and navigation, media keys (MPRIS) on Linux.
 
 ## Platforms

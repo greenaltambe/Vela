@@ -50,3 +50,15 @@ fun formatTimestamp(totalSeconds: Long): String {
     val sec = s % 60
     return if (h > 0) "$h:${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}" else "$m:${sec.toString().padStart(2, '0')}"
 }
+
+/** Where chapter [index] ends, in seconds: where the next one starts, or the end of the video (0 when that is not known). */
+fun chapterEndSeconds(chapters: List<Chapter>, index: Int, durationMs: Long): Long =
+    chapters.getOrNull(index + 1)?.startSeconds ?: (durationMs / 1000)
+
+/** How far through chapter [index] the playhead is, 0..1 (0 before it, 1 after it). */
+fun chapterProgress(chapters: List<Chapter>, index: Int, positionMs: Long, durationMs: Long): Float {
+    val start = chapters.getOrNull(index)?.startSeconds?.times(1000) ?: return 0f
+    val end = chapterEndSeconds(chapters, index, durationMs) * 1000
+    if (end <= start) return 0f
+    return ((positionMs - start).toFloat() / (end - start)).coerceIn(0f, 1f)
+}

@@ -365,6 +365,13 @@ object Settings {
         codec = SettingCodecs.boolean, section = SettingSection.DOWNLOADS,
     )
 
+    val downloadsSubtitles = Setting(
+        key = "downloads.subtitles", default = false, scope = SettingScope.GLOBAL,
+        label = "Save subtitles with downloads",
+        keywords = listOf("download", "subtitles", "captions", "cc", "offline"),
+        codec = SettingCodecs.boolean, section = SettingSection.DOWNLOADS,
+    )
+
     val downloadsPreferAvc = Setting(
         key = "downloads.preferAvc", default = false, scope = SettingScope.GLOBAL,
         label = "Prefer H.264 (plays on every device) over VP9/AV1",
@@ -587,7 +594,7 @@ object Settings {
         sponsorBlockEnabled, returnYouTubeDislikeEnabled, deArrowEnabled,
         sponsorBlockMinSegmentSeconds, sponsorBlockNotifications, showContribute, sponsorBlockServer, sponsorBlockUserId, rydInFeed, rydServer,
         deArrowFeed, deArrowSearch, deArrowVideoPage, deArrowPlayerTitle, deArrowTitleCasing, deArrowMinVotes, deArrowGeneratedThumbnails, deArrowThumbnailServer,
-        downloadsFolder, downloadsDefaultQuality, downloadsAudioOnlyDefault, downloadsPreferAvc, downloadsKeepOriginalAudio,
+        downloadsFolder, downloadsDefaultQuality, downloadsAudioOnlyDefault, downloadsSubtitles, downloadsPreferAvc, downloadsKeepOriginalAudio,
         downloadsWifiOnly, downloadsConcurrent, downloadsDeleteAfterWatch, downloadsStorageCapGb, autoDownloadDeleteDays, downloadsCommentPages,
     ) + sponsorBlockActions.values + LookSettings.all
 

@@ -26,6 +26,9 @@ interface DownloadStorage {
     fun delete(name: String)
     fun rename(from: String, to: String)
 
+    /** Names of the files in the working area (partial downloads and merge leftovers), for cleaning up; empty where this cannot be listed. */
+    fun workingFiles(): List<String> = emptyList()
+
     /** A local path to a working file, for tools (ffmpeg) that need a real file. */
     fun localPath(name: String): String
 

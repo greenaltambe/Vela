@@ -284,10 +284,8 @@ fun PlayerSheet(
                             },
                             modifier = Modifier.testTag("mini.toggle")
                         ) {
-                            Icon(
-                                if (miniPlaying) AppIcons.pause else AppIcons.play,
-                                if (miniPlaying) "Pause" else "Play"
-                            )
+                            // The icon swaps with a short pop (play becomes pause) instead of cutting.
+                            SwapIcon(if (miniPlaying) AppIcons.pause else AppIcons.play, if (miniPlaying) "Pause" else "Play", androidx.compose.material3.LocalContentColor.current)
                         }
                         IconButton(
                             onClick = { sheetState.dismiss() },

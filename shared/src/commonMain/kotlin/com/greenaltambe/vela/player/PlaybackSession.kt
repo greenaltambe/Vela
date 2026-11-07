@@ -276,13 +276,13 @@ class PlaybackSession(
      * Plays a downloaded file. No stream is resolved and no network is touched: the file is the whole source, so there
      * is no URL expiry and no quality menu. The title and channel come from the stored download.
      */
-    fun startLocal(videoId: String, plan: PlaybackPlan.Local, title: String, channelId: String) {
+    fun startLocal(videoId: String, plan: PlaybackPlan.Local, title: String, channelId: String, captions: List<com.greenaltambe.vela.extractor.CaptionTrack> = emptyList()) {
         finishCurrent()
         clearPreviousVideo()
         this.videoId = videoId
         this.title = title; channelNameShown = ""; artworkUrl = null
         this.channelId = channelId
-        streams = null; _captions.value = emptyList(); _caption.value = null; _audioTracks.value = emptyList(); audioKeyOverride = null; _audioKey.value = null
+        streams = null; _captions.value = captions; _caption.value = null; _audioTracks.value = emptyList(); audioKeyOverride = null; _audioKey.value = null
         localPlan = plan
         maxHeightOverride = null
         speedOverride = null

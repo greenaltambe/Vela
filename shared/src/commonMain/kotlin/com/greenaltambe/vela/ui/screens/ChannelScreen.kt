@@ -23,6 +23,7 @@ import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.animation.animateContentSize
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
@@ -275,13 +276,16 @@ fun ChannelScreen(
                         formatCount(pageHeader?.subscriberCount)?.let { Text("$it subscribers", style = MaterialTheme.typography.bodySmall, maxLines = 1, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     }
                 }
-                if (subscribed) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(androidx.compose.material3.ButtonGroupDefaults.ConnectedSpaceBetween), verticalAlignment = Alignment.CenterVertically) {
-                        com.greenaltambe.vela.ui.components.SubscribeButton(true, onClick = { services.subscriptions.unsubscribe(channelId); services.feed.reload(); subscribed = false }, modifier = Modifier.testTag("channel.subscribe"), position = com.greenaltambe.vela.ui.components.ActionPosition.LEADING)
-                        ChannelBell(services, channelId)
-                    }
-                } else {
-                    com.greenaltambe.vela.ui.components.SubscribeButton(false, onClick = { services.subscriptions.subscribe(channelId, name, pageHeader?.avatarUrl, services.clock.now()); subscribed = true }, modifier = Modifier.testTag("channel.subscribe"))
+                Row(Modifier.animateContentSize(), horizontalArrangement = Arrangement.spacedBy(androidx.compose.material3.ButtonGroupDefaults.ConnectedSpaceBetween), verticalAlignment = Alignment.CenterVertically) {
+                    com.greenaltambe.vela.ui.components.SubscribeButton(
+                        subscribed, modifier = Modifier.testTag("channel.subscribe"),
+                        position = if (subscribed) com.greenaltambe.vela.ui.components.ActionPosition.LEADING else com.greenaltambe.vela.ui.components.ActionPosition.ALONE,
+                        onClick = {
+                            if (subscribed) { services.subscriptions.unsubscribe(channelId); services.feed.reload(); subscribed = false }
+                            else { services.subscriptions.subscribe(channelId, name, pageHeader?.avatarUrl, services.clock.now()); subscribed = true }
+                        },
+                    )
+                    androidx.compose.animation.AnimatedVisibility(subscribed, enter = androidx.compose.animation.expandHorizontally(androidx.compose.animation.core.spring(dampingRatio = 0.7f, stiffness = 380f)) + androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(initialScale = 0.6f), exit = androidx.compose.animation.shrinkHorizontally() + androidx.compose.animation.fadeOut()) { ChannelBell(services, channelId) }
                 }
 
                 if (subscribed && services.downloads != null) {

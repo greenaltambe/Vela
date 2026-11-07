@@ -43,6 +43,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
+import androidx.compose.animation.animateContentSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
@@ -179,9 +180,9 @@ fun TopChannelCard(channel: com.greenaltambe.vela.extractor.ChannelRef, subscrib
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(androidx.compose.material3.ButtonGroupDefaults.ConnectedSpaceBetween)) {
+            Row(Modifier.animateContentSize(), horizontalArrangement = Arrangement.spacedBy(androidx.compose.material3.ButtonGroupDefaults.ConnectedSpaceBetween)) {
                 com.greenaltambe.vela.ui.components.SubscribeButton(subscribed, onSubscribe, Modifier.testTag("search.topChannel.subscribe"), position = if (subscribed && bell != null) com.greenaltambe.vela.ui.components.ActionPosition.LEADING else com.greenaltambe.vela.ui.components.ActionPosition.ALONE)
-                if (subscribed) bell?.invoke()
+                androidx.compose.animation.AnimatedVisibility(subscribed && bell != null, enter = androidx.compose.animation.expandHorizontally(androidx.compose.animation.core.spring(dampingRatio = 0.7f, stiffness = 380f)) + androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(initialScale = 0.6f), exit = androidx.compose.animation.shrinkHorizontally() + androidx.compose.animation.fadeOut()) { bell?.invoke() }
             }
             com.greenaltambe.vela.ui.components.SecondaryButton("Go to channel", onOpen, Modifier.weight(1f).testTag("search.topChannel.open"))
         }

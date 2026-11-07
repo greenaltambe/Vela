@@ -64,7 +64,7 @@ class AccountActionsUiTest {
         setContent { AppUnderTest(f) }
         waitForIdle(); mainClock.advanceTimeBy(1_500); waitForIdle()   // the video page slides in as a sheet: let it arrive before clicking in it
         onNodeWithTag("video.subscribe", useUnmergedTree = true).performClick(); waitForIdle()
-        waitUntil(timeoutMillis = 3_000) { runCatching { onNodeWithTag("video.actionError", useUnmergedTree = true).assertIsDisplayed() }.isSuccess }
+        waitUntil(timeoutMillis = 3_000) { runCatching { onNodeWithTag("undo.toast", useUnmergedTree = true).assertIsDisplayed() }.isSuccess }
         assertTrue(!f.services.subscriptions.isSubscribed(video.channelId), "the local change was rolled back")
         onNodeWithText("Subscribe").assertIsDisplayed()
     }

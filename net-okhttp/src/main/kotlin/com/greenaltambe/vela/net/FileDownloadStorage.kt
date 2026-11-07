@@ -39,6 +39,8 @@ class FileDownloadStorage(
         }
     }
 
+    override fun workingFiles(): List<String> = workDir.listFiles()?.filter { it.isFile }?.map { it.name }.orEmpty()
+
     override fun delete(name: String) { work(name).delete() }
 
     override fun rename(from: String, to: String) {

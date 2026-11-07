@@ -43,3 +43,11 @@ val LocalInPictureInPicture = staticCompositionLocalOf { false }
  */
 @Composable
 expect fun rememberFolderPicker(onPicked: (String?) -> Unit): () -> Unit
+
+/** Subtitle text kept with downloads, found by a `vela-offline:` address, so offline playback shows captions without a network. */
+object OfflineSubtitles {
+    private val texts = HashMap<String, String>()
+    fun put(address: String, vtt: String) { synchronized(texts) { texts[address] = vtt } }
+    fun get(address: String): String? = synchronized(texts) { texts[address] }
+    fun address(videoId: String, language: String) = "vela-offline:$videoId:$language"
+}

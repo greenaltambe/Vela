@@ -1,5 +1,6 @@
 package com.greenaltambe.vela.ui.components
 
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -32,8 +33,13 @@ fun SubscribeButton(subscribed: Boolean, onClick: () -> Unit, modifier: Modifier
             checkedContainerColor = androidx.compose.material3.MaterialTheme.colorScheme.secondaryContainer, checkedContentColor = androidx.compose.material3.MaterialTheme.colorScheme.onSecondaryContainer,
         ),
     ) {
-        Icon(if (subscribed) AppIcons.check else AppIcons.notifications, null, Modifier.size(androidx.compose.material3.ToggleButtonDefaults.IconSize))
-        Spacer(Modifier.width(androidx.compose.material3.ToggleButtonDefaults.IconSpacing))
+        // A check once subscribed (it pops in with the width change); no icon before, the word is enough.
+        androidx.compose.animation.AnimatedVisibility(subscribed, enter = androidx.compose.animation.expandHorizontally() + androidx.compose.animation.fadeIn(), exit = androidx.compose.animation.shrinkHorizontally() + androidx.compose.animation.fadeOut()) {
+            Row {
+                Icon(AppIcons.check, null, Modifier.size(androidx.compose.material3.ToggleButtonDefaults.IconSize))
+                Spacer(Modifier.width(androidx.compose.material3.ToggleButtonDefaults.IconSpacing))
+            }
+        }
         Text(if (subscribed) "Subscribed" else "Subscribe", maxLines = 1, softWrap = false)
     }
 }

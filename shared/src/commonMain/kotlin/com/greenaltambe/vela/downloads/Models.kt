@@ -13,6 +13,8 @@ data class DownloadRequest(
     val maxHeight: Int? = null,
     /** Prefer H.264 + AAC (plays everywhere) over VP9/AV1; null follows the setting. */
     val preferAvc: Boolean? = null,
+    /** Keep the video's subtitles with the download; null follows the setting. */
+    val subtitles: Boolean? = null,
 )
 
 /** One stream the plan downloads. [fileName] is its final name in the storage; the partial file is [partName]. */
@@ -37,6 +39,7 @@ data class StoredPlan(
     val preferAvc: Boolean = false,
     val audioOnly: Boolean = false,
     val keepOriginalAudio: Boolean = true,
+    val subtitles: Boolean = false,
     val streams: List<StoredStream> = emptyList(),
     /** The file the viewer gets (after merging, if there are two streams). */
     val finalName: String? = null,

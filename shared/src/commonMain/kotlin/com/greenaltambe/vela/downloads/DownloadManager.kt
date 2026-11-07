@@ -79,6 +79,7 @@ class DownloadManager(
         override fun delete(name: String) = s.delete(name)
         override fun rename(from: String, to: String) = s.rename(from, to)
         override fun localPath(name: String) = s.localPath(name)
+        override fun workingFiles() = s.workingFiles()
         override fun publish(name: String) = s.publish(name)
         override fun deletePublished(uri: String) = s.deletePublished(uri)
         override fun writeAsset(name: String, bytes: ByteArray) = s.writeAsset(name, bytes)
@@ -116,6 +117,7 @@ class DownloadManager(
         for (row in repo.notCompleted()) {
             if (row.state == DownloadState.DOWNLOADING || row.state == DownloadState.MERGING) repo.setState(row.id, DownloadState.QUEUED, null)
         }
+        scope.launch { runCatching { removeOrphanedWorkingFiles() } }
         refresh()
         scope.launch { for (k in kicks) schedule() }
         scope.launch { network.type.collectLatest { kick() } }
@@ -139,6 +141,7 @@ class DownloadManager(
             preferAvc = request.preferAvc ?: settings.resolve(Settings.downloadsPreferAvc),
             audioOnly = request.audioOnly,
             keepOriginalAudio = settings.resolve(Settings.downloadsKeepOriginalAudio),
+            subtitles = request.subtitles ?: settings.resolve(Settings.downloadsSubtitles),
         )
         val label = if (request.audioOnly) "Audio" else request.maxHeight?.let { "up to ${it}p" } ?: "Best"
         val id = repo.insert(request, plan, label)
@@ -425,6 +428,20 @@ class DownloadManager(
             else -> (set.videoStreams.firstOrNull { it.itag != null && it.itag == s.itag } ?: set.videoStreams.firstOrNull { it.codec == s.codec && it.height == s.height && it.hasAudio == (s.role == "muxed") })
                 ?.let { ResolvedStream(s, it.url, headersFor(it.headers)) }
         }
+    }
+
+    /**
+     * Deletes working files that no unfinished download owns: what a finished, removed or crashed download left behind (they are gigabytes
+     * on a long video). Files of queued, paused and failed downloads are kept: they are what a resume continues from. Runs once at startup,
+     * before anything is scheduled, so nothing that is being written can be taken.
+     */
+    internal fun removeOrphanedWorkingFiles(): Int {
+        val st = storage()
+        val keep = HashSet<String>()
+        for (row in repo.notCompleted()) repo.plan(row).streams.forEach { keep += it.partName; keep += it.fileName }
+        var removed = 0
+        for (name in st.workingFiles()) if (name !in keep) { st.delete(name); removed++ }
+        return removed
     }
 
     /** The streams on offer changed under a half-finished download: what was written belongs to a stream that is gone. */

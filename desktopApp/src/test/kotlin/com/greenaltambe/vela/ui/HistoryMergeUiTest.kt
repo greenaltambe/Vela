@@ -29,7 +29,7 @@ class HistoryMergeUiTest {
         val id = h.begin(g.id, FakeData.videos[9].id, "UC", "Seen here too", kotlin.time.Clock.System.now(), 1, 1, 1); h.update(id, kotlin.time.Clock.System.now(), 1, 1, 1)
         f.navigator.selectTab(Route.Library); f.navigator.push(Route.History)
         setContent { AppUnderTest(f) }; waitForIdle()
-        onNodeWithTag("history.loadAccount").performClick(); waitForIdle()
+        onNodeWithTag("library.menu").performClick(); waitForIdle(); onNodeWithTag("history.loadAccount").performClick(); waitForIdle()
         waitUntil(timeoutMillis = 3_000) { runCatching { onNodeWithTag("history.accountHeader").assertIsDisplayed() }.isSuccess }
         onNodeWithText("2 on your account, 1 also watched here.").assertIsDisplayed()
     }
@@ -39,7 +39,7 @@ class HistoryMergeUiTest {
         f.services.accounts.addGoogle(GoogleIdentity("P", "p@example.com", null, "UC1"), jar)
         f.navigator.selectTab(Route.Library); f.navigator.push(Route.History)
         setContent { AppUnderTest(f) }; waitForIdle()
-        onNodeWithTag("history.loadAccount").performClick(); waitForIdle()
+        onNodeWithTag("library.menu").performClick(); waitForIdle(); onNodeWithTag("history.loadAccount").performClick(); waitForIdle()
         waitUntil(timeoutMillis = 3_000) { runCatching { onNodeWithText("Could not read your YouTube history right now.").assertIsDisplayed() }.isSuccess }
     }
 }
