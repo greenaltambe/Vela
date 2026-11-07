@@ -207,7 +207,7 @@ fun main(args: Array<String>) {
         ) {
             // Every size goes to the window manager (_NET_WM_ICON), which picks the sharpest for the dock and the switcher.
             remember(window) { window.iconImages = velaWindowImages }
-            CompositionLocalProvider(LocalWindowControls provides windowControls, LocalVolumeSlider provides true, com.greenaltambe.vela.ui.platform.LocalBlankPointer provides blankPointer) { App(services, navigator) }
+            CompositionLocalProvider(LocalWindowControls provides windowControls, LocalVolumeSlider provides true, com.greenaltambe.vela.ui.platform.LocalBlankPointer provides blankPointer) { App(services, navigator, startupAnimation = true) }
         }
     }
 }

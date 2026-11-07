@@ -216,10 +216,13 @@ class ChannelBrowse(
             is ExtractorResult.Failure -> return res
         }
         val (post, commentsToken) = parsePostDetail(json) ?: return ExtractorResult.Failure(ExtractorError.ParseFailure("No post in post detail"))
+        // No token: the post has comments turned off. A failed comments call is a failure (the page shows Retry), not "no comments".
         val comments = if (commentsToken != null) {
             val unwrapped = unwrapNativeToken(commentsToken) ?: commentsToken
-            val cRes = executeBrowse(buildJsonObject { put("continuation", unwrapped) })
-            if (cRes is ExtractorResult.Success) parsePostComments(cRes.value) else emptyList()
+            when (val cRes = executeBrowse(buildJsonObject { put("continuation", unwrapped) })) {
+                is ExtractorResult.Success -> parsePostComments(cRes.value)
+                is ExtractorResult.Failure -> return cRes
+            }
         } else emptyList()
 
         return ExtractorResult.Success(post to comments)
@@ -739,11 +742,13 @@ class ChannelBrowse(
         return PlaylistRef(id, title, thumb, count, isCourse = isCourse, lessonCountText = lessonCount)
     }
 
-    private fun parseLockupPlaylist(l: JsonElement): PlaylistRef? {
+    internal fun parseLockupPlaylist(l: JsonElement): PlaylistRef? {
         val id = l["contentId"].string ?: return null
         val meta = l.at("metadata", "lockupMetadataViewModel") ?: return null
         val title = meta.at("title", "content").string ?: meta["title"].text() ?: ""
+        // A playlist lockup keeps its picture under collectionThumbnailViewModel (checked live); a video lockup under thumbnailViewModel.
         val thumb = l.at("contentImage", "thumbnailViewModel", "image", "sources").array.lastOrNull().at("url").string
+            ?: l.at("contentImage", "collectionThumbnailViewModel", "primaryThumbnail", "thumbnailViewModel", "image", "sources").array.lastOrNull().at("url").string
         val overlays = l.findAll("thumbnailOverlayBottomPanelRenderer")
         var isCourse = false
         var lessonCount: String? = null
@@ -794,8 +799,9 @@ class ChannelBrowse(
                 poll != null -> {
                     val choices = poll["choices"].array.mapNotNull { c ->
                         val t = c["text"].text() ?: return@mapNotNull null
-                        val ratio = (c["voteRatioIfVoted"] as? JsonPrimitive)?.doubleOrNull
-                        val pct = c["votePercentageIfVoted"].text()
+                        // Results only exist for a signed-in viewer who voted (checked live: anonymous choices carry only text); read every name seen.
+                        val ratio = listOf("voteRatioIfVoted", "voteRatioIfSelected", "voteRatioIfNotSelected", "voteRatio").firstNotNullOfOrNull { (c[it] as? JsonPrimitive)?.doubleOrNull }
+                        val pct = listOf("votePercentageIfVoted", "votePercentageIfSelected", "votePercentageIfNotSelected", "votePercentage").firstNotNullOfOrNull { c[it].text() }
                         PollChoice(t, ratio, pct)
                     }
                     val totalVotes = poll["totalVotes"].text() ?: poll.at("totalVotes", "simpleText").string
@@ -810,21 +816,69 @@ class ChannelBrowse(
     internal fun parsePostDetail(json: JsonElement): Pair<ChannelPost, String?>? {
         val postElem = json.findAll("backstagePostRenderer").firstOrNull() ?: return null
         val post = parsePost(postElem) ?: return null
-        // Find comments continuation token
-        val cir = json.findAll("continuationItemRenderer").firstOrNull()
+        // The comments continuation lives in the item section named "comment-item-section"; fall back to the first one anywhere.
+        val commentSection = json.findAll("itemSectionRenderer").firstOrNull { it["sectionIdentifier"].string == "comment-item-section" }
+        val cir = commentSection?.findAll("continuationItemRenderer")?.firstOrNull() ?: json.findAll("continuationItemRenderer").firstOrNull()
         val token = cir.at("continuationEndpoint", "continuationCommand", "token").string
         return post to token
     }
 
-    internal fun parsePostComments(json: JsonElement): List<Comment> =
-        json.findAll("commentRenderer").mapNotNull { c ->
-            val id = c["commentId"].string ?: return@mapNotNull null
-            val author = c["authorText"].text() ?: ""
-            val text = c["contentText"].text() ?: ""
-            val published = c["publishedTimeText"].text() ?: ""
-            val likes = parseCount(c["voteCount"].text()) ?: 0L
-            Comment(id, author, text, likeCount = likes, publishedText = published)
+    /**
+     * Comments of a post. YouTube now sends each comment as a `commentViewModel` (a key) with its text, author and counts in
+     * `frameworkUpdates...commentEntityPayload` entities under that key; older responses carry a plain `commentRenderer`. Both are read.
+     */
+    internal fun parsePostComments(json: JsonElement): List<Comment> {
+        val entities = HashMap<String, JsonElement>()
+        for (e in json.findAll("commentEntityPayload")) e["key"].string?.let { entities[it] = e }
+        // A thread carries the token for its replies, next to its comment view model.
+        val repliesTokens = HashMap<String, String>()
+        for (t in json.findAll("commentThreadRenderer")) {
+            val key = (t["commentViewModel"]?.let { h -> if (h["commentKey"] != null) h else h["commentViewModel"] })["commentKey"].string ?: continue
+            val token = t["replies"]?.findAll("continuationItemRenderer")?.firstOrNull().at("continuationEndpoint", "continuationCommand", "token").string ?: continue
+            repliesTokens[key] = token
         }
+        val out = LinkedHashMap<String, Comment>()
+        for (holder in json.findAll("commentViewModel")) {
+            // A thread's `commentViewModel` wraps the real one (with the key) another level down; findAll does not look inside a match.
+            val vm = if (holder["commentKey"] != null) holder else holder["commentViewModel"] ?: continue
+            val key = vm["commentKey"].string ?: continue
+            val e = entities[key] ?: continue
+            val props = e["properties"]
+            val id = props["commentId"].string ?: vm["commentId"].string ?: continue
+            if (id in out) continue
+            val text = props.at("content", "content").string ?: continue
+            val replies = e.at("toolbar", "replyCount").string?.toIntOrNull() ?: 0
+            out[id] = Comment(
+                id = id,
+                author = e.at("author", "displayName").string ?: "",
+                text = text,
+                likeCount = parseCount(e.at("toolbar", "likeCountNotliked").string) ?: 0L,
+                publishedText = props["publishedTime"].string ?: "",
+                replyCount = replies,
+                repliesContinuation = repliesTokens[key]?.let { wrapNativeToken(it) },
+                authorAvatarUrl = e.at("author", "avatarThumbnailUrl").string,
+                isByCreator = (e.at("author", "isCreator") as? JsonPrimitive)?.content == "true",
+            )
+        }
+        for (c in json.findAll("commentRenderer")) {
+            val id = c["commentId"].string ?: continue
+            if (id in out) continue
+            out[id] = Comment(id, c["authorText"].text() ?: "", c["contentText"].text() ?: "", likeCount = parseCount(c["voteCount"].text()) ?: 0L, publishedText = c["publishedTimeText"].text() ?: "")
+        }
+        return out.values.toList()
+    }
+
+    /** One page of a post comment's replies (the token is a comment's `repliesContinuation`); the next page's token is in the page. */
+    suspend fun postCommentReplies(token: String): ExtractorResult<CommentsPage> {
+        val raw = unwrapNativeToken(token) ?: return ExtractorResult.Failure(ExtractorError.TokenNotMine("Not a native token"))
+        val json = when (val r = executeBrowse(buildJsonObject { put("continuation", raw) })) {
+            is ExtractorResult.Success -> r.value
+            is ExtractorResult.Failure -> return r
+        }
+        val next = json.findAll("continuationItems").flatMap { it.array }.lastOrNull { it["continuationItemRenderer"] != null }
+            ?.at("continuationItemRenderer", "continuationEndpoint", "continuationCommand", "token").string
+        return ExtractorResult.Success(CommentsPage(parsePostComments(json), continuation = wrapNativeToken(next)))
+    }
 
     internal fun parseAbout(json: JsonElement, channelId: String): ChannelAbout {
         val vm = json.findAll("aboutChannelViewModel").firstOrNull()

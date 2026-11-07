@@ -1,49 +1,36 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package com.greenaltambe.vela.ui.screens
 
 import com.greenaltambe.vela.ui.theme.AppIcons
 import androidx.compose.foundation.shape.CircleShape
 import com.greenaltambe.vela.ui.theme.ExtraColors
 import com.greenaltambe.vela.ui.theme.Spacing
-import com.greenaltambe.vela.ui.theme.Accent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.*
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
-import androidx.compose.animation.animateContentSize
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import kotlin.math.roundToInt
 import coil3.compose.AsyncImage
 import com.greenaltambe.vela.AppServices
 import com.greenaltambe.vela.core.settings.shortsEnabled
@@ -52,6 +39,7 @@ import com.greenaltambe.vela.ui.components.*
 import com.greenaltambe.vela.ui.look.ComponentIds
 import com.greenaltambe.vela.ui.nav.Navigator
 import com.greenaltambe.vela.ui.nav.Route
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 // Preserved for backwards compatibility
@@ -60,11 +48,10 @@ enum class ChannelSort(val label: String) { LATEST("Latest"), POPULAR("Popular")
 enum class PlaylistSort(val label: String) { RECENT("Recently added"), AZ("A to Z") }
 
 /**
- * A channel page with dynamic native tabs discovered from YouTube's response,
- * swipe animations between tabs (HorizontalPager), server-side sort controls,
- * rich Post cards with detail sheet, Course badges, in-channel search and About sheet.
+ * A channel page: one scrolling list holding the header (banner, picture, subscribe), the pinned tab row and the open tab's content, under a small top
+ * bar that shows the channel's name once the header has scrolled away. One list means the header can never overlap what is under it. Tabs are the ones
+ * YouTube returns; swiping sideways moves between them.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChannelScreen(
     services: AppServices,
@@ -159,13 +146,14 @@ fun ChannelScreen(
     }
 
     if (channelError != null && landing == null) {
-        Column(modifier.fillMaxSize().padding(Spacing.md)) {
-            ErrorRow(channelError!!, onRetry = { loadLanding() })
+        Column(modifier.fillMaxSize()) {
+            ChannelTopBar(channelName, showTitle = true, onBack = { navigator.back() }, menu = emptyList())
+            Column(Modifier.padding(Spacing.md)) { ErrorRow(channelError!!, onRetry = { loadLanding() }) }
         }
         return
     }
 
-    // Build tabs list (Area 6: show only what server returned, preserving order; fallback only when raw is empty)
+    // Build tabs list (show only what server returned, preserving order; fallback only when raw is empty)
     val tabs = remember(landing, shortsOn) {
         val raw = landing?.tabs ?: emptyList()
         val list = if (raw.isNotEmpty()) {
@@ -180,204 +168,98 @@ fun ChannelScreen(
         list.filter { shortsOn || it.kind != ChannelTabKind.SHORTS }
     }
 
-    val pagerState = rememberPagerState(
-        initialPage = st.selectedTabIndex.coerceIn(0, (tabs.size - 1).coerceAtLeast(0)),
-        pageCount = { tabs.size }
-    )
-
-    LaunchedEffect(pagerState.currentPage) {
-        st.selectedTabIndex = pagerState.currentPage
-    }
+    val tabIndex = st.selectedTabIndex.coerceIn(0, (tabs.size - 1).coerceAtLeast(0))
+    val tab = tabs.getOrNull(tabIndex)
+    val feed = tab?.let { st.feedFor(it.kind.name) }
 
     val pageHeader = landing?.header
     val name = pageHeader?.name?.ifBlank { null } ?: channelName
+    val channelUrl = "https://www.youtube.com/channel/$channelId"
 
-    var headerHeightPx by remember { mutableStateOf(0f) }
-    var headerOffsetPx by remember { mutableStateOf(0f) }
+    val gutter = Spacing.gutter
+    val listState = rememberLazyListState(st.listIndex, st.listOffset)
+    DisposableEffect(Unit) {
+        onDispose {
+            st.listIndex = listState.firstVisibleItemIndex
+            st.listOffset = listState.firstVisibleItemScrollOffset
+        }
+    }
+    // Choosing another tab: the new tab starts at its top, just under the pinned tab row, not wherever the last one was scrolled to.
+    var lastTab by remember { mutableIntStateOf(tabIndex) }
+    LaunchedEffect(tabIndex) {
+        if (lastTab != tabIndex) {
+            lastTab = tabIndex
+            if (listState.firstVisibleItemIndex > 1) listState.scrollToItem(1)
+        }
+    }
+    val titleVisible by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
 
-    val nestedScrollConnection = remember(headerHeightPx) {
-        object : NestedScrollConnection {
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                val delta = available.y
-                if (delta < 0f && headerHeightPx > 0f) {
-                    val newOffset = (headerOffsetPx + delta).coerceIn(-headerHeightPx, 0f)
-                    val consumed = newOffset - headerOffsetPx
-                    headerOffsetPx = newOffset
-                    return Offset(0f, consumed)
-                }
-                return Offset.Zero
-            }
+    LaunchedEffect(tab?.kind, channelId, landing != null) {
+        if (tab != null && feed != null && landing != null && !feed.loaded) loadTab(scope, services, channelId, tab, feed, st.searchQuery, more = false)
+    }
 
-            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
-                val delta = available.y
-                if (delta > 0f && headerHeightPx > 0f) {
-                    val newOffset = (headerOffsetPx + delta).coerceIn(-headerHeightPx, 0f)
-                    val consumedY = newOffset - headerOffsetPx
-                    headerOffsetPx = newOffset
-                    return Offset(0f, consumedY)
-                }
-                return Offset.Zero
-            }
+    val share = com.greenaltambe.vela.ui.platform.LocalShare.current
+    val menu = remember(channelUrl, name, share) {
+        buildList {
+            add(PageAction("About", "channel.menu.about") { aboutSheetOpen = true })
+            if (share != null) add(PageAction("Share", "channel.menu.share") { share(name, channelUrl) })
+            add(PageAction("Open in browser", "channel.menu.browser") { uriHandler.openUri(channelUrl) })
         }
     }
 
-    val density = LocalDensity.current
-    val currentHeaderHeightPx = (headerHeightPx + headerOffsetPx).coerceAtLeast(0f)
-    val currentHeaderHeightDp = with(density) { currentHeaderHeightPx.toDp() }
-
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .clipToBounds()
-            .nestedScroll(nestedScrollConnection)
-    ) {
-        // Channel Header: collapses smoothly upwards until tabs touch the scaffolding top bar.
-        // Clipped to visible bounds so it never overlaps or scrolls behind the top bar or status bar.
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .then(
-                    if (headerHeightPx > 0f) Modifier.height(currentHeaderHeightDp)
-                    else Modifier.wrapContentHeight()
-                )
-                .clipToBounds()
-                .draggable(
-                    orientation = Orientation.Vertical,
-                    state = rememberDraggableState { delta ->
-                        if (headerHeightPx > 0f) {
-                            val newOffset = (headerOffsetPx + delta).coerceIn(-headerHeightPx, 0f)
-                            headerOffsetPx = newOffset
-                        }
-                    }
-                )
-        ) {
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .wrapContentHeight(align = Alignment.Top, unbounded = true)
-                    .onSizeChanged { size ->
-                        if (size.height > 0) {
-                            headerHeightPx = size.height.toFloat()
-                            headerOffsetPx = headerOffsetPx.coerceIn(-size.height.toFloat(), 0f)
-                        }
-                    }
-                    .offset { IntOffset(0, headerOffsetPx.roundToInt()) }
-                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                    .padding(horizontal = Spacing.md, vertical = Spacing.sm),
-                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+    Column(modifier.fillMaxSize()) {
+        ChannelTopBar(name, showTitle = titleVisible, onBack = { navigator.back() }, menu = menu)
+        Box(Modifier.weight(1f).fillMaxWidth().testTag("channel.pager"), contentAlignment = Alignment.TopCenter) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.widthIn(max = 900.dp).fillMaxSize().testTag("channel.list")
+                    .pointerInput(tabs.size, tabIndex) {
+                        // A swipe sideways moves to the next / previous tab. Rows that scroll sideways (shelves) consume their own drags first.
+                        var dx = 0f
+                        detectHorizontalDragGestures(onDragStart = { dx = 0f }, onDragEnd = {
+                            if (dx < -140f && tabIndex < tabs.size - 1) st.selectedTabIndex = tabIndex + 1
+                            else if (dx > 140f && tabIndex > 0) st.selectedTabIndex = tabIndex - 1
+                        }, onHorizontalDrag = { _, d -> dx += d })
+                    },
+                contentPadding = PaddingValues(bottom = 96.dp),
             ) {
-                pageHeader?.bannerUrl?.let { banner ->
-                    AsyncImage(banner, null, Modifier.fillMaxWidth().aspectRatio(16f / 4.5f).clip(MaterialTheme.shapes.extraLarge).testTag("channel.banner"), contentScale = ContentScale.Crop)
-                }
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                    Avatar(name, size = 72.dp, url = pageHeader?.avatarUrl)
-                    Column(Modifier.weight(1f)) {
-                        Text(name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("channel.name"))
-                        formatCount(pageHeader?.subscriberCount)?.let { Text("$it subscribers", style = MaterialTheme.typography.bodySmall, maxLines = 1, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                    }
-                }
-                Row(Modifier.animateContentSize(), horizontalArrangement = Arrangement.spacedBy(androidx.compose.material3.ButtonGroupDefaults.ConnectedSpaceBetween), verticalAlignment = Alignment.CenterVertically) {
-                    com.greenaltambe.vela.ui.components.SubscribeButton(
-                        subscribed, modifier = Modifier.testTag("channel.subscribe"),
-                        position = if (subscribed) com.greenaltambe.vela.ui.components.ActionPosition.LEADING else com.greenaltambe.vela.ui.components.ActionPosition.ALONE,
-                        onClick = {
-                            if (subscribed) { services.subscriptions.unsubscribe(channelId); services.feed.reload(); subscribed = false }
-                            else { services.subscriptions.subscribe(channelId, name, pageHeader?.avatarUrl, services.clock.now()); subscribed = true }
-                        },
+                item(key = "header", contentType = "header") {
+                    ChannelHeader(
+                        services = services, channelId = channelId, name = name, page = pageHeader,
+                        subscribed = subscribed, onSubscribedChange = { subscribed = it }, onOpenAbout = { aboutSheetOpen = true },
                     )
-                    androidx.compose.animation.AnimatedVisibility(subscribed, enter = androidx.compose.animation.expandHorizontally(androidx.compose.animation.core.spring(dampingRatio = 0.7f, stiffness = 380f)) + androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(initialScale = 0.6f), exit = androidx.compose.animation.shrinkHorizontally() + androidx.compose.animation.fadeOut()) { ChannelBell(services, channelId) }
                 }
-
-                if (subscribed && services.downloads != null) {
-                    var auto by remember(channelId) { mutableStateOf(services.autoDownloadRules.ruleFor(channelId)?.enabled == true) }
-                    Row(
-                        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraLarge).background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(horizontal = Spacing.md, vertical = Spacing.xs),
-                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                    ) {
-                        Text("Download new videos automatically", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, maxLines = 2)
-                        androidx.compose.material3.Switch(auto, {
-                            auto = it
-                            if (it) services.autoDownloadRules.upsert(com.greenaltambe.vela.downloads.AutoDownloadRule(channelId, name, sinceMs = services.clock.now().toEpochMilliseconds()))
-                            else services.autoDownloadRules.ruleFor(channelId)?.let { r -> services.autoDownloadRules.upsert(r.copy(enabled = false)) }
-                        }, modifier = Modifier.testTag("channel.autoDownload"))
+                if (tabs.isNotEmpty()) {
+                    stickyHeader(key = "tabs", contentType = "tabs") {
+                        PrimaryScrollableTabRow(
+                            selectedTabIndex = tabIndex,
+                            edgePadding = Spacing.gutter,
+                            containerColor = MaterialTheme.colorScheme.background,
+                            divider = { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) },
+                            modifier = Modifier.fillMaxWidth().testTag("channel.tabs"),
+                        ) {
+                            tabs.forEachIndexed { index, t ->
+                                Tab(
+                                    selected = index == tabIndex,
+                                    onClick = { st.selectedTabIndex = index },
+                                    text = { Text(t.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                    modifier = Modifier.testTag("channel.tab.${t.kind.name.lowercase()}"),
+                                )
+                            }
+                        }
                     }
-                }
-
-                // Short description snippet that opens About sheet
-                pageHeader?.description?.takeIf { it.isNotBlank() }?.let { desc ->
-                    Row(
-                        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraLarge).background(MaterialTheme.colorScheme.surfaceContainerHigh).clickable { aboutSheetOpen = true }.padding(horizontal = Spacing.md, vertical = Spacing.sm).testTag("channel.aboutTrigger"),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(desc, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(" More", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
-                    }
-                }
-            }
-        }
-
-        // Tab strip: stays pinned touching the scaffolding top bar when the header is collapsed
-        if (tabs.isNotEmpty()) {
-            ScrollableTabRow(
-                selectedTabIndex = pagerState.currentPage,
-                edgePadding = Spacing.md,
-                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                contentColor = MaterialTheme.colorScheme.onSurface,
-                indicator = { tabPositions ->
-                    if (pagerState.currentPage < tabPositions.size) {
-                        TabRowDefaults.SecondaryIndicator(
-                            Modifier.tabIndicatorOffset(tabPositions[pagerState.currentPage]),
-                            color = MaterialTheme.colorScheme.primary
+                    if (landing == null) {
+                        // Until the landing arrives the tab list is only a placeholder (loading those tabs could hit ones this channel does not have).
+                        items(3) { SkeletonCard(vertical = true, fullBleed = com.greenaltambe.vela.ui.layout.LocalWindowSize.current == com.greenaltambe.vela.ui.layout.WindowSizeClass.COMPACT, modifier = Modifier.padding(horizontal = Spacing.gutter, vertical = Spacing.sm)) }
+                    } else if (tab != null && feed != null) {
+                        channelTabItems(
+                            services = services, navigator = navigator, tab = tab, feed = feed,
+                            searchQuery = st.searchQuery, onSearchQueryChange = { st.searchQuery = it },
+                            onLoad = { more, filter -> loadTab(scope, services, channelId, tab, feed, st.searchQuery, more, filter) },
+                            onOpenPostDetail = { activePostDetail = it }, gutter = gutter,
                         )
                     }
-                },
-                divider = { HorizontalDivider(color = MaterialTheme.colorScheme.outline) },
-                modifier = Modifier.fillMaxWidth().testTag("channel.tabs")
-            ) {
-                tabs.forEachIndexed { index, tabItem ->
-                    val isSelected = pagerState.currentPage == index
-                    Tab(
-                        selected = isSelected,
-                        onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
-                        text = {
-                            Text(
-                                tabItem.title,
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1
-                            )
-                        },
-                        modifier = Modifier.testTag("channel.tab.${tabItem.kind.name.lowercase()}")
-                    )
                 }
-            }
-
-            // HorizontalPager with swipe animations between tabs
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier.fillMaxWidth().weight(1f).testTag("channel.pager")
-            ) { pageIndex ->
-                val tab = tabs.getOrNull(pageIndex) ?: return@HorizontalPager
-                // Until the landing arrives the tab list is only a placeholder; loading those tabs would hit tabs this channel/tier may not
-                // support (a flash of "Could not load: not supported" before the real page lands), so wait and show skeletons.
-                if (landing == null) {
-                    Column(Modifier.fillMaxSize().padding(Spacing.contentPadding), verticalArrangement = Arrangement.spacedBy(Spacing.lg)) { repeat(3) { SkeletonCard(vertical = true, fullBleed = com.greenaltambe.vela.ui.layout.LocalWindowSize.current == com.greenaltambe.vela.ui.layout.WindowSizeClass.COMPACT) } }
-                    return@HorizontalPager
-                }
-                val feed = st.feedFor(tab.kind.name)
-
-                ChannelTabPane(
-                    services = services,
-                    navigator = navigator,
-                    channelId = channelId,
-                    tab = tab,
-                    feed = feed,
-                    searchQuery = st.searchQuery,
-                    onSearchQueryChange = { st.searchQuery = it },
-                    onOpenAbout = { aboutSheetOpen = true },
-                    onOpenPostDetail = { activePostDetail = it }
-                )
             }
         }
     }
@@ -404,248 +286,254 @@ fun ChannelScreen(
     }
 }
 
-/** Content for one tab page: load on demand, handles sort controls, paging, item rendering. */
+/** The small bar over the page: back, the name (only once the header with the big name has scrolled away), and the page menu. */
 @Composable
-private fun ChannelTabPane(
+private fun ChannelTopBar(name: String, showTitle: Boolean, onBack: () -> Unit, menu: List<PageAction>) {
+    TopAppBar(
+        title = { AnimatedVisibility(showTitle, enter = fadeIn(), exit = fadeOut()) { Text(name, maxLines = 1, overflow = TextOverflow.Ellipsis) } },
+        navigationIcon = { IconButton(onClick = onBack, modifier = Modifier.testTag("nav.back")) { Icon(AppIcons.back, "Back") } },
+        actions = {
+            if (menu.isNotEmpty()) {
+                var open by remember { mutableStateOf(false) }
+                Box {
+                    IconButton(onClick = { open = true }, modifier = Modifier.testTag("channel.menu")) { Icon(AppIcons.more, "More options") }
+                    DropdownMenu(open, { open = false }) {
+                        menu.forEach { a -> DropdownMenuItem(text = { Text(a.label, maxLines = 1) }, onClick = { open = false; a.onClick() }, modifier = Modifier.testTag(a.tag)) }
+                    }
+                }
+            }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background, scrolledContainerColor = MaterialTheme.colorScheme.background),
+        modifier = Modifier.testTag("topbar"),
+    )
+}
+
+/** Banner, picture, name, subscribe / bell, auto-download and the description teaser: the first item of the list. */
+@Composable
+private fun ChannelHeader(
     services: AppServices,
-    navigator: Navigator,
+    channelId: String,
+    name: String,
+    page: ChannelPage?,
+    subscribed: Boolean,
+    onSubscribedChange: (Boolean) -> Unit,
+    onOpenAbout: () -> Unit,
+) {
+    val avatarShape = remember { MaterialShapes.Cookie9Sided }.toShape()
+    Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.gutter, vertical = Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+        page?.bannerUrl?.let { banner ->
+            AsyncImage(banner, null, Modifier.fillMaxWidth().aspectRatio(16f / 5f).clip(MaterialTheme.shapes.extraLarge).background(MaterialTheme.colorScheme.surfaceContainerHigh).testTag("channel.banner"), contentScale = ContentScale.Crop)
+        }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+            Avatar(name, size = 72.dp, url = page?.avatarUrl, shape = avatarShape)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(name, style = MaterialTheme.typography.headlineSmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("channel.name"))
+                formatCount(page?.subscriberCount)?.let { Text("$it subscribers", style = MaterialTheme.typography.bodyMedium, maxLines = 1, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
+        }
+        Row(Modifier.animateContentSize(), horizontalArrangement = Arrangement.spacedBy(androidx.compose.material3.ButtonGroupDefaults.ConnectedSpaceBetween), verticalAlignment = Alignment.CenterVertically) {
+            SubscribeButton(
+                subscribed, modifier = Modifier.testTag("channel.subscribe"),
+                position = if (subscribed) ActionPosition.LEADING else ActionPosition.ALONE,
+                onClick = {
+                    if (subscribed) { services.subscriptions.unsubscribe(channelId); services.feed.reload(); onSubscribedChange(false) }
+                    else { services.subscriptions.subscribe(channelId, name, page?.avatarUrl, services.clock.now()); onSubscribedChange(true) }
+                },
+            )
+            AnimatedVisibility(subscribed, enter = androidx.compose.animation.expandHorizontally(androidx.compose.animation.core.spring(dampingRatio = 0.7f, stiffness = 380f)) + fadeIn() + androidx.compose.animation.scaleIn(initialScale = 0.6f), exit = androidx.compose.animation.shrinkHorizontally() + fadeOut()) { ChannelBell(services, channelId) }
+        }
+
+        if (subscribed && services.downloads != null) {
+            var auto by remember(channelId) { mutableStateOf(services.autoDownloadRules.ruleFor(channelId)?.enabled == true) }
+            Row(
+                Modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraLarge).background(MaterialTheme.colorScheme.surfaceContainer).padding(horizontal = Spacing.md, vertical = Spacing.xs),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                Text("Download new videos automatically", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, maxLines = 2)
+                Switch(auto, {
+                    auto = it
+                    if (it) services.autoDownloadRules.upsert(com.greenaltambe.vela.downloads.AutoDownloadRule(channelId, name, sinceMs = services.clock.now().toEpochMilliseconds()))
+                    else services.autoDownloadRules.ruleFor(channelId)?.let { r -> services.autoDownloadRules.upsert(r.copy(enabled = false)) }
+                }, modifier = Modifier.testTag("channel.autoDownload"))
+            }
+        }
+
+        // Short description snippet that opens the About sheet
+        page?.description?.takeIf { it.isNotBlank() }?.let { desc ->
+            Row(
+                Modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraLarge).background(MaterialTheme.colorScheme.surfaceContainer).clickable(onClick = onOpenAbout).padding(horizontal = Spacing.md, vertical = Spacing.sm).testTag("channel.aboutTrigger"),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(desc, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("  More", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            }
+        }
+    }
+}
+
+/** Loads a tab's first page or the next one into [feed] (an expired continuation restarts at page one and shows the "Refreshed" notice). */
+private fun loadTab(
+    scope: CoroutineScope,
+    services: AppServices,
     channelId: String,
     tab: com.greenaltambe.vela.extractor.ChannelTab,
     feed: ChannelTabFeed,
     searchQuery: String,
-    onSearchQueryChange: (String) -> Unit,
-    onOpenAbout: () -> Unit,
-    onOpenPostDetail: (ChannelPost) -> Unit,
+    more: Boolean,
+    filterOption: ChannelFilterOption? = feed.selectedFilter,
 ) {
-    val scope = rememberCoroutineScope()
-
-    fun load(more: Boolean = false, filterOption: ChannelFilterOption? = feed.selectedFilter) {
-        if (feed.loading) return
-        feed.loading = true
-        if (!more) feed.state = ListState.Loading
-        scope.launch {
-            val res = if (more) {
-                services.extractor.channelTab(channelId, tab, filterOption, feed.nextToken)
-            } else if (tab.kind == ChannelTabKind.SEARCH) {
-                if (searchQuery.isNotBlank()) services.extractor.channelSearch(channelId, searchQuery)
-                else ExtractorResult.Success(ChannelTabPage())
-            } else {
-                services.extractor.channelTab(channelId, tab, filterOption)
-            }
-            when (res) {
-                is ExtractorResult.Success -> {
-                    feed.items = if (more) (feed.items + res.value.items) else res.value.items
-                    feed.shelves = if (more) (feed.shelves + res.value.shelves) else res.value.shelves
-                    if (res.value.filters.isNotEmpty()) feed.filters = res.value.filters
-                    feed.nextToken = res.value.nextToken
-                    feed.loaded = true
-                    feed.state = if (feed.items.isEmpty() && feed.shelves.isEmpty()) {
-                        ListState.Empty(tabEmptyMessage(tab.kind))
-                    } else {
-                        ListState.Ready
-                    }
-                }
-                is ExtractorResult.Failure -> {
-                    if (more && (res.error is ExtractorError.TokenExpired || res.error is ExtractorError.TokenNotMine)) {
-                        feed.refreshedNotice = true
-                        feed.scroll.index = 0
-                        feed.scroll.offset = 0
-                        feed.loading = false
-                        load(more = false, filterOption = filterOption)
-                        return@launch
-                    }
-                    if (feed.items.isEmpty() && feed.shelves.isEmpty()) {
-                        feed.state = ListState.Error("Could not load: ${res.error.message}") { load(false, filterOption) }
-                    }
-                }
-            }
-            feed.loading = false
+    if (feed.loading) return
+    feed.loading = true
+    if (!more) feed.state = ListState.Loading
+    scope.launch {
+        val res = if (more) {
+            services.extractor.channelTab(channelId, tab, filterOption, feed.nextToken)
+        } else if (tab.kind == ChannelTabKind.SEARCH) {
+            if (searchQuery.isNotBlank()) services.extractor.channelSearch(channelId, searchQuery)
+            else ExtractorResult.Success(ChannelTabPage())
+        } else {
+            services.extractor.channelTab(channelId, tab, filterOption)
         }
-    }
-
-    LaunchedEffect(tab.kind, channelId) {
-        if (!feed.loaded) load()
-    }
-
-    val listState = rememberLazyListState(feed.scroll.index, feed.scroll.offset)
-    DisposableEffect(Unit) {
-        onDispose {
-            feed.scroll.index = listState.firstVisibleItemIndex
-            feed.scroll.offset = listState.firstVisibleItemScrollOffset
-        }
-    }
-
-    LazyColumn(
-        state = listState,
-        modifier = Modifier.fillMaxSize().testTag("channel.list"),
-        contentPadding = Spacing.contentPadding,
-        verticalArrangement = Arrangement.spacedBy(Spacing.md)
-    ) {
-        // Refreshed Notice banner when continuation expired and feed reloaded from page 1
-        if (feed.refreshedNotice) {
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(MaterialTheme.shapes.medium)
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                        .padding(horizontal = Spacing.md, vertical = Spacing.xs)
-                        .testTag("channel.refreshedNotice"),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        "Refreshed",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    IconButton(
-                        onClick = { feed.refreshedNotice = false },
-                        modifier = Modifier.size(24.dp)
-                    ) {
-                        Icon(AppIcons.close, contentDescription = "Dismiss", modifier = Modifier.size(16.dp))
-                    }
+        when (res) {
+            is ExtractorResult.Success -> {
+                feed.items = if (more) (feed.items + res.value.items) else res.value.items
+                feed.shelves = if (more) (feed.shelves + res.value.shelves) else res.value.shelves
+                if (res.value.filters.isNotEmpty()) feed.filters = res.value.filters
+                feed.nextToken = res.value.nextToken
+                feed.loaded = true
+                feed.state = if (feed.items.isEmpty() && feed.shelves.isEmpty()) ListState.Empty(tabEmptyMessage(tab.kind)) else ListState.Ready
+            }
+            is ExtractorResult.Failure -> {
+                if (more && (res.error is ExtractorError.TokenExpired || res.error is ExtractorError.TokenNotMine)) {
+                    feed.refreshedNotice = true
+                    feed.loading = false
+                    loadTab(scope, services, channelId, tab, feed, searchQuery, more = false, filterOption = filterOption)
+                    return@launch
+                }
+                if (feed.items.isEmpty() && feed.shelves.isEmpty()) {
+                    feed.state = ListState.Error("Could not load: ${res.error.message}") { loadTab(scope, services, channelId, tab, feed, searchQuery, false, filterOption) }
                 }
             }
         }
-        // Sort & Filter Controls (Dropdown or Chips)
-        if (feed.filters.isNotEmpty()) {
-            item {
+        feed.loading = false
+    }
+}
+
+/** The open tab's rows as list items: notices, sort chips, search box, states, shelves, items and the paging footer. */
+private fun LazyListScope.channelTabItems(
+    services: AppServices,
+    navigator: Navigator,
+    tab: com.greenaltambe.vela.extractor.ChannelTab,
+    feed: ChannelTabFeed,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    onLoad: (more: Boolean, filter: ChannelFilterOption?) -> Unit,
+    onOpenPostDetail: (ChannelPost) -> Unit,
+    gutter: androidx.compose.ui.unit.Dp,
+) {
+    val side = Modifier.padding(horizontal = gutter)
+    // Refreshed Notice banner when continuation expired and feed reloaded from page 1
+    if (feed.refreshedNotice) {
+        item(key = "refreshed") {
+            Row(
+                modifier = side.padding(top = Spacing.sm).fillMaxWidth().clip(MaterialTheme.shapes.large).background(MaterialTheme.colorScheme.secondaryContainer)
+                    .padding(start = Spacing.md).testTag("channel.refreshedNotice"),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text("Refreshed", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                IconButton(onClick = { feed.refreshedNotice = false }) { Icon(AppIcons.close, contentDescription = "Dismiss", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer) }
+            }
+        }
+    }
+    // Sort & filter controls
+    if (feed.filters.isNotEmpty()) {
+        item(key = "filters") {
+            Box(Modifier.padding(top = Spacing.sm)) {
                 SortAndFilterBar(
-                    groups = feed.filters,
-                    selectedOption = feed.selectedFilter,
+                    groups = feed.filters, selectedOption = feed.selectedFilter,
                     onSelect = { option ->
                         feed.selectedFilter = option
-                        feed.scroll.index = 0
-                        feed.scroll.offset = 0
-                        load(more = false, filterOption = option)
-                    }
+                        onLoad(false, option)
+                    },
                 )
             }
         }
+    }
+    // In-channel search input on the SEARCH tab
+    if (tab.kind == ChannelTabKind.SEARCH) {
+        item(key = "search") {
+            // A tonal pill with a search icon, a clear button and a search key: the same look as the app's other search fields.
+            TextField(
+                value = searchQuery, onValueChange = onSearchQueryChange,
+                placeholder = { Text("Search this channel") }, singleLine = true, shape = CircleShape,
+                leadingIcon = { Icon(AppIcons.search, null) },
+                trailingIcon = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (searchQuery.isNotEmpty()) IconButton(onClick = { onSearchQueryChange("") }) { Icon(AppIcons.close, "Clear") }
+                        FilledIconButton(onClick = { onLoad(false, null) }, modifier = Modifier.padding(end = Spacing.xs).testTag("channel.searchButton")) { Icon(AppIcons.search, "Search") }
+                    }
+                },
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { onLoad(false, null) }),
+                colors = TextFieldDefaults.colors(focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent, unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent, disabledIndicatorColor = androidx.compose.ui.graphics.Color.Transparent, focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh, unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                modifier = side.fillMaxWidth().padding(vertical = Spacing.sm).testTag("channel.searchInput"),
+            )
+        }
+    }
+    // Loading skeleton / error / empty
+    if (feed.state == ListState.Loading && feed.items.isEmpty() && feed.shelves.isEmpty()) {
+        items(4) { SkeletonCard(vertical = true, fullBleed = false, modifier = side.padding(vertical = Spacing.sm)) }
+    }
+    if (feed.state is ListState.Error && feed.items.isEmpty() && feed.shelves.isEmpty()) {
+        item(key = "error") { val err = feed.state as ListState.Error; Box(side.padding(top = Spacing.md)) { ErrorRow(err.message, err.onRetry) } }
+    }
+    if (feed.state is ListState.Empty && feed.items.isEmpty() && feed.shelves.isEmpty()) {
+        item(key = "empty") { val emp = feed.state as ListState.Empty; EmptyState(emp.message) }
+    }
 
-        // In-Channel Search input on SEARCH tab
-        if (tab.kind == ChannelTabKind.SEARCH) {
-            item {
-                Row(
-                    Modifier.fillMaxWidth().padding(vertical = Spacing.xs),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
-                ) {
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = onSearchQueryChange,
-                        placeholder = { Text("Search this channel") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f).testTag("channel.searchInput")
-                    )
-                    Button(
-                        onClick = { load(more = false) },
-                        modifier = Modifier.testTag("channel.searchButton")
-                    ) {
-                        Text("Search")
+    // Shelves (Featured / Home)
+    feed.shelves.forEachIndexed { si, shelf ->
+        val isShortsShelf = shelf.title.contains("Short", ignoreCase = true) ||
+            (shelf.items.isNotEmpty() && shelf.items.all { it is ChannelItem.Video && it.summary.isShort })
+        item(key = "shelf-$si-title") { Box(side.padding(top = Spacing.md)) { SectionHeader(shelf.title) } }
+        item(key = "shelf-$si-row") {
+            HScrollRow(contentPadding = PaddingValues(horizontal = gutter)) {
+                items(shelf.items) { item ->
+                    if (isShortsShelf && item is ChannelItem.Video) {
+                        Box(Modifier.width(150.dp).padding(end = Spacing.sm)) { ShortCard(video = item.summary, onClick = { navigator.push(Route.Video(item.summary)) }) }
+                    } else {
+                        Box(Modifier.width(280.dp).padding(end = Spacing.sm)) { ChannelItemCard(services, navigator, item, onOpenPostDetail, inHorizontalShelf = item is ChannelItem.Post, inShelf = true) }
                     }
                 }
             }
         }
+    }
 
-        // Loading Skeleton
-        if (feed.state == ListState.Loading && feed.items.isEmpty() && feed.shelves.isEmpty()) {
-            items(4) {
-                SkeletonCard(vertical = true, fullBleed = com.greenaltambe.vela.ui.layout.LocalWindowSize.current == com.greenaltambe.vela.ui.layout.WindowSizeClass.COMPACT)
+    // Top-level items
+    if (tab.kind == ChannelTabKind.SHORTS) {
+        val chunked = feed.items.filterIsInstance<ChannelItem.Video>().chunked(2)
+        items(chunked.size, key = { "shorts-$it" }) { i ->
+            Row(side.fillMaxWidth().padding(top = Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                for (item in chunked[i]) Box(Modifier.weight(1f)) { ShortCard(video = item.summary, onClick = { navigator.push(Route.Video(item.summary)) }) }
+                if (chunked[i].size < 2) Spacer(Modifier.weight(1f))
             }
         }
-
-        // Error Row
-        if (feed.state is ListState.Error && feed.items.isEmpty() && feed.shelves.isEmpty()) {
-            item {
-                val err = feed.state as ListState.Error
-                ErrorRow(err.message, err.onRetry)
-            }
-        }
-
-        // Empty State
-        if (feed.state is ListState.Empty && feed.items.isEmpty() && feed.shelves.isEmpty()) {
-            item {
-                val emp = feed.state as ListState.Empty
-                EmptyState(emp.message)
-            }
-        }
-
-        // Shelves (e.g. Featured / Home shelves)
-        feed.shelves.forEach { shelf ->
-            val isShortsShelf = shelf.title.contains("Short", ignoreCase = true) ||
-                (shelf.items.isNotEmpty() && shelf.items.all { it is ChannelItem.Video && it.summary.isShort })
-            item {
-                SectionHeader(shelf.title)
-            }
-            item {
-                HScrollRow {
-                    items(shelf.items) { item ->
-                        if (isShortsShelf && item is ChannelItem.Video) {
-                            Box(Modifier.width(150.dp).padding(end = Spacing.sm)) {
-                                ShortCard(
-                                    video = item.summary,
-                                    onClick = { navigator.push(Route.Video(item.summary)) }
-                                )
-                            }
-                        } else if (item is ChannelItem.Post) {
-                            Box(Modifier.width(280.dp).height(200.dp).padding(end = Spacing.sm)) {
-                                ChannelItemCard(services, navigator, item, onOpenPostDetail, inHorizontalShelf = true)
-                            }
-                        } else {
-                            Box(Modifier.width(280.dp).padding(end = Spacing.sm)) {
-                                ChannelItemCard(services, navigator, item, onOpenPostDetail)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Top-level Items
-        if (tab.kind == ChannelTabKind.SHORTS) {
-            val videoItems = feed.items.filterIsInstance<ChannelItem.Video>()
-            val chunked = videoItems.chunked(2)
-            items(chunked) { rowItems ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
-                ) {
-                    for (item in rowItems) {
-                        Box(Modifier.weight(1f)) {
-                            ShortCard(
-                                video = item.summary,
-                                onClick = { navigator.push(Route.Video(item.summary)) }
-                            )
-                        }
-                    }
-                    if (rowItems.size < 2) {
-                        Spacer(Modifier.weight(1f))
-                    }
-                }
-            }
-        } else {
-            items(feed.items) { item ->
+    } else {
+        items(feed.items.size) { i ->
+            val item = feed.items[i]
+            Box((if (item is ChannelItem.Video) Modifier.padding(horizontal = gutter) else side).padding(top = Spacing.sm)) {
                 ChannelItemCard(services, navigator, item, onOpenPostDetail)
             }
         }
+    }
 
-        // Load More button / Paging
-        if (feed.nextToken != null) {
-            item {
-                Box(Modifier.fillMaxWidth().padding(Spacing.sm), contentAlignment = Alignment.Center) {
-                    if (feed.loading) {
-                        LoadingSpinner(color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
-                    } else {
-                        TextButton(
-                            onClick = { load(more = true) },
-                            modifier = Modifier.testTag("channel.loadMore")
-                        ) {
-                            Text("Load more")
-                        }
-                    }
-                }
+    // Paging footer: loads by itself when it scrolls into view (once, unless the page was just refreshed); the button is the manual way
+    if (feed.nextToken != null) {
+        item(key = "more") {
+            if (!feed.refreshedNotice) LaunchedEffect(feed.nextToken, feed.items.size) { if (!feed.loading && feed.state == ListState.Ready) onLoad(true, feed.selectedFilter) }
+            Box(Modifier.fillMaxWidth().padding(Spacing.sm), contentAlignment = Alignment.Center) {
+                if (feed.loading) LoadingSpinner(color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
+                else TextButton(onClick = { onLoad(true, feed.selectedFilter) }, modifier = Modifier.testTag("channel.loadMore")) { Text("Load more") }
             }
         }
     }
@@ -659,6 +547,7 @@ private fun ChannelItemCard(
     item: ChannelItem,
     onOpenPostDetail: (ChannelPost) -> Unit,
     inHorizontalShelf: Boolean = false,
+    inShelf: Boolean = false,
 ) {
     when (item) {
         is ChannelItem.Video -> {
@@ -666,8 +555,8 @@ private fun ChannelItemCard(
                 video = item.summary,
                 onClick = { navigator.push(Route.Video(item.summary)) },
                 showChannelAvatar = false,
-                style = VideoCardStyle.VERTICAL,
-                fullBleed = com.greenaltambe.vela.ui.layout.LocalWindowSize.current == com.greenaltambe.vela.ui.layout.WindowSizeClass.COMPACT,
+                style = if (inShelf || com.greenaltambe.vela.ui.layout.LocalWindowSize.current == com.greenaltambe.vela.ui.layout.WindowSizeClass.COMPACT) VideoCardStyle.VERTICAL else VideoCardStyle.HORIZONTAL,
+                fullBleed = !inShelf && com.greenaltambe.vela.ui.layout.LocalWindowSize.current == com.greenaltambe.vela.ui.layout.WindowSizeClass.COMPACT,
             )
         }
         is ChannelItem.Playlist -> {
@@ -689,19 +578,19 @@ internal fun PlaylistRow(p: PlaylistRef, onClick: () -> Unit) = CourseOrPlaylist
 @Composable
 private fun CourseOrPlaylistCard(p: PlaylistRef, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).background(MaterialTheme.colorScheme.surfaceContainerLow).clickable(onClick = onClick).padding(Spacing.xs).testTag("channel.playlist"),
+        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).background(MaterialTheme.colorScheme.surfaceContainer).clickable(onClick = onClick).padding(Spacing.sm).testTag("channel.playlist"),
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
     ) {
         Box(Modifier.width(140.dp).aspectRatio(16f / 9f).clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceContainerHigh)) {
             p.thumbnailUrl?.let { AsyncImage(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
             Row(
-                Modifier.align(Alignment.BottomEnd).padding(Spacing.xs).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.85f)).padding(horizontal = Spacing.xs, vertical = 2.dp).testTag("playlist.badge"),
+                Modifier.align(Alignment.BottomEnd).padding(Spacing.xs).clip(CircleShape).background(ExtraColors.mediaBackground.copy(alpha = 0.72f)).padding(horizontal = Spacing.xs, vertical = 2.dp).testTag("playlist.badge"),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                Icon(AppIcons.playlist, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurface)
+                Icon(AppIcons.playlist, null, Modifier.size(16.dp), tint = ExtraColors.onMedia)
                 val badgeText = if (p.isCourse) "COURSE" else p.videoCount?.toString()
-                badgeText?.let { Text(it, style = MaterialTheme.typography.labelSmall, maxLines = 1, color = MaterialTheme.colorScheme.onSurface) }
+                badgeText?.let { Text(it, style = MaterialTheme.typography.labelSmall, maxLines = 1, color = ExtraColors.onMedia) }
             }
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
@@ -715,79 +604,35 @@ private fun CourseOrPlaylistCard(p: PlaylistRef, onClick: () -> Unit) {
     }
 }
 
-/** Vertical 9:16 card for YouTube Shorts in channel shelves or Shorts tab. */
+/** Vertical 9:16 card for YouTube Shorts in channel shelves or the Shorts tab. */
 @Composable
-private fun ShortCard(
-    video: VideoSummary,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val source = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-    val hovered by source.collectIsHoveredAsState()
-    val hover = if (hovered) Modifier.border(2.dp, Accent.brush, MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f), MaterialTheme.shapes.medium) else Modifier
-
+private fun ShortCard(video: VideoSummary, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .testTag(ComponentIds.VIDEO_CARD)
-            .then(hover)
-            .clip(MaterialTheme.shapes.medium)
-            .clickable(onClick = onClick)
-            .padding(Spacing.xs)
+        modifier = modifier.fillMaxWidth().testTag(ComponentIds.VIDEO_CARD).clip(MaterialTheme.shapes.large).clickable(onClick = onClick),
+        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(9f / 16f)
-                .clip(MaterialTheme.shapes.medium)
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                .testTag("card.thumbnail")
-        ) {
+        Box(Modifier.fillMaxWidth().aspectRatio(9f / 16f).clip(MaterialTheme.shapes.large).background(MaterialTheme.colorScheme.surfaceContainerHigh).testTag("card.thumbnail")) {
             val shown = video.thumbnailUrl ?: if (video.id.isNotBlank()) "https://i.ytimg.com/vi/${video.id}/frame0.jpg" else null
-            if (shown != null) {
-                AsyncImage(shown, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
-            }
+            if (shown != null) AsyncImage(shown, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
             Text(
                 "SHORT",
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(Spacing.xs)
-                    .clip(MaterialTheme.shapes.small)
-                    .background(MaterialTheme.colorScheme.primary)
-                    .padding(horizontal = Spacing.xs),
-                style = MaterialTheme.typography.bodySmall,
-                color = ExtraColors.onMedia,
-                maxLines = 1
+                modifier = Modifier.align(Alignment.TopStart).padding(Spacing.xs).clip(CircleShape).background(MaterialTheme.colorScheme.primary).padding(horizontal = Spacing.sm, vertical = 2.dp),
+                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary, maxLines = 1,
             )
             val statText = video.viewCount?.let { formatViews(it) } ?: video.publishedText
             if (statText != null) {
                 Text(
                     statText,
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(Spacing.xs)
-                        .clip(MaterialTheme.shapes.small)
-                        .background(MaterialTheme.colorScheme.background.copy(alpha = 0.85f))
-                        .padding(horizontal = Spacing.xs),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    maxLines = 1
+                    modifier = Modifier.align(Alignment.BottomStart).padding(Spacing.xs).clip(CircleShape).background(ExtraColors.mediaBackground.copy(alpha = 0.72f)).padding(horizontal = Spacing.sm, vertical = 2.dp),
+                    style = MaterialTheme.typography.labelSmall, color = ExtraColors.onMedia, maxLines = 1,
                 )
             }
         }
-        Spacer(Modifier.height(Spacing.xs))
-        Text(
-            video.title,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 2.dp).testTag("card.title")
-        )
+        Text(video.title, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 2.dp).testTag("card.title"))
     }
 }
 
-/** Community post card supporting text, attachments, polls, video embeds, likes. */
+/** Community post: a tonal card with the author, the text (long ones fold), the attachment, likes and a Comments button. */
 @Composable
 private fun PostCard(
     services: AppServices,
@@ -795,108 +640,94 @@ private fun PostCard(
     post: ChannelPost,
     onOpenDetail: () -> Unit,
     inHorizontalShelf: Boolean = false,
+    showComments: Boolean = true,
 ) {
     val linkColor = MaterialTheme.colorScheme.primary
-    val baseModifier = if (inHorizontalShelf) Modifier.fillMaxSize() else Modifier.fillMaxWidth()
+    var expanded by remember(post.id) { mutableStateOf(false) }
+    val foldAt = if (inHorizontalShelf) 3 else 6
+    var overflowing by remember(post.id) { mutableStateOf(false) }
+    var viewer by remember(post.id) { mutableStateOf<Pair<List<String>, Int>?>(null) }
     Column(
-        baseModifier.clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceContainerLow).padding(Spacing.md).testTag("channel.post"),
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraLarge).background(MaterialTheme.colorScheme.surfaceContainer).padding(Spacing.md).testTag("channel.post"),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        // Author header
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            Avatar(post.authorName, size = 36.dp, url = post.authorAvatarUrl)
+            Avatar(post.authorName, size = 40.dp, url = post.authorAvatarUrl)
             Column(Modifier.weight(1f)) {
-                Text(post.authorName, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                post.publishedText?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                Text(post.authorName, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                post.publishedText?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1) }
             }
         }
 
-        // Post text
         if (post.text.isNotBlank()) {
             val annotated = remember(post.text, linkColor) { linkedText(post.text, linkColor) {} }
             Text(
-                annotated,
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = if (inHorizontalShelf) 3 else Int.MAX_VALUE,
-                overflow = TextOverflow.Ellipsis
+                annotated, style = MaterialTheme.typography.bodyMedium,
+                maxLines = if (expanded) Int.MAX_VALUE else foldAt, overflow = TextOverflow.Ellipsis,
+                onTextLayout = { if (!expanded) overflowing = it.hasVisualOverflow },
             )
+            if (overflowing && !expanded && !inHorizontalShelf) {
+                Text("Read more", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.clip(MaterialTheme.shapes.small).clickable { expanded = true }.padding(vertical = 2.dp))
+            }
         }
 
-        // Post Attachment
         when (val att = post.attachment) {
-            is PostAttachment.Image -> {
-                val imgMod = if (inHorizontalShelf) Modifier.fillMaxWidth().height(70.dp).clip(MaterialTheme.shapes.medium) else Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium)
-                AsyncImage(att.url, null, imgMod, contentScale = if (inHorizontalShelf) ContentScale.Crop else ContentScale.FillWidth)
-            }
+            is PostAttachment.Image -> AsyncImage(att.url, "Image, tap to view", Modifier.fillMaxWidth().aspectRatio(if (inHorizontalShelf) 16f / 7f else 16f / 10f).clip(MaterialTheme.shapes.large).background(MaterialTheme.colorScheme.surfaceContainerHigh).clickable { viewer = listOf(att.url) to 0 }.testTag("channel.post.image"), contentScale = ContentScale.Crop)
             is PostAttachment.MultiImage -> {
-                if (inHorizontalShelf) {
-                    att.images.firstOrNull()?.let { img ->
-                        AsyncImage(img.url, null, Modifier.fillMaxWidth().height(70.dp).clip(MaterialTheme.shapes.medium), contentScale = ContentScale.Crop)
-                    }
-                } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                        att.images.forEach { img ->
-                            AsyncImage(img.url, null, Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium), contentScale = ContentScale.FillWidth)
+                val shown = att.images.take(if (inHorizontalShelf) 2 else 4)
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                    shown.chunked(2).forEach { rowImgs ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                            rowImgs.forEach { img -> AsyncImage(img.url, "Image, tap to view", Modifier.weight(1f).aspectRatio(if (inHorizontalShelf) 16f / 9f else 1f).clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceContainerHigh).clickable { viewer = att.images.map { it.url } to att.images.indexOf(img).coerceAtLeast(0) }.testTag("channel.post.image"), contentScale = ContentScale.Crop) }
+                            if (rowImgs.size < 2) Spacer(Modifier.weight(1f))
                         }
                     }
+                    if (att.images.size > shown.size) Text("+${att.images.size - shown.size} more, tap to see all", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             is PostAttachment.Poll -> {
                 val choices = if (inHorizontalShelf) att.choices.take(2) else att.choices
-                Column(Modifier.fillMaxWidth().padding(vertical = Spacing.xs), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                    choices.forEach { choice ->
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    choices.forEachIndexed { i, choice ->
                         val ratio = choice.voteRatio?.toFloat() ?: 0f
-                        Box(
-                            Modifier.fillMaxWidth().height(if (inHorizontalShelf) 26.dp else 40.dp).clip(MaterialTheme.shapes.small).background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(horizontal = Spacing.sm),
-                            contentAlignment = Alignment.CenterStart
-                        ) {
-                            if (ratio > 0f) {
-                                Box(Modifier.fillMaxHeight().fillMaxWidth(ratio).clip(MaterialTheme.shapes.small).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)))
-                            }
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                Text(choice.text, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                choice.votePercentage?.let { Text(it, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold) }
+                        val shape = com.greenaltambe.vela.ui.settings.segmentedShape(i, choices.size)
+                        Box(Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(shape).background(MaterialTheme.colorScheme.surfaceContainerHigh), contentAlignment = Alignment.CenterStart) {
+                            if (ratio > 0f) Box(Modifier.matchParentSize()) { Box(Modifier.fillMaxHeight().fillMaxWidth(ratio.coerceIn(0f, 1f)).background(MaterialTheme.colorScheme.secondaryContainer)) }
+                            Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.md, vertical = Spacing.xs), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text(choice.text, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                                choice.votePercentage?.let { Text(it, style = MaterialTheme.typography.labelLarge) }
                             }
                         }
                     }
-                    if (!inHorizontalShelf) {
-                        att.totalVotesText?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                    }
+                    // YouTube sends the shares only to a viewer who voted; anonymously a poll is just the choices and the total.
+                    val hasResults = choices.any { it.voteRatio != null || it.votePercentage != null }
+                    val totals = listOfNotNull(att.totalVotesText, if (hasResults) null else "Vote on YouTube to see the results").joinToString(" · ")
+                    if (totals.isNotEmpty()) Text(totals, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = Spacing.xs).testTag("channel.post.pollTotal"))
                 }
             }
             is PostAttachment.Video -> {
                 if (inHorizontalShelf) {
-                    Box(Modifier.fillMaxWidth().height(60.dp).clip(MaterialTheme.shapes.small).background(MaterialTheme.colorScheme.surfaceContainerHigh).clickable { navigator.push(Route.Video(att.video)) }.padding(Spacing.xs)) {
-                        Text(att.video.title, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    }
+                    Text(att.video.title, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceContainerHigh).clickable { navigator.push(Route.Video(att.video)) }.padding(Spacing.sm))
                 } else {
-                    VideoCard(att.video, { navigator.push(Route.Video(att.video)) }, showChannelAvatar = false, style = VideoCardStyle.VERTICAL)
+                    VideoCard(att.video, { navigator.push(Route.Video(att.video)) }, showChannelAvatar = false, style = VideoCardStyle.HORIZONTAL, containerShape = com.greenaltambe.vela.ui.settings.segmentedShape(0, 1))
                 }
             }
-            is PostAttachment.Playlist -> {
-                CourseOrPlaylistCard(att.playlist) { navigator.push(Route.ChannelPlaylist(att.playlist.id, att.playlist.title)) }
-            }
+            is PostAttachment.Playlist -> CourseOrPlaylistCard(att.playlist) { navigator.push(Route.ChannelPlaylist(att.playlist.id, att.playlist.title)) }
             null -> {}
         }
 
-        // Actions: Likes & Comments
-        Row(
-            Modifier.fillMaxWidth().padding(top = Spacing.xs),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.md)
-        ) {
-            post.voteCountText?.let {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                    Icon(AppIcons.like, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (post.voteCountText != null || showComments) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                post.voteCountText?.let {
+                    Icon(AppIcons.like, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(it, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-            }
-            if (post.detailBrowseParams != null) {
-                TextButton(onClick = onOpenDetail, modifier = Modifier.testTag("channel.postComments")) {
-                    Text("Comments")
-                }
+                Spacer(Modifier.weight(1f))
+                if (showComments) FilledTonalButton(onClick = onOpenDetail, shapes = ButtonDefaults.shapes(), modifier = Modifier.testTag("channel.postComments")) { Text("Comments") }
             }
         }
+        viewer?.let { (urls, index) -> ImageViewer(urls, index) { viewer = null } }
     }
 }
 
@@ -907,7 +738,7 @@ private fun SortAndFilterBar(
     selectedOption: ChannelFilterOption?,
     onSelect: (ChannelFilterOption) -> Unit,
 ) {
-    HScrollRow(Modifier.testTag("channel.sort")) {
+    HScrollRow(Modifier.testTag("channel.sort"), contentPadding = PaddingValues(horizontal = Spacing.gutter)) {
         groups.forEach { group ->
             if (group.isDropdown) {
                 item {
@@ -1023,7 +854,7 @@ private fun ChannelAboutContent(
     }
 }
 
-/** Post detail bottom sheet with post comments thread. */
+/** Post detail sheet: the post, then its comments (a failed load says so, with Retry and a way to the post in the browser). */
 @Composable
 private fun PostDetailContent(
     services: AppServices,
@@ -1033,55 +864,104 @@ private fun PostDetailContent(
 ) {
     var comments by remember { mutableStateOf<List<Comment>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var attempt by remember { mutableIntStateOf(0) }
+    val uriHandler = LocalUriHandler.current
 
-    LaunchedEffect(post.detailBrowseParams) {
+    LaunchedEffect(post.detailBrowseParams, attempt) {
+        loading = true
+        error = null
         val params = post.detailBrowseParams
-        if (params != null) {
+        if (params == null) {
+            error = "Comments are not available for this post."
+        } else {
             when (val r = services.extractor.postDetail(params)) {
-                is ExtractorResult.Success -> {
-                    comments = r.value.second
-                }
-                is ExtractorResult.Failure -> {}
+                is ExtractorResult.Success -> comments = r.value.second
+                is ExtractorResult.Failure -> error = "Could not load comments: ${r.error.message}"
             }
         }
         loading = false
     }
 
-    LazyColumn(
-        Modifier.fillMaxWidth().padding(Spacing.md),
-        verticalArrangement = Arrangement.spacedBy(Spacing.md)
-    ) {
+    LazyColumn(Modifier.fillMaxWidth().padding(horizontal = Spacing.gutter).testTag("channel.postDetail"), verticalArrangement = Arrangement.spacedBy(Spacing.sm), contentPadding = PaddingValues(bottom = 32.dp)) {
+        item { PostCard(services, navigator, post, onOpenDetail = {}, showComments = false) }
         item {
-            PostCard(services, navigator, post, onOpenDetail = {})
-        }
-        item {
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-            Text("Comments", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        }
-        if (loading) {
-            item {
-                Box(Modifier.fillMaxWidth().padding(Spacing.md), contentAlignment = Alignment.Center) {
-                    LoadingSpinner(color = MaterialTheme.colorScheme.primary)
-                }
+            Row(Modifier.fillMaxWidth().padding(top = Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
+                Text(if (comments.isEmpty()) "Comments" else "${comments.size} comments", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                TextButton(onClick = { uriHandler.openUri("https://www.youtube.com/post/${post.id}") }, modifier = Modifier.testTag("channel.postOpenBrowser")) { Text("Open in browser") }
             }
-        } else if (comments.isEmpty()) {
-            item {
-                Text("No comments on this post.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        when {
+            loading -> item { Box(Modifier.fillMaxWidth().padding(Spacing.md), contentAlignment = Alignment.Center) { LoadingSpinner(color = MaterialTheme.colorScheme.primary) } }
+            error != null -> item { ErrorRow(error!!, if (post.detailBrowseParams != null) ({ attempt++ }) else null, Modifier.testTag("channel.postCommentsError")) }
+            comments.isEmpty() -> item { Text("No comments on this post.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.testTag("channel.postNoComments")) }
+            else -> items(comments.size, key = { comments[it].id }) { i -> PostCommentThread(services, comments[i]) }
+        }
+    }
+}
+
+/** One comment of a post with its replies folded under a "N replies" button, loaded on demand (the video page's comment threads work the same way). */
+@Composable
+private fun PostCommentThread(services: AppServices, c: Comment) {
+    var open by remember(c.id) { mutableStateOf(false) }
+    var replies by remember(c.id) { mutableStateOf<List<Comment>>(emptyList()) }
+    var next by remember(c.id) { mutableStateOf(c.repliesContinuation) }
+    var loading by remember(c.id) { mutableStateOf(false) }
+    var error by remember(c.id) { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    fun load() {
+        if (loading) return
+        loading = true; error = null
+        scope.launch {
+            when (val r = services.extractor.replies("", c.id, next)) {
+                is ExtractorResult.Success -> { replies = replies + r.value.comments.filter { n -> replies.none { it.id == n.id } }; next = r.value.continuation }
+                is ExtractorResult.Failure -> error = "Could not load replies: ${r.error.message}"
             }
-        } else {
-            items(comments) { comment ->
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    Avatar(comment.author, size = 32.dp)
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                            Text(comment.author, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            if (comment.publishedText.isNotBlank()) {
-                                Text(comment.publishedText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                        Text(comment.text, style = MaterialTheme.typography.bodyMedium)
-                    }
-                }
+            loading = false
+        }
+    }
+    Column(Modifier.fillMaxWidth().padding(vertical = Spacing.xs)) {
+        PostCommentRow(c, avatar = 36.dp)
+        if (c.replyCount > 0 && c.repliesContinuation != null) {
+            TextButton(
+                onClick = { open = !open; if (open && replies.isEmpty()) load() },
+                modifier = Modifier.padding(start = 36.dp + Spacing.sm).testTag("channel.postReplies"),
+            ) {
+                Icon(if (open) AppIcons.chevronUp else AppIcons.chevronDown, null, Modifier.size(18.dp))
+                Spacer(Modifier.width(Spacing.xs))
+                Text(if (open) "Hide replies" else "${c.replyCount} ${if (c.replyCount == 1) "reply" else "replies"}")
+            }
+        } else if (c.replyCount > 0) {
+            Text("${c.replyCount} ${if (c.replyCount == 1) "reply" else "replies"}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 36.dp + Spacing.sm))
+        }
+        AnimatedVisibility(open) {
+            // The replies sit under the comment, indented with a thin line down the side, like the replies of a video comment.
+            val line = MaterialTheme.colorScheme.outlineVariant
+            Column(Modifier.padding(start = 18.dp + Spacing.sm).drawBehind { drawLine(line, androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(0f, size.height), strokeWidth = 2.dp.toPx()) }.padding(start = Spacing.md)) {
+                replies.forEach { r -> PostCommentRow(r, avatar = 28.dp, modifier = Modifier.padding(vertical = Spacing.xs).testTag("channel.postReply")) }
+                if (loading) Box(Modifier.fillMaxWidth().padding(Spacing.sm), contentAlignment = Alignment.CenterStart) { LoadingSpinner(color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp)) }
+                error?.let { ErrorRow(it, { load() }) }
+                if (!loading && error == null && next != null && replies.isNotEmpty()) TextButton(onClick = { load() }, modifier = Modifier.testTag("channel.postRepliesMore")) { Text("Show more replies") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PostCommentRow(c: Comment, avatar: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier) {
+    Row(modifier.fillMaxWidth().testTag("channel.postComment"), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        Avatar(c.author, size = avatar, url = c.authorAvatarUrl)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                Text(c.author, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                if (c.isByCreator) Text("Creator", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.clip(CircleShape).background(MaterialTheme.colorScheme.primary).padding(horizontal = Spacing.xs, vertical = 1.dp))
+                if (c.publishedText.isNotBlank()) Text(c.publishedText, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            }
+            val linkColor = MaterialTheme.colorScheme.primary
+            Text(remember(c.text, linkColor) { linkedText(c.text, linkColor) {} }, style = MaterialTheme.typography.bodyMedium)
+            if (c.likeCount > 0) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Icon(AppIcons.like, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(formatCount(c.likeCount) ?: c.likeCount.toString(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

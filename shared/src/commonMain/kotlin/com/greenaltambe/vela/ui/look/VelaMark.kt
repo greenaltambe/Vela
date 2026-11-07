@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.dp
  * Vela's mark: the sails of the launcher icon, in the theme's colours (red sails and wave, the mast in the text colour). The numbers are the ones of
  * `tools/make-icon.py`, in a 512-unit square around the art (x 130..396, y 84..392).
  */
-private object Mark {
+internal object Mark {
     const val CENTER_X = 263f; const val CENTER_Y = 238f; const val CROP = 330f
     const val SAIL = "M236,98C322,150 388,238 396,334C396,340 392,342 386,342L246,342C240,342 236,338 236,332Z"
     const val JIB = "M208,176C182,226 168,282 164,334C164,340 168,342 174,342L208,342Z"

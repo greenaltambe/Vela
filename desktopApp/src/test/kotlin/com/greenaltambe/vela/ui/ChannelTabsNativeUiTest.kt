@@ -215,6 +215,126 @@ class ChannelTabsNativeUiTest {
     }
 
     @Test
+    fun headerTabsAndVideosNeverOverlapWhileScrolling() = runDesktopComposeUiTest {
+        val manyVideos = (1..20).map { i -> FakeData.videos[0].copy(id = "v$i", title = "Channel Video $i") }
+        val channelExtractor = object : Extractor by FakeExtractor() {
+            override val capabilities = ExtractorCapabilities(channelTabs = true, channelTabFilters = true)
+            override suspend fun channelLanding(channelId: String): ExtractorResult<ChannelLanding> = ExtractorResult.Success(
+                ChannelLanding(
+                    header = ChannelPage(channelId, "Overlap Channel", subscriberCount = 50_000, description = "A channel about things."),
+                    tabs = listOf(ChannelTab(ChannelTabKind.VIDEOS, "Videos", selected = true), ChannelTab(ChannelTabKind.SHORTS, "Shorts")),
+                    initialPage = ChannelTabPage(items = manyVideos.map { ChannelItem.Video(it) }),
+                ),
+            )
+        }
+        val f = buildFixture(withDownloads = false, extractorOverride = channelExtractor)
+        f.navigator.push(Route.Channel("UC_OVERLAP", "Overlap Channel"))
+        setContent { AppUnderTest(f) }
+        waitForIdle()
+
+        fun bounds(tag: String) = onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot
+        repeat(4) { step ->
+            val bar = bounds("topbar"); val tabs = bounds("channel.tabs")
+            assertTrue(tabs.top >= bar.bottom - 1f, "step $step: tabs (${tabs.top}) sit under the top bar (${bar.bottom})")
+            // the tab row never runs under the bar and the list starts at the bar
+            assertTrue(bounds("channel.list").top >= bar.bottom - 1f, "step $step: the list starts under the top bar")
+            onNodeWithTag("channel.list").performTouchInput { swipeUp() }
+            waitForIdle()
+        }
+    }
+
+    private fun postsExtractor(detail: suspend (String) -> ExtractorResult<Pair<ChannelPost, List<Comment>>>, detailParams: String? = "params1") = object : Extractor by FakeExtractor() {
+        val post = ChannelPost(id = "post1", authorName = "Poster", text = "A community post about things", publishedText = "1 day ago", voteCountText = "12", detailBrowseParams = detailParams)
+        override val capabilities = ExtractorCapabilities(channelTabs = true)
+        override suspend fun channelLanding(channelId: String): ExtractorResult<ChannelLanding> = ExtractorResult.Success(
+            ChannelLanding(header = ChannelPage(channelId, "Post Channel", subscriberCount = 1_000), tabs = listOf(ChannelTab(ChannelTabKind.POSTS, "Community", selected = true)), initialPage = ChannelTabPage(items = listOf(ChannelItem.Post(post)))),
+        )
+        override suspend fun postDetail(browseParams: String) = detail(browseParams)
+    }
+
+    @Test
+    fun postCommentsOpenInTheSheetAndAreListed() = runDesktopComposeUiTest {
+        val ex = postsExtractor({ ExtractorResult.Success(ChannelPost("post1", "Poster", text = "x") to listOf(Comment("c1", "@alice", "Great post", likeCount = 65, publishedText = "5 days ago", replyCount = 2), Comment("c2", "@bob", "Agreed"))) })
+        val f = buildFixture(withDownloads = false, extractorOverride = ex)
+        f.navigator.push(Route.Channel("UC_POSTS", "Post Channel"))
+        setContent { AppUnderTest(f) }
+        waitForIdle()
+        onNodeWithTag("channel.postComments").performScrollTo().performClick()
+        waitUntil(timeoutMillis = 5_000) { onAllNodesWithTag("channel.postComment").fetchSemanticsNodes().size == 2 }
+        onNodeWithText("Great post").assertExists()
+        onNodeWithText("2 replies").assertExists()
+    }
+
+    @Test
+    fun postCommentsFailureShowsAnErrorWithRetryNotAnEmptyList() = runDesktopComposeUiTest {
+        var calls = 0
+        val ex = postsExtractor({ calls++; if (calls == 1) ExtractorResult.Failure(ExtractorError.Network("offline")) else ExtractorResult.Success(ChannelPost("post1", "Poster", text = "x") to listOf(Comment("c1", "@alice", "Back again"))) })
+        val f = buildFixture(withDownloads = false, extractorOverride = ex)
+        f.navigator.push(Route.Channel("UC_POSTS2", "Post Channel"))
+        setContent { AppUnderTest(f) }
+        waitForIdle()
+        onNodeWithTag("channel.postComments").performScrollTo().performClick()
+        waitUntil(timeoutMillis = 5_000) { onAllNodesWithTag("channel.postCommentsError").fetchSemanticsNodes().isNotEmpty() }
+        onAllNodesWithTag("channel.postNoComments").assertCountEquals(0)
+        onNodeWithText("Retry").performClick()
+        waitUntil(timeoutMillis = 5_000) { onAllNodesWithTag("channel.postComment").fetchSemanticsNodes().size == 1 }
+        onNodeWithText("Back again").assertExists()
+    }
+
+    @Test
+    fun postWithoutDetailLinkExplainsAndOffersTheBrowser() = runDesktopComposeUiTest {
+        val ex = postsExtractor({ error("never called") }, detailParams = null)
+        val f = buildFixture(withDownloads = false, extractorOverride = ex)
+        f.navigator.push(Route.Channel("UC_POSTS3", "Post Channel"))
+        setContent { AppUnderTest(f) }
+        waitForIdle()
+        onNodeWithTag("channel.postComments").performScrollTo().performClick()
+        waitUntil(timeoutMillis = 5_000) { onAllNodesWithTag("channel.postCommentsError").fetchSemanticsNodes().isNotEmpty() }
+        onNodeWithTag("channel.postOpenBrowser").assertExists()
+    }
+
+    @Test
+    fun repliesOpenUnderTheirCommentAndImagesOpenFullScreen() = runDesktopComposeUiTest {
+        val ex = object : Extractor by FakeExtractor() {
+            val post = ChannelPost(id = "post1", authorName = "Poster", text = "Look", detailBrowseParams = "p", attachment = PostAttachment.MultiImage(listOf(PostAttachment.Image("https://invalid.invalid/1.jpg"), PostAttachment.Image("https://invalid.invalid/2.jpg"))))
+            override val capabilities = ExtractorCapabilities(channelTabs = true)
+            override suspend fun channelLanding(channelId: String) = ExtractorResult.Success(ChannelLanding(ChannelPage(channelId, "Post Channel", subscriberCount = 1_000), listOf(ChannelTab(ChannelTabKind.POSTS, "Community", selected = true)), ChannelTabPage(items = listOf(ChannelItem.Post(post)))))
+            override suspend fun postDetail(browseParams: String) = ExtractorResult.Success(post to listOf(Comment("c1", "@alice", "Top comment", replyCount = 1, repliesContinuation = "n1:R")))
+            override suspend fun replies(videoId: String, commentId: String, continuation: String?) = ExtractorResult.Success(CommentsPage(listOf(Comment("r1", "@bob", "A reply here"))))
+        }
+        val f = buildFixture(withDownloads = false, extractorOverride = ex)
+        f.navigator.push(Route.Channel("UC_REP", "Post Channel"))
+        setContent { AppUnderTest(f) }
+        waitForIdle()
+        // an image opens full screen
+        onAllNodesWithTag("channel.post.image")[0].performScrollTo().performClick()
+        waitUntil(timeoutMillis = 5_000) { onAllNodesWithTag("imageViewer").fetchSemanticsNodes().isNotEmpty() }
+        onNodeWithTag("imageViewer.close").performClick()
+        waitUntil(timeoutMillis = 5_000) { onAllNodesWithTag("imageViewer").fetchSemanticsNodes().isEmpty() }
+        // replies
+        onNodeWithTag("channel.postComments").performScrollTo().performClick()
+        waitUntil(timeoutMillis = 5_000) { onAllNodesWithTag("channel.postReplies").fetchSemanticsNodes().isNotEmpty() }
+        onNodeWithTag("channel.postReplies").performClick()
+        waitUntil(timeoutMillis = 5_000) { onAllNodesWithTag("channel.postReply").fetchSemanticsNodes().isNotEmpty() }
+        onNodeWithText("A reply here").assertExists()
+    }
+
+    @Test
+    fun anonymousPollShowsTheTotalAndSaysWhyThereAreNoResults() = runDesktopComposeUiTest {
+        val ex = object : Extractor by FakeExtractor() {
+            val post = ChannelPost(id = "post1", authorName = "Poster", text = "Pick", attachment = PostAttachment.Poll(listOf(PollChoice("A"), PollChoice("B")), "1.8M votes"))
+            override val capabilities = ExtractorCapabilities(channelTabs = true)
+            override suspend fun channelLanding(channelId: String) = ExtractorResult.Success(ChannelLanding(ChannelPage(channelId, "Poll Channel", subscriberCount = 1_000), listOf(ChannelTab(ChannelTabKind.POSTS, "Community", selected = true)), ChannelTabPage(items = listOf(ChannelItem.Post(post)))))
+        }
+        val f = buildFixture(withDownloads = false, extractorOverride = ex)
+        f.navigator.push(Route.Channel("UC_POLL", "Poll Channel"))
+        setContent { AppUnderTest(f) }
+        waitForIdle()
+        onNodeWithTag("channel.post.pollTotal").performScrollTo().assertTextContains("1.8M votes", substring = true)
+        onNodeWithTag("channel.post.pollTotal").assertTextContains("Vote on YouTube", substring = true)
+    }
+
+    @Test
     fun channelWithUnknownTabRendersIt() = runDesktopComposeUiTest {
         val channelExtractor = object : Extractor by FakeExtractor() {
             override val capabilities = ExtractorCapabilities(channelTabs = true, channelTabFilters = true)

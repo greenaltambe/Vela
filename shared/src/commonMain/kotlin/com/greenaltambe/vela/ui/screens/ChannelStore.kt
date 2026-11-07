@@ -36,6 +36,9 @@ class ChannelState(var at: Instant) {
     var about by mutableStateOf<ChannelAbout?>(null)
     var selectedTabIndex by mutableStateOf(0)
     var searchQuery by mutableStateOf("")
+    /** Where the page's single list was scrolled to. */
+    var listIndex = 0
+    var listOffset = 0
 
     // Per-tab feeds keyed by tab kind or url
     private val tabFeeds = HashMap<String, ChannelTabFeed>()

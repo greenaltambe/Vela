@@ -110,7 +110,9 @@ class AltClientExtractor(
         channelBrowse.postDetail(browseParams)
 
     override suspend fun comments(videoId: String, sort: CommentSort, continuation: String?): ExtractorResult<CommentsPage> = notSupported()
-    override suspend fun replies(videoId: String, commentId: String, continuation: String?): ExtractorResult<CommentsPage> = notSupported()
+    // Replies to a community post's comment carry a native token; video comments' replies are not served here.
+    override suspend fun replies(videoId: String, commentId: String, continuation: String?): ExtractorResult<CommentsPage> =
+        if (continuation != null && continuation.startsWith(NATIVE_TOKEN_PREFIX)) channelBrowse.postCommentReplies(continuation) else notSupported()
 
     override suspend fun videoInfo(videoId: String): ExtractorResult<VideoInfo> = attempt(videoId) { _, json ->
         val d = json["videoDetails"] ?: return@attempt ExtractorResult.Failure(ExtractorError.ParseFailure("no videoDetails"))

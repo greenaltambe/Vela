@@ -205,7 +205,7 @@ class MainActivity : ComponentActivity() {
                     putExtra(android.content.Intent.EXTRA_TEXT, if (title.isBlank()) url else "$title\n$url")
                 }
                 runCatching { startActivity(android.content.Intent.createChooser(send, null)) }
-            }) { App(services, navigator) }
+            }) { App(services, navigator, startupAnimation = true) }
         }
     }
 

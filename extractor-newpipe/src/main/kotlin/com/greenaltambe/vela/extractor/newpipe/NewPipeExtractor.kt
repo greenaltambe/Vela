@@ -229,7 +229,7 @@ class NewPipeExtractor(downloader: () -> Downloader = { OkHttpDownloader() }, pr
     }
 
     override suspend fun replies(videoId: String, commentId: String, continuation: String?): ExtractorResult<CommentsPage> =
-        withPage(continuation) { page ->
+        if (continuation != null && continuation.startsWith("n1:")) ExtractorResult.Failure(ExtractorError.TokenNotMine("Native token passed to NewPipe")) else withPage(continuation) { page ->
             if (page != null) morePage(videoId, page)
             else {
                 // No token given: the reply page hangs off the comment itself, so find the comment in the first page.

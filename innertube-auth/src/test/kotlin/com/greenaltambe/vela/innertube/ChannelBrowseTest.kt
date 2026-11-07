@@ -217,6 +217,77 @@ class ChannelBrowseTest {
     }
 
     @Test
+    fun parsePostCommentsReadsTheViewModelShape() {
+        // The shape YouTube sends now (checked live): a thread holds a commentViewModel (a key); the text, author and counts are entities.
+        val json = lenientJson.parseToJsonElement("""
+            {"onResponseReceivedEndpoints":[{"reloadContinuationItemsCommand":{"continuationItems":[
+              {"commentThreadRenderer":{"commentViewModel":{"commentViewModel":{"commentKey":"k1","commentId":"c1"}}}},
+              {"commentThreadRenderer":{"commentViewModel":{"commentViewModel":{"commentKey":"k2","commentId":"c2"}}}}
+            ]}}],
+            "frameworkUpdates":{"entityBatchUpdate":{"mutations":[
+              {"payload":{"commentEntityPayload":{"key":"k1","properties":{"commentId":"c1","content":{"content":"First!"},"publishedTime":"5 days ago"},
+                "author":{"displayName":"@alice","avatarThumbnailUrl":"https://example.com/a.jpg","isCreator":true},
+                "toolbar":{"likeCountNotliked":"65","replyCount":"1"}}}},
+              {"payload":{"commentEntityPayload":{"key":"k2","properties":{"commentId":"c2","content":{"content":"Second"},"publishedTime":"1 day ago"},
+                "author":{"displayName":"@bob"},"toolbar":{"likeCountNotliked":"","replyCount":"0"}}}}
+            ]}}}
+        """.trimIndent())
+        val comments = ChannelBrowse().parsePostComments(json)
+        assertEquals(listOf("c1", "c2"), comments.map { it.id })
+        val c1 = comments[0]
+        assertEquals("First!", c1.text); assertEquals("@alice", c1.author); assertEquals("5 days ago", c1.publishedText)
+        assertEquals(65L, c1.likeCount); assertEquals(1, c1.replyCount); assertTrue(c1.isByCreator); assertEquals("https://example.com/a.jpg", c1.authorAvatarUrl)
+        assertEquals(0L, comments[1].likeCount)
+    }
+
+    @Test
+    fun parsePostCommentsStillReadsTheOldCommentRenderer() {
+        val json = lenientJson.parseToJsonElement("""{"x":{"commentRenderer":{"commentId":"o1","authorText":{"simpleText":"Old"},"contentText":{"runs":[{"text":"hello"}]},"publishedTimeText":{"runs":[{"text":"2 days ago"}]}}}}""")
+        val comments = ChannelBrowse().parsePostComments(json)
+        assertEquals(1, comments.size); assertEquals("hello", comments[0].text); assertEquals("Old", comments[0].author)
+    }
+
+    @Test
+    fun postDetailPicksTheCommentSectionContinuation() {
+        val json = lenientJson.parseToJsonElement("""
+            {"contents":[
+              {"itemSectionRenderer":{"sectionIdentifier":"backstage-item-section","contents":[{"backstagePostThreadRenderer":{"post":{"backstagePostRenderer":{"postId":"p1","authorText":{"simpleText":"A"},"contentText":{"runs":[{"text":"hi"}]}}}}},
+                {"continuationItemRenderer":{"continuationEndpoint":{"continuationCommand":{"token":"WRONG"}}}}]}},
+              {"itemSectionRenderer":{"sectionIdentifier":"comment-item-section","contents":[{"continuationItemRenderer":{"continuationEndpoint":{"continuationCommand":{"token":"RIGHT"}}}}]}}
+            ]}
+        """.trimIndent())
+        val (post, token) = ChannelBrowse().parsePostDetail(json)!!
+        assertEquals("p1", post.id); assertEquals("RIGHT", token)
+    }
+
+    @Test
+    fun threadRepliesTokenIsKeptOnTheComment() {
+        val json = lenientJson.parseToJsonElement("""
+            {"onResponseReceivedEndpoints":[{"reloadContinuationItemsCommand":{"continuationItems":[
+              {"commentThreadRenderer":{"commentViewModel":{"commentViewModel":{"commentKey":"k1","commentId":"c1"}},
+                "replies":{"commentRepliesRenderer":{"contents":[{"continuationItemRenderer":{"continuationEndpoint":{"continuationCommand":{"token":"REPLIES1"}}}}]}}}}
+            ]}}],
+            "frameworkUpdates":{"entityBatchUpdate":{"mutations":[
+              {"payload":{"commentEntityPayload":{"key":"k1","properties":{"commentId":"c1","content":{"content":"Top"},"publishedTime":"now"},"author":{"displayName":"@a"},"toolbar":{"likeCountNotliked":"1","replyCount":"3"}}}}
+            ]}}}
+        """.trimIndent())
+        val c = ChannelBrowse().parsePostComments(json).single()
+        assertEquals(3, c.replyCount)
+        assertEquals("n1:REPLIES1", c.repliesContinuation, "wrapped so only the native tier takes it")
+    }
+
+    @Test
+    fun playlistLockupThumbnailComesFromTheCollectionThumbnail() {
+        val json = lenientJson.parseToJsonElement("""
+            {"lockupViewModel":{"contentId":"PL1","contentType":"LOCKUP_CONTENT_TYPE_PLAYLIST",
+              "contentImage":{"collectionThumbnailViewModel":{"primaryThumbnail":{"thumbnailViewModel":{"image":{"sources":[{"url":"https://i.ytimg.com/vi/x/small.jpg"},{"url":"https://i.ytimg.com/vi/x/big.jpg"}]}}}}},
+              "metadata":{"lockupMetadataViewModel":{"title":{"content":"My playlist"}}}}}
+        """.trimIndent())
+        val ref = ChannelBrowse().parseLockupPlaylist(json["lockupViewModel"]!!)!!
+        assertEquals("https://i.ytimg.com/vi/x/big.jpg", ref.thumbnailUrl)
+    }
+
+    @Test
     fun parseSearchTabExtractsSearchResults() {
         val json = lenientJson.parseToJsonElement(fixture("search_tab.json"))
         val browse = ChannelBrowse()

@@ -119,11 +119,15 @@ import com.greenaltambe.vela.ui.screens.VideoScreen
  * themselves, so no screen below needs to think about insets.
  */
 @Composable
-fun AppShell(services: AppServices, navigator: Navigator = remember { Navigator() }) {
+fun AppShell(services: AppServices, navigator: Navigator = remember { Navigator() }, startupAnimation: Boolean = false) {
+    val homeFeed = remember { com.greenaltambe.vela.ui.screens.HomeFeedStore() }
+    var splashDone by remember { androidx.compose.runtime.mutableStateOf(!startupAnimation) }
     // Every settings change raises an undo toast from here, over whatever page is open.
     val toasts = remember { com.greenaltambe.vela.ui.look.UndoToasts() }
     com.greenaltambe.vela.ui.look.UndoHost(toasts, Modifier.fillMaxSize(), showHost = false) { androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
-        AppShellContent(services, navigator)
+        AppShellContent(services, navigator, homeFeed)
+        // The ship that sails while the first page loads: ready once Home has its videos (or Home is not the page the app opened on).
+        if (!splashDone) com.greenaltambe.vela.ui.look.StartupSplash(isReady = { homeFeed.loadedAt != null || navigator.current != Route.Home }, onFinished = { splashDone = true })
         val rev by services.settings.revision.collectAsState()
         val on = remember(rev) { services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.debugFrameStats) }
         // 90 Hz phones: 11.1 ms is the frame budget; the report prints through the platform log.
@@ -132,7 +136,7 @@ fun AppShell(services: AppServices, navigator: Navigator = remember { Navigator(
 }
 
 @Composable
-private fun AppShellContent(services: AppServices, navigator: Navigator) {
+private fun AppShellContent(services: AppServices, navigator: Navigator, homeFeed: com.greenaltambe.vela.ui.screens.HomeFeedStore) {
     val route = navigator.current
     val spacing = com.greenaltambe.vela.ui.theme.SpacingTokens()
     val window = LocalWindowControls.current
@@ -188,7 +192,6 @@ private fun AppShellContent(services: AppServices, navigator: Navigator) {
     val exploreStore = remember { com.greenaltambe.vela.ui.screens.ExploreStore() }
     val channelStore = remember { com.greenaltambe.vela.ui.screens.ChannelStore() }
     val searchStore = remember { com.greenaltambe.vela.ui.screens.SearchStore() }
-    val homeFeed = remember { com.greenaltambe.vela.ui.screens.HomeFeedStore() }
     val spaceHold = remember { SpaceHold() }
     val refreshHandle = remember { com.greenaltambe.vela.ui.components.RefreshHandle() }
     val onKey: (androidx.compose.ui.input.key.KeyEvent) -> Boolean = onKey@{ e ->
@@ -274,7 +277,7 @@ private fun AppShellContent(services: AppServices, navigator: Navigator) {
                 val notifRevision by services.notificationsRevision.collectAsState()
                 val notifUnread = com.greenaltambe.vela.ui.screens.rememberAsync(notifRevision, services.activeId, keepWhileLoading = true, first = { false }, compute = { services.notifications.unreadCount() > 0 })
                 Column(Modifier.weight(1f).fillMaxHeight()) {
-                    if (chrome && uiRoute != Route.Shorts && uiRoute !is Route.ShortsPlayer && uiRoute !is Route.Video && uiRoute !is Route.Search && uiRoute != Route.Settings && uiRoute != Route.Accounts && uiRoute != Route.AccountActivity && uiRoute != Route.Health && uiRoute != Route.Backup && uiRoute != Route.DownloadRules && uiRoute != Route.Customize && uiRoute != Route.Notifications && uiRoute != Route.History && uiRoute != Route.Downloads && uiRoute != Route.ManageSubscriptions && uiRoute !is Route.Playlist && uiRoute !is Route.CustomizePage && uiRoute !is Route.SettingsPage) {
+                    if (chrome && uiRoute != Route.Shorts && uiRoute !is Route.ShortsPlayer && uiRoute !is Route.Video && uiRoute !is Route.Search && uiRoute != Route.Settings && uiRoute !is Route.Channel && uiRoute != Route.Accounts && uiRoute != Route.AccountActivity && uiRoute != Route.Health && uiRoute != Route.Backup && uiRoute != Route.DownloadRules && uiRoute != Route.Customize && uiRoute != Route.Notifications && uiRoute != Route.History && uiRoute != Route.Downloads && uiRoute != Route.ManageSubscriptions && uiRoute !is Route.Playlist && uiRoute !is Route.CustomizePage && uiRoute !is Route.SettingsPage) {
                         VelaTopBar(
                             routeTitle(uiRoute), onBack = if (navigator.baseCanGoBack) ({ navigator.back() }) else null,
                             onSearch = ({ navigator.push(Route.Search()) }),

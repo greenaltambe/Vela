@@ -3,6 +3,7 @@
 package com.greenaltambe.vela.ui.search
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -169,14 +170,14 @@ fun ShortsGrid(videos: List<VideoSummary>, onOpen: (VideoSummary) -> Unit, onEnd
 @Composable
 fun TopChannelCard(channel: com.greenaltambe.vela.extractor.ChannelRef, subscribed: Boolean, onSubscribe: () -> Unit, onOpen: () -> Unit, modifier: Modifier = Modifier, bell: (@Composable () -> Unit)? = null) {
     Column(
-        modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraLarge).background(MaterialTheme.colorScheme.secondaryContainer).clickable(onClick = onOpen).padding(Spacing.md).testTag("search.topChannel"),
+        modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraLarge).background(MaterialTheme.colorScheme.surfaceContainerLow).border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.extraLarge).clickable(onClick = onOpen).padding(Spacing.md).testTag("search.topChannel"),
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
             com.greenaltambe.vela.ui.components.Avatar(channel.name, size = 72.dp, url = channel.avatarUrl)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(channel.name, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                com.greenaltambe.vela.ui.components.formatCount(channel.subscriberCount)?.let { Text("$it subscribers", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer) }
+                Text(channel.name, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurface)
+                com.greenaltambe.vela.ui.components.formatCount(channel.subscriberCount)?.let { Text("$it subscribers", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
