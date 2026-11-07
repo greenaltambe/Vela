@@ -27,7 +27,7 @@
 
 - The owner creates the remote, pushes, tags and publishes; the agent never does. See `docs/RELEASING.md` (checklist, GitHub setup) and `docs/BUILDING.md` (commands, signing, Windows).
 - One version: `version.properties` (`VERSION_NAME`). Android `versionCode` and the desktop package version derive from it (`buildSrc/VelaVersion`, tested with `./gradlew -p buildSrc test`).
-- CI is `.github/workflows/ci.yml` (offline tests only, never live tests); releases are `.github/workflows/release.yml` (tag `v<VERSION_NAME>`, draft release). Actions are pinned by commit SHA.
+- CI is `.github/workflows/ci.yml` (offline tests only, never live tests); releases are `.github/workflows/release.yml` (tag `v<VERSION_NAME>`, published release, signed APK). Actions are pinned by commit SHA.
 - After changing dependencies run `./gradlew generateThirdPartyNotices` (CI checks `THIRD_PARTY_NOTICES.md`).
 - Never commit device screenshots of a real account, cookies, keystores or personal data; the `.gitignore` and the CI secret scan back this up.
 - Desktop packaging: `:desktopApp:packageLinux` (deb/rpm with dependencies), `:desktopApp:portableTarball` / `portableZip`, `:desktopApp:smokeTest` (also `vela --smoke-test`). Windows is experimental.

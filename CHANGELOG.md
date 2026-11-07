@@ -5,6 +5,29 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [0.2.0-beta.1]
+
+### Added
+- Material 3 Expressive throughout: one red theme (light, dark or system), expressive navigation bar and rail, large collapsing app bars, segmented lists, morphing buttons and chips, wavy progress and loading indicators.
+- Redesigned Settings (two panes on wide windows), Library, History, Downloads, playlists, Search (result types, filters sheet, a mixed "All" page with a channel card and Shorts blocks), Subscriptions (the Following strip, an All channels page with a bell per channel), the video page, description sheet, player controls, comments and the Shorts player.
+- Notifications: a bell in the top bar opens a feed of new videos from your subscriptions, finished downloads and health alerts; each channel has an All / Personalized / None bell next to Subscribe; a background check runs every few hours on Android.
+- Wavy (Material) seek bar, the new default; the earlier styles remain in Settings > Customize.
+- A new app icon.
+- Downloads waiting for Wi-Fi now explain why and offer "Use mobile data" and a shortcut to the download settings.
+- Download is a split button on the video page (start now, or choose quality).
+
+### Changed
+- Palettes, fonts, icon packs, shapes and glass settings were removed in favour of the single Material 3 Expressive look (the theme and progress bar choices remain).
+- Switching tabs is a quick cross-fade; the player sheet and the mini player redraw far less while playing, dragging or paused.
+- Opening Shorts clears the mini player instead of leaving it docked.
+- Video descriptions from sources that return HTML now show plain text with real links.
+- Release builds from CI are always signed (see docs/RELEASING.md) and the release is published, not left as a draft.
+
+### Fixed
+- Playback failed with a 403 for signed-in users because yt-dlp picked a client whose links need a PO token; Vela now asks for the web_safari client.
+- Search results opened scrolled down because the list anchored on its footer.
+- The comment placeholder looked like a video card.
+
 ## [0.1.1-beta.3]
 
 ### Added

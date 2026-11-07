@@ -1,0 +1,21 @@
+# Hand-written baseline profile: the app's own UI and player code, marked hot (H), startup (S) and post-startup (P), so a release build is
+# ahead-of-time compiled where scrolling, navigation and the player morph run. Compose, Media3 and coil ship their own profiles.
+# A measured profile (Macrobenchmark) would be narrower; this one trades size for being correct without a device.
+HSPLcom/greenaltambe/vela/MainActivity;->**(**)**
+HSPLcom/greenaltambe/vela/ui/AppShell**;->**(**)**
+HSPLcom/greenaltambe/vela/ui/screens/**;->**(**)**
+HSPLcom/greenaltambe/vela/ui/components/**;->**(**)**
+HSPLcom/greenaltambe/vela/ui/player/**;->**(**)**
+HSPLcom/greenaltambe/vela/ui/nav/**;->**(**)**
+HSPLcom/greenaltambe/vela/ui/theme/**;->**(**)**
+HSPLcom/greenaltambe/vela/ui/look/**;->**(**)**
+HSPLcom/greenaltambe/vela/ui/search/**;->**(**)**
+HSPLcom/greenaltambe/vela/ui/settings/**;->**(**)**
+HSPLcom/greenaltambe/vela/player/**;->**(**)**
+HSPLcom/greenaltambe/vela/feed/**;->**(**)**
+HSPLcom/greenaltambe/vela/home/**;->**(**)**
+HSPLcom/greenaltambe/vela/data/**;->**(**)**
+HSPLcom/greenaltambe/vela/playback/**;->**(**)**
+Lcom/greenaltambe/vela/ui/**;
+Lcom/greenaltambe/vela/player/**;
+Lcom/greenaltambe/vela/playback/**;

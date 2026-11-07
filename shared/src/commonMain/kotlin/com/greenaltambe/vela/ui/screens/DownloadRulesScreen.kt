@@ -92,7 +92,7 @@ fun DownloadRulesScreen(services: AppServices, navigator: Navigator, modifier: M
             Column(Modifier.navigationBarsPadding().padding(horizontal = Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 Text(r.name, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("Quality", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) { listOf(360, 480, 720, 1080, null).forEach { h -> FilterChip(height == h, { height = h }, label = { Text(h?.let { "${it}p" } ?: "Best") }) } }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) { listOf(360, 480, 720, 1080, null).forEach { h -> com.greenaltambe.vela.ui.components.ExpressiveChip(height == h, h?.let { "${it}p" } ?: "Best", { height = h }) } }
                 Column(verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
                     SwitchRow("Audio only", "Download just the sound.", audio, { audio = it }, segmentedShape(0, 2), "rules.audio")
                     SwitchRow("Only on Wi-Fi", "Wait for an unmetered connection.", wifi, { wifi = it }, segmentedShape(1, 2), "rules.wifi")

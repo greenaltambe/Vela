@@ -1,6 +1,6 @@
 # Releasing
 
-Maintainers only. The workflows never push, tag or publish by themselves: a tag starts a build, and the result is a **draft** release that you publish by hand.
+Maintainers only. The workflows never push, tag or publish by themselves: a tag starts a build, and the result is a **published** release anyone can download.
 
 ## Release checklist
 
@@ -11,8 +11,8 @@ Maintainers only. The workflows never push, tag or publish by themselves: a tag 
 5. Commit, then **dry run**: Actions > `release` > Run workflow (workflow_dispatch) on `main`. It builds the APK, the Linux packages and the Windows packages, runs the smoke tests and uploads the artifacts; it creates no release.
    Download the artifacts and try them (install the APK, run `bin/vela --smoke-test`, start the Windows build on a real machine).
 6. Tag and push: `git tag v0.1.0-beta.2 && git push origin v0.1.0-beta.2`. The tag must equal `v` + `VERSION_NAME`, or the workflow stops at its first job.
-7. The `publish` job creates a **draft** release with all files, `SHA256SUMS`, and build provenance attestations (marked pre-release when the tag contains `-alpha`, `-beta` or `-rc`).
-8. Check the draft: file names (`Vela-<version>-android-arm64.apk`, `...-linux-amd64.deb`, `...-linux-x86_64.rpm`, `...-linux-x64.tar.gz`, `...-windows-x64.msi`, `...-windows-x64.zip`), that the APK is **signed** (not `-unsigned`), and the checksums
+7. The `publish` job creates a **published** release (pre-release when the tag has a stage) with all files, `SHA256SUMS`, and build provenance attestations (marked pre-release when the tag contains `-alpha`, `-beta` or `-rc`).
+8. Check the release: file names (`Vela-<version>-android-arm64.apk`, `...-linux-amd64.deb`, `...-linux-x86_64.rpm`, `...-linux-x64.tar.gz`, `...-windows-x64.msi`, `...-windows-x64.zip`), that the APK is **signed** (not `-unsigned`), and the checksums
    (`sha256sum -c SHA256SUMS`). `gh attestation verify <file> --repo <owner>/<repo>` verifies provenance. Then publish the release.
 9. **Rollback**: do not delete users' ability to update. If a release is bad, mark it pre-release or delete the *release* (not the tag history of signed builds you want to keep), publish a fixed version with a higher `VERSION_NAME`
    (Android refuses downgrades, so a fix is always a new, higher version), and note it in the changelog.
@@ -39,3 +39,7 @@ Without them the APK is built **unsigned** (named `-unsigned`). Create the key w
 7. Run the workflows in the private repository: `ci` (push), then `release` via workflow_dispatch. Fix what fails (paste `gh run view --log-failed` into the next task).
 8. Read `docs/reports/46-publish-prep.md` section 1: the git **history** contains personal screenshots and an account label that the working tree no longer has. Publish a fresh squashed history (or rewrite it) before making the repository public.
 9. Only then: Settings > General > Danger zone > Change visibility > Public.
+
+
+## Signing and who can install the APK
+The Android release job signs the APK. With the four secrets (`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`) it uses your own key, and updates install over earlier releases. Without them it creates a key for that run, so the APK is still signed and installable by anyone, but a later release is signed with a different key and Android asks to uninstall first. Add the secrets once to keep upgrades smooth.

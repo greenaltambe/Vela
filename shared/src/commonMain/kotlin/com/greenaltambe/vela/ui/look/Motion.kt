@@ -56,6 +56,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -150,8 +151,12 @@ fun Modifier.shimmer(): Modifier {
     if (m.reduced || !LocalAnimationsActive.current) return this.background(base)
     androidx.compose.runtime.DisposableEffect(Unit) { ActiveLoops.started(); onDispose { ActiveLoops.stopped() } }
     val t = rememberInfiniteTransition(label = "shimmer")
-    val x by t.animateFloat(-1f, 2f, infiniteRepeatable(tween(VelaMotion.durationMs(m, VelaMotion.Level.SLOW) * 4, easing = LinearEasing), RepeatMode.Restart), label = "shimmerX")
-    return this.background(Brush.linearGradient(listOf(base, hi, base), start = androidx.compose.ui.geometry.Offset(x * 600f, 0f), end = androidx.compose.ui.geometry.Offset(x * 600f + 400f, 200f)))
+    val x = t.animateFloat(-1f, 2f, infiniteRepeatable(tween(VelaMotion.durationMs(m, VelaMotion.Level.SLOW) * 4, easing = LinearEasing), RepeatMode.Restart), label = "shimmerX")
+    // The sweep is read while drawing: 60 or 120 frames a second redraw the block and recompose nothing.
+    return this.background(base).drawBehind {
+        val at = x.value * 600f
+        drawRect(Brush.linearGradient(listOf(base, hi, base), start = androidx.compose.ui.geometry.Offset(at, 0f), end = androidx.compose.ui.geometry.Offset(at + 400f, 200f)))
+    }
 }
 
 /** One toast: [message] and an optional Undo. */

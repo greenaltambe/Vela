@@ -684,12 +684,19 @@ fun VideoScreen(
                         val p = progressNow()
                         val w = (miniWidthPx + (fullWidthPx - miniWidthPx) * p).roundToInt()
                         val h = (miniHeightPx + (fullHeightPx - miniHeightPx) * p).roundToInt()
-                        val placeable = measurable.measure(androidx.compose.ui.unit.Constraints.fixed(w, h))
-                        layout(w, h) { placeable.place((miniLeftPx * (1f - p)).roundToInt(), (fullTopPx * p + miniTopPx * (1f - p)).roundToInt()) }
-                    }
-                    .graphicsLayer {
-                        shape = RoundedCornerShape((cornerBaseDp * (1f - progressNow())).dp.toPx())
-                        clip = true
+                        // The picture is always measured at its full size (so the player, its controls and the video surface are laid out once) and
+                        // drawn scaled down to the current size: the morph costs a transform per frame, not a re-measure of everything inside.
+                        val placeable = measurable.measure(androidx.compose.ui.unit.Constraints.fixed(fullWidthPx, fullHeightPx))
+                        layout(w, h) {
+                            placeable.placeWithLayer((miniLeftPx * (1f - p)).roundToInt(), (fullTopPx * p + miniTopPx * (1f - p)).roundToInt()) {
+                                val q = progressNow()
+                                val scale = (miniWidthPx + (fullWidthPx - miniWidthPx) * q) / fullWidthPx
+                                scaleX = scale; scaleY = scale
+                                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
+                                shape = RoundedCornerShape((cornerBaseDp * (1f - q)).dp.toPx() / scale)
+                                clip = true
+                            }
+                        }
                     }
                     .then(if (tapToExpand && onExpand != null) Modifier.clickable { onExpand() } else Modifier)
             ) {

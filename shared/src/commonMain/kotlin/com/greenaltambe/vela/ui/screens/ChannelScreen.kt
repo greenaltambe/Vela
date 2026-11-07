@@ -266,12 +266,12 @@ fun ChannelScreen(
                 verticalArrangement = Arrangement.spacedBy(Spacing.sm)
             ) {
                 pageHeader?.bannerUrl?.let { banner ->
-                    AsyncImage(banner, null, Modifier.fillMaxWidth().aspectRatio(16f / 4.5f).clip(MaterialTheme.shapes.medium).testTag("channel.banner"), contentScale = ContentScale.Crop)
+                    AsyncImage(banner, null, Modifier.fillMaxWidth().aspectRatio(16f / 4.5f).clip(MaterialTheme.shapes.extraLarge).testTag("channel.banner"), contentScale = ContentScale.Crop)
                 }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                    Avatar(name, size = 64.dp, url = pageHeader?.avatarUrl)
+                    Avatar(name, size = 72.dp, url = pageHeader?.avatarUrl)
                     Column(Modifier.weight(1f)) {
-                        Text(name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("channel.name"))
+                        Text(name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("channel.name"))
                         formatCount(pageHeader?.subscriberCount)?.let { Text("$it subscribers", style = MaterialTheme.typography.bodySmall, maxLines = 1, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     }
                 }
@@ -281,25 +281,28 @@ fun ChannelScreen(
                         ChannelBell(services, channelId)
                     }
                 } else {
-                    PrimaryButton("Subscribe", onClick = { services.subscriptions.subscribe(channelId, name, pageHeader?.avatarUrl, services.clock.now()); subscribed = true }, modifier = Modifier.testTag("channel.subscribe"))
+                    com.greenaltambe.vela.ui.components.SubscribeButton(false, onClick = { services.subscriptions.subscribe(channelId, name, pageHeader?.avatarUrl, services.clock.now()); subscribed = true }, modifier = Modifier.testTag("channel.subscribe"))
                 }
 
                 if (subscribed && services.downloads != null) {
                     var auto by remember(channelId) { mutableStateOf(services.autoDownloadRules.ruleFor(channelId)?.enabled == true) }
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    Row(
+                        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraLarge).background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(horizontal = Spacing.md, vertical = Spacing.xs),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        Text("Download new videos automatically", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, maxLines = 2)
                         androidx.compose.material3.Switch(auto, {
                             auto = it
                             if (it) services.autoDownloadRules.upsert(com.greenaltambe.vela.downloads.AutoDownloadRule(channelId, name, sinceMs = services.clock.now().toEpochMilliseconds()))
                             else services.autoDownloadRules.ruleFor(channelId)?.let { r -> services.autoDownloadRules.upsert(r.copy(enabled = false)) }
                         }, modifier = Modifier.testTag("channel.autoDownload"))
-                        Text("Download new videos automatically", style = MaterialTheme.typography.bodyMedium, maxLines = 2)
                     }
                 }
 
                 // Short description snippet that opens About sheet
                 pageHeader?.description?.takeIf { it.isNotBlank() }?.let { desc ->
                     Row(
-                        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceContainerHigh).clickable { aboutSheetOpen = true }.padding(Spacing.sm).testTag("channel.aboutTrigger"),
+                        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraLarge).background(MaterialTheme.colorScheme.surfaceContainerHigh).clickable { aboutSheetOpen = true }.padding(horizontal = Spacing.md, vertical = Spacing.sm).testTag("channel.aboutTrigger"),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(desc, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -907,12 +910,7 @@ private fun SortAndFilterBar(
                     var expanded by remember { mutableStateOf(false) }
                     val activeLabel = group.options.firstOrNull { it.selected || it == selectedOption }?.label ?: group.title ?: "Sort by"
                     Box {
-                        FilterChip(
-                            selected = true,
-                            onClick = { expanded = true },
-                            label = { Text(activeLabel) },
-                            modifier = Modifier.testTag("channel.sortDropdown")
-                        )
+                        com.greenaltambe.vela.ui.components.ExpressiveChip(true, activeLabel, { expanded = true }, Modifier.testTag("channel.sortDropdown"))
                         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                             group.options.forEach { opt ->
                                 DropdownMenuItem(
@@ -929,12 +927,7 @@ private fun SortAndFilterBar(
             } else {
                 items(group.options) { opt ->
                     val isSelected = opt == selectedOption || (selectedOption == null && opt.selected)
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { onSelect(opt) },
-                        label = { Text(opt.label) },
-                        modifier = Modifier.testTag("channel.sort.${opt.label.lowercase().replace(' ', '_')}")
-                    )
+                    com.greenaltambe.vela.ui.components.ExpressiveChip(isSelected, opt.label, { onSelect(opt) }, Modifier.testTag("channel.sort.${opt.label.lowercase().replace(' ', '_')}"))
                 }
             }
         }

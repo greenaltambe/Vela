@@ -80,7 +80,7 @@ fun ExploreScreen(services: AppServices, navigator: Navigator, modifier: Modifie
             services, navigator, shown, state, Modifier, testTag = "explore.list", scroll = entry.scroll,
             header = {
                 com.greenaltambe.vela.ui.components.ChipRow(Modifier.testTag("explore.topics")) {
-                    items(listOf(TRENDING) + ExploreTopics) { t -> FilterChip(selected = topic == t, onClick = { topic = t }, label = { Text(t, maxLines = 1) }, modifier = Modifier.testTag("explore.topic.$t")) }
+                    items(listOf(TRENDING) + ExploreTopics) { t -> com.greenaltambe.vela.ui.components.ExpressiveChip(topic == t, t, { topic = t }, Modifier.testTag("explore.topic.$t")) }
                 }
             },
             onEndReached = { if (videos.continuation != null && !loading && state == ListState.Ready) load(more = true) },

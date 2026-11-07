@@ -60,6 +60,21 @@ jobs:
       - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
       - name: Accept Android SDK licences
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+      - name: Signing key (the repository secrets, or a key made for this run)
+        run: |
+          set -euo pipefail
+          if [ -z "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            # No secrets: an APK that is not signed cannot be installed, so this run signs with a key it creates itself. Anyone can install the result;
+            # an update from an earlier release needs the same key, so add the four secrets (docs/RELEASING.md) to keep upgrades working.
+            pass=$(head -c 24 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 20)
+            keytool -genkeypair -v -keystore "$RUNNER_TEMP/release.jks" -storetype PKCS12 -alias vela -keyalg RSA -keysize 4096 -validity 10000 \
+              -dname "CN=Vela release, O=Vela" -storepass "$pass" -keypass "$pass" > /dev/null
+            echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+            echo "ANDROID_KEYSTORE_PASSWORD=$pass" >> "$GITHUB_ENV"
+            echo "ANDROID_KEY_ALIAS=vela" >> "$GITHUB_ENV"
+            echo "ANDROID_KEY_PASSWORD=$pass" >> "$GITHUB_ENV"
+            echo "::notice::No signing secrets: signed with a key created for this run."
+          fi
       - name: Build the release APK
         run: ./gradlew :androidApp:collectReleaseApk
       - name: Verify the signature (signed builds only)
@@ -178,7 +193,7 @@ jobs:
           if-no-files-found: error
 
   publish:
-    name: draft GitHub release
+    name: GitHub release
     # Only a real tag creates a release; a manual run stops after the artifacts above.
     if: github.ref_type == 'tag'
     needs: [version, android, linux, windows]
@@ -210,7 +225,7 @@ jobs:
           awk -v v="$VERSION" '$0 ~ "^## \\[" v "\\]" {on=1; next} on && /^## \[/ {exit} on {print}' CHANGELOG.md > notes.md
           [ -s notes.md ] || { echo "No CHANGELOG.md section for $VERSION" >&2; exit 1; }
           cat notes.md
-      - name: Create the DRAFT release (the owner publishes it by hand)
+      - name: Publish the release (anyone can download it)
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
@@ -218,4 +233,4 @@ jobs:
           set -euo pipefail
           flag=""
           case "$TAG" in *-beta*|*-rc*|*-alpha*) flag="--prerelease" ;; esac
-          gh release create "$TAG" release/* --draft $flag --title "Vela $TAG" --notes-file notes.md
+          gh release create "$TAG" release/* $flag --title "Vela $TAG" --notes-file notes.md --verify-tag
