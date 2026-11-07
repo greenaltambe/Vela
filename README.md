@@ -5,18 +5,6 @@ your subscriptions, history, playlists and downloads stay on your device, and th
 
 > **Beta (0.2.0-beta.1).** Android is the primary platform and Linux is supported. **Windows is experimental** (see below).
 
-| | | |
-|---|---|---|
-| ![Home on a phone](docs/screenshots/home-phone.png) | ![Video page](docs/screenshots/video-phone.png) | ![Search](docs/screenshots/search-phone.png) |
-| ![Library](docs/screenshots/library-phone.png) | ![Settings](docs/screenshots/settings-phone.png) | |
-
-| |
-|---|
-| ![Desktop home with the side rail](docs/screenshots/home-desktop.png) |
-| ![Desktop video page](docs/screenshots/video-desktop.png) |
-
-*(Screens of a test build with sample data, so pictures are grey placeholders; the interface evolves between betas.)*
-
 ## Disclaimer
 
 Vela is an independent project. It is **not affiliated with, endorsed by or connected to YouTube or Google.** Using a third-party client may go against YouTube's

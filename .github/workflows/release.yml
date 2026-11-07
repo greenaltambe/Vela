@@ -69,10 +69,12 @@ jobs:
             pass=$(head -c 24 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 20)
             keytool -genkeypair -v -keystore "$RUNNER_TEMP/release.jks" -storetype PKCS12 -alias vela -keyalg RSA -keysize 4096 -validity 10000 \
               -dname "CN=Vela release, O=Vela" -storepass "$pass" -keypass "$pass" > /dev/null
-            echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
-            echo "ANDROID_KEYSTORE_PASSWORD=$pass" >> "$GITHUB_ENV"
-            echo "ANDROID_KEY_ALIAS=vela" >> "$GITHUB_ENV"
-            echo "ANDROID_KEY_PASSWORD=$pass" >> "$GITHUB_ENV"
+            {
+              echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.jks"
+              echo "ANDROID_KEYSTORE_PASSWORD=$pass"
+              echo "ANDROID_KEY_ALIAS=vela"
+              echo "ANDROID_KEY_PASSWORD=$pass"
+            } >> "$GITHUB_ENV"
             echo "::notice::No signing secrets: signed with a key created for this run."
           fi
       - name: Build the release APK
