@@ -1,60 +1,31 @@
 # Vela
 
-A YouTube client for Android and the desktop that keeps working. Every video can come from several sources, tried in order (anonymous first, your account last),
-your subscriptions, history, playlists and downloads stay on your device, and the look is Material 3 Expressive, in light, dark or following your system.
+A YouTube client for Android and Linux that keeps working. Your subscriptions, history, playlists and downloads live on your device, and if one way of getting a
+video fails, Vela quietly tries the next one. It looks like Material 3 Expressive, in light, dark or whatever your system uses.
 
-> **Beta (0.2.0-beta.1).** Android is the primary platform and Linux is supported. **Windows is experimental** (see below).
+> **Beta (0.2.0-beta.1).** Android is the main platform, Linux works well, Windows is experimental.
 
-## Disclaimer
+## What you get
 
-Vela is an independent project. It is **not affiliated with, endorsed by or connected to YouTube or Google.** Using a third-party client may go against YouTube's
-terms of service; **use is at your own risk**, and an account you sign in with could be limited or closed. Vela never uses third-party "solver" services.
-Accounts are optional and used last: the default is "only on failure", with pacing, budgets and a kill switch (see [docs/SPEC.md](docs/SPEC.md) section 4 and
-[docs/reports/14-reliability.md](docs/reports/14-reliability.md)). **Use a throwaway account** for testing.
-
-## Features
-
-- **Watching**: Home, Explore, search for videos, channels and playlists, channels with all their tabs, playlists, Shorts, live streams and chat, chapters, captions, audio tracks, speed, sleep timer, autoplay, mini player, picture-in-picture. SponsorBlock, Return YouTube Dislike and DeArrow as switchable modules.
-- **Reliability chain**: anonymous NewPipeExtractor, an alternate client, yt-dlp, then your account; it remembers what works, shows which source served each video and runs health checks. Signed remote configuration can retune client profiles without a new build.
-- **Accounts and safety**: optional Google accounts (several), credentials in the platform secret store, a governor that paces and budgets every account request, a kill switch.
-- **Offline**: downloads (quality, queue, storage cap), automatic download rules, per-account local history, subscriptions and playlists, backup and restore.
-- **Look**: Material 3 Expressive in red, light / dark / system theme, a choice of seek-bar styles (wavy by default), Home shelves you can reorder.
-- **Keyboard**: shortcuts for playback and navigation, media keys (MPRIS) on Linux.
-
-## Platforms
-
-| Platform | Status | Package |
-|---|---|---|
-| Android 7.0+ (arm64) | Primary | APK (sideload) |
-| Linux x86_64 | Supported | `.deb`, `.rpm`, portable `.tar.gz` |
-| Windows 10/11 x64 | **Experimental**: packaged and smoke-tested, not feature-complete | `.msi`, portable `.zip` |
+- Home, search, channels, playlists, Shorts, live streams and chat, chapters, captions, speed, sleep timer, mini player and picture-in-picture
+- SponsorBlock, Return YouTube Dislike and DeArrow, each one a switch you can turn off
+- Downloads with subtitles, automatic download rules, backup and restore
+- Local history, subscriptions with new-upload notifications, and playlists, all without signing in
+- Optional Google accounts, used only when everything else fails
+- Keyboard shortcuts and media keys on desktop
 
 ## Install
 
-Download from the [Releases](../../releases) page and **verify the checksum** against `SHA256SUMS` (`sha256sum -c SHA256SUMS --ignore-missing`). Release files also carry build provenance attestations (`gh attestation verify <file> --repo <owner>/<repo>`).
+Grab a file from the [Releases](../../releases) page.
 
-- **Android**: allow installing from your browser/files app, open the `.apk`. Updates are only possible between builds signed with the same key. A file named `-unsigned` is a development build and cannot be updated over a signed one.
-- **Linux (.deb, Debian/Ubuntu)**: `sudo apt install ./Vela-<version>-linux-amd64.deb`. It needs `libmpv2` (Ubuntu 24.04+, Debian 12+); on Ubuntu 22.04 install `libmpv1` instead and ignore the unmet dependency with `sudo dpkg -i --ignore-depends=libmpv2 ...`.
-- **Linux (.rpm, Fedora)**: `sudo dnf install ./Vela-<version>-linux-x86_64.rpm` (pulls `mpv-libs`).
-- **Linux (portable)**: unpack the `.tar.gz`, run `Vela-<version>/bin/vela`. Install libmpv yourself (`mpv-libs` / `libmpv2`).
-- Recommended on Linux: `ffmpeg` (merging downloads) and `libsecret`/`secret-tool` (credential storage; without it an encrypted file is used). yt-dlp is found on your system or managed by the app.
-- **Windows (experimental)**: run the `.msi` (per-user) or unpack the `.zip` and run `vela.exe`. See the list of gaps below.
+- **Android 7.0+**: open the `.apk` (you may need to allow installs from your browser or files app).
+- **Linux**: `.deb` (`sudo apt install ./Vela-<version>-linux-amd64.deb`), `.rpm` (`sudo dnf install ./Vela-<version>-linux-x86_64.rpm`) or the portable `.tar.gz`.
+  Vela needs `libmpv` for playback; `ffmpeg` is nice to have for merging downloads.
+- **Windows (experimental)**: the `.msi` or `.zip`. Expect rough edges, and SmartScreen will warn because the installer isn't code-signed.
 
-### First run
+Each release has a `SHA256SUMS` file if you want to check your download.
 
-- yt-dlp: on desktop the app uses the newest it finds, or can keep its own copy up to date (Settings > Updates). On Android it is built in.
-- Age-restricted videos are **off** by default; enable them in Settings > Account safety if you want them (they may need an account).
-- Nothing is sent to an account until you sign in; "Local" mode keeps everything on the device.
-
-### Windows (experimental): known gaps
-
-- Playback needs `libmpv-2.dll`. The official release files include a pinned build next to the app; if you built from source, put `libmpv-2.dll` next to `vela.exe` or on `PATH` (see [docs/BUILDING.md](docs/BUILDING.md)). Without it the app runs but cannot play.
-- Account credentials are stored with Windows DPAPI (per user). If DPAPI is unavailable, signing in is disabled rather than storing anything unprotected.
-- No media keys / system media controls (MPRIS is Linux-only), no desktop notifications for downloads, no `ffmpeg` bundled (install it to merge downloads).
-- The yt-dlp updater uses the `yt-dlp.exe` asset (checksum verified) but has had little real-world testing; the installer is not code-signed, so SmartScreen will warn.
-- Compared with Android and Linux it has had far less testing; expect rough edges.
-
-## Build from source
+## Build it yourself
 
 ```
 git clone <this repository> && cd Vela
@@ -62,22 +33,15 @@ git clone <this repository> && cd Vela
 ./gradlew :desktopApp:run                # desktop (needs libmpv)
 ```
 
-Requirements, packaging, signing and Windows notes: [docs/BUILDING.md](docs/BUILDING.md). Releasing: [docs/RELEASING.md](docs/RELEASING.md).
+More in [docs/BUILDING.md](docs/BUILDING.md). Tests: `./gradlew allTests`. Releasing: [docs/RELEASING.md](docs/RELEASING.md).
 
-## Tests
+## A word of caution
 
-- `./gradlew allTests test`: all **offline** tests (this is what CI runs; it needs a display or `xvfb-run` for the UI tests).
-- **Live** tests use the real network and real tools (NewPipe, yt-dlp, libmpv, a signed-in throwaway account) and are **never** part of CI: `./gradlew :extractor-newpipe:liveTest :extractor-ytdlp:liveTest` and the other modules' `liveTest` tasks. Account tests need `VELA_TEST_COOKIES` pointing at a cookies file of a throwaway account (kept outside the repository).
+Vela is an independent project and is **not affiliated with YouTube or Google**. Third-party clients may go against YouTube's terms, so use it at your own risk,
+and if you sign in, use a throwaway account. More detail in [docs/SPEC.md](docs/SPEC.md).
 
-## Documentation
+## More
 
-[docs/README.md](docs/README.md) is the index: the spec, the design notes, and a report for every piece of work (what was verified, what was not).
+[Docs](docs/README.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 
-## Licence
-
-Vela is free software under the **GNU General Public License v3.0 or later** (see [LICENSE](LICENSE)); it builds on NewPipeExtractor and youtubedl-android (GPL-3.0) and other open-source
-components listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The About screen lists the main ones.
-
-## Security
-
-Report vulnerabilities privately: see [SECURITY.md](SECURITY.md). Contributing: [CONTRIBUTING.md](CONTRIBUTING.md).
+Vela is free software under the **GPL v3 or later** ([LICENSE](LICENSE)). It builds on NewPipeExtractor and youtubedl-android.
