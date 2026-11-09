@@ -51,7 +51,7 @@ fun ProfileButton(services: AppServices, onClick: () -> Unit) {
     val account by services.accounts.active.collectAsState()
     // The picture in one of Material's expressive shapes (a nine-sided cookie), on a tonal ring of the same shape.
     val cookie = androidx.compose.material3.MaterialShapes.Cookie9Sided.toShape()
-    androidx.compose.foundation.layout.Box(Modifier.size(44.dp).clip(cookie).background(MaterialTheme.colorScheme.primaryContainer).clickable(onClick = onClick).padding(4.dp).testTag("profile.button"), contentAlignment = Alignment.Center) {
+    androidx.compose.foundation.layout.Box(Modifier.size(44.dp).clip(cookie).background(MaterialTheme.colorScheme.primaryContainer).border(1.dp, MaterialTheme.colorScheme.outlineVariant, cookie).clickable(onClick = onClick).padding(4.dp).testTag("profile.button"), contentAlignment = Alignment.Center) {
         Avatar(if (account.kind == AccountKind.LOCAL) "Local" else account.displayName, size = 36.dp, url = account.avatarUrl.takeIf { account.kind != AccountKind.LOCAL }, shape = cookie)
     }
 }

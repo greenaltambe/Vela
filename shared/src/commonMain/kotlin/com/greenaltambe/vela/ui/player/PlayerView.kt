@@ -347,7 +347,7 @@ fun PlayerView(
                 // In fullscreen the controls keep clear of the screen's edges (a phone's rounded corners and bezel swallow anything flush against them).
                 Box(Modifier.fillMaxSize().then(if (fullscreen) Modifier.padding(horizontal = Spacing.gutter * 1.5f, vertical = Spacing.md) else Modifier)) {
                 // Top: back.
-                Row(Modifier.align(Alignment.TopStart).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.align(Alignment.TopStart).fillMaxWidth().padding(Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
                     if (onBack != null) ControlButton({ touch(); onBack() }, modifier = Modifier.testTag("player.back")) {
                         Icon(AppIcons.back, "Back", tint = onMedia)
                     }

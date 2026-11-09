@@ -35,9 +35,9 @@ fun SkeletonCard(vertical: Boolean, modifier: Modifier = Modifier, fullBleed: Bo
     if (vertical) {
         val gutter = Spacing.gutter
         Column(modifier.then(if (fullBleed) Modifier.bleed(gutter) else Modifier).fillMaxWidth().testTag("skeleton"), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(MaterialTheme.shapes.large).shimmer())
-            Row(Modifier.padding(horizontal = if (fullBleed) gutter + Spacing.xs else Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                Box(Modifier.size(36.dp).clip(CircleShape).shimmer())
+            Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(if (fullBleed) androidx.compose.ui.graphics.RectangleShape else MaterialTheme.shapes.small).shimmer())
+            Row(Modifier.padding(horizontal = if (fullBleed) gutter else Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                Box(Modifier.size(40.dp).clip(CircleShape).shimmer())
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                     Box(Modifier.fillMaxWidth().height(14.dp).clip(MaterialTheme.shapes.small).shimmer())
                     Box(Modifier.fillMaxWidth(0.6f).height(12.dp).clip(MaterialTheme.shapes.small).shimmer())
@@ -47,7 +47,7 @@ fun SkeletonCard(vertical: Boolean, modifier: Modifier = Modifier, fullBleed: Bo
     } else {
         // Same geometry as the horizontal VideoCard: the card's inner padding, a 0.36 thumbnail capped at 168 dp, the same gap.
         Row(modifier.fillMaxWidth().testTag("skeleton").padding(Spacing.xs), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            Box(Modifier.fillMaxWidth(0.36f).widthIn(max = 168.dp).aspectRatio(16f / 9f).clip(MaterialTheme.shapes.medium).shimmer())
+            Box(Modifier.fillMaxWidth(0.36f).widthIn(max = 168.dp).aspectRatio(16f / 9f).clip(MaterialTheme.shapes.small).shimmer())
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                 Box(Modifier.fillMaxWidth().height(14.dp).clip(MaterialTheme.shapes.small).shimmer())
                 Box(Modifier.fillMaxWidth(0.7f).height(14.dp).clip(MaterialTheme.shapes.small).shimmer())

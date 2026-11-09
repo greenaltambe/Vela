@@ -265,13 +265,15 @@ fun ShortsScreen(services: AppServices, navigator: Navigator, modifier: Modifier
                         Modifier.align(Alignment.Center).size(80.dp).clip(androidx.compose.material3.MaterialShapes.Cookie9Sided.toShape()).background(ExtraColors.mediaScrim.copy(alpha = 0.45f)), contentAlignment = Alignment.Center,
                     ) { Icon(AppIcons.play, "Play", Modifier.size(40.dp), tint = ExtraColors.onMedia) }
 
+                    // A soft dark gradient up from the bottom edge, so the caption, the counts and the buttons stay readable on a bright picture.
+                    Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(240.dp).background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(androidx.compose.ui.graphics.Color.Transparent, ExtraColors.mediaScrim.copy(alpha = 0.75f)))))
                     // The title and channel, bottom left, clear of the tab bar that floats over the page.
                     Column(
                         Modifier.align(Alignment.BottomStart).fillMaxWidth(0.72f).padding(start = Spacing.md, bottom = Spacing.md),
                         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                     ) {
                         Row(
-                            Modifier.clip(CircleShape).background(ExtraColors.mediaScrim.copy(alpha = 0.35f)).clickable { navigator.push(Route.Channel(v.channelId, v.channelName, if (v.channelId.isBlank()) v.id else "")) }.padding(start = Spacing.xs, top = Spacing.xs, bottom = Spacing.xs, end = Spacing.md).testTag("shorts.channel"),
+                            Modifier.clip(CircleShape).background(ExtraColors.mediaScrim.copy(alpha = 0.55f)).clickable { navigator.push(Route.Channel(v.channelId, v.channelName, if (v.channelId.isBlank()) v.id else "")) }.padding(start = Spacing.xs, top = Spacing.xs, bottom = Spacing.xs, end = Spacing.md).testTag("shorts.channel"),
                             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                         ) {
                             Avatar(v.channelName, size = 32.dp, url = v.channelAvatarUrl)
@@ -301,7 +303,7 @@ fun ShortsScreen(services: AppServices, navigator: Navigator, modifier: Modifier
             // Back, when opened from elsewhere in the app.
             if (start != null) androidx.compose.material3.FilledIconButton(
                 onClick = { navigator.back() }, shapes = androidx.compose.material3.IconButtonDefaults.shapes(),
-                colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(containerColor = ExtraColors.mediaScrim.copy(alpha = 0.35f), contentColor = ExtraColors.onMedia),
+                colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(containerColor = ExtraColors.mediaScrim.copy(alpha = 0.55f), contentColor = ExtraColors.onMedia),
                 modifier = Modifier.align(Alignment.TopStart).windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Start)).padding(Spacing.sm).testTag("shorts.back"),
             ) { Icon(AppIcons.back, "Back") }
             note?.let { Text(it, Modifier.align(Alignment.TopCenter).windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)).padding(top = Spacing.md).clip(CircleShape).background(ExtraColors.mediaScrim.copy(alpha = 0.6f)).padding(horizontal = Spacing.md, vertical = Spacing.xs).testTag("shorts.note"), color = ExtraColors.onMedia, style = MaterialTheme.typography.bodySmall) }
@@ -321,10 +323,10 @@ private fun ShortsAction(icon: androidx.compose.ui.graphics.vector.ImageVector, 
             checked = on, onCheckedChange = { onClick() }, modifier = modifier.size(52.dp),
             shapes = androidx.compose.material3.IconButtonDefaults.toggleableShapes(),
             colors = androidx.compose.material3.IconButtonDefaults.filledIconToggleButtonColors(
-                containerColor = ExtraColors.mediaScrim.copy(alpha = 0.35f), contentColor = tint,
+                containerColor = ExtraColors.mediaScrim.copy(alpha = 0.55f), contentColor = tint,
                 checkedContainerColor = MaterialTheme.colorScheme.primaryContainer, checkedContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
             ),
         ) { Icon(icon, description) }
-        if (caption != null) Text(caption, color = tint, style = MaterialTheme.typography.labelMedium, maxLines = 1, softWrap = false)
+        if (caption != null) Text(caption, color = tint, style = MaterialTheme.typography.labelMedium.copy(shadow = androidx.compose.ui.graphics.Shadow(ExtraColors.mediaBackground.copy(alpha = 0.8f), blurRadius = 6f)), maxLines = 1, softWrap = false)
     }
 }

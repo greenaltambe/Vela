@@ -194,8 +194,8 @@ private fun PlaylistCard(p: PlaylistSummary, coverVideoId: String?, editable: Bo
             else {
                 // An expressive badge: the icon on a scalloped shape.
                 val badge = androidx.compose.material3.MaterialShapes.Cookie9Sided.toShape()
-                Box(Modifier.align(Alignment.Center).size(72.dp).clip(badge).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
-                    Icon(if (p.isWatchLater) AppIcons.watchLater else AppIcons.playlist, null, Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                Box(Modifier.align(Alignment.Center).size(72.dp).clip(badge).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
+                    Icon(if (p.isWatchLater) AppIcons.watchLater else AppIcons.playlist, null, Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onPrimary)
                 }
             }
             if (editable) {

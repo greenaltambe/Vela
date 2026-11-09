@@ -21,6 +21,8 @@ fun ExpressiveChip(selected: Boolean, label: String, onClick: () -> Unit, modifi
     ToggleButton(
         checked = selected, onCheckedChange = { onClick() },
         modifier = modifier.heightIn(min = 40.dp),
+        // An unselected chip keeps Material's outline (outlineVariant), so its edge shows on a light page where the tonal fill alone is 1.1:1.
+        border = if (selected) null else androidx.compose.foundation.BorderStroke(1.dp, androidx.compose.material3.MaterialTheme.colorScheme.outlineVariant),
         shapes = ToggleButtonDefaults.shapes(),
     ) {
         if (selected) { Icon(AppIcons.check, null, Modifier.size(18.dp)); Spacer(Modifier.width(ToggleButtonDefaults.IconSpacing)) }

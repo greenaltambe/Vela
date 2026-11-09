@@ -13,6 +13,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -153,7 +154,7 @@ fun ChannelScreen(
     }
 
     // Build tabs list (show only what server returned, preserving order; fallback only when raw is empty)
-    val tabs = remember(landing, shortsOn) {
+    val baseTabs = remember(landing, shortsOn) {
         val raw = landing?.tabs ?: emptyList()
         val list = if (raw.isNotEmpty()) {
             // Keep tabs with non-blank titles; UNKNOWN tabs are displayed and clickable
@@ -164,7 +165,24 @@ fun ChannelScreen(
             com.greenaltambe.vela.extractor.ChannelTab(ChannelTabKind.SHORTS, "Shorts", params = ChannelTabParams.SHORTS),
             com.greenaltambe.vela.extractor.ChannelTab(ChannelTabKind.PLAYLISTS, "Playlists", params = ChannelTabParams.PLAYLISTS),
         )
-        list.filter { shortsOn || it.kind != ChannelTabKind.SHORTS }
+        // Store is a shop window (the About sheet lists the channel's shop link); no source can show it, so it is not offered.
+        list.filter { (shortsOn || it.kind != ChannelTabKind.SHORTS) && it.kind != ChannelTabKind.STORE }
+    }
+    // A channel whose tab list has no Videos tab and whose first tab came back empty (an auto-generated "Topic" channel) still has videos: offer a
+    // Videos tab, loaded through the same fallback chain, and open it once. Nothing changes for a channel that has a Videos tab or a filled first tab.
+    val firstFeed = baseTabs.firstOrNull()?.let { st.feedFor(it.kind.name) }
+    val firstTabEmpty = landing != null && firstFeed != null && firstFeed.items.isEmpty() && firstFeed.shelves.isEmpty() &&
+        (firstFeed.state is ListState.Empty || firstFeed.state is ListState.Error)
+    val addVideosTab = firstTabEmpty && baseTabs.none { it.kind == ChannelTabKind.VIDEOS }
+    val tabs = remember(baseTabs, addVideosTab) {
+        if (addVideosTab) baseTabs + listOf(
+            com.greenaltambe.vela.extractor.ChannelTab(ChannelTabKind.VIDEOS, "Videos"),
+            com.greenaltambe.vela.extractor.ChannelTab(ChannelTabKind.PLAYLISTS, "Playlists"),
+        ).filter { f -> baseTabs.none { it.kind == f.kind } } else baseTabs
+    }
+    var fallbackOpened by remember(channelId) { mutableStateOf(false) }
+    LaunchedEffect(addVideosTab) {
+        if (addVideosTab && !fallbackOpened) { fallbackOpened = true; st.selectedTabIndex = tabs.indexOfFirst { it.kind == ChannelTabKind.VIDEOS }.coerceAtLeast(0) }
     }
 
     val tabIndex = st.selectedTabIndex.coerceIn(0, (tabs.size - 1).coerceAtLeast(0))
@@ -185,11 +203,24 @@ fun ChannelScreen(
     }
     // Choosing another tab: the new tab starts at its top, just under the pinned tab row, not wherever the last one was scrolled to.
     var lastTab by remember { mutableIntStateOf(tabIndex) }
+    // Motion between tabs: the new tab's content slides in from the side it lies on and fades up (`enter`, 1 to 0 on a spring), and while a finger swipes
+    // the content follows it (`drag`, in pixels). Only the content moves; the header and the pinned tab row stay put.
+    val enter = remember { androidx.compose.animation.core.Animatable(0f) }
+    val drag = remember { androidx.compose.animation.core.Animatable(0f) }
     LaunchedEffect(tabIndex) {
         if (lastTab != tabIndex) {
+            val direction = if (tabIndex > lastTab) 1f else -1f
             lastTab = tabIndex
+            launch {
+                enter.snapTo(direction)
+                enter.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow))
+            }
             if (listState.firstVisibleItemIndex > 1) listState.scrollToItem(1)
         }
+    }
+    val tabMotion = Modifier.graphicsLayer {
+        translationX = enter.value * size.width * 0.18f + drag.value
+        alpha = (1f - kotlin.math.abs(enter.value) * 0.75f - kotlin.math.abs(drag.value) / (size.width.coerceAtLeast(1f) * 1.5f)).coerceIn(0.2f, 1f)
     }
     val titleVisible by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
 
@@ -215,10 +246,25 @@ fun ChannelScreen(
                     .pointerInput(tabs.size, tabIndex) {
                         // A swipe sideways moves to the next / previous tab. Rows that scroll sideways (shelves) consume their own drags first.
                         var dx = 0f
-                        detectHorizontalDragGestures(onDragStart = { dx = 0f }, onDragEnd = {
-                            if (dx < -140f && tabIndex < tabs.size - 1) st.selectedTabIndex = tabIndex + 1
-                            else if (dx > 140f && tabIndex > 0) st.selectedTabIndex = tabIndex - 1
-                        }, onHorizontalDrag = { _, d -> dx += d })
+                        detectHorizontalDragGestures(
+                            onDragStart = { dx = 0f },
+                            onDragEnd = {
+                                val next = when {
+                                    dx < -140f && tabIndex < tabs.size - 1 -> tabIndex + 1
+                                    dx > 140f && tabIndex > 0 -> tabIndex - 1
+                                    else -> tabIndex
+                                }
+                                if (next != tabIndex) { st.selectedTabIndex = next; scope.launch { drag.snapTo(0f) } }
+                                else scope.launch { drag.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 500f)) }
+                            },
+                            onDragCancel = { scope.launch { drag.animateTo(0f) } },
+                            onHorizontalDrag = { _, d ->
+                                dx += d
+                                // At the first or last tab the content only gives a little (there is nowhere to go).
+                                val atEdge = (dx > 0 && tabIndex == 0) || (dx < 0 && tabIndex == tabs.size - 1)
+                                scope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) { drag.snapTo(if (atEdge) dx * 0.2f else dx * 0.6f) }
+                            },
+                        )
                     },
                 contentPadding = PaddingValues(bottom = 96.dp),
             ) {
@@ -241,6 +287,8 @@ fun ChannelScreen(
                                 Tab(
                                     selected = index == tabIndex,
                                     onClick = { st.selectedTabIndex = index },
+                                    selectedContentColor = MaterialTheme.colorScheme.primary,
+                                    unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                     text = { Text(t.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                     modifier = Modifier.testTag("channel.tab.${t.kind.name.lowercase()}"),
                                 )
@@ -256,6 +304,8 @@ fun ChannelScreen(
                             searchQuery = st.searchQuery, onSearchQueryChange = { st.searchQuery = it },
                             onLoad = { more, filter -> loadTab(scope, services, channelId, tab, feed, st.searchQuery, more, filter) },
                             onOpenPostDetail = { activePostDetail = it }, gutter = gutter,
+                            channelUrl = channelUrl, ownerId = channelId, onOpenUrl = { uriHandler.openUri(it) },
+                            motion = tabMotion,
                         )
                     }
                 }
@@ -319,27 +369,34 @@ private fun ChannelHeader(
     onOpenAbout: () -> Unit,
 ) {
     val avatarShape = remember { MaterialShapes.Cookie9Sided }.toShape()
-    Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.gutter, vertical = Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.gutter, vertical = Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         page?.bannerUrl?.let { banner ->
-            AsyncImage(banner, null, Modifier.fillMaxWidth().aspectRatio(16f / 5f).clip(MaterialTheme.shapes.extraLarge).background(MaterialTheme.colorScheme.surfaceContainerHigh).testTag("channel.banner"), contentScale = ContentScale.Crop)
+            AsyncImage(banner, null, Modifier.fillMaxWidth().aspectRatio(16f / 5f).clip(MaterialTheme.shapes.large).background(MaterialTheme.colorScheme.surfaceContainerHigh).testTag("channel.banner"), contentScale = ContentScale.Crop)
         }
+        // The picture, then the name, the count and the Subscribe button (and the bell once subscribed) in one block: the header is one row shorter,
+        // so the tabs and the first videos start higher on a phone.
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
             Avatar(name, size = 72.dp, url = page?.avatarUrl, shape = avatarShape)
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                 Text(name, style = MaterialTheme.typography.headlineSmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("channel.name"))
-                formatCount(page?.subscriberCount)?.let { Text("$it subscribers", style = MaterialTheme.typography.bodyMedium, maxLines = 1, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                page?.handle?.let { Text(it, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.testTag("channel.handle")) }
+                val stats = listOfNotNull(
+                    formatCount(page?.subscriberCount)?.let { "$it subscribers" },
+                    page?.videoCount?.let { n -> formatCount(n)?.let { "$it ${if (n == 1L) "video" else "videos"}" } },
+                ).joinToString(" \u2022 ")
+                if (stats.isNotEmpty()) Text(stats, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.testTag("channel.stats"))
+                Row(Modifier.animateContentSize(), horizontalArrangement = Arrangement.spacedBy(androidx.compose.material3.ButtonGroupDefaults.ConnectedSpaceBetween), verticalAlignment = Alignment.CenterVertically) {
+                    SubscribeButton(
+                        subscribed, modifier = Modifier.testTag("channel.subscribe"),
+                        position = if (subscribed) ActionPosition.LEADING else ActionPosition.ALONE,
+                        onClick = {
+                            if (subscribed) { services.subscriptions.unsubscribe(channelId); services.feed.reload(); onSubscribedChange(false) }
+                            else { services.subscriptions.subscribe(channelId, name, page?.avatarUrl, services.clock.now()); onSubscribedChange(true) }
+                        },
+                    )
+                    AnimatedVisibility(subscribed, enter = androidx.compose.animation.expandHorizontally(androidx.compose.animation.core.spring(dampingRatio = 0.7f, stiffness = 380f)) + fadeIn() + androidx.compose.animation.scaleIn(initialScale = 0.6f), exit = androidx.compose.animation.shrinkHorizontally() + fadeOut()) { ChannelBell(services, channelId) }
+                }
             }
-        }
-        Row(Modifier.animateContentSize(), horizontalArrangement = Arrangement.spacedBy(androidx.compose.material3.ButtonGroupDefaults.ConnectedSpaceBetween), verticalAlignment = Alignment.CenterVertically) {
-            SubscribeButton(
-                subscribed, modifier = Modifier.testTag("channel.subscribe"),
-                position = if (subscribed) ActionPosition.LEADING else ActionPosition.ALONE,
-                onClick = {
-                    if (subscribed) { services.subscriptions.unsubscribe(channelId); services.feed.reload(); onSubscribedChange(false) }
-                    else { services.subscriptions.subscribe(channelId, name, page?.avatarUrl, services.clock.now()); onSubscribedChange(true) }
-                },
-            )
-            AnimatedVisibility(subscribed, enter = androidx.compose.animation.expandHorizontally(androidx.compose.animation.core.spring(dampingRatio = 0.7f, stiffness = 380f)) + fadeIn() + androidx.compose.animation.scaleIn(initialScale = 0.6f), exit = androidx.compose.animation.shrinkHorizontally() + fadeOut()) { ChannelBell(services, channelId) }
         }
 
         // Appears with the Subscribe button's own change: it grows open and fades in on a spring (and closes the same way) instead of popping in.
@@ -389,6 +446,7 @@ private fun loadTab(
     if (feed.loading) return
     feed.loading = true
     if (!more) feed.state = ListState.Loading
+    if (!more && tab.kind == ChannelTabKind.SEARCH) feed.lastQuery = searchQuery
     scope.launch {
         val res = if (more) {
             services.extractor.channelTab(channelId, tab, filterOption, feed.nextToken)
@@ -400,11 +458,16 @@ private fun loadTab(
         }
         when (res) {
             is ExtractorResult.Success -> {
-                feed.items = if (more) (feed.items + res.value.items) else res.value.items
-                feed.shelves = if (more) (feed.shelves + res.value.shelves) else res.value.shelves
-                if (res.value.filters.isNotEmpty()) feed.filters = res.value.filters
-                feed.nextToken = res.value.nextToken
+                var page = res.value
+                // The tab call answered with nothing: ask the older per-kind call too (the fallback tiers serve it), because one source seeing an empty
+                // page is not proof the channel has nothing (an auto-generated Topic channel shows no tabs natively but has videos and playlists).
+                if (!more && page.items.isEmpty() && page.shelves.isEmpty()) legacyTabPage(services, channelId, tab.kind)?.takeIf { it.items.isNotEmpty() }?.let { page = it }
+                feed.items = if (more) (feed.items + page.items) else page.items
+                feed.shelves = if (more) (feed.shelves + page.shelves) else page.shelves
+                if (page.filters.isNotEmpty()) feed.filters = page.filters
+                feed.nextToken = page.nextToken
                 feed.loaded = true
+                feed.unsupported = false
                 feed.state = if (feed.items.isEmpty() && feed.shelves.isEmpty()) ListState.Empty(tabEmptyMessage(tab.kind)) else ListState.Ready
             }
             is ExtractorResult.Failure -> {
@@ -414,7 +477,10 @@ private fun loadTab(
                     loadTab(scope, services, channelId, tab, feed, searchQuery, more = false, filterOption = filterOption)
                     return@launch
                 }
-                if (feed.items.isEmpty() && feed.shelves.isEmpty()) {
+                if (feed.items.isEmpty() && feed.shelves.isEmpty() && isTabUnsupported(tab.kind, res.error)) {
+                    feed.unsupported = true
+                    feed.state = ListState.Empty("Vela can't show this tab yet.")
+                } else if (feed.items.isEmpty() && feed.shelves.isEmpty()) {
                     feed.state = ListState.Error("Could not load: ${res.error.message}") { loadTab(scope, services, channelId, tab, feed, searchQuery, false, filterOption) }
                 }
             }
@@ -422,6 +488,24 @@ private fun loadTab(
         feed.loading = false
     }
 }
+
+/** The older per-kind channel calls as a second source for [kind]; null for kinds that have none. A failure counts as "nothing". */
+private suspend fun legacyTabPage(services: AppServices, channelId: String, kind: ChannelTabKind): ChannelTabPage? = when (kind) {
+    ChannelTabKind.VIDEOS -> (services.extractor.channelVideos(channelId) as? ExtractorResult.Success)?.value?.let { p -> ChannelTabPage(items = p.items.map { ChannelItem.Video(it) }, nextToken = p.continuation) }
+    ChannelTabKind.SHORTS -> (services.extractor.channelShorts(channelId) as? ExtractorResult.Success)?.value?.let { p -> ChannelTabPage(items = p.items.map { ChannelItem.Video(it) }, nextToken = p.continuation) }
+    ChannelTabKind.STREAMS -> (services.extractor.channelLive(channelId) as? ExtractorResult.Success)?.value?.let { p -> ChannelTabPage(items = p.items.map { ChannelItem.Video(it) }, nextToken = p.continuation) }
+    ChannelTabKind.PLAYLISTS -> (services.extractor.channelPlaylists(channelId) as? ExtractorResult.Success)?.value?.let { p -> ChannelTabPage(items = p.items.map { ChannelItem.Playlist(it) }, nextToken = p.continuation) }
+    else -> null
+}
+
+/**
+ * True when the answer means "no source can serve this tab" (every tier said so), as opposed to a network or server problem, where a Retry makes sense.
+ * An extractor that cannot do something answers `not supported`; the NewPipe fallback says a tab is "not available on fallback".
+ */
+internal fun isTabUnsupported(kind: ChannelTabKind, e: ExtractorError): Boolean =
+    (e is ExtractorError.Unplayable && e.message == NOT_SUPPORTED) ||
+        (e is ExtractorError.TierUnavailable && e.message.contains("not available on fallback")) ||
+        (e is ExtractorError.ParseFailure && kind in setOf(ChannelTabKind.PODCASTS, ChannelTabKind.RELEASES, ChannelTabKind.SHOWS, ChannelTabKind.UNKNOWN))
 
 /** The open tab's rows as list items: notices, sort chips, search box, states, shelves, items and the paging footer. */
 private fun LazyListScope.channelTabItems(
@@ -434,8 +518,13 @@ private fun LazyListScope.channelTabItems(
     onLoad: (more: Boolean, filter: ChannelFilterOption?) -> Unit,
     onOpenPostDetail: (ChannelPost) -> Unit,
     gutter: androidx.compose.ui.unit.Dp,
+    channelUrl: String,
+    ownerId: String,
+    onOpenUrl: (String) -> Unit,
+    /** The slide-and-fade of a tab change; every row of the tab carries it. */
+    motion: Modifier,
 ) {
-    val side = Modifier.padding(horizontal = gutter)
+    val side = motion.padding(horizontal = gutter)
     // Refreshed Notice banner when continuation expired and feed reloaded from page 1
     if (feed.refreshedNotice) {
         item(key = "refreshed") {
@@ -452,7 +541,7 @@ private fun LazyListScope.channelTabItems(
     // Sort & filter controls
     if (feed.filters.isNotEmpty()) {
         item(key = "filters") {
-            Box(Modifier.padding(top = Spacing.sm)) {
+            Box(motion.padding(top = Spacing.sm)) {
                 SortAndFilterBar(
                     groups = feed.filters, selectedOption = feed.selectedFilter,
                     onSelect = { option ->
@@ -470,7 +559,6 @@ private fun LazyListScope.channelTabItems(
             TextField(
                 value = searchQuery, onValueChange = onSearchQueryChange,
                 placeholder = { Text("Search this channel") }, singleLine = true, shape = CircleShape,
-                leadingIcon = { Icon(AppIcons.search, null) },
                 trailingIcon = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (searchQuery.isNotEmpty()) IconButton(onClick = { onSearchQueryChange("") }) { Icon(AppIcons.close, "Clear") }
@@ -492,8 +580,22 @@ private fun LazyListScope.channelTabItems(
         item(key = "error") { val err = feed.state as ListState.Error; Box(side.padding(top = Spacing.md)) { ErrorRow(err.message, err.onRetry) } }
     }
     if (feed.state is ListState.Empty && feed.items.isEmpty() && feed.shelves.isEmpty()) {
-        item(key = "empty") { val emp = feed.state as ListState.Empty; EmptyState(emp.message) }
+        item(key = "empty") {
+            val emp = feed.state as ListState.Empty
+            val beforeSearch = tab.kind == ChannelTabKind.SEARCH && feed.lastQuery.isNullOrBlank()
+            val message = when {
+                beforeSearch -> "Search this channel's videos, playlists and posts."
+                tab.kind == ChannelTabKind.SEARCH -> "No results for \u201C${feed.lastQuery}\u201D."
+                else -> emp.message
+            }
+            // An empty Home or Videos page (or a tab no source can show) may be a miss on our side: the browser is the way out.
+            val toBrowser = tab.kind != ChannelTabKind.SEARCH && (feed.unsupported || tab.kind == ChannelTabKind.FEATURED || tab.kind == ChannelTabKind.VIDEOS)
+            val tabUrl = tab.endpointUrl?.takeIf { it.isNotBlank() }?.let { if (it.startsWith("http")) it else "https://www.youtube.com$it" } ?: channelUrl
+            EmptyState(message, modifier = motion, actionLabel = if (toBrowser) "Open in browser" else null, onAction = if (toBrowser) ({ onOpenUrl(tabUrl) }) else null)
+        }
     }
+    // A short or empty tab keeps the pinned tab row where it was (otherwise the page jumps back up to the header).
+    if (feed.items.isEmpty() && feed.shelves.isEmpty()) item(key = "filler") { Spacer(Modifier.fillParentMaxHeight(0.6f)) }
 
     // Shelves (Featured / Home)
     feed.shelves.forEachIndexed { si, shelf ->
@@ -501,12 +603,12 @@ private fun LazyListScope.channelTabItems(
             (shelf.items.isNotEmpty() && shelf.items.all { it is ChannelItem.Video && it.summary.isShort })
         item(key = "shelf-$si-title") { Box(side.padding(top = Spacing.md)) { SectionHeader(shelf.title) } }
         item(key = "shelf-$si-row") {
-            HScrollRow(contentPadding = PaddingValues(horizontal = gutter)) {
+            HScrollRow(motion, contentPadding = PaddingValues(horizontal = gutter)) {
                 items(shelf.items) { item ->
                     if (isShortsShelf && item is ChannelItem.Video) {
                         Box(Modifier.width(150.dp).padding(end = Spacing.sm)) { ShortCard(video = item.summary, onClick = { navigator.push(Route.Video(item.summary)) }) }
                     } else {
-                        Box(Modifier.width(280.dp).padding(end = Spacing.sm)) { ChannelItemCard(services, navigator, item, onOpenPostDetail, inHorizontalShelf = item is ChannelItem.Post, inShelf = true) }
+                        Box(Modifier.width(280.dp).padding(end = Spacing.sm)) { ChannelItemCard(services, navigator, item, onOpenPostDetail, ownerId, inHorizontalShelf = item is ChannelItem.Post, inShelf = true) }
                     }
                 }
             }
@@ -525,8 +627,8 @@ private fun LazyListScope.channelTabItems(
     } else {
         items(feed.items.size) { i ->
             val item = feed.items[i]
-            Box((if (item is ChannelItem.Video) Modifier.padding(horizontal = gutter) else side).padding(top = Spacing.sm)) {
-                ChannelItemCard(services, navigator, item, onOpenPostDetail)
+            Box(side.padding(top = Spacing.sm)) {
+                ChannelItemCard(services, navigator, item, onOpenPostDetail, ownerId)
             }
         }
     }
@@ -535,7 +637,7 @@ private fun LazyListScope.channelTabItems(
     if (feed.nextToken != null) {
         item(key = "more") {
             if (!feed.refreshedNotice) LaunchedEffect(feed.nextToken, feed.items.size) { if (!feed.loading && feed.state == ListState.Ready) onLoad(true, feed.selectedFilter) }
-            Box(Modifier.fillMaxWidth().padding(Spacing.sm), contentAlignment = Alignment.Center) {
+            Box(motion.fillMaxWidth().padding(Spacing.sm), contentAlignment = Alignment.Center) {
                 if (feed.loading) LoadingSpinner(color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
                 else TextButton(onClick = { onLoad(true, feed.selectedFilter) }, modifier = Modifier.testTag("channel.loadMore")) { Text("Load more") }
             }
@@ -550,6 +652,7 @@ private fun ChannelItemCard(
     navigator: Navigator,
     item: ChannelItem,
     onOpenPostDetail: (ChannelPost) -> Unit,
+    ownerId: String,
     inHorizontalShelf: Boolean = false,
     inShelf: Boolean = false,
 ) {
@@ -559,6 +662,8 @@ private fun ChannelItemCard(
                 video = item.summary,
                 onClick = { navigator.push(Route.Video(item.summary)) },
                 showChannelAvatar = false,
+                // On the channel's own page the name under every title is noise; a video by another channel (a collab shelf) keeps it.
+                showChannelName = item.summary.channelId.isNotBlank() && item.summary.channelId != ownerId,
                 style = if (inShelf || com.greenaltambe.vela.ui.layout.LocalWindowSize.current == com.greenaltambe.vela.ui.layout.WindowSizeClass.COMPACT) VideoCardStyle.VERTICAL else VideoCardStyle.HORIZONTAL,
                 fullBleed = !inShelf && com.greenaltambe.vela.ui.layout.LocalWindowSize.current == com.greenaltambe.vela.ui.layout.WindowSizeClass.COMPACT,
             )
@@ -583,9 +688,9 @@ internal fun PlaylistRow(p: PlaylistRef, onClick: () -> Unit) = CourseOrPlaylist
 private fun CourseOrPlaylistCard(p: PlaylistRef, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).background(MaterialTheme.colorScheme.surfaceContainer).clickable(onClick = onClick).padding(Spacing.sm).testTag("channel.playlist"),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.width(140.dp).aspectRatio(16f / 9f).clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceContainerHigh)) {
+        Box(Modifier.width(140.dp).aspectRatio(16f / 9f).clip(MaterialTheme.shapes.small).background(MaterialTheme.colorScheme.surfaceContainerHigh)) {
             p.thumbnailUrl?.let { AsyncImage(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
             Row(
                 Modifier.align(Alignment.BottomEnd).padding(Spacing.xs).clip(CircleShape).background(ExtraColors.mediaBackground.copy(alpha = 0.72f)).padding(horizontal = Spacing.xs, vertical = 2.dp).testTag("playlist.badge"),
@@ -612,22 +717,17 @@ private fun CourseOrPlaylistCard(p: PlaylistRef, onClick: () -> Unit) {
 @Composable
 private fun ShortCard(video: VideoSummary, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Column(
-        modifier = modifier.fillMaxWidth().testTag(ComponentIds.VIDEO_CARD).clip(MaterialTheme.shapes.large).clickable(onClick = onClick),
+        modifier = modifier.fillMaxWidth().testTag(ComponentIds.VIDEO_CARD).clip(MaterialTheme.shapes.small).clickable(onClick = onClick),
         verticalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
-        Box(Modifier.fillMaxWidth().aspectRatio(9f / 16f).clip(MaterialTheme.shapes.large).background(MaterialTheme.colorScheme.surfaceContainerHigh).testTag("card.thumbnail")) {
+        Box(Modifier.fillMaxWidth().aspectRatio(9f / 16f).clip(MaterialTheme.shapes.small).background(MaterialTheme.colorScheme.surfaceContainerHigh).testTag("card.thumbnail")) {
             val shown = video.thumbnailUrl ?: if (video.id.isNotBlank()) "https://i.ytimg.com/vi/${video.id}/frame0.jpg" else null
             if (shown != null) AsyncImage(shown, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
-            Text(
-                "SHORT",
-                modifier = Modifier.align(Alignment.TopStart).padding(Spacing.xs).clip(CircleShape).background(MaterialTheme.colorScheme.primary).padding(horizontal = Spacing.sm, vertical = 2.dp),
-                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary, maxLines = 1,
-            )
             val statText = video.viewCount?.let { formatViews(it) } ?: video.publishedText
             if (statText != null) {
                 Text(
                     statText,
-                    modifier = Modifier.align(Alignment.BottomStart).padding(Spacing.xs).clip(CircleShape).background(ExtraColors.mediaBackground.copy(alpha = 0.72f)).padding(horizontal = Spacing.sm, vertical = 2.dp),
+                    modifier = Modifier.align(Alignment.BottomStart).padding(Spacing.xs).clip(MaterialTheme.shapes.extraSmall).background(ExtraColors.mediaScrim.copy(alpha = 0.8f)).padding(horizontal = Spacing.sm, vertical = 2.dp),
                     style = MaterialTheme.typography.labelSmall, color = ExtraColors.onMedia, maxLines = 1,
                 )
             }
@@ -747,7 +847,7 @@ private fun SortAndFilterBar(
             if (group.isDropdown) {
                 item {
                     var expanded by remember { mutableStateOf(false) }
-                    val activeLabel = group.options.firstOrNull { it.selected || it == selectedOption }?.label ?: group.title ?: "Sort by"
+                    val activeLabel = selectedOption?.label ?: group.options.firstOrNull { it.selected }?.label ?: group.title ?: "Sort by"
                     Box {
                         com.greenaltambe.vela.ui.components.ExpressiveChip(true, activeLabel, { expanded = true }, Modifier.testTag("channel.sortDropdown"))
                         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
@@ -765,7 +865,8 @@ private fun SortAndFilterBar(
                 }
             } else {
                 items(group.options) { opt ->
-                    val isSelected = opt == selectedOption || (selectedOption == null && opt.selected)
+                    // By label: a reload hands back new option objects (new tokens, new selected flags), so equality with the clicked one never matches.
+                    val isSelected = if (selectedOption != null) opt.label == selectedOption.label else opt.selected
                     com.greenaltambe.vela.ui.components.ExpressiveChip(isSelected, opt.label, { onSelect(opt) }, Modifier.testTag("channel.sort.${opt.label.lowercase().replace(' ', '_')}"))
                 }
             }
@@ -832,7 +933,7 @@ private fun ChannelAboutContent(
                 a.subscriberCountText?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 a.videoCountText?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 a.viewCountText?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                a.joinedDateText?.let { Text("Joined $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                a.joinedDateText?.let { Text("Joined ${it.removePrefix("Joined").trim()}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 a.country?.let { Text("Country: $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
             if (a.links.isNotEmpty()) {

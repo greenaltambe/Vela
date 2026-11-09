@@ -318,13 +318,21 @@ class ChannelBrowse(
 
         val metaRows = phv.findAll("metadataParts")
         var subText: String? = null
+        var handle: String? = null
+        var videosText: String? = null
         for (mp in metaRows) {
             for (part in mp.array) {
-                val text = part.at("text", "content").string ?: part.text()
-                if (text != null && text.contains("subscriber", true)) subText = text
+                val text = (part.at("text", "content").string ?: part.text())?.trim() ?: continue
+                when {
+                    text.contains("subscriber", true) -> subText = text
+                    text.startsWith("@") && handle == null -> handle = text
+                    text.contains("video", true) && text.any { it.isDigit() } -> videosText = text
+                }
             }
         }
         if (subText == null) subText = c4.at("subscriberCountText").text()
+        handle = handle ?: c4.at("channelHandleText").text()?.trim()?.takeIf { it.startsWith("@") }
+        videosText = videosText ?: c4.at("videosCountText").text()
         val subs = parseCount(subText)
 
         val desc = phv.at("description", "descriptionPreviewViewModel", "description", "content").string
@@ -337,6 +345,8 @@ class ChannelBrowse(
             avatarUrl = avatar,
             subscriberCount = subs,
             bannerUrl = banner,
+            handle = handle,
+            videoCount = parseCount(videosText),
         )
     }
 
@@ -506,7 +516,8 @@ class ChannelBrowse(
                 when {
                     cType.contains("VIDEO") -> parseLockupVideo(lockup)?.let { items += ChannelItem.Video(it) }
                     cType.contains("SHORT") || cType.contains("REEL") -> parseLockupVideo(lockup)?.copy(isShort = true)?.let { items += ChannelItem.Video(it) }
-                    cType.contains("PLAYLIST") -> parseLockupPlaylist(lockup)?.let { items += ChannelItem.Playlist(it) }
+                    // A music album (auto-generated Topic channels list their releases as albums) is a playlist whose id starts with OLAK5uy.
+                    cType.contains("PLAYLIST") || cType.contains("ALBUM") -> parseLockupPlaylist(lockup)?.let { items += ChannelItem.Playlist(it) }
                     else -> reportUnknownRenderer("lockupViewModel:$cType")
                 }
                 return
@@ -570,8 +581,8 @@ class ChannelBrowse(
                         when {
                             cType.contains("VIDEO") -> parseLockupVideo(lockup)?.let { shelfItems += ChannelItem.Video(it) }
                             cType.contains("SHORT") || cType.contains("REEL") -> parseLockupVideo(lockup)?.copy(isShort = true)?.let { shelfItems += ChannelItem.Video(it) }
-                            cType.contains("PLAYLIST") -> parseLockupPlaylist(lockup)?.let { shelfItems += ChannelItem.Playlist(it) }
-                            else -> {}
+                            cType.contains("PLAYLIST") || cType.contains("ALBUM") -> parseLockupPlaylist(lockup)?.let { shelfItems += ChannelItem.Playlist(it) }
+                            else -> reportUnknownRenderer("lockupViewModel:$cType")
                         }
                         continue
                     }

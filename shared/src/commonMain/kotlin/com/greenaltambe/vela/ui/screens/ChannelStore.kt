@@ -18,6 +18,10 @@ class ChannelTabFeed {
     var loaded by mutableStateOf(false)
     var loading by mutableStateOf(false)
     var refreshedNotice by mutableStateOf(false)
+    /** True when no source can show this tab (a Store or Podcasts tab, say): the page says so calmly and offers the browser instead of a Retry that cannot work. */
+    var unsupported by mutableStateOf(false)
+    /** The query the in-channel search last ran with (null before the first search), so "no results" is only said after a search. */
+    var lastQuery by mutableStateOf<String?>(null)
     val scroll = ScrollMemory()
 }
 

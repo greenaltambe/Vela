@@ -144,6 +144,8 @@ fun VideoCard(
     trailing: @Composable (() -> Unit)? = null,
     /** False on a channel's own page, where every video is by that channel. */
     showChannelAvatar: Boolean = true,
+    /** False on a channel's own page too: the name under every title says nothing there. */
+    showChannelName: Boolean = true,
     /** VERTICAL only: the thumbnail runs the full width of the screen (still rounded), through the list's side gutters; the text keeps them. */
     fullBleed: Boolean = false,
     /** HORIZONTAL only: draw the row as a tonal container in this shape (a segmented stack passes [segmentedShape] here). */
@@ -155,17 +157,20 @@ fun VideoCard(
     val thumbnail = if (showOriginal) video.originalThumbnailUrl ?: video.thumbnailUrl else video.thumbnailUrl
     // Material's own press indication (the ripple, with its hover and focus states on desktop); a long press shows the original title and picture when DeArrow replaced them.
     val press = Modifier.combinedClickable(onClick = onClick, onLongClick = if (replaced) ({ showOriginal = !showOriginal }) else null)
-    val cardShape = MaterialTheme.shapes.large
+    // Corners: a thumbnail that runs to the screen edges is square (a curve cut by the edge leaves a dark notch); an inset one uses Material's small (8 dp) shape,
+    // and the row around it is 4 dp padding larger (12 dp) so the two curves stay concentric.
+    val thumbShape = if (style == VideoCardStyle.VERTICAL && fullBleed) androidx.compose.ui.graphics.RectangleShape else MaterialTheme.shapes.small
+    val cardShape = if (style == VideoCardStyle.VERTICAL && fullBleed) androidx.compose.ui.graphics.RectangleShape else MaterialTheme.shapes.medium
 
     if (style == VideoCardStyle.VERTICAL) {
         val gutter = Spacing.gutter
         Column(modifier.then(if (fullBleed) Modifier.bleed(gutter) else Modifier).fillMaxWidth().testTag(ComponentIds.VIDEO_CARD).clip(cardShape).then(press), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            Thumbnail(video, thumbnail, extras, Modifier.fillMaxWidth().clip(cardShape))
-            Row(Modifier.fillMaxWidth().padding(horizontal = if (fullBleed) gutter + Spacing.xs else Spacing.sm).padding(bottom = Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalAlignment = Alignment.Top) {
-                if (showChannelAvatar) Avatar(video.channelName, onChannelClick, url = video.channelAvatarUrl)
+            Thumbnail(video, thumbnail, extras, Modifier.fillMaxWidth().clip(thumbShape))
+            Row(Modifier.fillMaxWidth().padding(horizontal = if (fullBleed) gutter else Spacing.sm).padding(bottom = Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalAlignment = Alignment.Top) {
+                if (showChannelAvatar) Avatar(video.channelName, onChannelClick, size = 40.dp, url = video.channelAvatarUrl)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("card.title"))
-                    if (video.channelName.isNotBlank()) Text(video.channelName, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.testTag("card.channel"))
+                    Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("card.title"))
+                    if (showChannelName && video.channelName.isNotBlank()) Text(video.channelName, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.testTag("card.channel"))
                     val stats = remember(video.viewCount, video.uploadedAt, video.publishedText, extras.badge, showOriginal) { listOfNotNull(formatViews(video.viewCount), (formatAge(video.uploadedAt, Clock.System.now()) ?: video.publishedText), extras.badge, if (showOriginal) "original" else null).joinToString(" • ") }
                     if (stats.isNotEmpty()) Text(stats, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.testTag("card.meta"))
                 }
@@ -176,10 +181,10 @@ fun VideoCard(
         val rowShape = containerShape ?: cardShape
         val tonal = if (containerShape != null) Modifier.background(MaterialTheme.colorScheme.surfaceContainerLow) else Modifier
         Row(modifier.fillMaxWidth().testTag(ComponentIds.VIDEO_CARD).clip(rowShape).then(tonal).then(press).padding(Spacing.xs), horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
-            Thumbnail(video, thumbnail, extras, Modifier.fillMaxWidth(0.36f).widthIn(max = 168.dp).clip(MaterialTheme.shapes.medium))
+            Thumbnail(video, thumbnail, extras, Modifier.fillMaxWidth(0.36f).widthIn(max = 168.dp).clip(thumbShape))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("card.title"))
-                if (video.channelName.isNotBlank()) Text(
+                if (showChannelName && video.channelName.isNotBlank()) Text(
                     video.channelName, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.testTag("card.channel"),
@@ -206,9 +211,10 @@ private fun Thumbnail(video: VideoSummary, url: String?, extras: CardExtras, mod
         // Some feeds (Home recommendations, account playlists) arrive without a picture; YouTube serves one for every video id.
         val shown = url ?: if (video.id.isNotBlank()) "https://i.ytimg.com/vi/${video.id}/mqdefault.jpg" else null
         if (shown != null) AsyncImage(shown, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
-        if (video.isLive) Badge("LIVE", MaterialTheme.colorScheme.error, Modifier.align(Alignment.TopStart).padding(Spacing.xs))
-        else if (video.isShort) Badge("SHORT", MaterialTheme.colorScheme.primary, Modifier.align(Alignment.TopStart).padding(Spacing.xs))
-        formatDuration(video.durationSeconds)?.takeIf { !video.isLive }?.let { Badge(it, MaterialTheme.colorScheme.background.copy(alpha = 0.85f), Modifier.align(Alignment.BottomEnd).padding(Spacing.xs), textColor = MaterialTheme.colorScheme.onBackground) }
+        // Material's own pairs (error/onError, primary/onPrimary): readable in both themes, unlike white text on the dark theme's pale error colour (1.7:1).
+        if (video.isLive) Badge("LIVE", MaterialTheme.colorScheme.error, Modifier.align(Alignment.TopStart).padding(Spacing.xs), textColor = MaterialTheme.colorScheme.onError)
+        else if (video.isShort) Badge("SHORT", MaterialTheme.colorScheme.primary, Modifier.align(Alignment.TopStart).padding(Spacing.xs), textColor = MaterialTheme.colorScheme.onPrimary)
+        formatDuration(video.durationSeconds)?.takeIf { !video.isLive }?.let { Badge(it, ExtraColors.mediaScrim.copy(alpha = 0.8f), Modifier.align(Alignment.BottomEnd).padding(Spacing.xs)) }
         if (extras.downloaded) Icon(
             AppIcons.downloaded, "Downloaded",
             Modifier.align(Alignment.TopEnd).padding(Spacing.xs).size(20.dp).testTag("card.downloaded"), tint = MaterialTheme.colorScheme.primary,
@@ -224,7 +230,7 @@ private fun Thumbnail(video: VideoSummary, url: String?, extras: CardExtras, mod
 @Composable
 private fun Badge(text: String, background: androidx.compose.ui.graphics.Color, modifier: Modifier, textColor: androidx.compose.ui.graphics.Color = ExtraColors.onMedia) {
     Text(
-        text, modifier.clip(androidx.compose.foundation.shape.CircleShape).background(background).padding(horizontal = 6.dp, vertical = 2.dp),
+        text, modifier.clip(MaterialTheme.shapes.extraSmall).background(background).padding(horizontal = 6.dp, vertical = 2.dp),
         style = MaterialTheme.typography.labelSmall, color = textColor, maxLines = 1, softWrap = false,
     )
 }
@@ -261,7 +267,7 @@ fun ChannelRow(name: String, subtitle: String?, avatarUrl: String?, onClick: () 
 @Composable
 fun SectionHeader(title: String, modifier: Modifier = Modifier, action: @Composable (() -> Unit)? = null) {
     Row(modifier.fillMaxWidth().heightIn(min = Spacing.minTouch).testTag(ComponentIds.SECTION_HEADER), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
         action?.invoke()
     }
 }

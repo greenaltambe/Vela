@@ -141,6 +141,10 @@ data class ChannelPage(
     val continuation: String? = null,
     /** The wide banner image behind the channel header, when the channel has one. */
     val bannerUrl: String? = null,
+    /** The channel's @handle, when the source says it (the native tier does; the fallback tiers do not). */
+    val handle: String? = null,
+    /** How many videos the channel has, when the source says it. */
+    val videoCount: Long? = null,
 )
 
 @Serializable
