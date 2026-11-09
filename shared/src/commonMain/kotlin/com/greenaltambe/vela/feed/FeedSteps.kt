@@ -93,9 +93,9 @@ object OnlyShorts : FeedStep {
 }
 
 /** The steps of the main subscription / home feed, in order. */
-fun standardFeedPipeline(watched: WatchedLookup): FeedPipeline =
-    FeedPipeline(listOf(HideShorts, HideWatched(watched), MinLength, KeywordFilter))
+fun standardFeedPipeline(watched: WatchedLookup, block: BlockRules = BlockRules.None): FeedPipeline =
+    FeedPipeline(listOf(BlocklistStep(block), HideShorts, HideWatched(watched), MinLength, KeywordFilter))
 
 /** The Shorts tab inside Subscriptions: Shorts of channels whose mode is not HIDE, still through the other filters. */
-fun shortsFeedPipeline(watched: WatchedLookup): FeedPipeline =
-    FeedPipeline(listOf(OnlyShorts, HideWatched(watched), KeywordFilter))
+fun shortsFeedPipeline(watched: WatchedLookup, block: BlockRules = BlockRules.None): FeedPipeline =
+    FeedPipeline(listOf(BlocklistStep(block), OnlyShorts, HideWatched(watched), KeywordFilter))

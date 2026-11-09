@@ -38,6 +38,9 @@ private class FakeController : PlayerController {
     var speeds = mutableListOf<Float>()
     val volumes = mutableListOf<Float>()
     override fun setVolume(volume: Float) { volumes += volume }
+    val boosts = mutableListOf<Int>()
+    override val canBoost = true
+    override fun setBoost(db: Int) { boosts += db }
 
     override fun load(plan: PlaybackPlan, startPositionMs: Long, playWhenReady: Boolean, metadata: PlaybackMetadata) {
         loads += Load(plan, startPositionMs, playWhenReady, metadata)
@@ -56,6 +59,8 @@ private class FakeController : PlayerController {
 
 private class FakeHistory : WatchHistoryRepository {
     val rows = mutableListOf<WatchRecord>()
+    val healed = mutableListOf<String>()
+    override fun healMissing(accountId: String, videoId: String, title: String, channelId: String) { healed += "$videoId:$title:$channelId" }
     var updates = 0
     override fun lastForVideo(accountId: String, videoId: String) = rows.lastOrNull { it.accountId == accountId && it.videoId == videoId }
     override fun begin(accountId: String, videoId: String, channelId: String, title: String, at: Instant, positionMs: Long, durationMs: Long, watchedMs: Long): Long {
@@ -128,6 +133,19 @@ class PlaybackSessionTest {
 
     private fun ready(s: PlaybackSession) = assertIs<SessionState.Ready>(s.state.value)
 
+    // ---- volume boost ----
+
+    @Test fun theBoostIsRememberedAndHandedToThePlayerEveryTime() = runTest {
+        val s = session()
+        assertEquals(listOf(0), controller.boosts, "a new session starts from the saved setting (off)")
+        s.setBoost(com.greenaltambe.vela.core.settings.VolumeBoost.MEDIUM)
+        assertEquals(6, controller.boosts.last())
+        assertEquals(com.greenaltambe.vela.core.settings.VolumeBoost.MEDIUM, settings.resolve(com.greenaltambe.vela.core.settings.Settings.volumeBoost))
+        val next = session()
+        assertEquals(com.greenaltambe.vela.core.settings.VolumeBoost.MEDIUM, next.boost.value, "the next session picks it up")
+        assertEquals(6, controller.boosts.last())
+    }
+
     // ---- start ----
 
     @Test fun startResolvesPlansAndLoadsFromTheBeginning() = runTest {
@@ -143,6 +161,33 @@ class PlaybackSessionTest {
         assertEquals("fake", ready(s).client)
         assertEquals(listOf(1080, 720), ready(s).heights)
         assertEquals(0, extractor.infoCalls, "the hint makes a second request unnecessary")
+    }
+
+    // A video opened from a link carries only its id: its hint has a blank title. That used to count as "a hint", so the title was never looked up and the
+    // history row (and the Continue watching card and the mini player) stayed blank.
+    @Test fun aHintWithABlankTitleIsNotAHintTheInfoIsLookedUp() = runTest {
+        val s = session()
+        s.start("vid", VideoSummary("vid", "", "", ""))
+        runCurrent()
+        assertEquals(1, extractor.infoCalls)
+        assertEquals("Looked-up title", controller.loads.single().metadata.title)
+        assertEquals("Looked-up title", s.media.value?.title)
+        controller.playing(10_000); runCurrent(); controller.pause(); runCurrent()
+        assertEquals("Looked-up title", history.rows.single().title)
+    }
+
+    @Test fun aHintWithATitleAndChannelStillSavesTheSecondRequest() = runTest {
+        val s = session()
+        s.start("vid", VideoSummary("vid", "Known", "UC1", "Chan"))
+        runCurrent()
+        assertEquals(0, extractor.infoCalls)
+    }
+
+    @Test fun healingFillsOnlyTheRowsThatHadNoTitle() = runTest {
+        val s = session()
+        s.start("vid", VideoSummary("vid", "", "", ""))
+        runCurrent()
+        assertEquals(listOf("vid:Looked-up title:UCinfo"), history.healed)
     }
 
     @Test fun withoutAHintTheInfoIsLookedUpForTitleAndChannel() = runTest {

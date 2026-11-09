@@ -18,6 +18,21 @@ enum class MaxQuality(val height: Int?) {
 /** In order of how modern the codec is; the selector falls back down this list from the preferred one. */
 enum class PreferredCodec { AV1, VP9, AVC }
 
+/** After this many minutes of watching, a gentle reminder to take a break. */
+enum class BreakReminder(val minutes: Int, val label: String) { OFF(0, "Off"), M15(15, "15 minutes"), M30(30, "30 minutes"), M60(60, "1 hour"), M90(90, "1.5 hours") }
+
+/** How much Shorts a day before Vela stops and asks. */
+enum class ShortsLimit(val minutes: Int, val label: String) { OFF(0, "No limit"), M15(15, "15 minutes"), M30(30, "30 minutes"), M60(60, "1 hour") }
+
+/** Extra loudness above the video's own level, in decibels, for videos that are too quiet. */
+enum class VolumeBoost(val db: Int, val label: String) { OFF(0, "Off"), LOW(3, "+3 dB"), MEDIUM(6, "+6 dB"), HIGH(9, "+9 dB") }
+
+/** How big captions are drawn, as a multiple of the normal size. */
+enum class CaptionSize(val scale: Float, val label: String) { SMALL(0.8f, "Small"), NORMAL(1f, "Normal"), LARGE(1.3f, "Large"), HUGE(1.7f, "Huge") }
+
+/** What sits behind caption text: nothing but an outline and shadow, a soft dark box, or a solid black one. */
+enum class CaptionBackground(val label: String) { OUTLINE("Outline"), SHADE("Shade"), SOLID("Solid") }
+
 /** What Home shows. RECOMMENDED only applies while a Google account is signed in; signed out (or when the account's feed fails) it is Trending. */
 enum class HomeSource { RECOMMENDED, TRENDING }
 
@@ -111,6 +126,42 @@ object Settings {
         codec = SettingCodecs.enum(PreferredCodec.entries),
         section = SettingSection.PLAYBACK,
         choices = PreferredCodec.entries.map { SettingChoice(it.name, it.name) },
+    )
+
+    val breakReminder = Setting(
+        key = "playback.breakReminder", default = BreakReminder.OFF, scope = SettingScope.GLOBAL, label = "Take a break reminder",
+        keywords = listOf("break", "reminder", "rest", "watching", "time", "limit", "wellbeing", "screen time"),
+        codec = SettingCodecs.enum(BreakReminder.entries), section = SettingSection.PLAYBACK, choices = BreakReminder.entries.map { SettingChoice(it.name, it.label) },
+    )
+
+    val shortsDailyLimit = Setting(
+        key = "feed.shortsDailyLimit", default = ShortsLimit.OFF, scope = SettingScope.GLOBAL, label = "Daily Shorts limit",
+        keywords = listOf("shorts", "limit", "daily", "time", "break", "scroll", "doomscroll", "wellbeing"),
+        codec = SettingCodecs.enum(ShortsLimit.entries), section = SettingSection.FEED, choices = ShortsLimit.entries.map { SettingChoice(it.name, it.label) },
+    )
+
+    val volumeBoost = Setting(
+        key = "playback.volumeBoost", default = VolumeBoost.OFF, scope = SettingScope.GLOBAL, label = "Volume boost",
+        keywords = listOf("volume", "boost", "louder", "quiet", "loudness", "gain", "amplify", "db"),
+        codec = SettingCodecs.enum(VolumeBoost.entries), section = SettingSection.PLAYBACK, choices = VolumeBoost.entries.map { SettingChoice(it.name, it.label) },
+    )
+
+    val captionSize = Setting(
+        key = "playback.captionSize", default = CaptionSize.NORMAL, scope = SettingScope.GLOBAL, label = "Caption size",
+        keywords = listOf("caption", "subtitle", "cc", "size", "text", "bigger", "larger", "font"),
+        codec = SettingCodecs.enum(CaptionSize.entries), section = SettingSection.PLAYBACK, choices = CaptionSize.entries.map { SettingChoice(it.name, it.label) },
+    )
+
+    val captionBackground = Setting(
+        key = "playback.captionBackground", default = CaptionBackground.SHADE, scope = SettingScope.GLOBAL, label = "Caption background",
+        keywords = listOf("caption", "subtitle", "cc", "background", "outline", "box", "shadow", "contrast"),
+        codec = SettingCodecs.enum(CaptionBackground.entries), section = SettingSection.PLAYBACK, choices = CaptionBackground.entries.map { SettingChoice(it.name, it.label) },
+    )
+
+    val captionCreatorStyle = Setting(
+        key = "playback.captionCreatorStyle", default = true, scope = SettingScope.GLOBAL, label = "Use the creator's caption style",
+        keywords = listOf("caption", "subtitle", "cc", "colors", "colours", "position", "chat", "style", "creator"),
+        codec = SettingCodecs.boolean, section = SettingSection.PLAYBACK,
     )
 
     val audioOnly = Setting(
@@ -616,7 +667,7 @@ object Settings {
     val all: List<Setting<*>> = listOf(
         localOnlyHistory, historyAccountSync, hideWatched, watchedThresholdPercent, minLengthSeconds, blockKeywords, allowKeywords, keywordsAreRegex,
         debugFrameStats, homeSource, contentRegion, allowAgeRestricted, allowControversial, slowStreamFailover, notifyBackground, notifySystem, notifyDownloads, accountFallbackMode, accountProfilesExperimental, accountUseForChannels, accountUseForDetails, accountDownloadsMayUse, accountKillSwitch, accountTierOrder, remoteConfigUrl, ytDlpAutoUpdate,
-        accountPlaybackPerHour, accountBrowsePerMinute, accountWritesPerHour, shortsMode, defaultPlaybackSpeed, autoplayNext, seekStepSeconds, holdSpeed, maxQualityUnmetered, maxQualityMetered, preferredCodec, audioOnly, ytDlpPath,
+        accountPlaybackPerHour, accountBrowsePerMinute, accountWritesPerHour, shortsMode, defaultPlaybackSpeed, autoplayNext, seekStepSeconds, holdSpeed, maxQualityUnmetered, maxQualityMetered, preferredCodec, breakReminder, shortsDailyLimit, volumeBoost, captionSize, captionBackground, captionCreatorStyle, audioOnly, ytDlpPath,
         sponsorBlockEnabled, returnYouTubeDislikeEnabled, deArrowEnabled,
         sponsorBlockMinSegmentSeconds, sponsorBlockNotifications, showContribute, sponsorBlockServer, sponsorBlockUserId, rydInFeed, rydServer,
         deArrowFeed, deArrowSearch, deArrowVideoPage, deArrowPlayerTitle, deArrowTitleCasing, deArrowMinVotes, deArrowGeneratedThumbnails, deArrowThumbnailServer,

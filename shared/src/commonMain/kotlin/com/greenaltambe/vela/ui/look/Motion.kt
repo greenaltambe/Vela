@@ -197,7 +197,7 @@ fun UndoSnackbarHost(toasts: UndoToasts, modifier: Modifier = Modifier, seconds:
     SnackbarHost(host, modifier) { data ->
         Snackbar(
             Modifier.testTag("undo.toast"),
-            action = data.visuals.actionLabel?.let { label -> { TextButton(onClick = { data.performAction() }, modifier = Modifier.testTag("undo.action")) { Text(label) } } },
+            action = data.visuals.actionLabel?.let { label -> { TextButton(onClick = { data.performAction() }, colors = androidx.compose.material3.ButtonDefaults.textButtonColors(contentColor = androidx.compose.material3.SnackbarDefaults.actionColor), modifier = Modifier.testTag("undo.action")) { Text(label) } } },
         ) { Text(data.visuals.message, maxLines = 2, overflow = TextOverflow.Ellipsis) }
     }
 }

@@ -63,6 +63,12 @@ interface PlayerController {
     /** Output volume, 0 (silent) to 1 (full). Backends without a volume of their own ignore it. */
     fun setVolume(volume: Float) {}
 
+    /** Whether this backend can make sound louder than full volume ([setBoost]). */
+    val canBoost: Boolean get() = false
+
+    /** Extra gain in decibels above the video's own level (0 = off), for quiet videos. Backends that cannot boost ignore it. */
+    fun setBoost(db: Int) {}
+
     /** Unloads the media and goes [PlaybackStatus.IDLE]; the controller stays usable. */
     fun stop()
     fun release()

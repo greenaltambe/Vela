@@ -145,7 +145,53 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
     val host = services.player
     val playerState = host?.controllerState?.collectAsState()?.value
 
+    // Take a break / daily Shorts limit: counted once a second while something is playing. The break reminder only asks (it never stops music playing in
+    // the background); the Shorts limit pauses the Short that is on screen and asks whether to leave.
+    val breakTimer = remember { com.greenaltambe.vela.viewing.BreakTimer() }
+    var breakAsk by remember { mutableStateOf<Int?>(null) }
+    var shortsAsk by remember { mutableStateOf(false) }
+    val nowPlayingStatus = playerState?.status
+    val inShorts = navigator.baseRoute.let { it == Route.Shorts || it is Route.ShortsPlayer }
+    LaunchedEffect(nowPlayingStatus, inShorts) {
+        val playing = nowPlayingStatus == PlaybackStatus.PLAYING
+        while (true) {
+            kotlinx.coroutines.delay(1000)
+            val breakMinutes = services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.breakReminder).minutes
+            if (breakTimer.tick(services.clock.now().toEpochMilliseconds(), playing, breakMinutes * 60_000L)) breakAsk = breakMinutes
+            val limitMs = services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.shortsDailyLimit).minutes * 60_000L
+            if (inShorts && playing) services.shortsUsage.add(1000)
+            if (limitMs > 0 && inShorts && !shortsAsk && services.shortsUsage.usedMs() >= limitMs) { shortsAsk = true; host?.session?.pause() }
+        }
+    }
+    val dialogHaptics = com.greenaltambe.vela.ui.player.rememberPlayerHaptics()
+    LaunchedEffect(breakAsk, shortsAsk) { if (breakAsk != null || shortsAsk) dialogHaptics.perform(com.greenaltambe.vela.ui.player.HapticKind.HEAVY) }
+    breakAsk?.let { minutes ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { breakTimer.snooze(15 * 60_000L); breakAsk = null },
+            icon = { androidx.compose.material3.Icon(com.greenaltambe.vela.ui.theme.AppIcons.timer, null) },
+            title = { androidx.compose.material3.Text("Time for a break?") },
+            text = { androidx.compose.material3.Text("You have been watching for about $minutes minutes. Look away from the screen for a few minutes, stretch, drink some water.") },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { host?.session?.pause(); breakTimer.startOver(); breakAsk = null }, modifier = Modifier.testTag("break.pause")) { androidx.compose.material3.Text("Pause and rest") } },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { breakTimer.snooze(15 * 60_000L); breakAsk = null }, modifier = Modifier.testTag("break.keep")) { androidx.compose.material3.Text("Keep watching") } },
+        )
+    }
+    if (shortsAsk) {
+        val limitMinutes = services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.shortsDailyLimit).minutes
+        androidx.compose.material3.AlertDialog(
+            // Back or a tap outside means "I am done": leave Shorts, the same as the button, so the dialog is never a trap.
+            onDismissRequest = { shortsAsk = false; navigator.selectTab(Route.Home) },
+            icon = { androidx.compose.material3.Icon(com.greenaltambe.vela.ui.theme.AppIcons.bolt, null) },
+            title = { androidx.compose.material3.Text("Daily Shorts limit reached") },
+            text = { androidx.compose.material3.Text("You have watched $limitMinutes minutes of Shorts today, the limit you set. Take a break, or have 5 more minutes.") },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { shortsAsk = false; navigator.selectTab(Route.Home) }, modifier = Modifier.testTag("shorts.leave")) { androidx.compose.material3.Text("Leave Shorts") } },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { services.shortsUsage.forgive(5 * 60_000L); shortsAsk = false; host?.session?.play() }, modifier = Modifier.testTag("shorts.more")) { androidx.compose.material3.Text("5 more minutes") } },
+        )
+    }
+
     val sheetState = com.greenaltambe.vela.ui.player.rememberPlayerSheetState(services, navigator)
+    // A video opened from a link has no title until the player looks it up: hand it to the mini player and the page when it arrives.
+    val mediaNow = host?.session?.media?.collectAsState()?.value
+    LaunchedEffect(mediaNow) { mediaNow?.let { sheetState.fillDetails(it.videoId, it.title, "", it.channelName, it.artworkUrl) } }
     val miniSlot = remember { com.greenaltambe.vela.ui.nav.MiniSlot() }
     androidx.compose.runtime.SideEffect { navigator.playerSheetState = sheetState }
 
@@ -178,7 +224,8 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
             if (finished != null && downloads != null && services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.downloadsDeleteAfterWatch)) {
                 downloads.repo.completedFor(finished.id)?.let { downloads.manager.remove(it.id) }
             }
-            navigator.playNext()
+            // "Repeat" on: the same video again (no history entry, no queue step).
+            if (navigator.repeatOne && host != null) { host.session.seekTo(0); host.session.play() } else navigator.playNext()
         }
     }
     // Shortcuts need the page to hold focus; a text field the user used earlier must not keep it after navigating.
@@ -257,6 +304,7 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
         val lifecycleState by lifecycle.currentStateFlow.collectAsState()
         CompositionLocalProvider(
             LocalWindowSize provides sizeClass, LocalWindowWidthDp provides maxWidth.value,
+            com.greenaltambe.vela.ui.nav.LocalNavigator provides navigator,
             // Looping animations (shimmer) stop while the app is not on screen.
             com.greenaltambe.vela.ui.look.LocalAnimationsActive provides lifecycleState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED),
             com.greenaltambe.vela.ui.screens.LocalHomeFeed provides homeFeed,
@@ -277,7 +325,7 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
                 val notifRevision by services.notificationsRevision.collectAsState()
                 val notifUnread = com.greenaltambe.vela.ui.screens.rememberAsync(notifRevision, services.activeId, keepWhileLoading = true, first = { false }, compute = { services.notifications.unreadCount() > 0 })
                 Column(Modifier.weight(1f).fillMaxHeight()) {
-                    if (chrome && uiRoute != Route.Shorts && uiRoute !is Route.ShortsPlayer && uiRoute !is Route.Video && uiRoute !is Route.Search && uiRoute != Route.Settings && uiRoute !is Route.Channel && uiRoute != Route.Accounts && uiRoute != Route.AccountActivity && uiRoute != Route.Health && uiRoute != Route.Backup && uiRoute != Route.DownloadRules && uiRoute != Route.Customize && uiRoute != Route.Notifications && uiRoute != Route.History && uiRoute != Route.Downloads && uiRoute != Route.ManageSubscriptions && uiRoute !is Route.Playlist && uiRoute !is Route.CustomizePage && uiRoute !is Route.SettingsPage) {
+                    if (chrome && uiRoute != Route.Shorts && uiRoute !is Route.ShortsPlayer && uiRoute !is Route.Video && uiRoute !is Route.Search && uiRoute != Route.Settings && uiRoute !is Route.Channel && uiRoute != Route.Accounts && uiRoute != Route.AccountActivity && uiRoute != Route.Health && uiRoute != Route.Backup && uiRoute != Route.DownloadRules && uiRoute != Route.Blocklist && uiRoute != Route.Customize && uiRoute != Route.Notifications && uiRoute != Route.History && uiRoute != Route.Downloads && uiRoute != Route.ManageSubscriptions && uiRoute !is Route.Playlist && uiRoute !is Route.CustomizePage && uiRoute !is Route.SettingsPage) {
                         VelaTopBar(
                             routeTitle(uiRoute), onBack = if (navigator.baseCanGoBack) ({ navigator.back() }) else null,
                             onSearch = ({ navigator.push(Route.Search()) }),
@@ -348,6 +396,7 @@ private fun routeTitle(route: Route): String = when (route) {
     Route.Backup -> "Backup and restore"
     Route.Downloads -> "Downloads"
     Route.DownloadRules -> "Automatic downloads"
+    Route.Blocklist -> "Blocked"
     is Route.Search -> "Search"
     is Route.Video -> ""
 }
@@ -410,6 +459,7 @@ private fun Destination(services: AppServices, navigator: Navigator, route: Rout
         Route.Diagnostics -> DiagnosticsScreen(services.extractor, services.log, services.modules.log, services.downloads, modifier, faults = services.faults, exportLog = services.exportLog, rebuildCaches = services.rebuildCaches)
         Route.Downloads -> DownloadsScreen(services, navigator, modifier)
         Route.DownloadRules -> com.greenaltambe.vela.ui.screens.DownloadRulesScreen(services, navigator, modifier)
+        Route.Blocklist -> com.greenaltambe.vela.ui.screens.BlocklistScreen(services, navigator, modifier)
         Route.AccountActivity -> AccountActivityScreen(services, navigator, modifier)
     }
 }

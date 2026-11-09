@@ -11,7 +11,7 @@ class LookSettingsTest {
     }
 
     @Test fun onlyTheThemeTheProgressBarAndHomeAreLeftToCustomize() {
-        assertEquals(setOf("look.theme", "look.progressStyle", "look.home.shelves", "look.home.density", "look.home.chips", "look.nav.railCollapsed"), LookSettings.all.map { it.key }.toSet())
+        assertEquals(setOf("look.theme", "look.amoled", "look.progressStyle", "look.home.shelves", "look.home.density", "look.home.chips", "look.nav.railCollapsed"), LookSettings.all.map { it.key }.toSet())
     }
 
     @Test fun theRemovedSettingsAreKnownAsLegacySoOldBackupsRestoreQuietly() {

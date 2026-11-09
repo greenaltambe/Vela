@@ -30,6 +30,8 @@ class FeedService(
     private val notifications: com.greenaltambe.vela.data.NotificationRepository? = null,
     /** Called with the new uploads of channels whose level is All, for a system notification. */
     private val onNewUploads: (List<com.greenaltambe.vela.extractor.VideoSummary>) -> Unit = {},
+    /** Uploads this says are blocked (the viewer's blocklist) leave no notification, in the app or on the system. */
+    private val isBlocked: (com.greenaltambe.vela.extractor.VideoSummary) -> Boolean = { false },
 ) {
     private val _entries = MutableStateFlow(cache.entries())
     val entries: StateFlow<List<FeedEntry>> = _entries
@@ -82,7 +84,7 @@ class FeedService(
                 val loud = ArrayList<com.greenaltambe.vela.extractor.VideoSummary>()
                 val levels = subscriptions.notifyLevels()
                 // At most the newest few per refresh: one burst of uploads must not become hundreds of rows (or database calls).
-                fresh.filter { it.video.id !in known }.sortedByDescending { it.video.uploadedAt }.take(MAX_NEW_PER_REFRESH).forEach { e ->
+                fresh.filter { it.video.id !in known && !isBlocked(it.video) }.sortedByDescending { it.video.uploadedAt }.take(MAX_NEW_PER_REFRESH).forEach { e ->
                     val level = levels[e.video.channelId] ?: com.greenaltambe.vela.data.NotifyLevel.PERSONALIZED
                     if (level != com.greenaltambe.vela.data.NotifyLevel.NONE) {
                         notifications.add(com.greenaltambe.vela.data.NotificationKind.UPLOAD, e.video.id, e.video.title, now, channelId = e.video.channelId, channelName = e.video.channelName, videoId = e.video.id, thumbnailUrl = e.video.thumbnailUrl)

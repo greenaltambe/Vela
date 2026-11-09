@@ -117,7 +117,9 @@ fun PlayerSheet(
 
     val winW = windowInfo.containerSize.width.toFloat().coerceAtLeast(100f)
     val winH = windowInfo.containerSize.height.toFloat().coerceAtLeast(100f)
-    androidx.compose.runtime.SideEffect { sheetState.windowHeightPx = winH }
+    androidx.compose.runtime.SideEffect { sheetState.windowHeightPx = winH; sheetState.windowWidthPx = winW }
+    val toasts = com.greenaltambe.vela.ui.look.LocalUndoToasts.current
+    val haptics = rememberPlayerHaptics()
     val bottomInsetPx = WindowInsets.safeDrawing.getBottom(density).toFloat()
     val topInsetPx = WindowInsets.safeDrawing.getTop(density).toFloat()
 
@@ -161,6 +163,7 @@ fun PlayerSheet(
         var startWindowY = 0f
         var isDragging = false
         val tracker = VelocityTracker()
+        val swipeTracker = VelocityTracker()
 
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
@@ -185,6 +188,11 @@ fun PlayerSheet(
             fun currentSheetY(): Float = cardTopNow() * (1f - sheetState.progress)
 
             startProgress = currentP
+            // Swiping the collapsed bar away: sideways or down. The finger's place is measured as if the bar were not moving (it moves with the finger).
+            var swiping = false
+            val startRawX = down.position.x + sheetState.swipeX.value
+            val startRawY = down.position.y + sheetState.swipeY.value
+            swipeTracker.resetTracking()
             startWindowY = down.position.y + currentSheetY()
             isDragging = false
             tracker.resetTracking()
@@ -200,12 +208,26 @@ fun PlayerSheet(
                 val change = event.changes.firstOrNull { it.id == down.id } ?: break
 
                 val nowWindowY = change.position.y + currentSheetY()
+                val rawX = change.position.x + sheetState.swipeX.value
+                val rawY = change.position.y + sheetState.swipeY.value
+                val swipeDx = rawX - startRawX
+                val swipeDy = rawY - startRawY
 
                 // Something else took the gesture before it became a drag (a child consumed it, the seek bar got a finger): drop it.
                 if (!isDragging && (change.isConsumed || gestureLock.isLocked(change.uptimeMillis))) break
                 if (isDragging && gestureLock.active) break
 
                 if (!change.pressed) {
+                    if (swiping) {
+                        val v = swipeTracker.calculateVelocity()
+                        val dxEnd = rawX - startRawX; val dyEnd = rawY - startRawY
+                        val leaving = sheetState.releaseSwipe(
+                            dxEnd, dyEnd, v.x, v.y, thresholdX = winW * 0.3f, thresholdY = with(density) { 56.dp.toPx() },
+                            onClosed = { closed -> toasts.show("Player closed") { sheetState.reopen(closed) } },
+                        )
+                        if (leaving) haptics.click()
+                        break
+                    }
                     if (isDragging) {
                         val vY = tracker.calculateVelocity().y
                         // On the open video page, a firm swipe UP on the picture turns it fullscreen (landscape). Down still minimises (below).
@@ -214,6 +236,17 @@ fun PlayerSheet(
                         else sheetState.settle(vY)
                     }
                     break
+                }
+
+                if (!isDragging && !swiping && startProgress < 0.15f && (abs(swipeDx) > touchSlop || swipeDy > touchSlop)) {
+                    // Down or sideways takes the bar away; up is the existing drag that opens it.
+                    if (abs(swipeDx) > abs(swipeDy) || swipeDy > 0f) swiping = true
+                }
+                if (swiping) {
+                    change.consume()
+                    swipeTracker.addPosition(change.uptimeMillis, Offset(rawX, rawY))
+                    scope.launch { sheetState.dragSwipe(swipeDx, swipeDy) }
+                    continue
                 }
 
                 tracker.addPosition(change.uptimeMillis, Offset(change.position.x, nowWindowY))
@@ -238,7 +271,7 @@ fun PlayerSheet(
         // Morphing Sheet Box: exactly sized and positioned, only absorbs touches within its bounds
         Box(
             Modifier
-                .offset { val p = progressNow(); IntOffset(sheetXAt(p).roundToInt(), (sheetYAt(p) + sheetState.slideY).roundToInt()) }
+                .offset { val p = progressNow(); IntOffset((sheetXAt(p) + sheetState.swipeX.value).roundToInt(), (sheetYAt(p) + sheetState.slideY + sheetState.swipeY.value).roundToInt()) }
                 .layout { measurable, _ ->
                     val p = progressNow()
                     val w = sheetWAt(p).roundToInt().coerceAtLeast(0)
@@ -246,7 +279,7 @@ fun PlayerSheet(
                     val placeable = measurable.measure(androidx.compose.ui.unit.Constraints.fixed(w, h))
                     layout(w, h) { placeable.place(0, 0) }
                 }
-                .graphicsLayer { clip = true }
+                .graphicsLayer { clip = true; alpha = sheetState.swipeAlpha() }
                 .drawBehind { drawRect(if (progressNow() > 0.4f) backgroundExpanded else backgroundCollapsed) }
                 .then(gestureModifier)
                 // Collapsed, the sheet is the mini player: named as such for the tests and for accessibility tooling.

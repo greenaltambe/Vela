@@ -1,5 +1,10 @@
 package com.greenaltambe.vela.ui.player
 
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitVerticalTouchSlopOrCancellation
+import androidx.compose.foundation.gestures.verticalDrag
+import androidx.compose.foundation.layout.width
 import com.greenaltambe.vela.ui.components.LoadingSpinner
 import com.greenaltambe.vela.ui.theme.AppIcons
 import androidx.compose.foundation.shape.CircleShape
@@ -106,6 +111,8 @@ fun PlayerView(
     chapters: List<Chapter>,
     markers: List<SeekMarker>,
     modifier: Modifier = Modifier,
+    /** Pictures along the seek bar (YouTube's storyboard), when the source has them. */
+    storyboard: com.greenaltambe.vela.extractor.Storyboard? = null,
     fullscreen: Boolean = false,
     /** False in Picture-in-Picture, where only the picture is drawn. */
     controlsEnabled: Boolean = true,
@@ -125,6 +132,15 @@ fun PlayerView(
     /** Autoplay-next (a setting the page owns); both null hides the row in the settings sheet. */
     autoplay: Boolean? = null,
     onAutoplayChange: ((Boolean) -> Unit)? = null,
+    /** How captions are drawn, and how a change is saved (null hides the style controls). */
+    captionStyle: com.greenaltambe.vela.core.settings.CaptionStyle = com.greenaltambe.vela.core.settings.CaptionStyle(),
+    onCaptionStyleChange: ((com.greenaltambe.vela.core.settings.CaptionStyle) -> Unit)? = null,
+    /** Volume boost: null hides the row (a device that cannot boost). */
+    boost: com.greenaltambe.vela.core.settings.VolumeBoost? = null,
+    onBoostChange: ((com.greenaltambe.vela.core.settings.VolumeBoost) -> Unit)? = null,
+    /** "Repeat": play this video again when it ends. Null hides the row. */
+    repeat: Boolean? = null,
+    onRepeatChange: ((Boolean) -> Unit)? = null,
     /** How far a double-tap (and the skip buttons) jump, in seconds; and the speed while the picture is held. Both are playback settings. */
     seekStepSeconds: Int = 10,
     holdSpeed: Float = 2f,
@@ -223,7 +239,10 @@ fun PlayerView(
         var hasPlayed by remember(video.id) { mutableStateOf(false) }
         LaunchedEffect(playing) { if (playing) hasPlayed = true }
         if (video.thumbnailUrl != null && !hasPlayed) AsyncImage(video.thumbnailUrl, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-        host.Surface(Modifier.fillMaxSize())
+        var fillScreen by remember { mutableStateOf(false) }
+        var zoomNote by remember { mutableStateOf<Pair<String, Int>?>(null) }
+        LaunchedEffect(zoomNote?.second) { if (zoomNote != null) { kotlinx.coroutines.delay(1000); zoomNote = null } }
+        host.Surface(Modifier.fillMaxSize(), fillScreen)
 
         // The poster stands in until this video has a picture of its own.
         if (!active || (player.status == PlaybackStatus.IDLE)) {
@@ -238,16 +257,63 @@ fun PlayerView(
             val track = activeCaption
             value = if (track == null || fetch == null) emptyList() else fetch(track.url)?.let { com.greenaltambe.vela.library.Vtt.parse(it) }.orEmpty()
         }
-        val cue = if (active && cues.isNotEmpty()) com.greenaltambe.vela.library.Vtt.at(cues, position) else null
-        if (cue != null) Text(
-            cue.text, Modifier.align(Alignment.BottomCenter).padding(start = Spacing.md, end = Spacing.md, bottom = if (showControls) 96.dp else Spacing.md).clip(MaterialTheme.shapes.small)
-                .background(ExtraColors.mediaScrim.copy(alpha = 0.7f)).padding(horizontal = Spacing.sm, vertical = Spacing.xs).testTag("player.caption"),
-            color = onMedia, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center, maxLines = 3,
-        )
+        val shownCues = if (active && cues.isNotEmpty()) remember(cues, position / 100) { com.greenaltambe.vela.library.Vtt.active(cues, position) } else emptyList()
+        if (shownCues.isNotEmpty()) CaptionOverlay(shownCues, captionStyle, fullscreen, bottomInset = if (showControls) 96.dp else Spacing.md, modifier = Modifier.matchParentSize())
 
+        // Fullscreen only (the small player's vertical swipes belong to the page): up or down on the left half changes the brightness, on the right half the volume.
+        val levels = com.greenaltambe.vela.ui.platform.LocalPlayerLevels.current
+        var levelHud by remember { mutableStateOf<LevelHud?>(null) }
+        LaunchedEffect(levelHud?.token) { if (levelHud != null) { kotlinx.coroutines.delay(900); levelHud = null } }
         // Taps toggle the controls. Under the controls, so their buttons take their own taps.
         Box(
             Modifier.fillMaxSize().testTag("player.surface")
+                // Fullscreen: spread two fingers to zoom the picture to fill the screen (the edges are cropped), pinch to fit it back.
+                .then(if (fullscreen) Modifier.pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val first = awaitPointerEvent()
+                            if (first.changes.count { it.pressed } < 2) continue
+                            val a = first.changes.filter { it.pressed }.take(2)
+                            val startDist = (a[0].position - a[1].position).getDistance().coerceAtLeast(1f)
+                            var decided = false
+                            while (true) {
+                                val e = awaitPointerEvent()
+                                val down = e.changes.filter { it.pressed }
+                                if (down.size < 2) break
+                                if (!decided) {
+                                    val ratio = (down[0].position - down[1].position).getDistance() / startDist
+                                    if (ratio > 1.15f || ratio < 0.87f) { decided = true; val fill = ratio > 1f; if (fill != fillScreen) { fillScreen = fill; zoomNote = (if (fill) "Zoom to fill" else "Fit") to ((zoomNote?.second ?: 0) + 1) } }
+                                }
+                                e.changes.forEach { it.consume() }
+                            }
+                        }
+                    }
+                } else Modifier)
+                // Brightness (left third) and volume (right third). The middle third is left alone, so a swipe down there still leaves fullscreen.
+                .then(if (fullscreen && levels != null) Modifier.pointerInput(levels) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val left = down.position.x < size.width * 0.35f
+                        val right = down.position.x > size.width * 0.65f
+                        if ((!left && !right) || !activeNow || gestureLock?.active == true) return@awaitEachGesture
+                        val start = if (left) levels.brightness else levels.volume
+                        var total = 0f
+                        val slop = awaitVerticalTouchSlopOrCancellation(down.id) { change, over -> change.consume(); total += over } ?: return@awaitEachGesture
+                        controlsVisible = false // the controls' dim layer would grey the indicator
+                        verticalDrag(slop.id) { change ->
+                            change.consume(); total += change.position.y - change.previousPosition.y
+                            val raw = com.greenaltambe.vela.ui.platform.swipedRaw(start, total, size.height.toFloat())
+                            if (left) {
+                                val target = com.greenaltambe.vela.ui.platform.brightnessTarget(raw)
+                                if (target == null) levels.useSystemBrightness() else levels.brightness = target
+                                levelHud = LevelHud(true, target ?: 0f, (levelHud?.token ?: 0) + 1, auto = target == null)
+                            } else {
+                                val v = raw.coerceIn(0f, 1f); levels.volume = v
+                                levelHud = LevelHud(false, v, (levelHud?.token ?: 0) + 1)
+                            }
+                        }
+                    }
+                } else Modifier)
                 .pointerInput(video.id, seekStepSeconds, holdSpeed) {
                     detectTapGestures(
                         onTap = { controlsVisible = !controlsVisible; touches++ },
@@ -265,6 +331,8 @@ fun PlayerView(
                 },
         )
         flash?.let { f -> key(f.token) { SeekBadge(f.forward, f.seconds, onMedia, Modifier.align(if (f.forward) Alignment.CenterEnd else Alignment.CenterStart)) } }
+        zoomNote?.let { (text, _) -> Text(text, color = onMedia, style = MaterialTheme.typography.labelLarge, modifier = Modifier.align(Alignment.TopCenter).padding(top = Spacing.md).clip(CircleShape).background(ExtraColors.mediaScrim.copy(alpha = 0.7f)).padding(horizontal = Spacing.md, vertical = Spacing.xs).testTag("player.zoomNote")) }
+        levelHud?.let { hud -> LevelIndicator(hud, onMedia, Modifier.align(if (hud.brightness) Alignment.CenterStart else Alignment.CenterEnd).padding(horizontal = Spacing.gutter * 2)) }
         val held by session.heldSpeed.collectAsState()
         held?.let { speed -> Text(
             "${if (speed == speed.toInt().toFloat()) speed.toInt().toString() else speed.toString()}× speed", color = onMedia, style = MaterialTheme.typography.bodyMedium,
@@ -412,6 +480,7 @@ fun PlayerView(
                         chapters = chapters,
                         durationMs = duration,
                         videoThumbnailUrl = video.thumbnailUrl,
+                        storyboard = storyboard,
                         previewLabel = { f -> formatTimestamp((f * duration / 1000).toLong()) },
                         description = "Seek",
                         valueDescription = "${formatTimestamp(shown / 1000)} of ${formatTimestamp(duration / 1000)}",
@@ -456,7 +525,9 @@ fun PlayerView(
         Menu.CAPTIONS -> PlayerMenuSheet("Captions", dismissMenu, subtitle = activeCaption?.label ?: "Off") {
             PlayerMenuRow("Off", selected = activeCaption == null, onClick = { session.selectCaption(null); menu = null }, index = 0)
             captions.forEachIndexed { i, c -> PlayerMenuRow(c.label, selected = activeCaption == c, onClick = { session.selectCaption(c); menu = null }, index = i + 1) }
+            if (onCaptionStyleChange != null) PlayerMenuRow("Caption style", selected = false, onClick = { menu = Menu.CAPTION_STYLE }, index = captions.size + 1, leading = AppIcons.captions, supporting = "${captionStyle.size.label} · ${captionStyle.background.label}")
         }
+        Menu.CAPTION_STYLE -> if (onCaptionStyleChange != null) PlayerMenuSheet("Caption style", dismissMenu) { CaptionStyleContent(captionStyle, onCaptionStyleChange) }
         Menu.AUDIO -> PlayerMenuSheet("Audio track", dismissMenu) {
             val inUse = audioTrack ?: audioTracks.firstOrNull { it.original }?.key ?: audioTracks.firstOrNull()?.key
             audioTracks.forEachIndexed { i, t -> PlayerMenuRow(t.label, selected = t.key == inUse, onClick = { session.selectAudioTrack(if (t.original) null else t.key); menu = null }, index = i) }
@@ -470,12 +541,37 @@ fun PlayerView(
         Menu.SETTINGS -> PlayerMenuSheet("Settings", dismissMenu) {
             PlayerMenuRow("Quality", selected = false, onClick = { menu = Menu.QUALITY }, index = 0, leading = AppIcons.quality, supporting = (sessionState as? SessionState.Ready)?.maxHeight?.let { "${it}p" } ?: "Auto")
             PlayerMenuRow("Playback speed", selected = false, onClick = { menu = Menu.SPEED }, index = 1, leading = AppIcons.speed, supporting = formatSpeed(player.speed))
+            if (onCaptionStyleChange != null) PlayerMenuRow("Caption style", selected = false, onClick = { menu = Menu.CAPTION_STYLE }, index = 1, leading = AppIcons.captions, supporting = "${captionStyle.size.label} · ${captionStyle.background.label}")
+            if (boost != null && onBoostChange != null) PlayerMenuRow("Volume boost", selected = false, onClick = { menu = Menu.BOOST }, index = 2, leading = AppIcons.volume, supporting = boost.label)
             if (audioTracks.isNotEmpty()) PlayerMenuRow("Audio track", selected = false, onClick = { menu = Menu.AUDIO }, index = 2, leading = AppIcons.audioTrack)
             PlayerMenuRow("Sleep timer", selected = false, onClick = { menu = Menu.SLEEP }, index = 3, leading = AppIcons.timer, supporting = if (sleep != null) "On" else "Off")
+            if (repeat != null && onRepeatChange != null) PlayerMenuRow(
+                "Repeat", selected = false, onClick = { onRepeatChange(!repeat) }, index = 4, leading = AppIcons.refresh, supporting = "Play this video again when it ends",
+                trailing = { androidx.compose.material3.Switch(repeat, { onRepeatChange(it) }, Modifier.testTag("video.repeat")) },
+            )
             if (autoplay != null && onAutoplayChange != null) PlayerMenuRow(
-                "Autoplay", selected = false, onClick = { onAutoplayChange(!autoplay) }, index = 4, leading = AppIcons.skipNext, supporting = "Play the next video when this one ends",
+                "Autoplay", selected = false, onClick = { onAutoplayChange(!autoplay) }, index = 5, leading = AppIcons.skipNext, supporting = "Play the next video when this one ends",
                 trailing = { androidx.compose.material3.Switch(autoplay, { onAutoplayChange(it) }, Modifier.testTag("video.autoplay")) },
             )
+        }
+        Menu.BOOST -> if (boost != null && onBoostChange != null) PlayerMenuSheet("Volume boost", dismissMenu, subtitle = boost.label) {
+            Column(Modifier.padding(horizontal = Spacing.gutter), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                ChoiceChipGrid(
+                    options = com.greenaltambe.vela.core.settings.VolumeBoost.entries, isSelected = { it == boost }, label = { it.label }, onSelect = { onBoostChange(it) },
+                    columns = 2, tag = { "boost.${it.name.lowercase()}" },
+                )
+                Text("Makes quiet videos louder than your phone's maximum.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                // The warning only appears where it matters: at +6 dB and above, in the container colour Material uses for caution.
+                androidx.compose.animation.AnimatedVisibility(boost.db >= 6) {
+                    androidx.compose.foundation.layout.Row(
+                        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).background(MaterialTheme.colorScheme.errorContainer).padding(Spacing.md).testTag("boost.warning"),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(AppIcons.info, null, tint = MaterialTheme.colorScheme.onErrorContainer)
+                        Text("Loud videos can distort at this level. If the sound turns harsh, choose a lower step.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
+                    }
+                }
+            }
         }
         Menu.SPEED -> PlayerMenuSheet("Playback speed", dismissMenu) { SpeedMenuContent(player.speed) { session.setSpeed(it) } }
         Menu.SLEEP -> PlayerMenuSheet("Sleep timer", dismissMenu, subtitle = if (sleep != null) "On" else "Off") {
@@ -492,7 +588,7 @@ fun PlayerView(
     )
 }
 
-private enum class Menu { QUALITY, SPEED, SLEEP, CAPTIONS, AUDIO, SETTINGS }
+private enum class Menu { QUALITY, SPEED, SLEEP, CAPTIONS, CAPTION_STYLE, BOOST, AUDIO, SETTINGS }
 
 private fun describeTimer(mode: SleepTimerMode) = when (mode) {
     is SleepTimerMode.After -> "${mode.duration.inWholeMinutes} min"
@@ -533,4 +629,58 @@ private fun SeekBadge(forward: Boolean, seconds: Int, onMedia: Color, modifier: 
         Text("${if (forward) "+" else "−"}$seconds s", color = onMedia, style = MaterialTheme.typography.bodyMedium)
         if (forward) Icon(AppIcons.forward, null, tint = onMedia)
     }
+}
+
+/** What a brightness / volume swipe shows: which one, how far, and a counter so every step restarts the hide timer. */
+private data class LevelHud(val brightness: Boolean, val level: Float, val token: Int, val auto: Boolean = false)
+
+/** A small pill by the edge being swiped: the name, a bar and the percentage. */
+@Composable
+private fun LevelIndicator(hud: LevelHud, onMedia: androidx.compose.ui.graphics.Color, modifier: Modifier = Modifier) {
+    Column(
+        modifier.clip(MaterialTheme.shapes.large).background(ExtraColors.mediaScrim.copy(alpha = 0.7f)).padding(horizontal = Spacing.md, vertical = Spacing.sm).testTag("player.levelHud"),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+    ) {
+        if (!hud.brightness) Icon(if (hud.level <= 0f) AppIcons.mute else AppIcons.volume, null, Modifier.size(20.dp), tint = onMedia)
+        Text(if (hud.brightness) "Brightness" else if (hud.level <= 0f) "Muted" else "Volume", color = onMedia, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+        if (!hud.auto) androidx.compose.material3.LinearProgressIndicator(
+            progress = { hud.level }, modifier = Modifier.width(96.dp), color = onMedia, trackColor = onMedia.copy(alpha = 0.3f),
+        )
+        // Past the bottom end the screen goes back to the system's own brightness (auto-brightness): the swipe's last step.
+        Text(if (hud.auto) "Auto" else "${(hud.level * 100).toInt()}%", color = onMedia, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+    }
+}
+
+/** The caption style sheet: a live preview on a dark picture, then size, background and whether the creator's colours and positions are used. Every change is saved at once. */
+@Composable
+private fun CaptionStyleContent(style: com.greenaltambe.vela.core.settings.CaptionStyle, onChange: (com.greenaltambe.vela.core.settings.CaptionStyle) -> Unit) {
+    val sample = remember {
+        com.greenaltambe.vela.library.Cue(
+            0, 1, "Captions look like this", listOf(listOf(
+                com.greenaltambe.vela.library.CaptionRun("Captions", color = 0xFF9146FF.toInt(), bold = true), com.greenaltambe.vela.library.CaptionRun(" look like this"),
+            )),
+        )
+    }
+    Column(Modifier.padding(horizontal = Spacing.gutter), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+        Box(
+            Modifier.fillMaxWidth().height(112.dp).clip(MaterialTheme.shapes.large)
+                .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.secondary))).testTag("caption.preview"),
+            contentAlignment = Alignment.BottomCenter,
+        ) { CaptionBubble(sample, style, fullscreen = false, placedInBox = false, Modifier.padding(bottom = Spacing.md)) }
+        Text("Size", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        ChoiceChipGrid(
+            options = com.greenaltambe.vela.core.settings.CaptionSize.entries, isSelected = { it == style.size }, label = { it.label }, onSelect = { onChange(style.copy(size = it)) },
+            columns = 2, tag = { "caption.size.${it.name.lowercase()}" },
+        )
+        Text("Background", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        ChoiceChipGrid(
+            options = com.greenaltambe.vela.core.settings.CaptionBackground.entries, isSelected = { it == style.background }, label = { it.label }, onSelect = { onChange(style.copy(background = it)) },
+            columns = 3, tag = { "caption.background.${it.name.lowercase()}" },
+        )
+    }
+    PlayerMenuRow(
+        "Use the creator's style", selected = false, onClick = { onChange(style.copy(creatorStyle = !style.creatorStyle)) }, index = 2,
+        supporting = "Colours, bold and position, such as a chat overlay in a corner", supportingLines = 3,
+        trailing = { androidx.compose.material3.Switch(style.creatorStyle, { onChange(style.copy(creatorStyle = it)) }, Modifier.testTag("caption.creatorStyle")) },
+    )
 }

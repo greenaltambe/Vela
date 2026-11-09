@@ -112,6 +112,23 @@ class PlaybackSession(
      */
     val networkType: StateFlow<NetworkType> get() = network.type
 
+    private val _boost = MutableStateFlow(settings.resolve(com.greenaltambe.vela.core.settings.Settings.volumeBoost))
+
+    /** The viewer's volume boost; applied to every video, kept in settings. */
+    val boost: StateFlow<com.greenaltambe.vela.core.settings.VolumeBoost> = _boost
+
+    /** Whether this device can boost at all (the player's controls hide the row when it cannot). */
+    val canBoost: Boolean get() = controller.canBoost
+
+    fun setBoost(b: com.greenaltambe.vela.core.settings.VolumeBoost) {
+        _boost.value = b
+        settings.set(com.greenaltambe.vela.core.settings.Settings.volumeBoost, b)
+        controller.setBoost(b.db)
+    }
+
+    // After the boost is declared (properties start in order): hand the saved boost to the player.
+    init { controller.setBoost(_boost.value.db) }
+
     private val _volume = MutableStateFlow(1f)
 
     /** Output volume 0..1 as the user set it, whether or not it is currently [muted]. */
@@ -269,7 +286,8 @@ class PlaybackSession(
         publishMedia()
         forAddons { it.onVideo(videoId, channelId, offline = false) } // before the observers, so an add-on knows the video before any state of it arrives
         ensureObservers()
-        work = sessionScope.launch { resolveAndLoad(videoId, resume = true, needsInfo = hint == null) }
+        // A hint with no title (a video opened from a link carries only its id) is no hint: the title and channel are looked up.
+        work = sessionScope.launch { resolveAndLoad(videoId, resume = true, needsInfo = hint == null || hint.title.isBlank() || hint.channelId.isBlank()) }
     }
 
     /**
@@ -414,7 +432,10 @@ class PlaybackSession(
             val i = if (needsInfo) async { extractor.videoInfo(id) } else null
             s.await() to i?.await()
         }
-        (info as? ExtractorResult.Success)?.value?.let { title = it.title; channelId = it.channelId; channelNameShown = it.channelName; artworkUrl = it.thumbnailUrl ?: artworkUrl }
+        (info as? ExtractorResult.Success)?.value?.let {
+            title = it.title.ifBlank { title }; channelId = it.channelId.ifBlank { channelId }; channelNameShown = it.channelName.ifBlank { channelNameShown }; artworkUrl = it.thumbnailUrl ?: artworkUrl
+            runCatching { history.healMissing(accountId(), id, title, channelId) }
+        }
         publishMedia()
         val set = when (result) {
             is ExtractorResult.Success -> result.value

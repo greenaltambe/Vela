@@ -16,6 +16,10 @@ interface PlayerHost {
     @Composable
     fun Surface(modifier: Modifier)
 
+    /** The surface with the picture either fitted inside it (bars where the shapes differ) or zoomed to fill it (the edges cropped). Platforms that cannot zoom ignore [fill]. */
+    @Composable
+    fun Surface(modifier: Modifier, fill: Boolean) = Surface(modifier)
+
     /** Called just before a video is started from the UI, e.g. to ask for the notification permission. */
     fun onBeforePlayback() {}
 }

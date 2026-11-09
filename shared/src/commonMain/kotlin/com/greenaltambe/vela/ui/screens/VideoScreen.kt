@@ -1,5 +1,11 @@
 package com.greenaltambe.vela.ui.screens
 
+import androidx.compose.ui.zIndex
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.lazy.itemsIndexed
 import com.greenaltambe.vela.ui.theme.AppIcons
 import com.greenaltambe.vela.ui.theme.Spacing
 import androidx.compose.foundation.horizontalScroll
@@ -229,6 +235,7 @@ fun VideoScreen(
     val density = androidx.compose.ui.platform.LocalDensity.current
 
     val seekStep = services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.seekStepSeconds).toInt()
+    var captionStyle by remember { mutableStateOf(com.greenaltambe.vela.core.settings.CaptionStyle.read(services.settings)) }
     val holdSpeedSetting = services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.holdSpeed)
 
     fun loadComments(more: Boolean) {
@@ -354,8 +361,10 @@ fun VideoScreen(
         var swipeRoot by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
         val bandPx = with(density) { com.greenaltambe.vela.ui.components.PlayerGestureLock.BAND_DP.dp.toPx() }
         PlayerView(
-            host, video, chapters, markers,
+            host, video, chapters, markers, storyboard = info?.storyboard,
             seekStepSeconds = seekStep, holdSpeed = holdSpeedSetting, onPrevious = onPreviousVideo, onNext = onNextVideo,
+            captionStyle = captionStyle, onCaptionStyleChange = { captionStyle = it; it.write(services.settings) },
+                boost = host?.takeIf { it.session.canBoost }?.session?.boost?.collectAsState()?.value, onBoostChange = { host?.session?.setBoost(it) },
             modifier = modifier.fillMaxSize()
                 .onGloballyPositioned { swipeRoot = it.positionInRoot() }
                 .then(if (inPip) Modifier else Modifier.playerVerticalSwipe(
@@ -401,8 +410,11 @@ fun VideoScreen(
                 host, video, chapters, markers, Modifier.fillMaxSize(), onBack = onBack ?: { navigator.back(); Unit }, seekStepSeconds = seekStep, holdSpeed = holdSpeedSetting, onPrevious = onPreviousVideo, onNext = onNextVideo,
                 onOpenChapters = if (chapters.isNotEmpty()) ({ chaptersOpen = true; commentsOpen = false; descriptionOpen = false }) else null,
                 autoplay = autoplay, onAutoplayChange = { services.settings.set(com.greenaltambe.vela.core.settings.Settings.autoplayNext, it) },
+                repeat = navigator.repeatOne, onRepeatChange = { navigator.repeatOne = it },
+                captionStyle = captionStyle, onCaptionStyleChange = { captionStyle = it; it.write(services.settings) },
+                boost = host?.takeIf { it.session.canBoost }?.session?.boost?.collectAsState()?.value, onBoostChange = { host?.session?.setBoost(it) },
                 controlsEnabled = (fullyExpanded && !inPip),
-                isLive = info?.isLive == true, resolvingNote = resolvingNote,
+                isLive = info?.isLive == true, resolvingNote = resolvingNote, storyboard = info?.storyboard,
                 openAgeSetting = { navigator.selectTab(com.greenaltambe.vela.ui.nav.Route.Settings) },
                 tryAccountNow = services.accounts.active.value.takeIf { it.isSignedIn }?.let { a -> { services.governors.forAccount(a.id).tryNow() } }, showChapterTitle = size != WindowSizeClass.COMPACT,
                 overlay = { SponsorBlockOverlay(prompt, notice, onAccept = modules.sponsorBlock::acceptPrompt, onUndo = { n -> modules.sponsorBlock.undo(n); notice = null }) },
@@ -602,12 +614,29 @@ fun VideoScreen(
     // Autoplay: off unless switched on (here or in Settings). When this video ends, the queue's next video plays, else the first related one.
     var autoplayed by remember(video.id) { mutableStateOf(false) }
     LaunchedEffect(player?.status, autoplay) {
-        if (!autoplay || autoplayed || offline != null || player?.status != com.greenaltambe.vela.player.PlaybackStatus.ENDED) return@LaunchedEffect
+        if (!autoplay || navigator.repeatOne || autoplayed || offline != null || player?.status != com.greenaltambe.vela.player.PlaybackStatus.ENDED) return@LaunchedEffect
         autoplayed = true
         if (navigator.playNext() == null) relatedShown.firstOrNull { it.id != video.id && !it.isShort }?.let { navigator.replaceWithVideo(it) }
     }
 
+    val toasts = com.greenaltambe.vela.ui.look.LocalUndoToasts.current
     val secondary: LazyListScope.() -> Unit = {
+        // The queue: what plays after this video, in order. Tap one to play it now (the ones before it are skipped); the cross removes it.
+        val queued = navigator.queue
+        if (queued.isNotEmpty()) {
+            item(key = "queue-header") {
+                SectionHeader("Up next \u2022 ${queued.size}", action = {
+                    if (queued.size > 1) androidx.compose.material3.TextButton(onClick = { val old = navigator.queue; navigator.shuffleQueue(); toasts.show("Queue shuffled") { navigator.restoreQueue(old) } }, modifier = Modifier.testTag("queue.shuffle")) { Text("Shuffle") }
+                    androidx.compose.material3.TextButton(onClick = { val old = navigator.queue; navigator.clearQueue(); toasts.show("Queue cleared") { navigator.restoreQueue(old) } }, modifier = Modifier.testTag("queue.clear")) { Text("Clear") }
+                })
+            }
+            item(key = "queue-list") {
+                ReorderableQueue(
+                    queued, onPlay = { navigator.playFromQueue(it) }, onMove = { from, to -> navigator.moveInQueue(from, to) },
+                    onRemove = { v -> val old = navigator.queue; navigator.removeFromQueue(v.id); toasts.show("Removed from queue") { navigator.restoreQueue(old) } },
+                )
+            }
+        }
         if (relatedShown.isNotEmpty()) {
             item {
                 SectionHeader("Related")
@@ -869,4 +898,80 @@ private fun LiveChatPanel(source: com.greenaltambe.vela.extractor.LiveChatSource
         }
     }
     ChatPanelUi(open, replay, status, lines, onToggle = { open = !open })
+}
+
+/**
+ * The queue as a list the viewer can rearrange: hold the handle (the three lines) and drag a row up or down, the others slide out of the way and it drops where
+ * you let go. A tap plays that video now, the cross removes it. Screen readers get Move up / Move down actions instead of the drag.
+ */
+@Composable
+private fun ReorderableQueue(videos: List<VideoSummary>, onPlay: (Int) -> Unit, onMove: (Int, Int) -> Unit, onRemove: (VideoSummary) -> Unit) {
+    var dragging by remember { mutableStateOf(-1) }
+    var dragOffset by remember { mutableStateOf(0f) }
+    val haptics = com.greenaltambe.vela.ui.player.rememberPlayerHaptics()
+    var rowHeight by remember { mutableStateOf(0f) }
+    val gap = with(androidx.compose.ui.platform.LocalDensity.current) { Spacing.xs.toPx() }
+    val step = rowHeight + gap
+    fun targetOf(from: Int) = if (step <= 0f) from else (from + (dragOffset / step).let { kotlin.math.round(it).toInt() }).coerceIn(0, videos.lastIndex)
+    androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().testTag("queue.list"), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        videos.forEachIndexed { i, v ->
+            androidx.compose.runtime.key(v.id) {
+                val index by androidx.compose.runtime.rememberUpdatedState(i)
+                val target = if (dragging >= 0) targetOf(dragging) else -1
+                // The rows between the dragged one and where it is headed make room: they move one row the other way.
+                val shift = when {
+                    dragging < 0 || i == dragging -> 0f
+                    dragging < target && i in (dragging + 1)..target -> -step
+                    dragging > target && i in target until dragging -> step
+                    else -> 0f
+                }
+                val animated by androidx.compose.animation.core.animateFloatAsState(shift, if (dragging >= 0) androidx.compose.animation.core.spring(0.8f, 600f) else androidx.compose.animation.core.snap(), label = "queueShift")
+                val lifted = i == dragging
+                val liftShape = MaterialTheme.shapes.large
+                val container by androidx.compose.animation.animateColorAsState(if (lifted) MaterialTheme.colorScheme.surfaceContainerHighest else MaterialTheme.colorScheme.surfaceContainer, label = "queueRow")
+                androidx.compose.foundation.layout.Row(
+                    Modifier.fillMaxWidth()
+                        .onSizeChanged { if (i == 0 || rowHeight == 0f) rowHeight = it.height.toFloat() }
+                        .zIndex(if (lifted) 1f else 0f)
+                        .graphicsLayer { translationY = if (lifted) dragOffset else animated; shadowElevation = if (lifted) Spacing.md.toPx() else 0f; shape = liftShape; clip = false }
+                        .clip(MaterialTheme.shapes.large).background(container)
+                        .clickable(onClick = { onPlay(index) })
+                        .semantics {
+                            customActions = buildList {
+                                if (i > 0) add(androidx.compose.ui.semantics.CustomAccessibilityAction("Move up") { onMove(index, index - 1); true })
+                                if (i < videos.lastIndex) add(androidx.compose.ui.semantics.CustomAccessibilityAction("Move down") { onMove(index, index + 1); true })
+                                add(androidx.compose.ui.semantics.CustomAccessibilityAction("Remove from queue") { onRemove(v); true })
+                            }
+                        }
+                        .padding(start = Spacing.xs, top = Spacing.xs, bottom = Spacing.xs).testTag("queue.row"),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    coil3.compose.AsyncImage(
+                        v.thumbnailUrl ?: "https://i.ytimg.com/vi/${v.id}/mqdefault.jpg", null,
+                        Modifier.width(112.dp).aspectRatio(16f / 9f).clip(MaterialTheme.shapes.small).background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    )
+                    androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
+                        if (i == 0) Text("Plays next", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, maxLines = 1)
+                        Text(v.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        if (v.channelName.isNotBlank()) Text(v.channelName, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    androidx.compose.material3.IconButton(onClick = { onRemove(v) }, modifier = Modifier.testTag("queue.remove")) { Icon(AppIcons.close, "Remove from queue") }
+                    // The handle: only it starts a drag, so scrolling the page with a finger on a row still works.
+                    Box(
+                        Modifier.size(48.dp).testTag("queue.handle")
+                            .pointerInput(v.id) {
+                                detectDragGestures(
+                                    onDragStart = { dragging = index; dragOffset = 0f; haptics.click() },
+                                    onDrag = { change, d -> change.consume(); dragOffset += d.y },
+                                    onDragEnd = { val from = dragging; val to = if (from >= 0) targetOf(from) else from; dragging = -1; dragOffset = 0f; if (from >= 0 && to != from) { onMove(from, to); haptics.confirm() } },
+                                    onDragCancel = { dragging = -1; dragOffset = 0f },
+                                )
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(AppIcons.menu, "Drag to reorder", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+                }
+            }
+        }
+    }
 }

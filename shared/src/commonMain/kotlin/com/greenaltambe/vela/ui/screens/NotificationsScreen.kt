@@ -65,7 +65,8 @@ internal fun dayLabel(at: kotlin.time.Instant, now: kotlin.time.Instant, offsetM
 @Composable
 fun NotificationsScreen(services: AppServices, navigator: Navigator, modifier: Modifier = Modifier) {
     val revision by services.notificationsRevision.collectAsState()
-    val items = remember(revision, services.activeId) { services.notifications.recent() }
+    val blockedRevision by services.blocklist.revision.collectAsState()
+    val items = remember(revision, services.activeId, blockedRevision) { services.notifications.recent().filterNot { it.channelId.isNotBlank() && services.blocklist.isBlocked(it.channelId) } }
     val now = services.clock.now()
     val offset = services.utcOffsetMinutes()
     val groups = remember(items, offset) { items.groupBy { dayLabel(it.createdAt, now, offset) } }

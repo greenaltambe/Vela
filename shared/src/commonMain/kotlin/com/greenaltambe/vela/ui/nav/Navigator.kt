@@ -3,6 +3,7 @@ package com.greenaltambe.vela.ui.nav
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -37,6 +38,7 @@ sealed interface Route {
     data object Health : Route
     data object Backup : Route
     data object DownloadRules : Route
+    data object Blocklist : Route
     data object Downloads : Route
     data object Customize : Route
     data class SettingsPage(val pageId: String, val highlight: String? = null) : Route
@@ -53,7 +55,7 @@ fun Route.topLevel(): Route = when (this) {
     Route.Explore -> Route.Explore
     Route.Subscriptions, Route.ManageSubscriptions -> Route.Subscriptions
     Route.Library, is Route.Playlist, Route.History, Route.Downloads, Route.DownloadRules -> Route.Library
-    Route.Settings, Route.Diagnostics, Route.Accounts, Route.AccountActivity, Route.Health, Route.Backup, Route.Customize, is Route.CustomizePage, is Route.SettingsPage -> Route.Settings
+    Route.Settings, Route.Blocklist, Route.Diagnostics, Route.Accounts, Route.AccountActivity, Route.Health, Route.Backup, Route.Customize, is Route.CustomizePage, is Route.SettingsPage -> Route.Settings
 }
 
 /** What the last navigation did, so the shell can animate it: tabs crossfade and slide a little, pushes slide in, pops slide out. */
@@ -141,9 +143,12 @@ class Navigator(start: Route = Route.Home) {
     var played: List<VideoSummary> by mutableStateOf(emptyList())
         private set
 
+    /** Play this video again when it ends (the player's "Repeat" switch). It belongs to the video it was set on: another video starts without it. */
+    var repeatOne: Boolean by mutableStateOf(false)
+
     private fun remember(next: VideoSummary) {
         val now = nowPlaying
-        if (now != null && now.id != next.id) played = (played + now).takeLast(30)
+        if (now != null && now.id != next.id) { played = (played + now).takeLast(30); repeatOne = false }
     }
 
     /** Swaps the current screen for [route] (a search view re-searching), so Back does not step through every query. */
@@ -179,9 +184,13 @@ class Navigator(start: Route = Route.Home) {
         stack.add(route)
     }
 
-    /** Switches tab: the stack becomes just that destination. */
+    /** Counts taps on the tab that is already open: the list on screen scrolls back to its top. */
+    var tabReselected by mutableIntStateOf(0)
+        private set
+
+    /** Switches tab: the stack becomes just that destination. Choosing the tab you are on is a request to go back to its top. */
     fun selectTab(route: Route) {
-        if (stack.size == 1 && current == route) return
+        if (stack.size == 1 && current == route) { tabReselected++; return }
         playerSheetState?.let { sheet ->
             if (sheet.isExpanded || sheet.progress > 0.5f) {
                 sheet.collapse()
@@ -212,6 +221,50 @@ class Navigator(start: Route = Route.Home) {
         val first = videos.firstOrNull() ?: return
         queue = videos.drop(1)
         replaceWithVideo(first)
+    }
+
+    /** What [addToQueue] / [playNextUp] did: queued behind the current video, started at once (nothing was playing), or refused (it is the one playing). */
+    enum class QueueResult { QUEUED, STARTED, ALREADY_PLAYING }
+
+    /** Adds [video] to the end of the queue (moving it there if it was queued already). With nothing playing it starts playing instead. */
+    fun addToQueue(video: VideoSummary): QueueResult = enqueue(video, atFront = false)
+
+    /** Puts [video] first in the queue, so it plays right after the current video. With nothing playing it starts playing instead. */
+    fun playNextUp(video: VideoSummary): QueueResult = enqueue(video, atFront = true)
+
+    private fun enqueue(video: VideoSummary, atFront: Boolean): QueueResult {
+        val now = nowPlaying
+        if (now == null) { replaceWithVideo(video); return QueueResult.STARTED }
+        if (now.id == video.id) return QueueResult.ALREADY_PLAYING
+        val rest = queue.filter { it.id != video.id }
+        queue = if (atFront) listOf(video) + rest else rest + video
+        return QueueResult.QUEUED
+    }
+
+    fun removeFromQueue(id: String) { queue = queue.filter { it.id != id } }
+
+    fun clearQueue() { queue = emptyList() }
+
+    /** Puts the queue in a random order ([random] is a parameter so a test can fix it). */
+    fun shuffleQueue(random: kotlin.random.Random = kotlin.random.Random) { if (queue.size > 1) queue = queue.shuffled(random) }
+
+    /** Moves the queued video at [from] so it sits at [to] (both are queue positions); anything out of range does nothing. */
+    fun moveInQueue(from: Int, to: Int) {
+        if (from !in queue.indices || to !in queue.indices || from == to) return
+        val list = queue.toMutableList()
+        list.add(to, list.removeAt(from))
+        queue = list
+    }
+
+    /** Puts the queue back as it was (the Undo of a removal or of Clear). */
+    fun restoreQueue(previous: List<VideoSummary>) { queue = previous }
+
+    /** Plays the queued video at [index] now; the ones before it are skipped, the ones after it stay queued. */
+    fun playFromQueue(index: Int): VideoSummary? {
+        val v = queue.getOrNull(index) ?: return null
+        queue = queue.drop(index + 1)
+        replaceWithVideo(v)
+        return v
     }
 
     /** Next in the queue, or null. Advances the page to it. */
@@ -284,3 +337,6 @@ object NowPlayingSnapshot {
             com.greenaltambe.vela.player.PlaybackOverrides(p.getOrNull(5)?.toFloatOrNull(), p.getOrNull(6)?.toIntOrNull())
     }
 }
+
+/** The app's one [Navigator], for places that only need to hand it a video (a card's menu adding to the queue). Null outside the app shell (previews, tests). */
+val LocalNavigator = androidx.compose.runtime.staticCompositionLocalOf<Navigator?> { null }

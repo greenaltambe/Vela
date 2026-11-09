@@ -6,7 +6,7 @@ enum class SettingsGroup(val title: String) {
 }
 
 /** Where a page row goes when it is not a list of settings: another screen of the app. */
-enum class SettingsLink { NONE, CUSTOMIZE, ACCOUNTS, DOWNLOAD_RULES, BACKUP, HEALTH }
+enum class SettingsLink { NONE, CUSTOMIZE, ACCOUNTS, DOWNLOAD_RULES, BLOCKLIST, BACKUP, HEALTH }
 
 /**
  * One row of the settings home. A page shows the settings it [owns]; a row with a [link] opens another screen instead (and may own
@@ -30,8 +30,9 @@ object SettingsPages {
         SettingsPage("extras", "SponsorBlock & extras", SettingsGroup.WATCHING, 2, owns = prefix("sponsorblock.", "ryd.", "dearrow.", "modules.")),
         SettingsPage("home", "Home", SettingsGroup.YOUR_FEED, 3, owns = keys("home.source", "content.region")),
         SettingsPage("feed", "Subscriptions & feed filters", SettingsGroup.YOUR_FEED, 4, owns = prefix("feed.hide", "feed.watched", "feed.min", "feed.block", "feed.allow", "feed.keywords")),
+        SettingsPage("blocklist", "Blocked channels & words", SettingsGroup.YOUR_FEED, 16, SettingsLink.BLOCKLIST),
         SettingsPage("notifications", "Notifications", SettingsGroup.YOUR_FEED, 15, owns = prefix("notify.")),
-        SettingsPage("shorts", "Shorts", SettingsGroup.YOUR_FEED, 5, owns = keys("feed.shortsMode")),
+        SettingsPage("shorts", "Shorts", SettingsGroup.YOUR_FEED, 5, owns = keys("feed.shortsMode", "feed.shortsDailyLimit")),
         SettingsPage("accounts", "Accounts", SettingsGroup.ACCOUNT_AND_SAFETY, 6, SettingsLink.ACCOUNTS),
         SettingsPage("safety", "Account safety", SettingsGroup.ACCOUNT_AND_SAFETY, 7) { it.key.startsWith("account.") || it.key in safetyKeys },
         SettingsPage("privacy", "Privacy", SettingsGroup.ACCOUNT_AND_SAFETY, 8, owns = keys("history.localOnly", "history.accountSync")),
@@ -119,6 +120,7 @@ object SettingsSummaries {
         "privacy" -> (if (s.v(Settings.localOnlyHistory)) "History stays on this device" else "History is kept on this device") + " · account history: ${s.label(Settings.historyAccountSync).lowercase()}"
         "downloads" -> "${s.label(Settings.downloadsDefaultQuality)}${if (s.v(Settings.downloadsWifiOnly)) " · Wi-Fi only" else ""} · ${num(s.v(Settings.downloadsConcurrent))} at once"
         "auto" -> "Rules for new videos"
+        "blocklist" -> "Hide channels and words everywhere"
         "storage" -> "Cap ${num(s.v(Settings.downloadsStorageCapGb))} GB${if (s.v(Settings.downloadsDeleteAfterWatch)) " · delete after watching" else ""}"
         "backup" -> "Save or restore your data"
         "updates" -> "yt-dlp: ${s.label(Settings.ytDlpAutoUpdate).lowercase()}"

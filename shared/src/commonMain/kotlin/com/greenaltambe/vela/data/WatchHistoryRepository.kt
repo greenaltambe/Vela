@@ -27,6 +27,9 @@ interface WatchHistoryRepository {
 
     /** Brings a session's row up to date. */
     fun update(id: Long, at: Instant, positionMs: Long, durationMs: Long, watchedMs: Long)
+
+    /** Gives the rows of [videoId] that were saved without a title their [title] (and [channelId] where it was blank). */
+    fun healMissing(accountId: String, videoId: String, title: String, channelId: String) {}
 }
 
 class SqlDelightWatchHistoryRepository(private val db: VelaDatabase) : WatchHistoryRepository {
@@ -45,5 +48,9 @@ class SqlDelightWatchHistoryRepository(private val db: VelaDatabase) : WatchHist
 
     override fun update(id: Long, at: Instant, positionMs: Long, durationMs: Long, watchedMs: Long) {
         queries.updateSession(at.toEpochMilliseconds(), positionMs, durationMs, watchedMs, id)
+    }
+
+    override fun healMissing(accountId: String, videoId: String, title: String, channelId: String) {
+        if (title.isNotBlank()) queries.healMissing(title, channelId, accountId, videoId)
     }
 }

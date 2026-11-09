@@ -22,6 +22,30 @@ interface WindowControls {
 
 val LocalWindowControls = staticCompositionLocalOf<WindowControls?> { null }
 
+/**
+ * The screen's brightness and the system media volume, each 0..1: what the player's edge swipes in fullscreen change (left half brightness, right half volume).
+ * Android provides it; desktop has its own volume slider and the OS controls, so it stays null there and the swipes are off.
+ */
+interface PlayerLevels {
+    /** 0..1. Setting it takes the screen off the system's (auto) brightness for this window. */
+    var brightness: Float
+    var volume: Float
+    /** Gives the screen back to the system's brightness setting (auto-brightness included), as before the swipe. */
+    fun useSystemBrightness()
+}
+
+val LocalPlayerLevels = staticCompositionLocalOf<PlayerLevels?> { null }
+
+/** The level a vertical swipe has reached: [start] moved by [dy] pixels (finger up is negative, which raises it) over a surface [height] tall. A swipe across [travel] of the height covers the whole range. */
+fun swipedLevel(start: Float, dy: Float, height: Float, travel: Float = 0.8f): Float = swipedRaw(start, dy, height, travel).coerceIn(0f, 1f)
+
+/** Like [swipedLevel] but not clamped: below 0 means the finger went past the bottom end. */
+fun swipedRaw(start: Float, dy: Float, height: Float, travel: Float = 0.8f): Float =
+    if (height <= 0f) start else start - dy / (height * travel)
+
+/** The brightness a swipe asks for: null (the system's own brightness, "Auto") once the finger has gone a little past the bottom end, else the level 0..1. */
+fun brightnessTarget(raw: Float, autoBelow: Float = -0.08f): Float? = if (raw < autoBelow) null else raw.coerceIn(0f, 1f)
+
 /** Opens the platform's share sheet for a title and link (Android: the system chooser); null where there is none, and the page then copies the link. */
 val LocalShare = staticCompositionLocalOf<((title: String, url: String) -> Unit)?> { null }
 

@@ -99,7 +99,7 @@ internal class ShortsSource(private val services: AppServices, private val first
     private var cursor = 0
 
     suspend fun next(count: Int = 8): List<VideoSummary> {
-        if (order.isEmpty()) order = (listOfNotNull(first) + (seed() + trendingChannels()).distinctBy { it.id }.filter { it.id.isNotBlank() && it.id != first?.id }.shuffled()).filter { it.id.isNotBlank() }
+        if (order.isEmpty()) order = (listOfNotNull(first) + (seed() + trendingChannels()).distinctBy { it.id }.filter { it.id.isNotBlank() && it.id != first?.id }.shuffled()).filter { it.id.isNotBlank() && !services.blocklist.isBlocked(it.id) }
         if (order.isEmpty()) return emptyList()
         val out = mutableListOf<VideoSummary>()
         var rounds = 0
@@ -109,7 +109,8 @@ internal class ShortsSource(private val services: AppServices, private val first
             kotlinx.coroutines.coroutineScope { batch.map { c -> async { fill(c) } }.forEach { it.await() } }
             batch.forEach { c -> repeat(3) { buffers[c.id]?.removeFirstOrNull()?.let(out::add) } }
         }
-        return out.shuffled()
+        val rules = services.blocklist.rules()
+        return out.filterNot { rules.blocks(it) }.shuffled()
     }
 
     private suspend fun trendingChannels(): List<ShortsChannel> =

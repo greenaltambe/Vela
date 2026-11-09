@@ -1,5 +1,6 @@
 package com.greenaltambe.vela.ui.screens
 
+import com.greenaltambe.vela.extractor.map
 import com.greenaltambe.vela.ui.theme.AppIcons
 import androidx.compose.foundation.shape.CircleShape
 import com.greenaltambe.vela.ui.theme.Spacing
@@ -127,7 +128,7 @@ fun SearchScreen(services: AppServices, navigator: Navigator, query: String, mod
             feed.loading = false
         }
     }
-    fun moreChannels(more: Boolean) = loadKind(channelFeed, more, "No channels for \"$query\".", { it.id }) { services.extractor.searchChannels(query, it) }
+    fun moreChannels(more: Boolean) = loadKind(channelFeed, more, "No channels for \"$query\".", { it.id }) { services.extractor.searchChannels(query, it).map { p -> p.copy(items = p.items.filterNot { c -> services.blocklist.isBlocked(c.id) }) } }
     fun morePlaylists(more: Boolean) = loadKind(playlistFeed, more, "No playlists for \"$query\".", { it.id }) { services.extractor.searchPlaylists(query, it) }
     val shortsPages = remember(query) { intArrayOf(0) }
     fun moreShorts(more: Boolean) {
@@ -247,7 +248,7 @@ fun SearchScreen(services: AppServices, navigator: Navigator, query: String, mod
                     else ShortsGrid(view, onOpen = { v -> navigator.push(Route.Video(v)) }, onEndReached = { if (shortsFeed.next != null) moreShorts(true) })
                 else -> {
                     // Never an unexplained empty list: say when Settings > Feed rules (minimum length, hide watched, keywords) hid results.
-                    (results.items.size - shownAll.size).takeIf { it > 0 }?.let { Text("$it result${if (it == 1) "" else "s"} hidden by your feed filters (Settings > Feed).", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = Spacing.gutter).testTag("search.hiddenByFeed")) }
+                    (results.items.size - shownAll.size).takeIf { it > 0 }?.let { Text("$it result${if (it == 1) "" else "s"} hidden by your filters or blocklist.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = Spacing.gutter).testTag("search.hiddenByFeed")) }
                     if (!filters.isDefault && shown.isEmpty() && shownAll.isNotEmpty()) Text("Nothing in the ${shownAll.size} loaded results matches. Filters apply to loaded results; load more or relax them.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = Spacing.gutter).testTag("search.filterEmpty"))
                     val isAll = type == SearchType.ALL
                     val mainVideos = remember(view, isAll) { if (isAll) view.filter { !it.isShort } else view }

@@ -229,11 +229,20 @@ fun ChannelScreen(
     }
 
     val share = com.greenaltambe.vela.ui.platform.LocalShare.current
-    val menu = remember(channelUrl, name, share) {
+    val toasts = com.greenaltambe.vela.ui.look.LocalUndoToasts.current
+    var blocked by remember(channelId) { mutableStateOf(services.blocklist.isBlocked(channelId)) }
+    var groupPicker by remember { mutableStateOf(false) }
+    val menu = remember(channelUrl, name, share, blocked, subscribed) {
         buildList {
             add(PageAction("About", "channel.menu.about") { aboutSheetOpen = true })
             if (share != null) add(PageAction("Share", "channel.menu.share") { share(name, channelUrl) })
             add(PageAction("Open in browser", "channel.menu.browser") { uriHandler.openUri(channelUrl) })
+            if (subscribed && channelId.isNotBlank()) add(PageAction("Add to group", "channel.menu.group") { groupPicker = true })
+            // Blocking hides this channel's videos everywhere (Home, Search, Subscriptions, Related); the page itself stays open so it can be unblocked.
+            if (channelId.isNotBlank()) add(
+                if (blocked) PageAction("Unblock channel", "channel.menu.unblock") { services.blocklist.unblockChannel(channelId); blocked = false; toasts.show("$name is unblocked") }
+                else PageAction("Block channel", "channel.menu.block") { services.blocklist.blockChannel(channelId, name); blocked = true; toasts.show("$name is blocked. Its videos are hidden.") { services.blocklist.unblockChannel(channelId); blocked = false } },
+            )
         }
     }
 
@@ -312,6 +321,8 @@ fun ChannelScreen(
             }
         }
     }
+
+    if (groupPicker) GroupPickerSheet(services, channelId, name) { groupPicker = false }
 
     // Full About Bottom Sheet
     if (aboutSheetOpen) {

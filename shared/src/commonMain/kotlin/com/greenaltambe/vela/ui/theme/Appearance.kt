@@ -19,6 +19,8 @@ import com.greenaltambe.vela.core.settings.ThemeMode
  */
 data class Appearance(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    /** Pure black backgrounds while dark (OLED screens). */
+    val amoled: Boolean = false,
     val lightColors: ColorScheme = RedColorSchemes.Light,
     val darkColors: ColorScheme = RedColorSchemes.Dark,
     val typography: Typography = DefaultTypography,
@@ -28,7 +30,7 @@ data class Appearance(
     val motion: MotionTokens = MotionTokens(),
     val icons: AppIconSet = MaterialIconSet.Default,
 ) {
-    fun colors(dark: Boolean): ColorScheme = if (dark) darkColors else lightColors
+    fun colors(dark: Boolean): ColorScheme = if (dark) (if (amoled) darkColors.asAmoled() else darkColors) else lightColors
 
     companion object {
         val Default = Appearance()
@@ -46,6 +48,7 @@ fun interface AppearanceSource {
 object DefaultAppearanceSource : AppearanceSource {
     override fun resolve(settings: SettingsResolver) = Appearance(
         themeMode = settings.resolve(LookSettings.theme),
+        amoled = settings.resolve(LookSettings.amoled),
         progress = settings.resolve(LookSettings.progressStyle),
     )
 }
@@ -66,3 +69,14 @@ data class MotionTokens(
 )
 
 val LocalMotion = staticCompositionLocalOf { MotionTokens() }
+
+/**
+ * The dark scheme on true black: the page and the plain surfaces are black; the tonal containers stay a few steps lighter (darker than the normal
+ * dark theme) so cards, chips and sheets keep an edge against the page. Text and accent colours are untouched.
+ */
+fun ColorScheme.asAmoled(): ColorScheme = copy(
+    background = androidx.compose.ui.graphics.Color.Black, surface = androidx.compose.ui.graphics.Color.Black, surfaceDim = androidx.compose.ui.graphics.Color.Black,
+    surfaceContainerLowest = androidx.compose.ui.graphics.Color.Black,
+    surfaceContainerLow = androidx.compose.ui.graphics.Color(0xFF0E0908), surfaceContainer = androidx.compose.ui.graphics.Color(0xFF160F0E),
+    surfaceContainerHigh = androidx.compose.ui.graphics.Color(0xFF211817), surfaceContainerHighest = androidx.compose.ui.graphics.Color(0xFF2C2120),
+)

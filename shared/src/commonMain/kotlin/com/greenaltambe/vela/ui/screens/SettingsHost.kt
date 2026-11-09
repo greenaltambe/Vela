@@ -70,7 +70,7 @@ import com.greenaltambe.vela.ui.theme.Spacing
 internal fun SettingsPage.tileIcon(): ImageVector = when (id) {
     "customize" -> AppIcons.palette; "playback" -> AppIcons.play; "extras" -> AppIcons.timer; "home" -> AppIcons.home; "feed" -> AppIcons.subscriptions
     "shorts" -> AppIcons.bolt; "accounts" -> AppIcons.account; "safety" -> AppIcons.shield; "privacy" -> AppIcons.lock; "downloads" -> AppIcons.download
-    "auto" -> AppIcons.refresh; "storage" -> AppIcons.folder; "backup" -> AppIcons.cloud; "updates" -> AppIcons.speed; "health" -> AppIcons.info
+    "auto" -> AppIcons.refresh; "blocklist" -> AppIcons.close; "storage" -> AppIcons.folder; "backup" -> AppIcons.cloud; "updates" -> AppIcons.speed; "health" -> AppIcons.info
     else -> AppIcons.settings
 }
 
@@ -93,6 +93,7 @@ internal fun SettingsPage.linkRoute(): Route = when (link) {
     SettingsLink.CUSTOMIZE -> Route.Customize
     SettingsLink.ACCOUNTS -> Route.Accounts
     SettingsLink.DOWNLOAD_RULES -> Route.DownloadRules
+    SettingsLink.BLOCKLIST -> Route.Blocklist
     SettingsLink.BACKUP -> Route.Backup
     SettingsLink.HEALTH -> Route.Health
     SettingsLink.NONE -> Route.SettingsPage(id)

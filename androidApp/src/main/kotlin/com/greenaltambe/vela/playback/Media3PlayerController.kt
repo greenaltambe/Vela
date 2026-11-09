@@ -66,6 +66,8 @@ class Media3PlayerController(
             if (player.isPlaying) handler.postDelayed(poll, POSITION_INTERVAL_MS)
         }
 
+        override fun onAudioSessionIdChanged(audioSessionId: Int) { applyBoost() }
+
         override fun onPlayerError(error: PlaybackException) {
             failed = true
             publish()
@@ -111,6 +113,20 @@ class Media3PlayerController(
 
     override fun setVolume(volume: Float) { player.volume = volume.coerceIn(0f, 1f) }
 
+    private var enhancer: android.media.audiofx.LoudnessEnhancer? = null
+    private var boostDb = 0
+    override val canBoost: Boolean get() = true
+
+    /** Loudness gain on this player's audio session; made again whenever the session changes (a new video, a new output). A device that refuses it plays at normal level. */
+    override fun setBoost(db: Int) { boostDb = db.coerceIn(0, 12); applyBoost() }
+
+    private fun applyBoost() {
+        runCatching { enhancer?.release() }; enhancer = null
+        val id = player.audioSessionId
+        if (boostDb <= 0 || id == C.AUDIO_SESSION_ID_UNSET) return
+        enhancer = runCatching { android.media.audiofx.LoudnessEnhancer(id).apply { setTargetGain(boostDb * 100); enabled = true } }.getOrNull()
+    }
+
     override fun stop() {
         handler.removeCallbacks(poll)
         player.stop()
@@ -124,6 +140,7 @@ class Media3PlayerController(
         handler.removeCallbacks(poll)
         player.removeListener(listener)
         player.removeAnalyticsListener(analytics)
+        runCatching { enhancer?.release() }; enhancer = null
     }
 
     private fun publish() {

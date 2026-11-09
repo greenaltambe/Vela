@@ -24,7 +24,11 @@ class AndroidPlayerHost(
     override val stats: StateFlow<PlaybackStats> get() = runtime.controller.stats
 
     @Composable
-    override fun Surface(modifier: Modifier) {
+    override fun Surface(modifier: Modifier) = Surface(modifier, fill = false)
+
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    @Composable
+    override fun Surface(modifier: Modifier, fill: Boolean) {
         var view: PlayerView? = null
         AndroidView(
             modifier = modifier,
@@ -40,6 +44,7 @@ class AndroidPlayerHost(
             },
             update = { pv ->
                 view = pv
+                pv.resizeMode = if (fill) androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM else androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
                 if (pv.player != runtime.player) {
                     pv.player = runtime.player
                 }

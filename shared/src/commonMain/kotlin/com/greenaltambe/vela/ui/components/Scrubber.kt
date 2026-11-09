@@ -1,5 +1,8 @@
 package com.greenaltambe.vela.ui.components
 
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.runtime.collectAsState
 import com.greenaltambe.vela.ui.theme.Accent
 import com.greenaltambe.vela.ui.theme.ExtraColors
 import com.greenaltambe.vela.ui.theme.Spacing
@@ -141,6 +144,8 @@ fun Scrubber(
     chapters: List<Chapter> = emptyList(),
     durationMs: Long = 0L,
     videoThumbnailUrl: String? = null,
+    /** The video's storyboard: when there is one, the preview card shows the picture for the position under the finger. */
+    storyboard: com.greenaltambe.vela.extractor.Storyboard? = null,
     previewLabel: ((Float) -> String)? = null,
     description: String = "Seek",
     valueDescription: String? = null,
@@ -309,11 +314,14 @@ fun Scrubber(
             val activeChapter = if (chapters.isNotEmpty()) currentChapter(chapters, activeMs) else null
             val timeLabel = previewLabel?.invoke(activeFraction) ?: formatTimestamp(activeMs / 1000)
             val thumb = activeChapter?.thumbnailUrl ?: videoThumbnailUrl
+            val frame = storyboard?.frameAt(activeMs)
+            // A picture area is shown when there is a frame or a still to put in it (a video opened from a link has no poster).
+            val hasPicture = thumb != null || frame != null
 
-            val cardW = if (thumb != null) 140.dp else 100.dp
+            val cardW = if (hasPicture) 140.dp else 100.dp
             val cardWPx = with(density) { cardW.toPx() }
             val cardLeftPx = (geometry.xFor(activeFraction) - cardWPx / 2f).coerceIn(4f, (widthPx - cardWPx - 4f).coerceAtLeast(4f))
-            val verticalOffset = if (thumb != null) (-112).dp else (-38).dp
+            val verticalOffset = if (hasPicture) (-112).dp else (-38).dp
 
             Box(
                 modifier = Modifier
@@ -330,7 +338,7 @@ fun Scrubber(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    if (thumb != null) {
+                    if (hasPicture) {
                         Box(
                             Modifier
                                 .fillMaxWidth()
@@ -338,7 +346,9 @@ fun Scrubber(
                                 .clip(MaterialTheme.shapes.small)
                                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                         ) {
-                            AsyncImage(thumb, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                            // The poster stands in until the sheet holding this frame has loaded; the frame is drawn over it.
+                            if (thumb != null) AsyncImage(thumb, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                            if (storyboard != null && frame != null) StoryboardPicture(storyboard, frame, Modifier.fillMaxSize())
                             Text(
                                 timeLabel,
                                 style = MaterialTheme.typography.labelSmall,
@@ -600,4 +610,33 @@ fun rememberWavePhase(active: Boolean): androidx.compose.runtime.State<Float> {
     val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "wave")
     val phase = t.animateFloat(0f, (2 * Math.PI).toFloat(), androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1600, easing = androidx.compose.animation.core.LinearEasing)), label = "wavePhase")
     return phase
+}
+
+/**
+ * One picture of a storyboard: the page (a sprite sheet) is loaded at its own size and only the cell for [frame] is drawn, scaled to fill this box.
+ * Nothing is drawn until the page has loaded, so whatever lies under it (the poster) shows meanwhile.
+ */
+@Composable
+internal fun StoryboardPicture(storyboard: com.greenaltambe.vela.extractor.Storyboard, frame: com.greenaltambe.vela.extractor.StoryboardFrame, modifier: Modifier = Modifier) {
+    val request = coil3.request.ImageRequest.Builder(coil3.compose.LocalPlatformContext.current).data(frame.url).size(coil3.size.Size.ORIGINAL).build()
+    val painter = coil3.compose.rememberAsyncImagePainter(request)
+    val state by painter.state.collectAsState()
+    Canvas(modifier.clipToBounds()) {
+        if (state !is coil3.compose.AsyncImagePainter.State.Success) return@Canvas
+        // While a new sheet replaces the old one the painter can report no size at all (NaN); drawing with that crashed the app, so anything not a usable number draws nothing.
+        val sheet = painter.intrinsicSize
+        val place = storyboardPlacement(size.width, size.height, storyboard.frameWidth, storyboard.frameHeight, frame.column, frame.row, sheet.width, sheet.height) ?: return@Canvas
+        translate(place.left, place.top) { with(painter) { draw(androidx.compose.ui.geometry.Size(place.width, place.height)) } }
+    }
+}
+
+/** Where to draw a storyboard sheet so that one cell fills a canvas: the sheet's top-left corner and its drawn size. Null when any number is unusable (a sheet still loading reports NaN). */
+internal data class StoryboardPlacement(val left: Float, val top: Float, val width: Float, val height: Float)
+
+internal fun storyboardPlacement(canvasW: Float, canvasH: Float, frameW: Int, frameH: Int, column: Int, row: Int, sheetW: Float, sheetH: Float): StoryboardPlacement? {
+    val numbers = floatArrayOf(canvasW, canvasH, sheetW, sheetH)
+    if (numbers.any { !it.isFinite() } || canvasW <= 0f || canvasH <= 0f || sheetW <= 0f || sheetH <= 0f || frameW <= 0 || frameH <= 0 || column < 0 || row < 0) return null
+    val fw = frameW.toFloat(); val fh = frameH.toFloat()
+    val scale = maxOf(canvasW / fw, canvasH / fh)
+    return StoryboardPlacement((canvasW - fw * scale) / 2f - column * fw * scale, (canvasH - fh * scale) / 2f - row * fh * scale, sheetW * scale, sheetH * scale)
 }

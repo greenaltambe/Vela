@@ -40,6 +40,64 @@ class PlayerSheetState(
     val slideAnimatable = Animatable(0f)
 
     var windowHeightPx: Float = 2000f
+    var windowWidthPx: Float = 1000f
+
+    /** While the mini player is swiped away: how far it has been moved sideways and down (px). Both are 0 at rest. */
+    val swipeX = Animatable(0f)
+    val swipeY = Animatable(0f)
+
+    /** The mini player fades as it leaves: 1 at rest, 0 once it is a third of the way out sideways or a little way down. Always 1 when the page is open. */
+    fun swipeAlpha(): Float {
+        if (progress > 0.15f) return 1f
+        val out = maxOf(kotlin.math.abs(swipeX.value) / (windowWidthPx * 0.5f), swipeY.value / (windowHeightPx * 0.08f))
+        return (1f - out).coerceIn(0f, 1f)
+    }
+
+    /** Follows a finger swiping the mini player away. Never moves it up (that is the swipe that opens it). */
+    suspend fun dragSwipe(dx: Float, dy: Float) { swipeX.snapTo(dx); swipeY.snapTo(dy.coerceAtLeast(0f)) }
+
+    /**
+     * The finger lifted after a swipe on the mini player: it leaves the screen (and the video stops, exactly as the close button) when the swipe went
+     * far enough or was a flick, else it springs back. [thresholdX] and [thresholdY] are the distances (px) that count as "far enough".
+     * Returns whether it is leaving, so the caller can give feedback.
+     */
+    fun releaseSwipe(dx: Float, dy: Float, vx: Float, vy: Float, thresholdX: Float, thresholdY: Float, onClosed: (VideoSummary) -> Unit = {}): Boolean {
+        val goesSide = kotlin.math.abs(dx) > thresholdX || kotlin.math.abs(vx) > 1100f && kotlin.math.abs(dx) > thresholdX * 0.25f
+        val goesDown = dy > thresholdY || (vy > 900f && dy > thresholdY * 0.4f)
+        val leaving = goesSide || goesDown
+        scope.launch {
+            if (leaving) {
+                val video = currentVideo
+                if (goesSide && kotlin.math.abs(dx) >= dy) swipeX.animateTo(if (dx > 0) windowWidthPx else -windowWidthPx, tween(160, easing = FastOutSlowInEasing))
+                else swipeY.animateTo(windowHeightPx * 0.2f, tween(160, easing = FastOutSlowInEasing))
+                finishClose()
+                swipeX.snapTo(0f); swipeY.snapTo(0f)
+                video?.let(onClosed)
+            } else {
+                kotlinx.coroutines.coroutineScope {
+                    launch { swipeX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)) }
+                    launch { swipeY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)) }
+                }
+            }
+        }
+        return leaving
+    }
+
+    /** Brings a closed video back into the mini player and plays it from where it stopped (the Undo of a swipe-away). */
+    fun reopen(video: VideoSummary) {
+        if (currentVideo != null) return
+        scope.launch { slideAnimatable.snapTo(0f); animatable.snapTo(0f) }
+        currentVideo = video
+        navigator.setNowPlayingDirect(video)
+        services.player?.session?.start(video.id, video)
+    }
+
+    private fun finishClose() {
+        services.player?.session?.stop()
+        currentVideo = null
+        startSeconds = null
+        navigator.clearNowPlaying()
+    }
 
     /** 0f (collapsed / miniplayer) to 1f (expanded / full video page). */
     val progress: Float get() = animatable.value
@@ -59,6 +117,14 @@ class PlayerSheetState(
     val isExpanded: Boolean get() = expandedState.value
     val isCollapsed: Boolean get() = collapsedState.value
     val isVisible: Boolean get() = currentVideo != null
+
+    /** A video opened from a link starts with only its id; once the player has looked the details up, the mini player and the page get them too. */
+    fun fillDetails(id: String, title: String, channelId: String, channelName: String, thumbnailUrl: String?) {
+        val v = currentVideo?.takeIf { it.id == id && (it.title.isBlank() || it.channelName.isBlank()) } ?: return
+        val filled = v.copy(title = v.title.ifBlank { title }, channelId = v.channelId.ifBlank { channelId }, channelName = v.channelName.ifBlank { channelName }, thumbnailUrl = v.thumbnailUrl ?: thumbnailUrl)
+        currentVideo = filled
+        navigator.setNowPlayingDirect(filled)
+    }
 
     /** Restores a video into the collapsed miniplayer without auto-playing. */
     fun restore(video: VideoSummary) {
@@ -150,10 +216,7 @@ class PlayerSheetState(
         scope.launch {
             slideAnimatable.snapTo(0f)
             animatable.animateTo(0f, tween(180, easing = FastOutSlowInEasing))
-            services.player?.session?.stop()
-            currentVideo = null
-            startSeconds = null
-            navigator.clearNowPlaying()
+            finishClose()
         }
     }
 }

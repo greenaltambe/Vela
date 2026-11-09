@@ -97,6 +97,8 @@ fun VideoMenuSheet(
     var revision by remember { mutableStateOf(0) }
     val isDownloaded = remember(video.id, revision) { services.downloads?.isDownloaded(video.id) == true }
     val lists = remember(revision) { services.playlists.all() }
+    val navigator = com.greenaltambe.vela.ui.nav.LocalNavigator.current
+    val toasts = com.greenaltambe.vela.ui.look.LocalUndoToasts.current
 
     com.greenaltambe.vela.ui.components.VelaSheet(onDismiss, Modifier.testTag("video.menu.sheet")) {
         Column(
@@ -157,11 +159,45 @@ fun VideoMenuSheet(
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
             ) {
+                // Queue: play it right after this one, or at the end. With nothing playing, either starts it.
+                if (navigator != null) {
+                    VideoMenuSheetItem(
+                        icon = AppIcons.skipNext, title = "Play next", modifier = Modifier.testTag("video.menu.playNext"),
+                        onClick = {
+                            onDismiss()
+                            val before = navigator.queue
+                            when (navigator.playNextUp(video)) {
+                                com.greenaltambe.vela.ui.nav.Navigator.QueueResult.QUEUED -> toasts.show("Plays next") { navigator.restoreQueue(before) }
+                                com.greenaltambe.vela.ui.nav.Navigator.QueueResult.ALREADY_PLAYING -> toasts.show("Already playing")
+                                com.greenaltambe.vela.ui.nav.Navigator.QueueResult.STARTED -> {}
+                            }
+                        },
+                    )
+                    VideoMenuSheetItem(
+                        icon = AppIcons.playlist, title = "Add to queue", modifier = Modifier.testTag("video.menu.addToQueue"),
+                        onClick = {
+                            onDismiss()
+                            val before = navigator.queue
+                            when (navigator.addToQueue(video)) {
+                                com.greenaltambe.vela.ui.nav.Navigator.QueueResult.QUEUED -> toasts.show("Added to queue") { navigator.restoreQueue(before) }
+                                com.greenaltambe.vela.ui.nav.Navigator.QueueResult.ALREADY_PLAYING -> toasts.show("Already playing")
+                                com.greenaltambe.vela.ui.nav.Navigator.QueueResult.STARTED -> {}
+                            }
+                        },
+                    )
+                }
                 if (onNotInterested != null) VideoMenuSheetItem(
                     icon = AppIcons.close, title = "Not interested", onClick = { onDismiss(); onNotInterested() }, modifier = Modifier.testTag("video.menu.notInterested"),
                 )
                 if (onHideChannel != null && video.channelId.isNotBlank()) VideoMenuSheetItem(
                     icon = AppIcons.close, title = "Hide ${video.channelName.ifBlank { "this channel" }} from Home", onClick = { onDismiss(); onHideChannel() }, modifier = Modifier.testTag("video.menu.hideChannel"),
+                )
+                if (video.channelId.isNotBlank()) VideoMenuSheetItem(
+                    icon = AppIcons.close, title = "Block ${video.channelName.ifBlank { "this channel" }}", modifier = Modifier.testTag("video.menu.block"),
+                    onClick = {
+                        onDismiss()
+                        if (services.blocklist.blockChannel(video.channelId, video.channelName)) toasts.show("${video.channelName.ifBlank { "Channel" }} is blocked") { services.blocklist.unblockChannel(video.channelId) }
+                    },
                 )
                 if (services.downloads != null) {
                     VideoMenuSheetItem(
@@ -272,13 +308,13 @@ fun ShareMenuItem(video: VideoSummary, onDone: () -> Unit) {
 
 /** The standard feed pipeline (Shorts, watched, length, keywords) and then DeArrow for [surface], applied to a list. */
 fun AppServices.filterFeed(videos: List<VideoSummary>, surface: DeArrowSurface = DeArrowSurface.FEED): List<VideoSummary> =
-    standardFeedPipeline(watchedLookup())
+    standardFeedPipeline(watchedLookup(), blocklist.rules())
         .with(DeArrowStep(modules.dearrow, surface))
         .run(videos, FeedContext(settings))
 
 /** The same pipeline without asking the database which videos were watched: cheap enough for the first frame. */
 fun AppServices.filterFeedQuick(videos: List<VideoSummary>, surface: DeArrowSurface = DeArrowSurface.FEED): List<VideoSummary> =
-    standardFeedPipeline(WatchedLookup.None).with(DeArrowStep(modules.dearrow, surface)).run(videos, FeedContext(settings))
+    standardFeedPipeline(WatchedLookup.None, blocklist.rules()).with(DeArrowStep(modules.dearrow, surface)).run(videos, FeedContext(settings))
 
 /**
  * Shows [first] at once and replaces it with [compute] (run on [Dispatchers.Default], never on the main thread) when it is ready.
@@ -300,12 +336,13 @@ fun <T> rememberAsync(vararg keys: Any?, keepWhileLoading: Boolean = false, firs
 @Composable
 fun rememberFiltered(services: AppServices, videos: List<VideoSummary>, surface: DeArrowSurface): List<VideoSummary> {
     val branding by services.modules.dearrow.revision.collectAsState()
+    val blocked by services.blocklist.revision.collectAsState()
     val ids = remember(videos) { videos.take(PREFETCH_LIMIT).map { it.id } }
     LaunchedEffect(ids) {
         launch { services.modules.dearrow.prefetch(ids) }
         if (services.settings.resolve(Settings.rydInFeed)) launch { services.modules.ryd.prefetch(ids) }
     }
-    return rememberAsync(videos, branding, keepWhileLoading = true, first = { services.filterFeedQuick(videos, surface) }, compute = { services.filterFeed(videos, surface) })
+    return rememberAsync(videos, branding, blocked, keepWhileLoading = true, first = { services.filterFeedQuick(videos, surface) }, compute = { services.filterFeed(videos, surface) })
 }
 
 /** Only the ids this many deep are prefetched (DeArrow, RYD): the rest are fetched when the list is scrolled that far. */

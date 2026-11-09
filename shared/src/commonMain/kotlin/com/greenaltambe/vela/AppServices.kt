@@ -109,11 +109,31 @@ class AppServices(
     val playlists get() = PlaylistRepository(db, activeId)
     /** What Home remembers (dismissed videos and channels, last visit) for the active account. */
     val homePrefs get() = com.greenaltambe.vela.home.HomePrefs(homeStore, activeId)
+    /** Channels and title words the viewer blocked everywhere (shared by all accounts). */
+    val blocklist = com.greenaltambe.vela.feed.Blocklist(homeStore)
+    /** Time spent in Shorts today (for the daily limit); shared by all accounts. */
+    val shortsUsage = com.greenaltambe.vela.viewing.DailyUsage(homeStore, "viewing.shortsToday", { clock.now().toEpochMilliseconds() }, { utcOffsetMinutes() })
+    /** The active account's subscription groups. */
+    val subscriptionGroups get() = com.greenaltambe.vela.feed.SubscriptionGroups(homeStore, activeId)
+    /**
+     * Looks up the title of videos in the history that were saved without one (opened from a link, before this was fixed) and fills them in. Returns how
+     * many it healed. A few at a time and best effort: a failed lookup just leaves the row for the next visit.
+     */
+    suspend fun healHistoryTitles(limit: Int = 8): Int {
+        var healed = 0
+        for (r in history.recent(100).filter { it.title.isBlank() }.distinctBy { it.videoId }.take(limit)) {
+            val info = (extractor.videoInfo(r.videoId) as? com.greenaltambe.vela.extractor.ExtractorResult.Success)?.value ?: continue
+            if (info.title.isBlank()) continue
+            history.healMissing(r.videoId, info.title, info.channelId); healed++
+        }
+        return healed
+    }
+
     /** Set by the platform: shows a system notification for uploads of channels set to All. */
     var onNewUploads: (List<com.greenaltambe.vela.extractor.VideoSummary>) -> Unit = {}
     val homeSources by lazy { com.greenaltambe.vela.home.HomeSources(this) }
 
     /** One feed service per account, so each keeps its own entries and refresh state. */
     val feed: FeedService
-        get() = activeId.let { id -> feeds.getOrPut(id) { FeedService(extractor, SubscriptionRepository(db, id), FeedRepository(db, id), clock, notifications = com.greenaltambe.vela.data.NotificationRepository(db, id) { notificationsRevision.value++ }, onNewUploads = { list -> onNewUploads(list) }) } }
+        get() = activeId.let { id -> feeds.getOrPut(id) { FeedService(extractor, SubscriptionRepository(db, id), FeedRepository(db, id), clock, notifications = com.greenaltambe.vela.data.NotificationRepository(db, id) { notificationsRevision.value++ }, onNewUploads = { list -> onNewUploads(list) }, isBlocked = { v -> blocklist.rules().blocks(v) }) } }
 }

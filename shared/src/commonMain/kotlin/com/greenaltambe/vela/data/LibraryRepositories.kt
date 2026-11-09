@@ -54,6 +54,9 @@ class SubscriptionRepository(private val db: VelaDatabase, private val accountId
 class HistoryLibrary(private val db: VelaDatabase, private val accountId: String = LOCAL_ACCOUNT) {
     private val q get() = db.watchHistoryQueries
 
+    /** Gives the rows of [videoId] that were saved without a title their title (and channel where blank). */
+    fun healMissing(videoId: String, title: String, channelId: String) { if (title.isNotBlank()) q.healMissing(title, channelId, accountId, videoId) }
+
     fun recent(limit: Long = 500): List<WatchRecord> = q.selectAll(accountId, limit).executeAsList().map {
         WatchRecord(it.id, it.accountId, it.videoId, it.channelId, it.title, Instant.fromEpochMilliseconds(it.watchedAt), it.positionMs, it.durationMs, it.watchedMs)
     }

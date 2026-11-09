@@ -93,7 +93,7 @@ fun CustomizeScreen(services: AppServices, navigator: Navigator, modifier: Modif
         "Customize Vela", modifier, onBack = { navigator.back() }, listTag = "customize.list",
         actions = { CustomizeMenu(s, LookSettings.all, toasts, "customize.reset") },
     ) {
-        settingsSection("look", "Look", listOf(LookSettings.theme), { it.key }) { st, shape -> SettingItem(s, st, revision, shape) }
+        settingsSection("look", "Look", listOf(LookSettings.theme, LookSettings.amoled), { it.key }) { st, shape -> SettingItem(s, st, revision, shape) }
         val pages = CustomizePages.titles.keys.toList()
         settingsSection("pages", "Make it yours", pages, { it }) { id, _ ->
             val index = pages.indexOf(id)

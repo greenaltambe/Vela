@@ -77,6 +77,7 @@ fun PlaylistScreen(services: AppServices, navigator: Navigator, playlistId: Long
         item(key = "actions") {
             Row(Modifier.fillMaxWidth().padding(bottom = Spacing.sm), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 PrimaryButton("Play all", onClick = { navigator.playAll(videos) }, enabled = videos.isNotEmpty(), modifier = Modifier.weight(1f).testTag("playlist.playAll"))
+                com.greenaltambe.vela.ui.components.SecondaryButton("Shuffle", { navigator.playAll(videos.shuffled()) }, enabled = videos.size > 1, modifier = Modifier.testTag("playlist.shuffle"))
                 if (services.downloads != null) FilledTonalIconButton(onClick = { downloadFor = videos }, enabled = videos.isNotEmpty(), shapes = IconButtonDefaults.shapes(), modifier = Modifier.testTag("playlist.downloadAllButton")) { Icon(AppIcons.download, "Download all") }
             }
         }

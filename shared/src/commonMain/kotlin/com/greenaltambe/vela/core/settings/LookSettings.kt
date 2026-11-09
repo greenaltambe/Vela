@@ -26,6 +26,8 @@ object LookSettings {
 
     val theme = pick("look.theme", ThemeMode.SYSTEM, ThemeMode.entries, "Theme", mapOf(ThemeMode.SYSTEM to "System", ThemeMode.LIGHT to "Light", ThemeMode.DARK to "Dark"), listOf("dark", "light", "mode", "appearance"))
 
+    val amoled = flag("look.amoled", false, "Pure black in dark theme", listOf("amoled", "black", "oled", "dark", "battery"), "Backgrounds become true black (cards stay a hair lighter so they still show). Saves battery on OLED screens; only applies while the dark theme is on.")
+
     val progressStyle = pick(
         "look.progressStyle", ProgressStyle.EXPRESSIVE, ProgressStyle.entries, "Progress bar",
         mapOf(ProgressStyle.EXPRESSIVE to "Wavy (Material)", ProgressStyle.HAIRLINE to "Hairline", ProgressStyle.HAIRLINE_DOT to "Hairline + dot", ProgressStyle.BOLD to "Bold", ProgressStyle.BOLD_DOT to "Bold + dot", ProgressStyle.RIBBON to "Ribbon", ProgressStyle.WAVE to "Wave (classic)"),
@@ -40,7 +42,7 @@ object LookSettings {
     val homeChips = flag("look.home.chips", true, "Quick filters on Home", listOf("home", "filter", "chips", "unwatched", "music", "live", "short"), "A row of chips above Home (All, Unwatched, Under 10 min, Live, Music, and your own topics). They filter what is already loaded.")
     val railCollapsed = flag("look.nav.railCollapsed", false, "Collapse the side rail to icons", listOf("rail", "sidebar", "collapse", "icons"), "Wide windows and Linux: the left rail shows icons only.")
 
-    val all: List<Setting<*>> = listOf(theme, progressStyle, homeShelves, homeDensity, homeChips, railCollapsed)
+    val all: List<Setting<*>> = listOf(theme, amoled, progressStyle, homeShelves, homeDensity, homeChips, railCollapsed)
 }
 
 /**

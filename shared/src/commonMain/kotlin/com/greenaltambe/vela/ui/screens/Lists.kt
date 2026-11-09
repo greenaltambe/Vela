@@ -128,6 +128,13 @@ fun VideoCollection(
     val rows = remember(videos, injections.map { it.key to it.afterVideos }) { listRows(videos, injections) }
     // The next page is asked for a few cards before the end, so it is usually there by the time the end is reached.
     val prefetchId = videos.getOrNull((videos.size - 1 - PREFETCH_DISTANCE).coerceAtLeast(0))?.id
+    // Tapping the open tab again: back to the top (not on the first composition).
+    var reselectSeen by remember { androidx.compose.runtime.mutableStateOf(navigator.tabReselected) }
+    androidx.compose.runtime.LaunchedEffect(navigator.tabReselected) {
+        if (navigator.tabReselected == reselectSeen) return@LaunchedEffect
+        reselectSeen = navigator.tabReselected
+        if (useGrid) gridState.animateScrollToItem(0) else listState.animateScrollToItem(0)
+    }
     androidx.compose.runtime.LaunchedEffect(scrollToTopKey) {
         if (scrollToTopKey == null || !scrolledOnce) { scrolledOnce = true; return@LaunchedEffect }
         if (useGrid) gridState.animateScrollToItem(0) else listState.animateScrollToItem(0)

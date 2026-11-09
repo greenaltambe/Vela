@@ -24,6 +24,7 @@ class FeedRefreshWorker(context: Context, params: WorkerParameters) : CoroutineW
                 rt.chain, SubscriptionRepository(rt.database, id), FeedRepository(rt.database, id),
                 notifications = NotificationRepository(rt.database, id),
                 onNewUploads = { if (system) UploadNotifier.show(applicationContext, it) },
+                isBlocked = com.greenaltambe.vela.feed.Blocklist(com.greenaltambe.vela.data.SqlDelightSettingsStore(rt.database)).rules()::blocks,
             ).refresh()
         }
         Result.success()

@@ -92,6 +92,19 @@ internal fun StreamInfo.toStreamSet(): StreamSet {
     )
 }
 
+/**
+ * The storyboard level the seek bar uses: the smallest one at least [wantWidth] pixels wide (sharp enough for the preview card on a phone, small to
+ * download), else the largest there is. Levels without pictures or with nonsense numbers are skipped.
+ */
+internal fun List<org.schabi.newpipe.extractor.stream.Frameset>?.bestStoryboard(wantWidth: Int = 160): com.greenaltambe.vela.extractor.Storyboard? {
+    val usable = orEmpty().filter { it.urls.isNotEmpty() && it.frameWidth > 0 && it.frameHeight > 0 && it.totalCount > 0 && it.durationPerFrame > 0 && it.framesPerPageX > 0 && it.framesPerPageY > 0 }
+    val pick = usable.filter { it.frameWidth >= wantWidth }.minByOrNull { it.frameWidth } ?: usable.maxByOrNull { it.frameWidth } ?: return null
+    return com.greenaltambe.vela.extractor.Storyboard(
+        pageUrls = pick.urls, frameWidth = pick.frameWidth, frameHeight = pick.frameHeight, totalFrames = pick.totalCount,
+        intervalMs = pick.durationPerFrame, columns = pick.framesPerPageX, rows = pick.framesPerPageY,
+    )
+}
+
 internal fun StreamInfo.toVideoInfo() = VideoInfo(
     id = id,
     title = name,
@@ -110,6 +123,7 @@ internal fun StreamInfo.toVideoInfo() = VideoInfo(
     ageRestricted = ageLimit != StreamExtractor.NO_AGE_LIMIT,
     channelAvatarUrl = uploaderAvatars.bestUrl(),
     tags = tags.orEmpty().filter { it.isNotBlank() }.distinct(),
+    storyboard = previewFrames.bestStoryboard(),
     subscriberCount = uploaderSubscriberCount.takeIf { it >= 0 },
 )
 

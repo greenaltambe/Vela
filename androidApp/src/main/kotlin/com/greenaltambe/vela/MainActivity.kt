@@ -132,6 +132,22 @@ class MainActivity : ComponentActivity() {
         override val isFullscreen: Boolean get() = fullscreen
         override fun toggleFullscreen() = applyFullscreen(!fullscreen, byUser = true)
     }
+    /** The fullscreen swipes: this window's brightness (the system setting is left alone) and the music stream's volume, the one the buttons change while video plays. */
+    private val playerLevels = object : com.greenaltambe.vela.ui.platform.PlayerLevels {
+        private val audio get() = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+        override var brightness: Float
+            get() = window.attributes.screenBrightness.takeIf { it >= 0f }
+                ?: (android.provider.Settings.System.getInt(contentResolver, android.provider.Settings.System.SCREEN_BRIGHTNESS, 128) / 255f)
+            // Never fully black: a swipe to the bottom ends at 1%, so the picture can still be seen to swipe back up.
+            set(value) { window.attributes = window.attributes.also { it.screenBrightness = value.coerceIn(0.01f, 1f) } }
+        override fun useSystemBrightness() { window.attributes = window.attributes.also { it.screenBrightness = android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE } }
+        override var volume: Float
+            get() = audio.getStreamVolume(android.media.AudioManager.STREAM_MUSIC).toFloat() / audio.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+            set(value) {
+                val max = audio.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)
+                audio.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, Math.round(value.coerceIn(0f, 1f) * max).coerceIn(0, max), 0)
+            }
+    }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* playback works either way */ }
@@ -203,7 +219,7 @@ class MainActivity : ComponentActivity() {
         historyOnStart
         services.onNewUploads = { videos -> if (runtime.settings.resolve(com.greenaltambe.vela.core.settings.Settings.notifySystem)) com.greenaltambe.vela.playback.UploadNotifier.show(applicationContext, videos) }
         setContent {
-            CompositionLocalProvider(LocalInPictureInPicture provides inPip, LocalWindowControls provides windowControls, com.greenaltambe.vela.ui.platform.LocalShare provides { title, url ->
+            CompositionLocalProvider(LocalInPictureInPicture provides inPip, LocalWindowControls provides windowControls, com.greenaltambe.vela.ui.platform.LocalPlayerLevels provides playerLevels, com.greenaltambe.vela.ui.platform.LocalShare provides { title, url ->
                 val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                     type = "text/plain"
                     putExtra(android.content.Intent.EXTRA_SUBJECT, title)
@@ -270,6 +286,8 @@ class MainActivity : ComponentActivity() {
             requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         } else {
             controller.show(WindowInsetsCompat.Type.systemBars())
+            // A brightness set by swiping belongs to watching in fullscreen: hand the screen back to the system setting.
+            window.attributes = window.attributes.also { it.screenBrightness = android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE }
             // Leaving fullscreen with a button or a swipe means "back to the video page": turn upright even though the phone is still held sideways, and
             // hand rotation back to the sensor once it is held upright (otherwise the sideways phone would turn the page straight back to landscape).
             // Turning the phone upright by hand is the other way out of fullscreen and needs no lock.

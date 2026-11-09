@@ -218,6 +218,8 @@ fun PlayerMenuRow(
     enabled: Boolean = true,
     /** Something at the row's end instead of the check mark (a switch). */
     trailing: (@Composable () -> Unit)? = null,
+    /** How many lines the supporting text may take (a switch row explains itself, so it gets room). */
+    supportingLines: Int = 1,
 ) {
     val motion = LocalMotion.current
     val haptics = rememberPlayerHaptics()
@@ -237,7 +239,7 @@ fun PlayerMenuRow(
             selectedContentColor = MaterialTheme.colorScheme.onPrimaryContainer, selectedSupportingContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
         ),
         leadingContent = leading?.let { icon -> { Icon(icon, null, Modifier.size(24.dp)) } },
-        supportingContent = supporting?.let { sup -> { Text(sup, maxLines = 1, overflow = TextOverflow.Ellipsis) } },
+        supportingContent = supporting?.let { sup -> { Text(sup, maxLines = supportingLines, overflow = TextOverflow.Ellipsis) } },
         trailingContent = {
             if (trailing != null) trailing()
             else AnimatedVisibility(selected, enter = scaleIn(VelaMotion.bouncy(motion), initialScale = 0.3f) + fadeIn(), exit = scaleOut() + fadeOut()) {

@@ -1,5 +1,6 @@
 package com.greenaltambe.vela.ui.screens
 
+import com.greenaltambe.vela.feed.SubscriptionGroup
 import com.greenaltambe.vela.ui.theme.Spacing
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -71,8 +72,8 @@ import kotlinx.coroutines.launch
 private const val PAGE = 60
 private const val SHORTS_IN_ROW = 20
 
-private fun quickShown(services: AppServices, entries: List<com.greenaltambe.vela.feed.FeedEntry>): List<VideoSummary> =
-    standardFeedPipeline(WatchedLookup.None).run(entries.take(PAGE).map { it.video }, FeedContext(services.settings)).filter { !it.isShort }
+private fun quickShown(services: AppServices, entries: List<com.greenaltambe.vela.feed.FeedEntry>, members: Set<String>?): List<VideoSummary> =
+    standardFeedPipeline(WatchedLookup.None, services.blocklist.rules()).run(entries.take(PAGE).map { it.video }, FeedContext(services.settings)).filter { !it.isShort && (members == null || it.channelId in members) }
 
 /**
  * The subscriptions page, one scrolling page: a row of the channels you follow (with "View all"), a row of their recent Shorts (when Shorts are on;
@@ -93,19 +94,29 @@ fun SubscriptionsScreen(services: AppServices, navigator: Navigator, modifier: M
     // The cache is already on screen; this brings it up to date, but only when it has gone stale (not on every visit).
     LaunchedEffect(Unit) { services.feed.refreshIfStale() }
 
+    // Groups: a chip row above the page; with one chosen, the channel strip, the Shorts row and the feed show only its channels.
+    val groupRevision by com.greenaltambe.vela.feed.SubscriptionGroups.revision.collectAsState()
+    val groups = remember(groupRevision, services.accounts.active.collectAsState().value.id) { services.subscriptionGroups.groups() }
+    var selectedGroup by remember { mutableStateOf<String?>(null) }
+    val group = groups.firstOrNull { it.id == selectedGroup }
+    val members: Set<String>? = group?.channelIds
+    var editingGroup by remember { mutableStateOf<SubscriptionGroup?>(null) }
+    var creatingGroup by remember { mutableStateOf(false) }
+
     com.greenaltambe.vela.ui.components.RefreshBox(isRefreshing = refreshing, onRefresh = { scope.launch { services.feed.refresh() } }, modifier = modifier.fillMaxSize()) {
         val channels = rememberAsync(refreshing, entries, keepWhileLoading = true, first = { services.subscriptions.all() }, compute = { services.subscriptions.all() })
         val notifRevision by services.notificationsRevision.collectAsState()
         val unread = rememberAsync(notifRevision, keepWhileLoading = true, first = { emptySet<String>() }, compute = { services.notifications.unreadUploadChannels() })
         // The pipeline (watched lookup included) runs off the main thread; the cached rows show at once through the quick pass.
-        val all = rememberAsync(entries, failures, branding, keepWhileLoading = true,
-            first = { quickShown(services, entries) },
+        val blocked by services.blocklist.revision.collectAsState()
+        val all = rememberAsync(entries, failures, branding, blocked, members, keepWhileLoading = true,
+            first = { quickShown(services, entries, members) },
             compute = {
-                standardFeedPipeline(services.watchedLookup()).with(DeArrowStep(services.modules.dearrow, DeArrowSurface.FEED))
-                    .run(entries.map { it.video }, FeedContext(services.settings)).filter { !it.isShort }
+                standardFeedPipeline(services.watchedLookup(), services.blocklist.rules()).with(DeArrowStep(services.modules.dearrow, DeArrowSurface.FEED))
+                    .run(entries.map { it.video }, FeedContext(services.settings)).filter { !it.isShort && (members == null || it.channelId in members) }
             })
-        val shorts = rememberAsync(entries, shortsOn, keepWhileLoading = true, first = { emptyList<VideoSummary>() },
-            compute = { if (!shortsOn) emptyList() else shortsFeedPipeline(services.watchedLookup()).run(entries.map { it.video }, FeedContext(services.settings)).take(SHORTS_IN_ROW) })
+        val shorts = rememberAsync(entries, shortsOn, blocked, members, keepWhileLoading = true, first = { emptyList<VideoSummary>() },
+            compute = { if (!shortsOn) emptyList() else shortsFeedPipeline(services.watchedLookup(), services.blocklist.rules()).run(entries.map { it.video }, FeedContext(services.settings)).filter { members == null || it.channelId in members }.take(SHORTS_IN_ROW) })
         // Only the first page is handed to the list and prefetched; the next page is appended when the end is reached.
         var pageSize by remember { mutableStateOf(PAGE) }
         val shown = remember(all, pageSize) { all.take(pageSize) }
@@ -114,6 +125,8 @@ fun SubscriptionsScreen(services: AppServices, navigator: Navigator, modifier: M
         val state: ListState = when {
             shown.isEmpty() && refreshing -> ListState.Loading
             shown.isEmpty() && channels.isEmpty() -> ListState.Empty("No subscriptions yet. Subscribe to a channel, or import a file.", "Import or manage") { navigator.push(Route.ManageSubscriptions) }
+            shown.isEmpty() && group != null && group.channelIds.isEmpty() -> ListState.Empty("${group.name} has no channels yet.", "Edit group") { editingGroup = group }
+            shown.isEmpty() && group != null -> ListState.Empty("Nothing new from ${group.name}.", "Refresh") { scope.launch { services.feed.refresh() } }
             shown.isEmpty() -> ListState.Empty("Nothing new from your channels.", "Refresh") { scope.launch { services.feed.refresh() } }
             else -> ListState.Ready
         }
@@ -122,7 +135,8 @@ fun SubscriptionsScreen(services: AppServices, navigator: Navigator, modifier: M
             onEndReached = if (shown.size < all.size) ({ pageSize += PAGE }) else null,
             header = {
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                    if (channels.isNotEmpty()) ChannelsRow(channels, navigator, unread)
+                    if (channels.isNotEmpty()) GroupChips(groups, group?.id, { selectedGroup = it }, { creatingGroup = true }, { editingGroup = it })
+                    if (channels.isNotEmpty()) ChannelsRow(if (members == null) channels else channels.filter { it.channelId in members }, navigator, unread)
                     if (shorts.isNotEmpty()) ShortsRow(shorts, navigator)
                     if (failures.isNotEmpty()) ErrorRow("${failures.size} channel(s) could not be refreshed; showing what was cached.", { scope.launch { services.feed.refresh() } }, Modifier.testTag("subs.failures"))
                     if (shown.isNotEmpty()) SectionHeader("New from your channels")
@@ -130,6 +144,8 @@ fun SubscriptionsScreen(services: AppServices, navigator: Navigator, modifier: M
             },
         )
     }
+    if (creatingGroup) GroupEditorSheet(services, null, { creatingGroup = false }, onSaved = { selectedGroup = it.id })
+    editingGroup?.let { g -> GroupEditorSheet(services, g, { editingGroup = null }, onDeleted = { if (selectedGroup == g.id) selectedGroup = null }) }
 }
 
 /** The channels you follow, one after another, with "View all" opening the full list. */

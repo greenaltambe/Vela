@@ -58,6 +58,7 @@ import com.greenaltambe.vela.ui.components.ShortsCarousel
 import com.greenaltambe.vela.ui.components.VideoCarousel
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Trending, through the same feed pipeline as the subscription feed. */
 @Composable
@@ -166,8 +167,11 @@ fun HomeScreen(services: AppServices, navigator: Navigator, modifier: Modifier =
 
     val shownBase = rememberFiltered(services, videos.items, DeArrowSurface.FEED)
     val shown = remember(shownBase, dismissed, filter, topic, watched) { shownBase.withoutDismissed(dismissed).filter { v -> filter.matches(v, watched) && (topic == null || matchesTopic(v, topic!!)) } }
+    // Videos saved without a title (opened from a link before this was fixed) are looked up once, then the shelf reads again.
+    var healed by remember(accountId) { mutableStateOf(0) }
+    LaunchedEffect(accountId) { healed = withContext(kotlinx.coroutines.Dispatchers.Default) { runCatching { services.healHistoryTitles() }.getOrDefault(0) } }
     val continueWatching = rememberAsync(
-        accountId,
+        accountId, healed,
         navigator.current,
         navigator.nowPlaying?.id,
         keepWhileLoading = true,
@@ -226,7 +230,7 @@ fun HomeScreen(services: AppServices, navigator: Navigator, modifier: Modifier =
         }
     }
     (videos.items.size - shownBase.size).takeIf { it > 0 }?.let {
-        Text("$it hidden by your feed filters (Settings > Feed).", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = Spacing.gutter).padding(top = Spacing.xs))
+        Text("$it hidden by your filters or blocklist.", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = Spacing.gutter).padding(top = Spacing.xs))
     }
     com.greenaltambe.vela.ui.components.RefreshBox(isRefreshing = pulling && loading, onRefresh = { pulling = true; shelfTick++; load(more = false) }, modifier = Modifier.weight(1f)) {
     VideoCollection(

@@ -36,6 +36,34 @@ data class VideoSummary(
 @Serializable
 data class Chapter(val title: String, val startSeconds: Long, val thumbnailUrl: String? = null)
 
+/**
+ * YouTube's storyboard for one quality level: a few "pages" (sprite sheets, each a [columns] x [rows] grid of small pictures) that together hold one
+ * picture of the video every [intervalMs] milliseconds. The seek bar shows the picture for the position under the finger.
+ */
+data class Storyboard(
+    val pageUrls: List<String>,
+    val frameWidth: Int,
+    val frameHeight: Int,
+    val totalFrames: Int,
+    val intervalMs: Int,
+    val columns: Int,
+    val rows: Int,
+) {
+    /** Which page and which cell hold the picture for [positionMs]; null when the numbers do not describe a usable storyboard. */
+    fun frameAt(positionMs: Long): StoryboardFrame? {
+        if (totalFrames <= 0 || intervalMs <= 0 || columns <= 0 || rows <= 0 || frameWidth <= 0 || frameHeight <= 0 || pageUrls.isEmpty()) return null
+        val index = (positionMs.coerceAtLeast(0) / intervalMs).toInt().coerceAtMost(totalFrames - 1)
+        val perPage = columns * rows
+        val page = index / perPage
+        val url = pageUrls.getOrNull(page) ?: pageUrls.last()
+        val inPage = if (page < pageUrls.size) index % perPage else perPage - 1
+        return StoryboardFrame(url, column = inPage % columns, row = inPage / columns)
+    }
+}
+
+/** One picture of a [Storyboard]: the sheet to load and the cell in it. */
+data class StoryboardFrame(val url: String, val column: Int, val row: Int)
+
 data class VideoInfo(
     val id: String,
     val title: String,
@@ -58,6 +86,8 @@ data class VideoInfo(
     val tags: List<String> = emptyList(),
     /** The uploader's subscriber count when the tier reports it. */
     val subscriberCount: Long? = null,
+    /** Pictures along the seek bar, when the tier has them (NewPipe does). */
+    val storyboard: Storyboard? = null,
 )
 
 data class VideoStream(
