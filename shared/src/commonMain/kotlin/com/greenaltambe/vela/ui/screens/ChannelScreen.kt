@@ -617,7 +617,7 @@ private fun LazyListScope.channelTabItems(
             HScrollRow(motion, contentPadding = PaddingValues(horizontal = gutter)) {
                 items(shelf.items) { item ->
                     if (isShortsShelf && item is ChannelItem.Video) {
-                        Box(Modifier.width(150.dp).padding(end = Spacing.sm)) { ShortCard(video = item.summary, onClick = { navigator.push(Route.Video(item.summary)) }) }
+                        Box(Modifier.width(150.dp).padding(end = Spacing.sm)) { ShortCard(video = item.summary, onClick = { openShort(navigator, shelf.items.filterIsInstance<ChannelItem.Video>().map { it.summary }, item.summary.id, ownerId) }) }
                     } else {
                         Box(Modifier.width(280.dp).padding(end = Spacing.sm)) { ChannelItemCard(services, navigator, item, onOpenPostDetail, ownerId, inHorizontalShelf = item is ChannelItem.Post, inShelf = true) }
                     }
@@ -631,7 +631,7 @@ private fun LazyListScope.channelTabItems(
         val chunked = feed.items.filterIsInstance<ChannelItem.Video>().chunked(2)
         items(chunked.size, key = { "shorts-$it" }) { i ->
             Row(side.fillMaxWidth().padding(top = Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                for (item in chunked[i]) Box(Modifier.weight(1f)) { ShortCard(video = item.summary, onClick = { navigator.push(Route.Video(item.summary)) }) }
+                for (item in chunked[i]) Box(Modifier.weight(1f)) { ShortCard(video = item.summary, onClick = { openShort(navigator, feed.items.filterIsInstance<ChannelItem.Video>().map { it.summary }, item.summary.id, ownerId) }) }
                 if (chunked[i].size < 2) Spacer(Modifier.weight(1f))
             }
         }
@@ -654,6 +654,17 @@ private fun LazyListScope.channelTabItems(
             }
         }
     }
+}
+
+/**
+ * Opens a Short from a channel's list. In the Shorts player it plays the Shorts that follow it in that list, in order (then the rest of the channel's Shorts,
+ * then others); a Short is never swapped for an unrelated one from elsewhere. With the Shorts player off, it opens as an ordinary video.
+ */
+private fun openShort(navigator: Navigator, list: List<VideoSummary>, id: String, channelId: String) {
+    val i = list.indexOfFirst { it.id == id }.coerceAtLeast(0)
+    val own = list.map { if (it.channelId.isBlank() && channelId.isNotBlank()) it.copy(channelId = channelId, isShort = true) else it.copy(isShort = true) }
+    val v = own.getOrNull(i) ?: return
+    if (navigator.shortsInPlayer) navigator.push(Route.ShortsPlayer(v, following = own.drop(i + 1), stayOnChannel = true)) else navigator.push(Route.Video(v))
 }
 
 /** Renders a single channel item according to its kind (Video, Playlist/Course, Post). */

@@ -5,6 +5,32 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [0.3.0-beta.1]
+
+### Added
+- Play queue: "Play next" and "Add to queue" in a video's menu, an "Up next" list on the video page that you can reorder by dragging, remove from or clear (with Undo), and Shuffle; Shuffle also on playlists; a Repeat switch in the player.
+- Seek bar previews: dragging the seek bar shows the picture for that moment.
+- Player gestures in fullscreen: swipe the left side for brightness (past the bottom returns to the system's auto brightness) and the right side for volume; pinch to zoom the picture to fill the screen.
+- Caption style: size, background (outline, shade or solid) and a switch for the creator's own style. Captions now keep their creators' colours, bold and position, so chat-style captions (a streamer's Twitch chat, say) appear where they were authored.
+- Volume boost (Android): +3, +6 or +9 dB for quiet videos.
+- Take a break reminder and a daily Shorts limit, both off by default.
+- One blocklist for channels and title words, applied to Home, Search, Explore, Subscriptions, Related, the Shorts player and notifications; copy and paste it to share.
+- Subscription groups: filter the Subscriptions page, its channel strip and its Shorts by a group; add a channel to groups from its page.
+- Shorts player: a three-dot menu (also by holding the picture) with Description, Captions, Playback speed, Save to, Copy link, Go to channel; Shorts opened from a channel now play that channel's Shorts in order.
+- Channel pages: @handle and video count, a clearer open tab, a calm "Vela can't show this tab yet" state with Open in browser instead of an error, and animated swiping between tabs.
+- Mini player: swipe it down or sideways to close it (with Undo); tapping the tab you are on scrolls to the top.
+- Pure black (AMOLED) theme switch under Customize.
+
+### Changed
+- Thumbnails that run edge to edge are square, others use smaller corners; LIVE and SHORT badges are readable in dark theme; unselected chips have an outline.
+- The Shorts player's buttons and captions are easier to read.
+
+### Fixed
+- Videos opened from a link had no title in Continue watching, History, the mini player and notifications; they are looked up now and old entries are repaired.
+- Topic ("Artist - Topic") channels showed no content: their albums are listed as playlists.
+- Channel sort chips did not show which one was selected; "Joined Joined" in About; the Store tab that could never load is gone.
+- Scrubbing a long video could crash the app.
+
 ## [0.2.0-beta.1]
 
 ### Added
@@ -87,7 +113,9 @@ First public beta. Android is the primary platform, Linux is supported, Windows 
 ### Packaging
 - Android APK (arm64-v8a), Linux .deb, .rpm and portable tarball, Windows .msi and portable zip (experimental).
 
-[Unreleased]: https://github.com/greenaltambe/Vela/compare/v0.1.1-beta.3...HEAD
+[Unreleased]: https://github.com/greenaltambe/Vela/compare/v0.3.0-beta.1...HEAD
+[0.3.0-beta.1]: https://github.com/greenaltambe/Vela/compare/v0.2.0-beta.1...v0.3.0-beta.1
+[0.2.0-beta.1]: https://github.com/greenaltambe/Vela/compare/v0.1.1-beta.3...v0.2.0-beta.1
 [0.1.1-beta.3]: https://github.com/greenaltambe/Vela/compare/v0.1.0-beta.2...v0.1.1-beta.3
 [0.1.0-beta.2]: https://github.com/greenaltambe/Vela/compare/v0.1.0-beta.1...v0.1.0-beta.2
 [0.1.0-beta.1]: https://github.com/greenaltambe/Vela/tag/v0.1.0-beta.1

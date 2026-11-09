@@ -442,7 +442,7 @@ private fun Destination(services: AppServices, navigator: Navigator, route: Rout
     when (route) {
         Route.Home -> HomeScreen(services, navigator, modifier)
         Route.Shorts -> com.greenaltambe.vela.ui.screens.ShortsScreen(services, navigator, modifier)
-        is Route.ShortsPlayer -> com.greenaltambe.vela.ui.screens.ShortsScreen(services, navigator, modifier, start = route.video)
+        is Route.ShortsPlayer -> com.greenaltambe.vela.ui.screens.ShortsScreen(services, navigator, modifier, start = route.video, following = route.following, stayOnChannel = route.stayOnChannel)
         Route.Subscriptions -> SubscriptionsScreen(services, navigator, modifier)
         Route.Library -> LibraryScreen(services, navigator, modifier)
         Route.Settings, Route.Customize, is Route.CustomizePage, is Route.SettingsPage, Route.Accounts, Route.Backup, Route.Health -> com.greenaltambe.vela.ui.screens.SettingsPaneHost(services, navigator, route, modifier)

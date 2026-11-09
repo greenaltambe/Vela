@@ -131,8 +131,10 @@ private fun NotificationRow(services: AppServices, navigator: Navigator, e: Noti
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(if (isUpload) e.channelName else e.title, style = MaterialTheme.typography.titleSmall, maxLines = if (isUpload) 1 else 2, overflow = TextOverflow.Ellipsis, fontWeight = if (e.read) FontWeight.Medium else FontWeight.Bold)
-                val body = if (isUpload) "Uploaded: ${e.title}" else e.body.takeIf { it.isNotBlank() }
+                // A notification saved without a title (a download of a video that had none) leads with its message instead of an empty line.
+                val headline = if (isUpload) e.channelName else e.title.ifBlank { e.body.ifBlank { "Notification" } }
+                Text(headline, style = MaterialTheme.typography.titleSmall, maxLines = if (isUpload) 1 else 2, overflow = TextOverflow.Ellipsis, fontWeight = if (e.read) FontWeight.Medium else FontWeight.Bold)
+                val body = if (isUpload) "Uploaded: ${e.title}" else e.body.takeIf { it.isNotBlank() && it != headline }
                 if (body != null) Text(body, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, color = scheme.onSurface)
                 formatAge(e.createdAt, services.clock.now())?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant, maxLines = 1) }
             }

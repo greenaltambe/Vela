@@ -12,6 +12,7 @@ import com.greenaltambe.vela.ui.theme.Accent
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -92,13 +93,35 @@ internal class ShortsChannel(val id: String, val name: String, val avatar: Strin
  * shorts from each per round, mixed up. (Searching for Shorts only returns ordinary videos, so the channels' own Shorts tabs are the source.)
  * A channel's page of Shorts is fetched once and handed out over later rounds, then its next page.
  */
-internal class ShortsSource(private val services: AppServices, private val first: ShortsChannel? = null, private val seed: () -> List<ShortsChannel>) {
+internal class ShortsSource(
+    private val services: AppServices, private val first: ShortsChannel? = null,
+    /** Play the first channel's Shorts in their own order until they run out, before mixing in other channels (a Short opened from its channel). */
+    private val stayOnFirst: Boolean = false,
+    /** Shorts already in the list (the one opened and the ones that follow it), never handed out again. */
+    alreadyQueued: Set<String> = emptySet(),
+    private val seed: () -> List<ShortsChannel>,
+) {
+    private val seen = alreadyQueued.toMutableSet()
+    private var firstDone = false
     private val buffers = HashMap<String, ArrayDeque<VideoSummary>>()
     private val continuations = HashMap<String, String?>()
     private var order: List<ShortsChannel> = emptyList()
     private var cursor = 0
 
     suspend fun next(count: Int = 8): List<VideoSummary> {
+        if (stayOnFirst && first != null && !firstDone) {
+            val out = mutableListOf<VideoSummary>()
+            var guard = 0
+            while (out.size < count && !firstDone && guard++ < 12) {
+                fill(first)
+                val b = buffers[first.id]
+                while (b != null && b.isNotEmpty()) b.removeFirst().takeIf { seen.add(it.id) }?.let(out::add)
+                if (continuations.containsKey(first.id) && continuations[first.id] == null && (buffers[first.id]?.isEmpty() != false)) firstDone = true
+            }
+            val rules = services.blocklist.rules()
+            val kept = out.filterNot { rules.blocks(it) }
+            if (kept.isNotEmpty()) return kept          // in the channel's own order: not shuffled
+        }
         if (order.isEmpty()) order = (listOfNotNull(first) + (seed() + trendingChannels()).distinctBy { it.id }.filter { it.id.isNotBlank() && it.id != first?.id }.shuffled()).filter { it.id.isNotBlank() && !services.blocklist.isBlocked(it.id) }
         if (order.isEmpty()) return emptyList()
         val out = mutableListOf<VideoSummary>()
@@ -110,7 +133,7 @@ internal class ShortsSource(private val services: AppServices, private val first
             batch.forEach { c -> repeat(3) { buffers[c.id]?.removeFirstOrNull()?.let(out::add) } }
         }
         val rules = services.blocklist.rules()
-        return out.filterNot { rules.blocks(it) }.shuffled()
+        return out.filter { seen.add(it.id) }.filterNot { rules.blocks(it) }.shuffled()
     }
 
     private suspend fun trendingChannels(): List<ShortsChannel> =
@@ -141,18 +164,21 @@ val LocalShortsFeed = staticCompositionLocalOf<ShortsFeedStore?> { null }
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ShortsScreen(services: AppServices, navigator: Navigator, modifier: Modifier = Modifier, start: VideoSummary? = null) {
+fun ShortsScreen(services: AppServices, navigator: Navigator, modifier: Modifier = Modifier, start: VideoSummary? = null, following: List<VideoSummary> = emptyList(), stayOnChannel: Boolean = false) {
     val store = LocalShortsFeed.current.takeIf { start == null }
     val accountId = services.accounts.active.value.id
     val reuse = store != null && store.accountId == accountId && store.shorts.items.isNotEmpty()
-    var list by remember { mutableStateOf(if (reuse) store!!.shorts else if (start != null) videoPagedList().append(com.greenaltambe.vela.extractor.Page(listOf(start), "more")) else videoPagedList()) }
+    var list by remember { mutableStateOf(if (reuse) store!!.shorts else if (start != null) videoPagedList().append(com.greenaltambe.vela.extractor.Page(listOf(start) + following, "more")) else videoPagedList()) }
     var loading by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val host = services.player
     val home = LocalHomeFeed.current
     val source = remember(accountId, start?.id) {
-        store?.source?.takeIf { reuse } ?: ShortsSource(services, start?.takeIf { it.channelId.isNotBlank() }?.let { ShortsChannel(it.channelId, it.channelName, it.channelAvatarUrl) }) {
+        store?.source?.takeIf { reuse } ?: ShortsSource(
+            services, start?.takeIf { it.channelId.isNotBlank() }?.let { ShortsChannel(it.channelId, it.channelName, it.channelAvatarUrl) },
+            stayOnFirst = stayOnChannel, alreadyQueued = (listOfNotNull(start) + following).map { it.id }.toSet(),
+        ) {
             services.subscriptions.all().map { ShortsChannel(it.channelId, it.name, it.avatarUrl) } +
                 home?.videos?.items.orEmpty().map { ShortsChannel(it.channelId, it.channelName, it.channelAvatarUrl) }
         }.also { store?.source = it }
@@ -193,10 +219,16 @@ fun ShortsScreen(services: AppServices, navigator: Navigator, modifier: Modifier
     var note by remember { mutableStateOf<String?>(null) }
     var commentsOpen by remember { mutableStateOf(false) }
     // The comments panel slides in as the picture shrinks (and back out): one animated fraction drives both, and the panel stays until it has gone.
-    val open by androidx.compose.animation.core.animateFloatAsState(if (commentsOpen) 1f else 0f, androidx.compose.animation.core.tween(280), label = "shortsComments")
+    // The description (the same panel the video page uses) takes the same slot as the comments; opening one closes the other.
+    var descriptionOpen by remember { mutableStateOf(false) }
+    var descriptionFor by remember { mutableStateOf<String?>(null) }
+    val open by androidx.compose.animation.core.animateFloatAsState(if (commentsOpen || descriptionOpen) 1f else 0f, androidx.compose.animation.core.tween(280), label = "shortsComments")
     var commentsFor by remember { mutableStateOf<String?>(null) }
     if (commentsOpen) commentsFor = items.getOrNull(pager.settledPage)?.id
     LaunchedEffect(commentsOpen, open) { if (!commentsOpen && open == 0f) commentsFor = null }
+    if (descriptionOpen) descriptionFor = items.getOrNull(pager.settledPage)?.id
+    LaunchedEffect(descriptionOpen, open) { if (!descriptionOpen && open == 0f) descriptionFor = null }
+    val descriptionInfo by androidx.compose.runtime.produceState<com.greenaltambe.vela.extractor.VideoInfo?>(null, descriptionFor) { value = descriptionFor?.let { (services.extractor.videoInfo(it) as? ExtractorResult.Success)?.value } }
     val comments = remember(commentsFor) { commentsFor?.let { CommentsController(services, scope, it) } }
     LaunchedEffect(comments) { comments?.load(false) }
 
@@ -242,7 +274,29 @@ fun ShortsScreen(services: AppServices, navigator: Navigator, modifier: Modifier
     val liked = remember { androidx.compose.runtime.mutableStateMapOf<String, Boolean>() }
     val disliked = remember { androidx.compose.runtime.mutableStateMapOf<String, Boolean>() }
 
-    PlatformBackHandler(enabled = commentsOpen) { commentsOpen = false }
+    // The options menu (three dots, or hold the picture), and captions: once switched on they stay on for the next Short.
+    var menu by remember { mutableStateOf<ShortsMenu?>(null) }
+    var captionsOn by remember { mutableStateOf(false) }
+    var captionStyle by remember { mutableStateOf(com.greenaltambe.vela.core.settings.CaptionStyle.read(services.settings)) }
+    val captionTracks by (host?.session?.captions ?: remember { kotlinx.coroutines.flow.MutableStateFlow(emptyList<com.greenaltambe.vela.extractor.CaptionTrack>()) }).collectAsState()
+    val activeCaption by (host?.session?.activeCaption ?: remember { kotlinx.coroutines.flow.MutableStateFlow<com.greenaltambe.vela.extractor.CaptionTrack?>(null) }).collectAsState()
+    LaunchedEffect(captionsOn, captionTracks, activeCaption) { if (captionsOn && activeCaption == null && captionTracks.isNotEmpty()) host?.session?.selectCaption(host.session.defaultCaption()) }
+    val fetchText = com.greenaltambe.vela.ui.platform.LocalTextFetcher.current
+    val cues by androidx.compose.runtime.produceState(emptyList<com.greenaltambe.vela.library.Cue>(), activeCaption, fetchText) {
+        val track = activeCaption
+        value = if (track == null || fetchText == null) emptyList() else fetchText(track.url)?.let { com.greenaltambe.vela.library.Vtt.parse(it) }.orEmpty()
+    }
+    val shownCues = if (cues.isEmpty()) emptyList() else remember(cues, player.positionMs / 100) { com.greenaltambe.vela.library.Vtt.active(cues, player.positionMs) }
+    val shortHaptics = com.greenaltambe.vela.ui.player.rememberPlayerHaptics()
+    PlatformBackHandler(enabled = commentsOpen || descriptionOpen) { commentsOpen = false; descriptionOpen = false }
+    menu?.let { m ->
+        val menuVideo = items.getOrNull(pager.settledPage)
+        if (menuVideo != null && host != null) ShortsMenus(
+            services, navigator, host.session, menuVideo, m, speed = player.speed, onMenu = { menu = it },
+            captionStyle = captionStyle, onCaptionStyle = { captionStyle = it; it.write(services.settings) }, onCaptionsOn = { captionsOn = it }, onNote = { note = it },
+            onDescription = { commentsOpen = false; descriptionOpen = true },
+        )
+    }
     Column(modifier.fillMaxSize().background(ExtraColors.mediaBackground)) {
         Box(Modifier.fillMaxWidth().weight(1f - 0.58f * open)) {
             VerticalPager(pager, Modifier.fillMaxSize().testTag("shorts.pager"), beyondViewportPageCount = 0) { page ->
@@ -256,7 +310,10 @@ fun ShortsScreen(services: AppServices, navigator: Navigator, modifier: Modifier
                     liked[v.id] = target == VideoRating.LIKE; disliked[v.id] = target == VideoRating.DISLIKE
                     scope.launch { val r = services.actions!!.rate(v.id, target); (r as? ActionResult.Queued)?.let { note = it.message }; (r as? ActionResult.Failed)?.let { liked[v.id] = wasLiked; disliked[v.id] = wasDisliked; note = "Could not rate: ${it.message}" } }
                 }
-                Box(Modifier.fillMaxSize().clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null) {
+                Box(Modifier.fillMaxSize().combinedClickable(
+                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null,
+                    onLongClick = { if (current) { shortHaptics.perform(com.greenaltambe.vela.ui.player.HapticKind.HEAVY); menu = ShortsMenu.OPTIONS } },
+                ) {
                     if (current && host != null) { if (player.status == PlaybackStatus.PLAYING) { host.session.pause(); paused = true } else { host.session.play(); paused = false } }
                 }) {
                     AsyncImage("https://i.ytimg.com/vi/${v.id}/hq720.jpg", null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
@@ -266,6 +323,8 @@ fun ShortsScreen(services: AppServices, navigator: Navigator, modifier: Modifier
                         Modifier.align(Alignment.Center).size(80.dp).clip(androidx.compose.material3.MaterialShapes.Cookie9Sided.toShape()).background(ExtraColors.mediaScrim.copy(alpha = 0.45f)), contentAlignment = Alignment.Center,
                     ) { Icon(AppIcons.play, "Play", Modifier.size(40.dp), tint = ExtraColors.onMedia) }
 
+                    // Captions, above the caption and the buttons; the rail's width is kept clear.
+                    if (current && live && shownCues.isNotEmpty()) com.greenaltambe.vela.ui.player.CaptionOverlay(shownCues, captionStyle, fullscreen = false, bottomInset = 176.dp, modifier = Modifier.matchParentSize().padding(end = 64.dp).testTag("shorts.captions"))
                     // A soft dark gradient up from the bottom edge, so the caption, the counts and the buttons stay readable on a bright picture.
                     Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(240.dp).background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(androidx.compose.ui.graphics.Color.Transparent, ExtraColors.mediaScrim.copy(alpha = 0.75f)))))
                     // The title and channel, bottom left, clear of the tab bar that floats over the page.
@@ -288,7 +347,7 @@ fun ShortsScreen(services: AppServices, navigator: Navigator, modifier: Modifier
                     Column(Modifier.align(Alignment.BottomEnd).padding(end = Spacing.xs, bottom = Spacing.sm), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                         ShortsAction(if (liked[v.id] == true) AppIcons.likeFilled else AppIcons.like, "Like", votes?.let { compact(it.likes) }, liked[v.id] == true, onMedia, Modifier.testTag("shorts.like")) { rate(if (liked[v.id] == true) VideoRating.NONE else VideoRating.LIKE) }
                         ShortsAction(if (disliked[v.id] == true) AppIcons.dislikeFilled else AppIcons.dislike, "Dislike", votes?.let { compact(it.dislikes) }, disliked[v.id] == true, onMedia, Modifier.testTag("shorts.dislike")) { rate(if (disliked[v.id] == true) VideoRating.NONE else VideoRating.DISLIKE) }
-                        ShortsAction(if (commentsOpen) AppIcons.commentFilled else AppIcons.comment, "Comments", null, commentsOpen, onMedia, Modifier.testTag("shorts.comments")) { commentsOpen = !commentsOpen }
+                        ShortsAction(if (commentsOpen) AppIcons.commentFilled else AppIcons.comment, "Comments", null, commentsOpen, onMedia, Modifier.testTag("shorts.comments")) { descriptionOpen = false; commentsOpen = !commentsOpen }
                         ShortsAction(if (muted) AppIcons.mute else AppIcons.volume, if (muted) "Unmute" else "Mute", null, false, onMedia, Modifier.testTag("shorts.mute")) { host?.session?.toggleMute() }
                         ShortsAction(AppIcons.share, "Share", null, false, onMedia, Modifier.testTag("shorts.share")) { val link = "https://youtu.be/${v.id}"; if (share != null) share(v.title, link) else clipboard.setText(AnnotatedString(link)) }
                         ShortsAction(AppIcons.fullscreen, "Open as a video", null, false, onMedia, Modifier.testTag("shorts.open")) { host?.session?.stop(); navigator.push(Route.Video(v, null, asVideoPage = true)) }
@@ -307,11 +366,27 @@ fun ShortsScreen(services: AppServices, navigator: Navigator, modifier: Modifier
                 colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(containerColor = ExtraColors.mediaScrim.copy(alpha = 0.55f), contentColor = ExtraColors.onMedia),
                 modifier = Modifier.align(Alignment.TopStart).windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Start)).padding(Spacing.sm).testTag("shorts.back"),
             ) { Icon(AppIcons.back, "Back") }
+            // Options for the Short on screen: description, captions, speed, save... (holding the picture opens the same menu).
+            if (open < 0.01f) androidx.compose.material3.FilledIconButton(
+                onClick = { menu = ShortsMenu.OPTIONS }, shapes = androidx.compose.material3.IconButtonDefaults.shapes(),
+                colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(containerColor = ExtraColors.mediaScrim.copy(alpha = 0.55f), contentColor = ExtraColors.onMedia),
+                modifier = Modifier.align(Alignment.TopEnd).windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.End)).padding(Spacing.sm).testTag("shorts.menu"),
+            ) { Icon(AppIcons.more, "Options") }
             note?.let { Text(it, Modifier.align(Alignment.TopCenter).windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)).padding(top = Spacing.md).clip(CircleShape).background(ExtraColors.mediaScrim.copy(alpha = 0.6f)).padding(horizontal = Spacing.md, vertical = Spacing.xs).testTag("shorts.note"), color = ExtraColors.onMedia, style = MaterialTheme.typography.bodySmall) }
         }
         // The comments take the lower part of the screen; the picture above them shrinks to make room.
-        if (open > 0.01f && comments != null) Box(Modifier.fillMaxWidth().weight(0.58f * open)) {
-            CommentsPanel(comments, canSort = services.extractor.capabilities.supportsCommentSort, onDismiss = { commentsOpen = false }, modifier = Modifier.fillMaxSize(), onSeek = { seconds -> host?.session?.seekTo(seconds * 1000) })
+        if (open > 0.01f && (comments != null || descriptionFor != null)) Box(Modifier.fillMaxWidth().weight(0.58f * open)) {
+            val dv = items.firstOrNull { it.id == descriptionFor }
+            if (descriptionFor != null && dv != null) DescriptionPanel(
+                title = dv.title.ifBlank { descriptionInfo?.title.orEmpty() }, info = descriptionInfo,
+                viewCount = descriptionInfo?.viewCount ?: dv.viewCount, likeCount = descriptionInfo?.likeCount, uploadedAt = descriptionInfo?.uploadDate ?: dv.uploadedAt,
+                channelName = descriptionInfo?.channelName?.takeIf { it.isNotBlank() } ?: dv.channelName, channelAvatarUrl = dv.channelAvatarUrl ?: descriptionInfo?.channelAvatarUrl,
+                chapters = emptyList(), captions = captionTracks, positionMs = player.positionMs,
+                onSeek = { ms: Long -> host?.session?.seekTo(ms) }, onOpenChapters = {},
+                onOpenChannel = { navigator.push(Route.Channel(descriptionInfo?.channelId?.takeIf { it.isNotBlank() } ?: dv.channelId, dv.channelName)) },
+                onSearchTag = { tag: String -> navigator.push(Route.Search(tag)) },
+                onDismiss = { descriptionOpen = false }, modifier = Modifier.fillMaxSize(),
+            ) else if (comments != null) CommentsPanel(comments, canSort = services.extractor.capabilities.supportsCommentSort, onDismiss = { commentsOpen = false }, modifier = Modifier.fillMaxSize(), onSeek = { seconds -> host?.session?.seekTo(seconds * 1000) })
         }
     }
 }

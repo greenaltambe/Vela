@@ -653,7 +653,7 @@ private fun LevelIndicator(hud: LevelHud, onMedia: androidx.compose.ui.graphics.
 
 /** The caption style sheet: a live preview on a dark picture, then size, background and whether the creator's colours and positions are used. Every change is saved at once. */
 @Composable
-private fun CaptionStyleContent(style: com.greenaltambe.vela.core.settings.CaptionStyle, onChange: (com.greenaltambe.vela.core.settings.CaptionStyle) -> Unit) {
+internal fun CaptionStyleContent(style: com.greenaltambe.vela.core.settings.CaptionStyle, onChange: (com.greenaltambe.vela.core.settings.CaptionStyle) -> Unit) {
     val sample = remember {
         com.greenaltambe.vela.library.Cue(
             0, 1, "Captions look like this", listOf(listOf(

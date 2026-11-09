@@ -159,7 +159,7 @@ private fun ChannelsRow(channels: List<SubscribedChannel>, navigator: Navigator,
 /** A few of the newest Shorts as tall cards; a tap opens the Shorts player on it. */
 @Composable
 private fun ShortsRow(shorts: List<VideoSummary>, navigator: Navigator) {
-    com.greenaltambe.vela.ui.components.ShortsCarousel("Shorts", shorts, tag = "subs.shortsRow", onOpen = { v -> navigator.push(Route.ShortsPlayer(v)) })
+    com.greenaltambe.vela.ui.components.ShortsCarousel("Shorts", shorts, tag = "subs.shortsRow", onOpen = { v -> navigator.push(Route.ShortsPlayer(v, following = shorts.dropWhile { it.id != v.id }.drop(1))) })
 }
 
 /**
