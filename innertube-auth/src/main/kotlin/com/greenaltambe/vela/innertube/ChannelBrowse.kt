@@ -533,6 +533,13 @@ class ChannelBrowse(
                 return
             }
 
+            // A show (the Shows tab): an episodic playlist, listed like one
+            val show = rir["gridShowRenderer"] ?: rir["showRenderer"]
+            if (show != null) {
+                parseShow(show)?.let { items += ChannelItem.Playlist(it) }
+                return
+            }
+
             // Post
             val post = rir["backstagePostThreadRenderer"]?.at("post", "backstagePostRenderer")
                 ?: rir["backstagePostRenderer"] ?: rir["postRenderer"]
@@ -576,6 +583,11 @@ class ChannelBrowse(
                     val pr = item["playlistRenderer"] ?: item["gridPlaylistRenderer"]
                     if (pr != null) {
                         parsePlaylist(pr)?.let { shelfItems += ChannelItem.Playlist(it) }
+                        continue
+                    }
+                    val show = item["gridShowRenderer"] ?: item["showRenderer"]
+                    if (show != null) {
+                        parseShow(show)?.let { shelfItems += ChannelItem.Playlist(it) }
                         continue
                     }
                     val post = item["postRenderer"] ?: item["backstagePostRenderer"]
@@ -720,6 +732,19 @@ class ChannelBrowse(
             publishedText = viewText,
             isShort = true
         )
+    }
+
+    /**
+     * One show of the Shows tab (`gridShowRenderer`, checked live on @MoreSidemen): a series whose episodes are a playlist. Its `browseId` is
+     * "VL" + the playlist id; the picture is its custom thumbnail; the episode count is in the bottom-panel overlay ("4 episodes").
+     */
+    internal fun parseShow(show: JsonElement): PlaylistRef? {
+        val browse = show.findAll("browseEndpoint").firstOrNull { it["browseId"].string?.startsWith("VL") == true }
+        val id = browse?.get("browseId").string?.removePrefix("VL") ?: return null
+        val title = show["title"].text() ?: show.at("title", "simpleText").string ?: return null
+        val thumb = show.at("thumbnailRenderer", "showCustomThumbnailRenderer", "thumbnail", "thumbnails").array.lastOrNull().at("url").string
+        val count = show.findAll("thumbnailOverlayBottomPanelRenderer").firstNotNullOfOrNull { it["text"].text() }?.filter { it.isDigit() }?.toLongOrNull()
+        return PlaylistRef(id, title, thumb, count)
     }
 
     private fun parsePlaylist(pr: JsonElement): PlaylistRef? {

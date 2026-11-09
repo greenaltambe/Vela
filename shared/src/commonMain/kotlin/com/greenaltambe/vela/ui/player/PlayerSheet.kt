@@ -36,6 +36,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.mutableStateOf
+import com.greenaltambe.vela.ui.components.LocalPlayerGestureLock
+import com.greenaltambe.vela.ui.components.PlayerGestureLock
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,6 +54,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -149,7 +153,10 @@ fun PlayerSheet(
 
     // Gesture handler attached ONLY to the sheet container (never to full screen when collapsed)
     val controlsForGesture = androidx.compose.runtime.rememberUpdatedState(windowControls)
-    val gestureModifier = Modifier.pointerInput(winW, winH, isFullscreen) {
+    // The seek bar tells every other gesture of the player to keep out while a finger is on it (see PlayerGestureLock).
+    val gestureLock = remember { PlayerGestureLock() }
+    var sheetRoot by remember { mutableStateOf(Offset.Zero) }
+    val gestureModifier = Modifier.onGloballyPositioned { sheetRoot = it.positionInRoot() }.pointerInput(winW, winH, isFullscreen) {
         var startProgress = 0f
         var startWindowY = 0f
         var isDragging = false
@@ -158,6 +165,9 @@ fun PlayerSheet(
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
             val currentP = sheetState.progress
+            // The finger is on / right beside the seek bar (it locks at once, before this parent sees the touch): this is not a sheet drag. NOTE: a
+            // consumed DOWN is not a reason to drop it: the picture's own tap detector consumes every down, and swiping that picture must still work.
+            if (gestureLock.isLocked(down.uptimeMillis) || gestureLock.onBar(sheetRoot + down.position, with(density) { PlayerGestureLock.BAND_DP.dp.toPx() })) return@awaitEachGesture
 
             // Fullscreen has its own gestures (swipe down leaves it); the sheet must not also drag the page down under it.
             val canDrag = if (isFullscreen) {
@@ -191,11 +201,15 @@ fun PlayerSheet(
 
                 val nowWindowY = change.position.y + currentSheetY()
 
+                // Something else took the gesture before it became a drag (a child consumed it, the seek bar got a finger): drop it.
+                if (!isDragging && (change.isConsumed || gestureLock.isLocked(change.uptimeMillis))) break
+                if (isDragging && gestureLock.active) break
+
                 if (!change.pressed) {
                     if (isDragging) {
                         val vY = tracker.calculateVelocity().y
                         // On the open video page, a firm swipe UP on the picture turns it fullscreen (landscape). Down still minimises (below).
-                        val swipedUp = startProgress > 0.9f && (lastTotal < -with(density) { 72.dp.toPx() } || vY < -1500f)
+                        val swipedUp = startProgress > 0.9f && !gestureLock.isLocked(change.uptimeMillis) && (lastTotal < -with(density) { 72.dp.toPx() } || vY < -1500f)
                         if (swipedUp && controlsForGesture.value?.isFullscreen == false) controlsForGesture.value?.toggleFullscreen()
                         else sheetState.settle(vY)
                     }
@@ -239,17 +253,19 @@ fun PlayerSheet(
                 .then(if (sheetState.isCollapsed) Modifier.testTag(com.greenaltambe.vela.ui.look.ComponentIds.MINI_PLAYER) else Modifier)
         ) {
             // LAYER 0: The persistent VideoScreen with the live video surface
-            VideoScreen(
-                services = services,
-                navigator = navigator,
-                video = video,
-                startSeconds = sheetState.startSeconds,
-                sheetProgress = progressNow,
-                onBack = { sheetState.collapse() },
-                onExpand = { sheetState.expand() },
-                modifier = Modifier.fillMaxSize(),
-                pageWidthPx = expandedWNow(),
-            )
+            androidx.compose.runtime.CompositionLocalProvider(LocalPlayerGestureLock provides gestureLock) {
+                VideoScreen(
+                    services = services,
+                    navigator = navigator,
+                    video = video,
+                    startSeconds = sheetState.startSeconds,
+                    sheetProgress = progressNow,
+                    onBack = { sheetState.collapse() },
+                    onExpand = { sheetState.expand() },
+                    modifier = Modifier.fillMaxSize(),
+                    pageWidthPx = expandedWNow(),
+                )
+            }
 
             // LAYER 1: MiniPlayer Controls & Progress bar (only in card mode when near collapsed)
             if (showCardControls) {

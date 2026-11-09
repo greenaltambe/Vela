@@ -46,4 +46,12 @@ class InnertubeAccountReads(
         if (InnertubeParsers.isSignedOutPage(page)) throw AuthFailure.LoggedOut("history is the signed-out page")
         InnertubeParsers.videos(page)
     }
+
+    /** Read-only listing through the governor as BROWSE with patience (it waits for the budget rather than failing), like the playlist sync. */
+    override suspend fun historyPage(continuation: String?): HistoryPage? = run {
+        val listing = kotlin.time.Duration.parse("70s")
+        val page = if (continuation == null) browse("FEhistory", listing) else continuation(continuation, listing)
+        if (InnertubeParsers.isSignedOutPage(page)) throw AuthFailure.LoggedOut("history is the signed-out page")
+        HistoryPage(InnertubeParsers.videos(page), InnertubeParsers.continuationToken(page))
+    }
 }

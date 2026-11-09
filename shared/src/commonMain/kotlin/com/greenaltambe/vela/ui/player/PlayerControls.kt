@@ -130,51 +130,44 @@ fun PlayerIconButton(
 ) {
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
-    val motion = LocalMotion.current
     val haptics = rememberPlayerHaptics()
-    if (onLongClick == null) {
-        // Material 3 Expressive's own icon button: it morphs from a circle to a rounded square while pressed, on the scrim disc when there is one.
-        LaunchedEffect(pressed) { if (pressed && enabled) haptics.perform(haptic) }
-        val body: @Composable () -> Unit = { Box(contentAlignment = Alignment.Center) { content() } }
-        if (background != Color.Transparent) androidx.compose.material3.FilledIconButton(
-            onClick = onClick, modifier = modifier.size(size), enabled = enabled, interactionSource = source,
-            shapes = androidx.compose.material3.IconButtonDefaults.shapes(),
-            colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(containerColor = background, contentColor = ExtraColors.onMedia, disabledContainerColor = background.copy(alpha = 0.12f)),
-            content = body,
-        ) else androidx.compose.material3.IconButton(
-            onClick = onClick, modifier = modifier.size(size), enabled = enabled, interactionSource = source,
-            shapes = androidx.compose.material3.IconButtonDefaults.shapes(), content = body,
-        )
-        return
+    // ONE implementation for every round player button: Material 3 Expressive's own icon button (it morphs from a circle to a rounded square while
+    // pressed), on the scrim disc when there is one. A press-and-hold action is added on top of the same button, so a button with one (captions)
+    // looks exactly like the others: same disc, same glyph size, same press shape.
+    val longFired = remember { androidx.compose.runtime.mutableStateOf(false) }
+    val longTimeout = androidx.compose.ui.platform.LocalViewConfiguration.current.longPressTimeoutMillis
+    val latestLong by androidx.compose.runtime.rememberUpdatedState(onLongClick)
+    LaunchedEffect(pressed) {
+        if (pressed && enabled) {
+            longFired.value = false
+            haptics.perform(haptic)
+            if (latestLong != null) { delay(longTimeout); longFired.value = true; haptics.perform(HapticKind.HEAVY); latestLong?.invoke() }
+        }
     }
-    val squeeze = pressed && !motion.reduced
-    val scale by animateFloatAsState(if (squeeze) 0.82f else 1f, VelaMotion.bouncy(motion), label = "playerButtonScale")
-    val shift by animateDpAsState(if (squeeze) pressShift else 0.dp, VelaMotion.snappy(motion), label = "playerButtonShift")
-    val glow by animateFloatAsState(if (pressed) 0.28f else 0f, VelaMotion.tween(motion, VelaMotion.Level.QUICK), label = "playerButtonGlow")
-    // The disc morphs towards a rounded square while pressed (Material 3 Expressive's pressed icon-button shape), and springs back.
-    val corner by animateFloatAsState(if (pressed && !motion.reduced) 0.30f else 0.5f, VelaMotion.bouncy(motion), label = "playerButtonCorner")
-    LaunchedEffect(pressed) { if (pressed && enabled) haptics.perform(haptic) }
-    Box(
-        modifier
-            .size(size)
-            .graphicsLayer { scaleX = scale; scaleY = scale; alpha = if (enabled) 1f else 0.4f }
-            .drawBehind {
-                if (background != Color.Transparent) {
-                    val d = this.size.minDimension * 0.88f
-                    drawRoundRect(background.copy(alpha = (background.alpha + 0.22f * glow / 0.28f).coerceAtMost(1f)), topLeft = androidx.compose.ui.geometry.Offset((this.size.width - d) / 2f, (this.size.height - d) / 2f), size = androidx.compose.ui.geometry.Size(d, d), cornerRadius = androidx.compose.ui.geometry.CornerRadius(d * corner, d * corner))
-                }
-                if (glow > 0f) drawCircle(halo.copy(alpha = glow))
-            }
-            .combinedClickable(
-                interactionSource = source, indication = null, enabled = enabled, role = Role.Button, onClick = onClick,
-                onLongClick = onLongClick?.let { l -> { haptics.perform(HapticKind.HEAVY); l() } },
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        // On a disc the glyph is drawn smaller than the button so it has room around it inside the disc.
-        val glyph = if (background != Color.Transparent) Modifier.size(size * 0.42f) else Modifier
-        Box(glyph.graphicsLayer { translationX = shift.toPx() }, contentAlignment = Alignment.Center) { content() }
-    }
+    // The release that ends a long press must not also count as a click.
+    val click: () -> Unit = { if (longFired.value) { longFired.value = false } else { onClick() } }
+    val body: @Composable () -> Unit = { Box(Modifier.graphicsLayer { translationX = if (pressed) pressShift.toPx() else 0f }, contentAlignment = Alignment.Center) { content() } }
+    if (background != Color.Transparent) androidx.compose.material3.FilledIconButton(
+        onClick = click, modifier = modifier.size(size), enabled = enabled, interactionSource = source,
+        shapes = androidx.compose.material3.IconButtonDefaults.shapes(),
+        colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(containerColor = background, contentColor = ExtraColors.onMedia, disabledContainerColor = background.copy(alpha = 0.12f)),
+        content = body,
+    ) else androidx.compose.material3.IconButton(
+        onClick = click, modifier = modifier.size(size), enabled = enabled, interactionSource = source,
+        shapes = androidx.compose.material3.IconButtonDefaults.shapes(), content = body,
+    )
+}
+
+/** The sizes of the player's round buttons, in one place. Every utility button (back, captions, mute, quality, ...) is the same. */
+object PlayerButtonSizes {
+    val utility = 48.dp
+    /** Previous / next, and play / pause, in the small player and in fullscreen. */
+    val transportCompact = 48.dp
+    val playCompact = 56.dp
+    val transportFullscreen = 56.dp
+    val playFullscreen = 64.dp
+    /** The fullscreen toggle in the top-right of the small player's time row only. */
+    val compactFullscreenToggle = 40.dp
 }
 
 /** An icon that swaps with a short pop (play becomes pause, mute becomes volume) instead of cutting. */
@@ -391,7 +384,7 @@ fun ControlButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    size: Dp = 48.dp,
+    size: Dp = PlayerButtonSizes.utility,
     haptic: HapticKind = HapticKind.CLICK,
     pressShift: Dp = 0.dp,
     onLongClick: (() -> Unit)? = null,

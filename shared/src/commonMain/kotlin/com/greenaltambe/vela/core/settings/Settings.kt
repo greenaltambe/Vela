@@ -5,6 +5,9 @@ enum class AccountFallbackMode { ONLY_ON_FAILURE, ALWAYS, NEVER }
 /** What to do when a newer yt-dlp exists: nothing, offer it on Health (default), or install it (and roll back if the yt-dlp source regresses). */
 enum class YtDlpAutoUpdate { OFF, ASK, AUTO }
 
+/** When the account's watch history is read into the app. Reading is not affected by `history.localOnly`. */
+enum class AccountHistorySync { OFF, MANUAL, ON_START, EVERY_6H }
+
 enum class ShortsMode { HIDE, SHOW, SEPARATE_TAB }
 
 /** Highest resolution to play; [height] is the cap in pixels of video height, null for no cap. */
@@ -153,6 +156,20 @@ object Settings {
         section = SettingSection.LIBRARY,
     )
 
+    /** History is only SENT to the account by reporting (not built); this setting governs whether history is READ from it. See [historyAccountSync]. */
+    val historyAccountSync = Setting(
+        key = "history.accountSync", default = AccountHistorySync.MANUAL, scope = SettingScope.GLOBAL,
+        label = "Read my YouTube account's watch history into Vela",
+        keywords = listOf("history", "account", "sync", "youtube", "watched", "import", "merge"),
+        codec = SettingCodecs.enum(AccountHistorySync.entries), section = SettingSection.LIBRARY,
+        choices = listOf(
+            SettingChoice(AccountHistorySync.OFF.name, "Off"),
+            SettingChoice(AccountHistorySync.MANUAL.name, "Only when I ask"),
+            SettingChoice(AccountHistorySync.ON_START.name, "When the app starts"),
+            SettingChoice(AccountHistorySync.EVERY_6H.name, "Every 6 hours"),
+        ),
+    )
+
     val hideWatched = Setting(
         key = "feed.hideWatched",
         default = false,
@@ -161,6 +178,15 @@ object Settings {
         keywords = listOf("watched", "seen", "feed", "hide", "history"),
         codec = SettingCodecs.boolean,
         section = SettingSection.FEED,
+    )
+
+    /** A video counts as watched once its best known progress (this device or the account) reaches this. 1 = played at all. */
+    val watchedThresholdPercent = Setting(
+        key = "feed.watchedThresholdPercent", default = 90f, scope = SettingScope.GLOBAL,
+        label = "Count a video as watched at this percent",
+        keywords = listOf("watched", "percent", "threshold", "seen", "feed", "hide", "progress", "finished"),
+        codec = SettingCodecs.float, section = SettingSection.FEED,
+        range = SettingRange(min = 1.0, max = 100.0, step = 1.0),
     )
 
     val minLengthSeconds = Setting(
@@ -588,7 +614,7 @@ object Settings {
     )
 
     val all: List<Setting<*>> = listOf(
-        localOnlyHistory, hideWatched, minLengthSeconds, blockKeywords, allowKeywords, keywordsAreRegex,
+        localOnlyHistory, historyAccountSync, hideWatched, watchedThresholdPercent, minLengthSeconds, blockKeywords, allowKeywords, keywordsAreRegex,
         debugFrameStats, homeSource, contentRegion, allowAgeRestricted, allowControversial, slowStreamFailover, notifyBackground, notifySystem, notifyDownloads, accountFallbackMode, accountProfilesExperimental, accountUseForChannels, accountUseForDetails, accountDownloadsMayUse, accountKillSwitch, accountTierOrder, remoteConfigUrl, ytDlpAutoUpdate,
         accountPlaybackPerHour, accountBrowsePerMinute, accountWritesPerHour, shortsMode, defaultPlaybackSpeed, autoplayNext, seekStepSeconds, holdSpeed, maxQualityUnmetered, maxQualityMetered, preferredCodec, audioOnly, ytDlpPath,
         sponsorBlockEnabled, returnYouTubeDislikeEnabled, deArrowEnabled,

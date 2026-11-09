@@ -147,6 +147,7 @@ fun PlayerView(
     val activeCaption by session.activeCaption.collectAsState()
     val window = LocalWindowControls.current
     val haptics = rememberPlayerHaptics()
+    val gestureLock = com.greenaltambe.vela.ui.components.LocalPlayerGestureLock.current
     val desktop = LocalVolumeSlider.current // desktop has its own volume; Android uses the system's
     // The small portrait player (not fullscreen, not the desktop window): controls on top, only time / chapter / seek bar below.
     val compact = !fullscreen && !desktop
@@ -251,14 +252,14 @@ fun PlayerView(
                     detectTapGestures(
                         onTap = { controlsVisible = !controlsVisible; touches++ },
                         onDoubleTap = { at ->
-                            if (!activeNow) return@detectTapGestures
+                            if (!activeNow || gestureLock?.active == true) return@detectTapGestures
                             val forward = at.x > size.width / 2f
                             val target = (positionNow + (if (forward) 1 else -1) * seekStepSeconds * 1000L).coerceAtLeast(0).let { if (durationNow > 0) it.coerceAtMost(durationNow) else it }
                             session.seekTo(target)
                             haptics.click()
                             flash = SeekFlash(forward, seekStepSeconds, (flash?.token ?: 0) + 1)
                         },
-                        onLongPress = { if (activeNow) { holding = true; haptics.heavy(); session.holdSpeed(holdSpeed) } },
+                        onLongPress = { if (activeNow && gestureLock?.active != true) { holding = true; haptics.heavy(); session.holdSpeed(holdSpeed) } },
                         onPress = { tryAwaitRelease(); if (holding) { holding = false; session.holdSpeed(null) } },
                     )
                 },
@@ -330,7 +331,7 @@ fun PlayerView(
                         if (desktop) Scrubber(
                             value = if (muted) 0f else volume, onPreview = { touches++ }, onCommit = { touch(); session.setVolume(it) },
                             modifier = Modifier.widthIn(max = 96.dp).testTag("player.volume"), description = "Volume", valueDescription = "${((if (muted) 0f else volume) * 100).toInt()} percent",
-                            trackColor = onMedia.copy(alpha = 0.3f), style = com.greenaltambe.vela.core.settings.ProgressStyle.BOLD_DOT,
+                            trackColor = onMedia.copy(alpha = 0.3f), style = com.greenaltambe.vela.core.settings.ProgressStyle.BOLD_DOT, lockGestures = false,
                         )
                         if (spaced) Box(Modifier.weight(1f))
                         captionsButton()
@@ -364,11 +365,11 @@ fun PlayerView(
                 // pause can never land on the seek bar.
                 // While buffering the spinner takes the centre; the buttons would be drawn on top of it.
                 if (active && !buffering) Row(Modifier.align(Alignment.Center).offset(y = if (compact) (-8).dp else 0.dp), horizontalArrangement = Arrangement.spacedBy(if (fullscreen) Spacing.lg else Spacing.md), verticalAlignment = Alignment.CenterVertically) {
-                    ControlButton({ touch(); onPrevious?.invoke() }, enabled = onPrevious != null, size = if (fullscreen) 56.dp else 48.dp, pressShift = (-5).dp, modifier = Modifier.testTag("player.previous")) { Icon(AppIcons.skipPrevious, "Previous video", tint = onMedia.copy(alpha = if (onPrevious != null) 1f else 0.35f)) }
-                    ControlButton({ touch(); if (playing) session.pause() else session.play() }, size = if (fullscreen) 64.dp else 56.dp, haptic = if (playing) HapticKind.TOGGLE_OFF else HapticKind.TOGGLE_ON, modifier = Modifier.testTag("player.playPause")) {
+                    ControlButton({ touch(); onPrevious?.invoke() }, enabled = onPrevious != null, size = if (fullscreen) PlayerButtonSizes.transportFullscreen else PlayerButtonSizes.transportCompact, pressShift = (-5).dp, modifier = Modifier.testTag("player.previous")) { Icon(AppIcons.skipPrevious, "Previous video", tint = onMedia.copy(alpha = if (onPrevious != null) 1f else 0.35f)) }
+                    ControlButton({ touch(); if (playing) session.pause() else session.play() }, size = if (fullscreen) PlayerButtonSizes.playFullscreen else PlayerButtonSizes.playCompact, haptic = if (playing) HapticKind.TOGGLE_OFF else HapticKind.TOGGLE_ON, modifier = Modifier.testTag("player.playPause")) {
                         SwapIcon(if (playing) AppIcons.pause else AppIcons.play, if (playing) "Pause" else "Play", onMedia, Modifier.size(40.dp))
                     }
-                    ControlButton({ touch(); onNext?.invoke() }, enabled = onNext != null, size = if (fullscreen) 56.dp else 48.dp, pressShift = 5.dp, modifier = Modifier.testTag("player.next")) { Icon(AppIcons.skipNext, "Next video", tint = onMedia.copy(alpha = if (onNext != null) 1f else 0.35f)) }
+                    ControlButton({ touch(); onNext?.invoke() }, enabled = onNext != null, size = if (fullscreen) PlayerButtonSizes.transportFullscreen else PlayerButtonSizes.transportCompact, pressShift = 5.dp, modifier = Modifier.testTag("player.next")) { Icon(AppIcons.skipNext, "Next video", tint = onMedia.copy(alpha = if (onNext != null) 1f else 0.35f)) }
                 }
 
                 // Bottom: seek bar, time, icon row.
@@ -394,7 +395,7 @@ fun PlayerView(
                         }
                         // Whatever is left over pushes the fullscreen button to the right edge.
                         Box(Modifier.weight(1f))
-                        if (compact && window != null) ControlButton({ touch(); window.toggleFullscreen() }, size = 40.dp, modifier = Modifier.testTag("player.fullscreen")) {
+                        if (compact && window != null) ControlButton({ touch(); window.toggleFullscreen() }, size = PlayerButtonSizes.compactFullscreenToggle, modifier = Modifier.testTag("player.fullscreen")) {
                             Icon(AppIcons.fullscreen, "Fullscreen", tint = onMedia)
                         }
                     }

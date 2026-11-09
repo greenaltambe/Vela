@@ -1,0 +1,11 @@
+-- 8 -> 9: watch history read from the signed-in YouTube account.
+CREATE TABLE AccountWatched (
+    accountId TEXT NOT NULL,
+    videoId TEXT NOT NULL,
+    title TEXT NOT NULL,
+    channelId TEXT,
+    percent INTEGER,
+    seenAt INTEGER NOT NULL,
+    PRIMARY KEY (accountId, videoId)
+);
+CREATE INDEX AccountWatched_account_time ON AccountWatched(accountId, seenAt DESC);

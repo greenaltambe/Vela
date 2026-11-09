@@ -313,10 +313,14 @@ class ChannelTabsNativeUiTest {
         waitUntil(timeoutMillis = 5_000) { onAllNodesWithTag("imageViewer").fetchSemanticsNodes().isEmpty() }
         // replies
         onNodeWithTag("channel.postComments").performScrollTo().performClick()
-        waitUntil(timeoutMillis = 5_000) { onAllNodesWithTag("channel.postReplies").fetchSemanticsNodes().isNotEmpty() }
-        onNodeWithTag("channel.postReplies").performClick()
-        waitUntil(timeoutMillis = 5_000) { onAllNodesWithTag("channel.postReply").fetchSemanticsNodes().isNotEmpty() }
+        // The replies line is the one the video's comments have; it opens the thread (the comment, then its replies) with a way back.
+        waitUntil(timeoutMillis = 5_000) { onAllNodesWithTag("comment.repliesToggle").fetchSemanticsNodes().isNotEmpty() }
+        onNodeWithTag("comment.repliesToggle").performClick()
+        waitUntil(timeoutMillis = 5_000) { onAllNodesWithTag("comment.reply").fetchSemanticsNodes().isNotEmpty() }
         onNodeWithText("A reply here").assertExists()
+        onNodeWithText("Top comment").assertExists()   // the thread's own comment stays on top
+        onNodeWithTag("channel.postThreadBack").performClick()
+        waitUntil(timeoutMillis = 5_000) { onAllNodesWithTag("channel.postComment").fetchSemanticsNodes().isNotEmpty() }
     }
 
     @Test

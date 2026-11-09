@@ -207,13 +207,29 @@ fun ShortsScreen(services: AppServices, navigator: Navigator, modifier: Modifier
         }
     }
     // The page in view plays; more is fetched as the end nears; its Return YouTube Dislike counts are asked for.
+    // The list the effect reads is the CURRENT one: it was captured at the first composition before, so a Short opened from a channel (a list of one
+    // that then grows) never found the next page's video, never started it, and the previous Short went on playing.
+    val itemsNow by androidx.compose.runtime.rememberUpdatedState(items)
     LaunchedEffect(pager, host) {
         snapshotFlow { pager.settledPage }.distinctUntilChanged().collect { page ->
-            val v = items.getOrNull(page) ?: return@collect
+            val v = itemsNow.getOrNull(page)
+            if (v == null) { host?.session?.stop(); return@collect }   // nothing to play on this page yet: never leave the previous one sounding
             paused = false
             if (host != null) { host.onBeforePlayback(); host.session.start(v.id, v) }
-            if (page >= items.size - 3) load(more = true)
+            if (page >= itemsNow.size - 3) load(more = true)
             services.modules.ryd.votes(v.id)
+        }
+    }
+    // Silence the Short being swiped away at once, not only when the next one has settled and started (the next one can take a while to resolve).
+    LaunchedEffect(pager, host) {
+        snapshotFlow { pager.currentPage }.distinctUntilChanged().collect { page ->
+            if (page != pager.settledPage && host != null) host.session.pause()
+        }
+    }
+    // A swipe that comes back to the same Short (let go half way) carries on playing it.
+    LaunchedEffect(pager, host) {
+        snapshotFlow { pager.isScrollInProgress }.distinctUntilChanged().collect { scrolling ->
+            if (!scrolling && host != null && !paused && (sessionState as? SessionState.Ready)?.videoId == itemsNow.getOrNull(pager.settledPage)?.id) host.session.play()
         }
     }
     LaunchedEffect(note) { if (note != null) { kotlinx.coroutines.delay(2500); note = null } }

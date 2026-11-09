@@ -201,7 +201,7 @@ fun CommentsPanel(
 
 /** A comment opened as a thread: the comment, then its replies with answers set in under the reply they answer, then "Show more replies". */
 @Composable
-private fun ThreadView(root: Comment, replies: RepliesModel, onSeek: (Long) -> Unit, creatorName: String, creatorAvatarUrl: String?, modifier: Modifier) {
+internal fun ThreadView(root: Comment, replies: RepliesModel, onSeek: (Long) -> Unit, creatorName: String, creatorAvatarUrl: String?, modifier: Modifier) {
     val t = replies.threads[root.id] ?: ReplyThread(loading = true)
     val rows = remember(t.replies) { threadRows(t.replies) }
     val lines = remember(rows) { threadLines(rows) }
@@ -294,7 +294,7 @@ private fun Modifier.threadLines(info: RowLines?, wake: List<androidx.compose.ui
  * likes, the creator's heart and, when [onReplies] is given, a replies button.
  */
 @Composable
-private fun CommentRow(c: Comment, avatar: Dp, onSeek: (Long) -> Unit, onReplies: (() -> Unit)?, modifier: Modifier = Modifier, expanded: Boolean = false, creatorName: String = "", creatorAvatarUrl: String? = null) {
+internal fun CommentRow(c: Comment, avatar: Dp, onSeek: (Long) -> Unit, onReplies: (() -> Unit)?, modifier: Modifier = Modifier, expanded: Boolean = false, creatorName: String = "", creatorAvatarUrl: String? = null, repliesCountOnly: Boolean = false) {
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         Avatar(c.author.removePrefix("@"), size = avatar, url = c.authorAvatarUrl)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
@@ -334,6 +334,8 @@ private fun CommentRow(c: Comment, avatar: Dp, onSeek: (Long) -> Unit, onReplies
                 Icon(AppIcons.comment, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                 Text("${c.replyCount} ${if (c.replyCount == 1) "reply" else "replies"}", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1)
             }
+            // A count the source gave no way to open (a post's comment without a replies token): shown, not tappable.
+            else if (repliesCountOnly && c.replyCount > 0) Text("${c.replyCount} ${if (c.replyCount == 1) "reply" else "replies"}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

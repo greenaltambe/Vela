@@ -67,6 +67,16 @@ class HistoryLibrary(private val db: VelaDatabase, private val accountId: String
 
     fun watchedVideoIds(): Set<String> = q.watchedVideoIds(accountId).executeAsList().toSet()
 
+    /**
+     * How far (0..100) each video in the history was watched: the larger of the furthest position and the time watched, over the duration.
+     * A video whose duration was never recorded counts as 100 (played at all, as before the threshold existed).
+     */
+    fun watchedPercents(): Map<String, Int> = q.watchedProgress(accountId).executeAsList().associate { r ->
+        val dur = r.maxDurationMs ?: 0L
+        val reached = maxOf(r.maxPositionMs ?: 0L, r.maxWatchedMs ?: 0L)
+        r.videoId to if (dur > 0) (reached * 100 / dur).toInt().coerceIn(0, 100) else 100
+    }
+
     /** How far through each recently watched video the viewer got, 0..1 (the latest watch of each). */
     fun progress(limit: Long = 500): Map<String, Float> = buildMap {
         for (r in recent(limit)) if (r.durationMs > 0 && r.videoId !in this) put(r.videoId, (r.positionMs.toFloat() / r.durationMs).coerceIn(0f, 1f))
@@ -88,6 +98,29 @@ class HistoryLibrary(private val db: VelaDatabase, private val accountId: String
             }
         }.take(limit)
     }
+}
+
+/** One video of the account's own watch history. [percent] is null when YouTube listed it without a progress figure. */
+data class AccountWatchedEntry(val videoId: String, val title: String, val channelId: String?, val percent: Int?, val seenAt: Instant)
+
+/**
+ * The signed-in account's watch history as last read (task 83), per account, stored apart from the local [HistoryLibrary]. Re-fetchable, so it is
+ * deleted with its account and left alone by "clear cache" and by backups.
+ */
+class AccountWatchedRepository(private val db: VelaDatabase, private val accountId: String) {
+    private val q get() = db.accountWatchedQueries
+
+    fun recent(limit: Long = 500): List<AccountWatchedEntry> = q.selectRecent(accountId, limit).executeAsList()
+        .map { AccountWatchedEntry(it.videoId, it.title, it.channelId, it.percent?.toInt(), Instant.fromEpochMilliseconds(it.seenAt)) }
+
+    fun contains(videoId: String): Boolean = q.exists(accountId, videoId).executeAsOne() > 0
+
+    /** Every stored video with its percent (null = unknown), for the watched lookup. */
+    fun percents(): Map<String, Int?> = q.selectIdsAndPercent(accountId).executeAsList().associate { it.videoId to it.percent?.toInt() }
+
+    fun upsert(e: AccountWatchedEntry) { q.upsert(accountId, e.videoId, e.title, e.channelId, e.percent?.toLong(), e.seenAt.toEpochMilliseconds()) }
+
+    fun clear() { q.clearForAccount(accountId) }
 }
 
 class SearchHistoryRepository(private val db: VelaDatabase, private val accountId: String = LOCAL_ACCOUNT) {

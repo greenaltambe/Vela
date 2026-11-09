@@ -34,6 +34,33 @@ class FeedStepsTest {
     }
 
     @Test
+    fun anItemTheAccountReportsAsWatchedIsHiddenWithoutAnyLocalRow() {
+        val items = listOf(v("x").copy(watchedPercent = 100), v("y"))
+        assertEquals(listOf("x", "y"), run(listOf(HideWatched(WatchedLookup.None)), items), "setting off: shown")
+        resolver.set(Settings.hideWatched, true)
+        assertEquals(listOf("y"), run(listOf(HideWatched(WatchedLookup.None)), items), "setting on: hidden even on the quick path")
+    }
+
+    @Test
+    fun theThresholdDecidesWhatCountsAsWatched() {
+        resolver.set(Settings.hideWatched, true)
+        val items = listOf(v("p90").copy(watchedPercent = 90), v("p50").copy(watchedPercent = 50))
+        assertEquals(listOf("p50"), run(listOf(HideWatched(WatchedLookup.None)), items), "default 90")
+        resolver.set(Settings.watchedThresholdPercent, 95f)
+        assertEquals(listOf("p90", "p50"), run(listOf(HideWatched(WatchedLookup.None)), items), "95 keeps the item at 90")
+        resolver.set(Settings.watchedThresholdPercent, 1f)
+        assertEquals(emptyList(), run(listOf(HideWatched(WatchedLookup.None)), items), "1 = played at all")
+    }
+
+    @Test
+    fun localAndAccountProgressBothCountAndAnUnknownAccountPercentIsWatched() {
+        resolver.set(Settings.hideWatched, true)
+        val lookup = WatchedLookup.progress(local = mapOf("l95" to 95, "l40" to 40), account = mapOf("a100" to 100, "a30" to 30, "aNull" to null))
+        val items = listOf("l95", "l40", "a100", "a30", "aNull", "none").map { v(it) }
+        assertEquals(listOf("l40", "a30", "none"), run(listOf(HideWatched(lookup)), items))
+    }
+
+    @Test
     fun minLengthDropsShortOnesButKeepsUnknownDurations() {
         resolver.set(Settings.minLengthSeconds, 120f)
         val items = listOf(v("short", seconds = 60), v("long", seconds = 600), v("unknown", seconds = null), v("edge", seconds = 120))

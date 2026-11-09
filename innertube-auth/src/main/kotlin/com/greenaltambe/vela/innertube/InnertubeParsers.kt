@@ -84,6 +84,7 @@ object InnertubeParsers {
                 isLive = v["badges"].toString().contains("LIVE"),
                 publishedText = v["publishedTimeText"].text() ?: v.findAll("publishedTimeText").firstOrNull().text(),
                 channelAvatarUrl = v["channelThumbnailSupportedRenderers"]["channelThumbnailWithLinkRenderer"]["thumbnail"]["thumbnails"].array.firstOrNull()["url"].string?.let { if (it.startsWith("//")) "https:$it" else it },
+                watchedPercent = v.findAll("thumbnailOverlayResumePlaybackRenderer").firstOrNull()?.get("percentDurationWatched").percent(),
             )
         }
         val lockups = json.findAll("lockupViewModel").mapNotNull { l ->
@@ -133,10 +134,17 @@ object InnertubeParsers {
                 viewCount = viewCount,
                 publishedText = publishedText,
                 channelAvatarUrl = avatar?.let { if (it.startsWith("//")) "https:$it" else it },
+                // UNVERIFIED path: the progress bar overlay's `startPercent` (also seen as `percentDurationWatched`) under the thumbnail overlays.
+                watchedPercent = (l.findAll("thumbnailOverlayProgressBarViewModel").firstOrNull()?.let { it["startPercent"] ?: it.findAll("startPercent").firstOrNull() }).percent()
+                    ?: l.findAll("thumbnailOverlayResumePlaybackRenderer").firstOrNull()?.get("percentDurationWatched").percent(),
             )
         }
         return (classic + lockups).distinctBy { it.id }
     }
+
+    /** A 0..100 number from a JSON number or numeric string; null when absent or not a number. */
+    private fun JsonElement?.percent(): Int? =
+        (this as? kotlinx.serialization.json.JsonPrimitive)?.content?.toDoubleOrNull()?.toInt()?.coerceIn(0, 100)
 
     private fun clock(text: String?): Long? = text?.split(':')?.mapNotNull { it.trim().toLongOrNull() }?.takeIf { it.size in 2..3 }?.fold(0L) { acc, n -> acc * 60 + n }
     /** "1,234 views", "1.2K views", "3.4M views": the count; null if there is no number. */

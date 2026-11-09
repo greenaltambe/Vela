@@ -173,6 +173,17 @@ fun main(args: Array<String>) {
                 exportLog = { val dir = java.io.File(System.getProperty("user.home"), "Downloads").takeIf { it.isDirectory } ?: java.io.File(System.getProperty("user.home")); val out = java.io.File(dir, "vela-log-${System.currentTimeMillis() / 1000}.txt"); out.writeText(logFile.readAll()); out.path })
         }
 
+        // Reading the account's watch history by the `history.accountSync` setting (ON_START at launch, EVERY_6H on this timer); nothing runs when it is Off or Manual.
+        androidx.compose.runtime.LaunchedEffect(services) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { services.accountHistory.syncIfDue(com.greenaltambe.vela.auth.HistorySyncTrigger.START) }
+                while (true) {
+                    kotlinx.coroutines.delay(30 * 60_000L)
+                    runCatching { services.accountHistory.syncIfDue(com.greenaltambe.vela.auth.HistorySyncTrigger.PERIODIC) }
+                }
+            }
+        }
+
         val navigator = remember { com.greenaltambe.vela.ui.nav.Navigator() }
         androidx.compose.runtime.LaunchedEffect(Unit) {
             for (link in links) {

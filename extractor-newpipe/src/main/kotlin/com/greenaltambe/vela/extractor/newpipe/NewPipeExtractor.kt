@@ -229,7 +229,10 @@ class NewPipeExtractor(downloader: () -> Downloader = { OkHttpDownloader() }, pr
     }
 
     override suspend fun replies(videoId: String, commentId: String, continuation: String?): ExtractorResult<CommentsPage> =
-        if (continuation != null && continuation.startsWith("n1:")) ExtractorResult.Failure(ExtractorError.TokenNotMine("Native token passed to NewPipe")) else withPage(continuation) { page ->
+        // The replies of a community post's comment are served by the alt client (its tokens start with "n1:"). This is NOT "token not mine": that
+        // answer ends the fallback chain, so the alt client behind NewPipe was never asked and every post's replies failed. A plain "unsupported" lets
+        // the chain go on to it (as for post details, which NewPipe does not do either).
+        if (continuation != null && continuation.startsWith("n1:")) ExtractorResult.Failure(ExtractorError.Unplayable("Community post replies are not supported on the NewPipe tier")) else withPage(continuation) { page ->
             if (page != null) morePage(videoId, page)
             else {
                 // No token given: the reply page hangs off the comment itself, so find the comment in the first page.

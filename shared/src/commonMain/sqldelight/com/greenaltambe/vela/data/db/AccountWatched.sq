@@ -1,0 +1,28 @@
+-- Watch history read from the signed-in YouTube account (FEhistory), kept per account. Re-fetchable, so it is not in backups;
+-- deleted with the account, never by "clear cache".
+CREATE TABLE AccountWatched (
+    accountId TEXT NOT NULL,
+    videoId TEXT NOT NULL,
+    title TEXT NOT NULL,
+    channelId TEXT,
+    percent INTEGER,
+    seenAt INTEGER NOT NULL,
+    PRIMARY KEY (accountId, videoId)
+);
+
+CREATE INDEX AccountWatched_account_time ON AccountWatched(accountId, seenAt DESC);
+
+upsert:
+INSERT OR REPLACE INTO AccountWatched(accountId, videoId, title, channelId, percent, seenAt) VALUES (?, ?, ?, ?, ?, ?);
+
+selectRecent:
+SELECT * FROM AccountWatched WHERE accountId = ? ORDER BY seenAt DESC LIMIT ?;
+
+exists:
+SELECT COUNT(*) FROM AccountWatched WHERE accountId = ? AND videoId = ?;
+
+selectIdsAndPercent:
+SELECT videoId, percent FROM AccountWatched WHERE accountId = ?;
+
+clearForAccount:
+DELETE FROM AccountWatched WHERE accountId = ?;

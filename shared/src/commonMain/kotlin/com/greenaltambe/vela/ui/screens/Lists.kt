@@ -60,7 +60,7 @@ fun rememberCardExtras(services: AppServices, videos: List<VideoSummary>): (Vide
     val rydOn = services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.rydInFeed) && services.modules.ryd.isEnabled(services.settings)
     // One lookup per list change, not one composable (and one revision collector) per card.
     val ryd = remember(rydRevision, videos, rydOn) { if (rydOn) videos.associate { it.id to services.modules.ryd.cached(it.id)?.summary() } else emptyMap() }
-    return { v -> CardExtras(watched = progress[v.id], downloaded = v.id in downloaded, badge = ryd[v.id]) }
+    return { v -> CardExtras(watched = progress[v.id] ?: v.watchedPercent?.let { it / 100f }, downloaded = v.id in downloaded, badge = ryd[v.id]) }
 }
 
 /**

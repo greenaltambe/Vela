@@ -272,7 +272,7 @@ fun ShareMenuItem(video: VideoSummary, onDone: () -> Unit) {
 
 /** The standard feed pipeline (Shorts, watched, length, keywords) and then DeArrow for [surface], applied to a list. */
 fun AppServices.filterFeed(videos: List<VideoSummary>, surface: DeArrowSurface = DeArrowSurface.FEED): List<VideoSummary> =
-    standardFeedPipeline(WatchedLookup.of(history.watchedVideoIds()))
+    standardFeedPipeline(watchedLookup())
         .with(DeArrowStep(modules.dearrow, surface))
         .run(videos, FeedContext(settings))
 

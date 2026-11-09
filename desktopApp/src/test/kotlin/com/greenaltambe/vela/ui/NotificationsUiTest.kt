@@ -28,6 +28,8 @@ class NotificationsUiTest {
         f.navigator.push(Route.Notifications)
         setContent { AppUnderTest(f) }; waitForIdle()
         assertEquals(2, onAllNodesWithTag("notification.row").fetchSemanticsNodes().size)
+        // The upload shows its channel's picture on the corner of the video's; the download (no channel) does not.
+        assertEquals(1, onAllNodesWithTag("notification.channelAvatar", useUnmergedTree = true).fetchSemanticsNodes().size)
         assertEquals(2, onAllNodesWithTag("notification.unread", useUnmergedTree = true).fetchSemanticsNodes().size)
         onNodeWithTag("notifications.markAll").performClick(); waitForIdle()
         assertEquals(0, onAllNodesWithTag("notification.unread", useUnmergedTree = true).fetchSemanticsNodes().size)

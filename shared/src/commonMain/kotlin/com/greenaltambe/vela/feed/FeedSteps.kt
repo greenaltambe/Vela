@@ -4,20 +4,40 @@ import com.greenaltambe.vela.core.settings.Settings
 import com.greenaltambe.vela.core.settings.ShortsMode
 import com.greenaltambe.vela.extractor.VideoSummary
 
-/** Videos the viewer has watched, for [HideWatched]. A video counts as watched once it was played at all. */
+/**
+ * Videos the viewer has watched, for [HideWatched]: [isWatched] answers whether the best known progress of a video (this device's history or the
+ * account's) reaches the threshold percent (1 = played at all).
+ */
 fun interface WatchedLookup {
-    fun isWatched(videoId: String): Boolean
+    fun isWatched(videoId: String, thresholdPercent: Int): Boolean
 
     companion object {
-        val None = WatchedLookup { false }
-        fun of(ids: Set<String>) = WatchedLookup { it in ids }
+        val None = WatchedLookup { _, _ -> false }
+
+        /** Every id counts as watched whatever the threshold (progress unknown). */
+        fun of(ids: Set<String>) = WatchedLookup { id, _ -> id in ids }
+
+        /**
+         * [local]: percent reached per video in this device's history. [account]: the synced account history; a null percent means
+         * YouTube listed the video without a progress figure, which counts as watched.
+         */
+        fun progress(local: Map<String, Int>, account: Map<String, Int?> = emptyMap()) = WatchedLookup { id, threshold ->
+            (local[id]?.let { it >= threshold } ?: false) || (account.containsKey(id) && (account[id]?.let { it >= threshold } ?: true))
+        }
     }
 }
 
-/** Drops videos already in the local history, unless that channel's setting says to keep them. */
+/**
+ * Drops videos the viewer has watched, unless that channel's setting says to keep them. Watched means: the item itself reports a progress at or above
+ * `feed.watchedThresholdPercent` (the account's figure from the feed), or the [WatchedLookup] (local and synced history) says so.
+ */
 class HideWatched(private val watched: WatchedLookup) : FeedStep {
-    override fun apply(items: List<VideoSummary>, context: FeedContext): List<VideoSummary> =
-        items.filter { !(context.resolve(Settings.hideWatched, it.channelId) && watched.isWatched(it.id)) }
+    override fun apply(items: List<VideoSummary>, context: FeedContext): List<VideoSummary> {
+        val threshold = context.resolve(Settings.watchedThresholdPercent).toInt().coerceIn(1, 100)
+        return items.filter { v ->
+            !(context.resolve(Settings.hideWatched, v.channelId) && ((v.watchedPercent ?: -1) >= threshold || watched.isWatched(v.id, threshold)))
+        }
+    }
 }
 
 /**

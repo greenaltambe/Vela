@@ -3,7 +3,11 @@
 package com.greenaltambe.vela.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -65,6 +69,8 @@ fun NotificationsScreen(services: AppServices, navigator: Navigator, modifier: M
     val now = services.clock.now()
     val offset = services.utcOffsetMinutes()
     val groups = remember(items, offset) { items.groupBy { dayLabel(it.createdAt, now, offset) } }
+    // The pictures of the channels you subscribe to, to put on the rows of their uploads.
+    val avatars = remember(revision, services.activeId) { services.subscriptions.all().associate { it.channelId to it.avatarUrl } }
 
     SettingsScaffold(
         "Notifications", modifier, onBack = { navigator.back() }, listTag = "notifications.list",
@@ -79,14 +85,14 @@ fun NotificationsScreen(services: AppServices, navigator: Navigator, modifier: M
                 Text(label, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = Spacing.md, top = Spacing.md, bottom = Spacing.xs))
             }
             itemsIndexed(rows, key = { _, e -> "n-${e.id}" }, contentType = { _, _ -> "row" }) { i, e ->
-                NotificationRow(services, navigator, e, i, rows.size)
+                NotificationRow(services, navigator, e, i, rows.size, avatars[e.channelId])
             }
         }
     }
 }
 
 @Composable
-private fun NotificationRow(services: AppServices, navigator: Navigator, e: NotificationEntry, index: Int, count: Int) {
+private fun NotificationRow(services: AppServices, navigator: Navigator, e: NotificationEntry, index: Int, count: Int, channelAvatarUrl: String?) {
     var menu by remember { mutableStateOf(false) }
     fun open() {
         services.notifications.markRead(e.id, services.clock.now())
@@ -97,29 +103,46 @@ private fun NotificationRow(services: AppServices, navigator: Navigator, e: Noti
             NotificationKind.ACCOUNT -> if (e.videoId.isNotBlank()) navigator.push(Route.Video(VideoSummary(e.videoId, e.title, e.channelId, e.channelName)))
         }
     }
-    SegmentedListItem(
-        onClick = ::open,
-        shapes = ListItemDefaults.segmentedShapes(index, count), colors = segmentedItemColors(),
-        leadingContent = {
-            Box(Modifier.size(width = 96.dp, height = 54.dp).clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.secondaryContainer), contentAlignment = Alignment.Center) {
-                val url = e.thumbnailUrl ?: if (e.kind == NotificationKind.UPLOAD && e.videoId.isNotBlank()) "https://i.ytimg.com/vi/${e.videoId}/mqdefault.jpg" else null
-                if (url != null) AsyncImage(url, null, Modifier.fillMaxWidth().size(width = 96.dp, height = 54.dp), contentScale = ContentScale.Crop)
-                else Icon(
+    // The way the official app lays a notification out, in the app's expressive lists: who it is from (their round picture, with the unread dot
+    // before it), what they did in words ("Uploaded: ..."), how long ago, and the video's picture at the end. An unread row sits on a warmer tonal
+    // surface than a read one, so the list reads at a glance without anything laid over a picture.
+    val isUpload = e.kind == NotificationKind.UPLOAD || (e.kind == NotificationKind.ACCOUNT && e.channelName.isNotBlank())
+    val thumb = e.thumbnailUrl ?: if (e.videoId.isNotBlank()) "https://i.ytimg.com/vi/${e.videoId}/mqdefault.jpg" else null
+    val scheme = MaterialTheme.colorScheme
+    // Laid out by hand rather than as a list item, so the words get the room: the item's own padding and slot gaps left them about 100 dp.
+    androidx.compose.material3.Surface(
+        onClick = ::open, shape = com.greenaltambe.vela.ui.settings.segmentedShape(index, count),
+        color = if (e.read) scheme.surfaceContainerLow else scheme.secondaryContainer.copy(alpha = 0.55f),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp).testTag("notification.row"),
+    ) {
+        Row(Modifier.padding(start = 8.dp, end = 4.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.Top) {
+            // The unread dot always takes its place, so read and unread rows line up.
+            Box(Modifier.padding(top = 20.dp).size(8.dp), contentAlignment = Alignment.Center) {
+                if (!e.read) Box(Modifier.size(8.dp).background(scheme.primary, CircleShape).testTag("notification.unread"))
+            }
+            Spacer(Modifier.width(8.dp))
+            if (isUpload) Box(Modifier.testTag("notification.channelAvatar")) { com.greenaltambe.vela.ui.components.Avatar(e.channelName, size = 44.dp, url = channelAvatarUrl) }
+            else Box(Modifier.size(44.dp).clip(CircleShape).background(if (e.kind == NotificationKind.DOWNLOAD_FAILED) scheme.errorContainer else scheme.secondaryContainer), contentAlignment = Alignment.Center) {
+                Icon(
                     when (e.kind) { NotificationKind.DOWNLOAD_DONE -> AppIcons.downloaded; NotificationKind.DOWNLOAD_FAILED, NotificationKind.HEALTH -> AppIcons.info; else -> AppIcons.notifications },
-                    null, tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    null, tint = if (e.kind == NotificationKind.DOWNLOAD_FAILED) scheme.onErrorContainer else scheme.onSecondaryContainer,
                 )
             }
-        },
-        trailingContent = {
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(if (isUpload) e.channelName else e.title, style = MaterialTheme.typography.titleSmall, maxLines = if (isUpload) 1 else 2, overflow = TextOverflow.Ellipsis, fontWeight = if (e.read) FontWeight.Medium else FontWeight.Bold)
+                val body = if (isUpload) "Uploaded: ${e.title}" else e.body.takeIf { it.isNotBlank() }
+                if (body != null) Text(body, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, color = scheme.onSurface)
+                formatAge(e.createdAt, services.clock.now())?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant, maxLines = 1) }
+            }
+            if (isUpload && thumb != null) {
+                Spacer(Modifier.width(10.dp))
+                AsyncImage(thumb, null, Modifier.size(width = 96.dp, height = 54.dp).clip(MaterialTheme.shapes.medium).background(scheme.surfaceContainerHigh), contentScale = ContentScale.Crop)
+            }
             Box {
-                if (!e.read) Box(Modifier.size(10.dp).background(MaterialTheme.colorScheme.primary, CircleShape).testTag("notification.unread"))
-                else IconButton(onClick = { menu = true }, modifier = Modifier.testTag("notification.menu")) { Icon(AppIcons.more, "Options") }
+                IconButton(onClick = { menu = true }, modifier = Modifier.size(32.dp).testTag("notification.menu")) { Icon(AppIcons.more, "Options", Modifier.size(20.dp)) }
                 DropdownMenu(menu, { menu = false }) { DropdownMenuItem(text = { Text("Remove") }, onClick = { menu = false; services.notifications.delete(e.id) }) }
             }
-        },
-        supportingContent = {
-            Text(listOf(e.channelName.takeIf { it.isNotBlank() } ?: e.body.takeIf { it.isNotBlank() }, formatAge(e.createdAt, services.clock.now())).filterNotNull().joinToString(" · "), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        },
-        modifier = Modifier.testTag("notification.row"),
-    ) { Text(e.title, maxLines = 2, overflow = TextOverflow.Ellipsis, fontWeight = if (e.read) FontWeight.Normal else FontWeight.Bold) }
+        }
+    }
 }

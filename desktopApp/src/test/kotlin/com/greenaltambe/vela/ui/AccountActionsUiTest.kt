@@ -77,9 +77,11 @@ class AccountActionsUiTest {
         setContent { AppUnderTest(f) }
         waitForIdle(); mainClock.advanceTimeBy(1_500); waitForIdle()   // the video page slides in as a sheet: let it arrive before clicking in it
         // The page waits for the video's own details first: the channel id they give (a real UC... id) is the one that is stored and sent.
-        waitUntil(timeoutMillis = 5_000) { onAllNodesWithTag("video.subscribe", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
-        val before = f.services.subscriptions.isSubscribed("UC1")   // the fixture may already follow it: the button then unsubscribes
-        onNodeWithTag("video.subscribe", useUnmergedTree = true).performClick(); waitForIdle()
+        waitUntil(timeoutMillis = 5_000) { onAllNodesWithTag("video.subscribe", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() || onAllNodesWithTag("video.subscribed", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+        val before = f.services.subscriptions.isSubscribed("UC1")   // the fixture may already follow it: the pill's menu then unsubscribes
+        if (before) { onNodeWithTag("video.subscribed", useUnmergedTree = true).performClick(); waitForIdle(); onNodeWithTag("video.unsubscribe", useUnmergedTree = true).performClick() }
+        else onNodeWithTag("video.subscribe", useUnmergedTree = true).performClick()
+        waitForIdle()
         assertTrue(f.services.subscriptions.isSubscribed("UC1") != before, "the local subscription changed without any account")
         // The actions object is asked, but a local account answers LocalOnly in the real implementation; the UI treats it as success.
     }

@@ -101,11 +101,11 @@ fun SubscriptionsScreen(services: AppServices, navigator: Navigator, modifier: M
         val all = rememberAsync(entries, failures, branding, keepWhileLoading = true,
             first = { quickShown(services, entries) },
             compute = {
-                standardFeedPipeline(WatchedLookup.of(services.history.watchedVideoIds())).with(DeArrowStep(services.modules.dearrow, DeArrowSurface.FEED))
+                standardFeedPipeline(services.watchedLookup()).with(DeArrowStep(services.modules.dearrow, DeArrowSurface.FEED))
                     .run(entries.map { it.video }, FeedContext(services.settings)).filter { !it.isShort }
             })
         val shorts = rememberAsync(entries, shortsOn, keepWhileLoading = true, first = { emptyList<VideoSummary>() },
-            compute = { if (!shortsOn) emptyList() else shortsFeedPipeline(WatchedLookup.of(services.history.watchedVideoIds())).run(entries.map { it.video }, FeedContext(services.settings)).take(SHORTS_IN_ROW) })
+            compute = { if (!shortsOn) emptyList() else shortsFeedPipeline(services.watchedLookup()).run(entries.map { it.video }, FeedContext(services.settings)).take(SHORTS_IN_ROW) })
         // Only the first page is handed to the list and prefetched; the next page is appended when the end is reached.
         var pageSize by remember { mutableStateOf(PAGE) }
         val shown = remember(all, pageSize) { all.take(pageSize) }

@@ -20,7 +20,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -33,6 +35,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.greenaltambe.vela.AppServices
+import com.greenaltambe.vela.auth.HistorySyncStatus
+import com.greenaltambe.vela.core.settings.AccountHistorySync
+import com.greenaltambe.vela.data.AccountWatchedEntry
 import com.greenaltambe.vela.data.WatchRecord
 import com.greenaltambe.vela.extractor.VideoSummary
 import com.greenaltambe.vela.library.groupHistoryByDay
@@ -71,10 +76,16 @@ fun HistoryScreen(services: AppServices, navigator: Navigator, modifier: Modifie
     // Read off the main thread; null until the first answer (placeholders meanwhile, never a false "Nothing watched yet").
     val loaded: List<WatchRecord>? = rememberAsync(revision, limit, keepWhileLoading = true, first = { null as List<WatchRecord>? }, compute = { services.history.recent(limit.toLong()) })
     val progress = rememberAsync(revision, limit, keepWhileLoading = true, first = { emptyMap<String, Float>() }, compute = { services.history.progress() })
-    var accountItems by remember { mutableStateOf<List<VideoSummary>?>(null) }
-    var accountNote by remember { mutableStateOf<String?>(null) }
-    var accountLoading by remember { mutableStateOf(false) }
+    // The account's own history as stored by the sync (setting history.accountSync); a failed read keeps what is stored and says so here only.
+    val signedIn = services.accounts.active.value.isSignedIn
+    val syncStatus by services.accountHistory.status.collectAsState()
+    val accountRevision by services.accountHistory.revision.collectAsState()
+    val accountRows = rememberAsync(revision, accountRevision, services.activeId, keepWhileLoading = true, first = { emptyList<AccountWatchedEntry>() }, compute = { if (signedIn) services.accountWatched.recent() else emptyList() })
+    var askedHere by remember { mutableStateOf(false) }   // the "N on your account" line is only for a read the viewer asked for on this screen
     var accountShown by remember { mutableStateOf(40) }
+    val hereIds = remember(loaded) { loaded.orEmpty().mapTo(HashSet()) { it.videoId } }
+    // De-duplicated by video: a video watched on this device is listed once, in the local part (the account's entries carry no time of their own).
+    val accountItems = remember(accountRows, hereIds, loaded == null) { if (loaded == null) emptyList() else accountRows.filter { it.videoId !in hereIds } }
 
     val records = remember(loaded, removal.hidden.size, query) {
         loaded.orEmpty().filter { it.videoId !in removal.hidden && (query.isBlank() || it.title.contains(query.trim(), ignoreCase = true)) }
@@ -91,15 +102,10 @@ fun HistoryScreen(services: AppServices, navigator: Navigator, modifier: Modifie
         "History", modifier, subtitle = loaded?.let { "${it.map { r -> r.videoId }.distinct().size} videos" }, onBack = { navigator.back() }, listTag = "history.list",
         barActions = { IconButton(onClick = { searching = !searching; if (!searching) query = "" }, modifier = Modifier.testTag("history.search")) { Icon(AppIcons.search, "Search history") } },
         menu = buildList {
-            if (services.reads != null && services.accounts.active.value.isSignedIn && accountItems == null)
-                add(PageAction("Include YouTube account history", "history.loadAccount") {
-                    accountLoading = true; accountNote = null
-                    scope.launch {
-                        val remote = services.reads.history()
-                        if (remote == null) toasts.show("Could not read your YouTube history right now.")
-                        else { val here = loaded.orEmpty().map { it.videoId }.toSet(); accountItems = remote.filter { it.id !in here }; toasts.show("${remote.size} on your account, ${remote.count { it.id in here }} also watched here.") }
-                        accountLoading = false
-                    }
+            if (services.reads != null && signedIn && services.accountHistory.mode() != AccountHistorySync.OFF)
+                add(PageAction("Update from YouTube account", "history.loadAccount") {
+                    askedHere = true
+                    scope.launch { services.accountHistory.sync() }
                 })
             add(PageAction("Clear all", "history.clear") { confirmClear = true })
         },
@@ -114,7 +120,10 @@ fun HistoryScreen(services: AppServices, navigator: Navigator, modifier: Modifie
         if (searching) item(key = "search") {
             com.greenaltambe.vela.ui.components.VelaSearchField(query, { query = it }, {}, Modifier.fillMaxWidth().padding(bottom = Spacing.sm), placeholder = "Search your history")
         }
-        if (accountLoading) item(key = "account-loading") { MediaRowSkeleton() }
+        if (syncStatus is HistorySyncStatus.Running) item(key = "account-loading") { MediaRowSkeleton() }
+        if (syncStatus is HistorySyncStatus.Failed) item(key = "account-failed") { AccountNote("Could not read your YouTube history right now.", "history.accountFailed") }
+        else if (askedHere && syncStatus is HistorySyncStatus.Done)
+            item(key = "account-done") { AccountNote("${accountRows.size} on your account, ${accountRows.count { it.videoId in hereIds }} also watched here.", "history.accountDone") }
         if (loaded == null) items(5, key = { "sk-$it" }, contentType = { "skeleton" }) { MediaRowSkeleton() }
         else if (records.isEmpty()) item(key = "empty") { EmptyState(if (query.isBlank()) "Nothing watched yet." else "Nothing in your history matches \"$query\".") }
         days.forEach { day ->
@@ -127,13 +136,13 @@ fun HistoryScreen(services: AppServices, navigator: Navigator, modifier: Modifie
         if (loaded != null && loaded.size >= limit) item(key = "load-older") {
             TextButton(onClick = { limit += 500 }, modifier = Modifier.testTag("history.older")) { Text("Load older history (showing the latest $limit)", maxLines = 1) }
         }
-        accountItems?.takeIf { it.isNotEmpty() && query.isBlank() }?.let { list ->
+        accountItems.takeIf { it.isNotEmpty() && query.isBlank() }?.let { list ->
             stickyHeader(key = "account-header", contentType = "day") { DayLabel("From your YouTube account", Modifier.testTag("history.accountHeader")) }
             val shown = list.take(accountShown)
-            items(shown, key = { "a-${it.id}" }) { v ->
+            items(shown, key = { "a-${it.videoId}" }) { e ->
                 MediaRow(
-                    v.title, v.thumbnailUrl ?: "https://i.ytimg.com/vi/${v.id}/mqdefault.jpg", onClick = { navigator.push(Route.Video(v)) }, onLongClick = {},
-                    duration = com.greenaltambe.vela.ui.components.formatDuration(v.durationSeconds), supporting = listOfNotNull(v.channelName.takeIf { it.isNotBlank() }, com.greenaltambe.vela.ui.components.formatViews(v.viewCount)),
+                    e.title, "https://i.ytimg.com/vi/${e.videoId}/mqdefault.jpg", onClick = { navigator.push(Route.Video(VideoSummary(e.videoId, e.title, e.channelId.orEmpty(), ""))) }, onLongClick = {},
+                    progress = e.percent?.let { it / 100f }, supporting = listOf(e.percent?.let { "$it% watched" } ?: "On your account"),
                 )
             }
             if (list.size > accountShown) item(key = "account-more") { TextButton(onClick = { accountShown += 40 }) { Text("Show more (${list.size - accountShown} left)", maxLines = 1) } }
@@ -149,6 +158,14 @@ fun HistoryScreen(services: AppServices, navigator: Navigator, modifier: Modifie
     )
     saveFor?.let { list -> SaveManySheet(services, list, onDismiss = { saveFor = null; selected.clear() }) }
     downloadFor?.let { list -> DownloadDialog(services, list, onDismiss = { downloadFor = null; selected.clear() }) }
+}
+
+/** A status line about reading the account's history: a quiet tonal card inside the list, never a popup. */
+@Composable
+private fun AccountNote(text: String, tag: String) {
+    Surface(color = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer, shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.xs).testTag(tag)) {
+        Text(text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm))
+    }
 }
 
 /** A day label that stays at the top while its rows scroll: a small tonal pill. */

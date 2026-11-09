@@ -29,6 +29,8 @@ data class VideoSummary(
     val channelAvatarUrl: String? = null,
     /** How long ago it was published, as the source worded it ("3 days ago"), for feeds that give no exact date. */
     val publishedText: String? = null,
+    /** How much of the video the signed-in account has watched (0..100), when the feed reports it; null = not reported. */
+    val watchedPercent: Int? = null,
 )
 
 @Serializable

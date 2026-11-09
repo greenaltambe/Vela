@@ -23,7 +23,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
@@ -343,7 +342,12 @@ private fun ChannelHeader(
             AnimatedVisibility(subscribed, enter = androidx.compose.animation.expandHorizontally(androidx.compose.animation.core.spring(dampingRatio = 0.7f, stiffness = 380f)) + fadeIn() + androidx.compose.animation.scaleIn(initialScale = 0.6f), exit = androidx.compose.animation.shrinkHorizontally() + fadeOut()) { ChannelBell(services, channelId) }
         }
 
-        if (subscribed && services.downloads != null) {
+        // Appears with the Subscribe button's own change: it grows open and fades in on a spring (and closes the same way) instead of popping in.
+        AnimatedVisibility(
+            subscribed && services.downloads != null,
+            enter = androidx.compose.animation.expandVertically(androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 380f)) + fadeIn(),
+            exit = androidx.compose.animation.shrinkVertically(androidx.compose.animation.core.spring(stiffness = 500f)) + fadeOut(),
+        ) {
             var auto by remember(channelId) { mutableStateOf(services.autoDownloadRules.ruleFor(channelId)?.enabled == true) }
             Row(
                 Modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraLarge).background(MaterialTheme.colorScheme.surfaceContainer).padding(horizontal = Spacing.md, vertical = Spacing.xs),
@@ -883,6 +887,24 @@ private fun PostDetailContent(
         loading = false
     }
 
+    // The replies of a comment open as a thread, exactly as on the video page (same rows, lines and "Show more replies"); the post's author is
+    // the "creator" whose name is marked.
+    val repliesScope = rememberCoroutineScope()
+    val repliesModel = remember(post.id) { RepliesModel(services, repliesScope, "") }
+    var thread by remember(post.id) { mutableStateOf<Comment?>(null) }
+    com.greenaltambe.vela.ui.platform.PlatformBackHandler(enabled = thread != null) { thread = null }
+    thread?.let { open ->
+        Column(Modifier.fillMaxSize().testTag("channel.postThread")) {
+            Row(Modifier.fillMaxWidth().padding(start = Spacing.gutter, end = Spacing.xs), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                androidx.compose.material3.IconButton(onClick = { thread = null }, modifier = Modifier.testTag("channel.postThreadBack")) { Icon(AppIcons.back, "Back to comments") }
+                Text("Replies", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                formatCount(open.replyCount.toLong().takeIf { it > 0 })?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
+            androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
+            ThreadView(open, repliesModel, {}, post.authorName, post.authorAvatarUrl, Modifier.fillMaxWidth().weight(1f))
+        }
+        return
+    }
     LazyColumn(Modifier.fillMaxWidth().padding(horizontal = Spacing.gutter).testTag("channel.postDetail"), verticalArrangement = Arrangement.spacedBy(Spacing.sm), contentPadding = PaddingValues(bottom = 32.dp)) {
         item { PostCard(services, navigator, post, onOpenDetail = {}, showComments = false) }
         item {
@@ -895,73 +917,15 @@ private fun PostDetailContent(
             loading -> item { Box(Modifier.fillMaxWidth().padding(Spacing.md), contentAlignment = Alignment.Center) { LoadingSpinner(color = MaterialTheme.colorScheme.primary) } }
             error != null -> item { ErrorRow(error!!, if (post.detailBrowseParams != null) ({ attempt++ }) else null, Modifier.testTag("channel.postCommentsError")) }
             comments.isEmpty() -> item { Text("No comments on this post.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.testTag("channel.postNoComments")) }
-            else -> items(comments.size, key = { comments[it].id }) { i -> PostCommentThread(services, comments[i]) }
-        }
-    }
-}
-
-/** One comment of a post with its replies folded under a "N replies" button, loaded on demand (the video page's comment threads work the same way). */
-@Composable
-private fun PostCommentThread(services: AppServices, c: Comment) {
-    var open by remember(c.id) { mutableStateOf(false) }
-    var replies by remember(c.id) { mutableStateOf<List<Comment>>(emptyList()) }
-    var next by remember(c.id) { mutableStateOf(c.repliesContinuation) }
-    var loading by remember(c.id) { mutableStateOf(false) }
-    var error by remember(c.id) { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
-    fun load() {
-        if (loading) return
-        loading = true; error = null
-        scope.launch {
-            when (val r = services.extractor.replies("", c.id, next)) {
-                is ExtractorResult.Success -> { replies = replies + r.value.comments.filter { n -> replies.none { it.id == n.id } }; next = r.value.continuation }
-                is ExtractorResult.Failure -> error = "Could not load replies: ${r.error.message}"
-            }
-            loading = false
-        }
-    }
-    Column(Modifier.fillMaxWidth().padding(vertical = Spacing.xs)) {
-        PostCommentRow(c, avatar = 36.dp)
-        if (c.replyCount > 0 && c.repliesContinuation != null) {
-            TextButton(
-                onClick = { open = !open; if (open && replies.isEmpty()) load() },
-                modifier = Modifier.padding(start = 36.dp + Spacing.sm).testTag("channel.postReplies"),
-            ) {
-                Icon(if (open) AppIcons.chevronUp else AppIcons.chevronDown, null, Modifier.size(18.dp))
-                Spacer(Modifier.width(Spacing.xs))
-                Text(if (open) "Hide replies" else "${c.replyCount} ${if (c.replyCount == 1) "reply" else "replies"}")
-            }
-        } else if (c.replyCount > 0) {
-            Text("${c.replyCount} ${if (c.replyCount == 1) "reply" else "replies"}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 36.dp + Spacing.sm))
-        }
-        AnimatedVisibility(open) {
-            // The replies sit under the comment, indented with a thin line down the side, like the replies of a video comment.
-            val line = MaterialTheme.colorScheme.outlineVariant
-            Column(Modifier.padding(start = 18.dp + Spacing.sm).drawBehind { drawLine(line, androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(0f, size.height), strokeWidth = 2.dp.toPx()) }.padding(start = Spacing.md)) {
-                replies.forEach { r -> PostCommentRow(r, avatar = 28.dp, modifier = Modifier.padding(vertical = Spacing.xs).testTag("channel.postReply")) }
-                if (loading) Box(Modifier.fillMaxWidth().padding(Spacing.sm), contentAlignment = Alignment.CenterStart) { LoadingSpinner(color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp)) }
-                error?.let { ErrorRow(it, { load() }) }
-                if (!loading && error == null && next != null && replies.isNotEmpty()) TextButton(onClick = { load() }, modifier = Modifier.testTag("channel.postRepliesMore")) { Text("Show more replies") }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PostCommentRow(c: Comment, avatar: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier) {
-    Row(modifier.fillMaxWidth().testTag("channel.postComment"), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-        Avatar(c.author, size = avatar, url = c.authorAvatarUrl)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                Text(c.author, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                if (c.isByCreator) Text("Creator", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.clip(CircleShape).background(MaterialTheme.colorScheme.primary).padding(horizontal = Spacing.xs, vertical = 1.dp))
-                if (c.publishedText.isNotBlank()) Text(c.publishedText, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-            }
-            val linkColor = MaterialTheme.colorScheme.primary
-            Text(remember(c.text, linkColor) { linkedText(c.text, linkColor) {} }, style = MaterialTheme.typography.bodyMedium)
-            if (c.likeCount > 0) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Icon(AppIcons.like, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(formatCount(c.likeCount) ?: c.likeCount.toString(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            else -> items(comments.size, key = { comments[it].id }) { i ->
+                val c = comments[i]
+                // The same comment row as under a video: a replies line opens the thread (a count without a way to open it is only shown).
+                CommentRow(
+                    c, avatar = 40.dp, onSeek = {}, creatorName = post.authorName, creatorAvatarUrl = post.authorAvatarUrl,
+                    modifier = Modifier.padding(vertical = Spacing.xs).testTag("channel.postComment"),
+                    onReplies = if (c.replyCount > 0 && c.repliesContinuation != null) ({ thread = c; repliesModel.open(c) }) else null,
+                    repliesCountOnly = true,
+                )
             }
         }
     }

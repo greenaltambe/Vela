@@ -218,7 +218,7 @@ fun DescriptionPanel(
                                     supportingContent = { Text(r.subtitle, maxLines = 2, overflow = TextOverflow.Ellipsis) },
                                     trailingContent = { Icon(AppIcons.chevronRight, null) },
                                     modifier = Modifier.testTag(r.tag),
-                                ) { Text(r.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold) }
+                                ) { Text(r.title, maxLines = if (r.avatar) 2 else 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold) }
                             }
                         }
 

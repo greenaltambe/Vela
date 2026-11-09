@@ -43,8 +43,12 @@ class JvmDatabaseFactoryTest {
         assertEquals(1, JvmDatabaseDriverFactory(file).create().scalar("PRAGMA foreign_keys"))
     }
 
-    /** Takes a current database back to what version 7 looked like: no notification level or feed. */
+    /** Takes a current database back to what version 8 looked like: no account watch history. */
+    private fun SqlDriver.dropVersion9Table() { execute(null, "DROP TABLE AccountWatched", 0) }
+
+    /** ...back to what version 7 looked like: no notification level or feed. */
     private fun SqlDriver.dropVersion8Changes() {
+        dropVersion9Table()
         execute(null, "DROP TABLE NotificationItem", 0)
         execute(null, "ALTER TABLE Subscription DROP COLUMN notifyLevel", 0)
     }

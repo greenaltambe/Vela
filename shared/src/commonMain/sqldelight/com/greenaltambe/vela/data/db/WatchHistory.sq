@@ -49,3 +49,8 @@ DELETE FROM WatchHistory WHERE accountId = ? AND videoId = ?;
 
 watchedVideoIds:
 SELECT DISTINCT videoId FROM WatchHistory WHERE accountId = ?;
+
+-- Best progress per video over all its sessions, for the watched threshold.
+watchedProgress:
+SELECT videoId, MAX(positionMs) AS maxPositionMs, MAX(watchedMs) AS maxWatchedMs, MAX(durationMs) AS maxDurationMs
+FROM WatchHistory WHERE accountId = ? GROUP BY videoId;

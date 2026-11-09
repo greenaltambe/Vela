@@ -29,12 +29,12 @@ object SettingsPages {
         SettingsPage("playback", "Playback & quality", SettingsGroup.WATCHING, 1) { it.key.startsWith("playback.") && it.key !in safetyKeys },
         SettingsPage("extras", "SponsorBlock & extras", SettingsGroup.WATCHING, 2, owns = prefix("sponsorblock.", "ryd.", "dearrow.", "modules.")),
         SettingsPage("home", "Home", SettingsGroup.YOUR_FEED, 3, owns = keys("home.source", "content.region")),
-        SettingsPage("feed", "Subscriptions & feed filters", SettingsGroup.YOUR_FEED, 4, owns = prefix("feed.hide", "feed.min", "feed.block", "feed.allow", "feed.keywords")),
+        SettingsPage("feed", "Subscriptions & feed filters", SettingsGroup.YOUR_FEED, 4, owns = prefix("feed.hide", "feed.watched", "feed.min", "feed.block", "feed.allow", "feed.keywords")),
         SettingsPage("notifications", "Notifications", SettingsGroup.YOUR_FEED, 15, owns = prefix("notify.")),
         SettingsPage("shorts", "Shorts", SettingsGroup.YOUR_FEED, 5, owns = keys("feed.shortsMode")),
         SettingsPage("accounts", "Accounts", SettingsGroup.ACCOUNT_AND_SAFETY, 6, SettingsLink.ACCOUNTS),
         SettingsPage("safety", "Account safety", SettingsGroup.ACCOUNT_AND_SAFETY, 7) { it.key.startsWith("account.") || it.key in safetyKeys },
-        SettingsPage("privacy", "Privacy", SettingsGroup.ACCOUNT_AND_SAFETY, 8, owns = keys("history.localOnly")),
+        SettingsPage("privacy", "Privacy", SettingsGroup.ACCOUNT_AND_SAFETY, 8, owns = keys("history.localOnly", "history.accountSync")),
         SettingsPage("downloads", "Downloads", SettingsGroup.OFFLINE, 9) { it.key.startsWith("downloads.") && it.key !in storageKeys && !it.key.startsWith("downloads.auto.") },
         SettingsPage("auto", "Automatic downloads", SettingsGroup.OFFLINE, 10, SettingsLink.DOWNLOAD_RULES, owns = prefix("downloads.auto.")),
         SettingsPage("storage", "Storage", SettingsGroup.OFFLINE, 11, owns = { it.key in storageKeys }),
@@ -76,7 +76,7 @@ object SettingsPages {
             s.key in setOf("account.reportActivity", "account.profilesExperimental", "session.nowPlaying") -> "Reporting"
             else -> "When the account is used"
         }
-        "feed" -> if (s.key.startsWith("feed.hide") || s.key.startsWith("feed.min")) "Hide videos" else "Keyword rules"
+        "feed" -> if (s.key.startsWith("feed.hide") || s.key.startsWith("feed.watched") || s.key.startsWith("feed.min")) "Hide videos" else "Keyword rules"
         "updates" -> if (s.key.startsWith("ytdlp.")) "yt-dlp" else "Remote settings"
         else -> ""
     }
@@ -116,7 +116,7 @@ object SettingsSummaries {
         "shorts" -> s.label(Settings.shortsMode)
         "accounts" -> "Sign in, switch, add"
         "safety" -> "Account ${s.label(Settings.accountFallbackMode).lowercase()} · age-restricted ${onOff(s.v(Settings.allowAgeRestricted))}${if (s.v(Settings.accountKillSwitch)) " · PAUSED" else ""}"
-        "privacy" -> if (s.v(Settings.localOnlyHistory)) "History stays on this device" else "History may be shared with your account"
+        "privacy" -> (if (s.v(Settings.localOnlyHistory)) "History stays on this device" else "History is kept on this device") + " · account history: ${s.label(Settings.historyAccountSync).lowercase()}"
         "downloads" -> "${s.label(Settings.downloadsDefaultQuality)}${if (s.v(Settings.downloadsWifiOnly)) " · Wi-Fi only" else ""} · ${num(s.v(Settings.downloadsConcurrent))} at once"
         "auto" -> "Rules for new videos"
         "storage" -> "Cap ${num(s.v(Settings.downloadsStorageCapGb))} GB${if (s.v(Settings.downloadsDeleteAfterWatch)) " · delete after watching" else ""}"

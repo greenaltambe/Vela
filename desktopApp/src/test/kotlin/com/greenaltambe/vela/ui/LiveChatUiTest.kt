@@ -13,6 +13,7 @@ import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
+/** The chat card (task 85 follow-up): author, text and amount are separate parts of a bubble now, so the tests look for the parts. */
 class LiveChatUiTest {
     private class Chat(override val isReplay: Boolean = false, var polls: Int = 0) : ChatChannel {
         override suspend fun poll(): ChatBatch { polls++; return ChatBatch(listOf(ChatMessage("m$polls", "Alice", "hello $polls"), ChatMessage("p$polls", "Bob", "thanks", ChatKind.SUPERCHAT, "$5.00")), 3_000) }
@@ -27,10 +28,13 @@ class LiveChatUiTest {
         f.navigator.push(Route.Video(live))
         setContent { AppUnderTest(f) }; waitForIdle()
         onNodeWithTag("video.chat.toggle", useUnmergedTree = true).assertIsDisplayed()
+        onNodeWithText("Live chat", useUnmergedTree = true).assertIsDisplayed()
         assertEquals(0, source.opened, "nothing is requested until the viewer opens the chat")
         onNodeWithTag("video.chat.toggle", useUnmergedTree = true).performClick()
-        waitUntil(timeoutMillis = 5_000) { runCatching { onNodeWithText("Alice: hello 1", useUnmergedTree = true).assertIsDisplayed() }.isSuccess }
-        onNodeWithText("Bob (\$5.00): thanks", useUnmergedTree = true).assertIsDisplayed()
+        waitUntil(timeoutMillis = 5_000) { runCatching { onNodeWithText("hello 1", useUnmergedTree = true).assertIsDisplayed() }.isSuccess }
+        onNodeWithText("Alice", useUnmergedTree = true).assertIsDisplayed()
+        onNodeWithText("thanks", useUnmergedTree = true).assertIsDisplayed()
+        onNodeWithText("\$5.00", useUnmergedTree = true).assertIsDisplayed()   // the paid message's amount pill
     }
 
     @Test fun aVideoWithoutChatSaysSoAndANormalVideoHasNoPanel() = runDesktopComposeUiTest(800, 1000) {
@@ -54,9 +58,9 @@ class LiveChatUiTest {
         f.navigator.push(Route.Video(FakeData.videos[0]))   // the harness video is 1845 s long and the playhead starts at 754 s
         setContent { AppUnderTest(f) }; waitForIdle()
         waitUntil(timeoutMillis = 5_000) { runCatching { onNodeWithTag("video.chat.toggle", useUnmergedTree = true).assertIsDisplayed() }.isSuccess }
-        onNodeWithText("Show chat replay", useUnmergedTree = true).assertIsDisplayed()
+        onNodeWithText("Chat replay", useUnmergedTree = true).assertIsDisplayed()
         onNodeWithTag("video.chat.toggle", useUnmergedTree = true).performClick()
-        waitUntil(timeoutMillis = 5_000) { runCatching { onNodeWithText("Early: before the playhead", useUnmergedTree = true).assertIsDisplayed() }.isSuccess }
-        assertTrue(runCatching { onNodeWithText("Late: after the playhead", useUnmergedTree = true).assertIsDisplayed() }.isFailure, "a message from later in the video is not shown yet")
+        waitUntil(timeoutMillis = 5_000) { runCatching { onNodeWithText("before the playhead", useUnmergedTree = true).assertIsDisplayed() }.isSuccess }
+        assertTrue(runCatching { onNodeWithText("after the playhead", useUnmergedTree = true).assertIsDisplayed() }.isFailure, "a message from later in the video is not shown yet")
     }
 }

@@ -99,6 +99,13 @@ class AppServices(
     val notifications get() = com.greenaltambe.vela.data.NotificationRepository(db, activeId) { notificationsRevision.value++ }
     val history get() = HistoryLibrary(db, activeId)
     val searchHistory get() = SearchHistoryRepository(db, activeId)
+    /** The account's own watch history as last read (empty for the local account). */
+    val accountWatched get() = com.greenaltambe.vela.data.AccountWatchedRepository(db, activeId)
+    /** Reads that history by the `history.accountSync` setting; one per app so its status is shared by the screens. */
+    val accountHistory = com.greenaltambe.vela.auth.AccountHistoryService(reads, database, accounts, settings, clock)
+    /** What counts as watched right now: this device's history by progress and the synced account history. Reads the database; call off the main thread. */
+    fun watchedLookup(): com.greenaltambe.vela.feed.WatchedLookup =
+        com.greenaltambe.vela.feed.WatchedLookup.progress(history.watchedPercents(), if (accounts.active.value.isSignedIn) accountWatched.percents() else emptyMap())
     val playlists get() = PlaylistRepository(db, activeId)
     /** What Home remembers (dismissed videos and channels, last visit) for the active account. */
     val homePrefs get() = com.greenaltambe.vela.home.HomePrefs(homeStore, activeId)

@@ -139,6 +139,7 @@ class AccountManager(
             q.deleteSubscriptions(id); q.deletePlaylistItems(id); q.deletePlaylists(id)
             db.watchHistoryQueries.clearForAccount(id)
             db.searchHistoryQueries.clearForAccount(id)
+            db.accountWatchedQueries.clearForAccount(id)
             db.feedItemQueries.clearForAccount(id)
             db.accountAuditQueries.clearForAccount(id)
             q.delete(id)
@@ -223,4 +224,14 @@ interface AccountReads {
     suspend fun playlistVideos(playlistId: String): List<com.greenaltambe.vela.extractor.VideoSummary>?
     /** The account's watch history (newest first); entries carry no time, only the order YouTube lists them in. */
     suspend fun history(): List<com.greenaltambe.vela.extractor.VideoSummary>? = null
+
+    /**
+     * One page of [history]; pass the previous page's [HistoryPage.continuation] for the next one (null = the first). Null when the read failed.
+     * The default has one page only, which is what [history] returns.
+     */
+    suspend fun historyPage(continuation: String? = null): HistoryPage? =
+        if (continuation != null) HistoryPage(emptyList(), null) else history()?.let { HistoryPage(it, null) }
 }
+
+/** A page of the account's watch history, newest first; [continuation] is null at the end. */
+class HistoryPage(val videos: List<com.greenaltambe.vela.extractor.VideoSummary>, val continuation: String?)

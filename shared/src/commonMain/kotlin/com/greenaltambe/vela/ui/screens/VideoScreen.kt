@@ -124,7 +124,9 @@ import androidx.compose.ui.layout.onSizeChanged
 import kotlin.math.roundToInt
 import androidx.compose.ui.graphics.graphicsLayer
 import com.greenaltambe.vela.ui.player.SeekMarker
+import androidx.compose.animation.togetherWith
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.layout.positionInWindow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -347,11 +349,18 @@ fun VideoScreen(
         // Swipe down on the picture brings the video back to portrait: it follows the finger, then either leaves or springs back.
         var fsDrag by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
         val leaveAt = with(density) { 90.dp.toPx() }
+        // The seek bar's gesture lock: a swipe may not start on the bar or within 12 dp of it, nor continue while a finger is on it.
+        val gestureLock = com.greenaltambe.vela.ui.components.LocalPlayerGestureLock.current
+        var swipeRoot by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+        val bandPx = with(density) { com.greenaltambe.vela.ui.components.PlayerGestureLock.BAND_DP.dp.toPx() }
         PlayerView(
             host, video, chapters, markers,
             seekStepSeconds = seekStep, holdSpeed = holdSpeedSetting, onPrevious = onPreviousVideo, onNext = onNextVideo,
             modifier = modifier.fillMaxSize()
+                .onGloballyPositioned { swipeRoot = it.positionInRoot() }
                 .then(if (inPip) Modifier else Modifier.playerVerticalSwipe(
+                    startsOn = { at -> gestureLock?.onBar(swipeRoot + at, bandPx) != true },
+                    lock = gestureLock,
                     onDelta = { dy -> fsDrag = (fsDrag + dy).coerceAtLeast(0f) },
                     onEnd = { total, v ->
                         if (total > leaveAt || v > 1200f) leaveFullscreen()
@@ -429,21 +438,14 @@ fun VideoScreen(
             }
         }
         item {
-            Row(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).clickableChannel { (info?.channelId?.takeIf { it.isNotBlank() } ?: video.channelId).let { id -> navigator.push(Route.Channel(id, info?.channelName?.takeIf { it.isNotBlank() } ?: video.channelName, if (id.isBlank()) video.id else "")) } }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                val channelName = info?.channelName?.takeIf { it.isNotBlank() } ?: video.channelName
-                // The picture: the one the listing carried, else the video's own details, else the channel's picture from your subscriptions (a library or history entry has none).
-                val avatarUrl = video.channelAvatarUrl ?: info?.channelAvatarUrl ?: remember(info?.channelId, video.channelId) { services.subscriptions.all().firstOrNull { it.channelId == (info?.channelId?.takeIf { c -> c.isNotBlank() } ?: video.channelId) }?.avatarUrl }
-                Avatar(channelName, url = avatarUrl)
-                Column(Modifier.weight(1f)) {
-                    Text(channelName, Modifier.testTag("video.channel"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    formatCount(info?.subscriberCount)?.let { Text("$it subscribers", Modifier.testTag("video.subscribers"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1) }
-                }
-                // The channel id the video's own details give (a real UC… id) beats what a listing carried, which can be empty or a @handle: the account
-                // rejects those with HTTP 400.
-                val chId = info?.channelId?.takeIf { it.startsWith("UC") } ?: video.channelId
-                // Optimistic: the local table and the button change at once; the account call follows, and a failure puts both back and says why.
-                Row(Modifier.animateContentSize(), horizontalArrangement = Arrangement.spacedBy(androidx.compose.material3.ButtonGroupDefaults.ConnectedSpaceBetween)) {
-                SubscribeButton(subscribed, position = if (subscribed) com.greenaltambe.vela.ui.components.ActionPosition.LEADING else com.greenaltambe.vela.ui.components.ActionPosition.ALONE, onClick = {
+            val channelName = info?.channelName?.takeIf { it.isNotBlank() } ?: video.channelName
+            // The picture: the one the listing carried, else the video's own details, else the channel's picture from your subscriptions (a library or history entry has none).
+            val avatarUrl = video.channelAvatarUrl ?: info?.channelAvatarUrl ?: remember(info?.channelId, video.channelId) { services.subscriptions.all().firstOrNull { it.channelId == (info?.channelId?.takeIf { c -> c.isNotBlank() } ?: video.channelId) }?.avatarUrl }
+            // The channel id the video's own details give (a real UC… id) beats what a listing carried, which can be empty or a @handle: the account
+            // rejects those with HTTP 400.
+            val chId = info?.channelId?.takeIf { it.startsWith("UC") } ?: video.channelId
+            // Optimistic: the local table and the button change at once; the account call follows, and a failure puts both back and says why.
+            val toggleSubscription: () -> Unit = {
                     if (subscribed) {
                         services.subscriptions.unsubscribe(chId); subscribed = false
                         scope.launch { val r = services.actions?.unsubscribe(chId); (r as? ActionResult.Queued)?.let { actionNote = it.message }; (r as? ActionResult.Failed)?.let { services.subscriptions.subscribe(chId, video.channelName, video.channelAvatarUrl ?: info?.channelAvatarUrl, services.clock.now()); subscribed = true; actionError = "Could not unsubscribe on the account: ${it.message}" } }
@@ -451,10 +453,21 @@ fun VideoScreen(
                         services.subscriptions.subscribe(chId, video.channelName, video.channelAvatarUrl ?: info?.channelAvatarUrl, services.clock.now()); subscribed = true
                         scope.launch { val r = services.actions?.subscribe(chId); (r as? ActionResult.Queued)?.let { actionNote = it.message }; (r as? ActionResult.Failed)?.let { services.subscriptions.unsubscribe(chId); subscribed = false; actionError = "Could not subscribe on the account: ${it.message}" } }
                     }
-                }, modifier = Modifier.testTag("video.subscribe"))
-                androidx.compose.animation.AnimatedVisibility(subscribed, enter = androidx.compose.animation.expandHorizontally(androidx.compose.animation.core.spring(dampingRatio = 0.7f, stiffness = 380f)) + androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(initialScale = 0.6f), exit = androidx.compose.animation.shrinkHorizontally() + androidx.compose.animation.fadeOut()) { ChannelBell(services, chId) }
-                }
             }
+            // The name has priority: up to two lines beside ONE small control. Subscribe is a word button; once subscribed it becomes a bell + chevron
+            // pill whose menu holds the notification level and Unsubscribe (see SubscribedPill).
+            ChannelRow(
+                name = channelName,
+                subscribersText = formatCount(info?.subscriberCount)?.let { "$it subscribers" },
+                avatar = { Avatar(channelName, url = avatarUrl) },
+                modifier = Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).clickableChannel { (info?.channelId?.takeIf { it.isNotBlank() } ?: video.channelId).let { id -> navigator.push(Route.Channel(id, info?.channelName?.takeIf { it.isNotBlank() } ?: video.channelName, if (id.isBlank()) video.id else "")) } },
+                actions = {
+                    androidx.compose.animation.AnimatedContent(subscribed, transitionSpec = { (androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(androidx.compose.animation.core.spring(dampingRatio = 0.7f, stiffness = 380f), initialScale = 0.8f)) togetherWith androidx.compose.animation.fadeOut() }, label = "subscribeState") { isSubscribed ->
+                        if (isSubscribed) SubscribedPill(services, chId, onUnsubscribe = toggleSubscription)
+                        else SubscribeButton(false, onClick = toggleSubscription, modifier = Modifier.testTag("video.subscribe"))
+                    }
+                },
+            )
         }
         if (services.liveChat != null && (liveNow || replayChat != null)) item { LiveChatPanel(services.liveChat, video.id, replay = !liveNow, position = position, preopened = replayChat) }
         item {
@@ -855,17 +868,5 @@ private fun LiveChatPanel(source: com.greenaltambe.vela.extractor.LiveChatSource
             kotlinx.coroutines.delay(batch.nextPollMs)
         }
     }
-    Column(Modifier.fillMaxWidth().testTag("video.chat")) {
-        OutlinedButton(onClick = { open = !open }, modifier = Modifier.testTag("video.chat.toggle")) { Text(if (open) "Hide chat" else if (replay) "Show chat replay" else "Show live chat", maxLines = 1) }
-        if (open) {
-            status?.let { Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("video.chat.status")) }
-            Column(Modifier.heightIn(max = 280.dp).verticalScroll(androidx.compose.foundation.rememberScrollState(), reverseScrolling = true).testTag("video.chat.lines")) {
-                lines.forEach { m ->
-                    val paid = m.kind != com.greenaltambe.vela.extractor.ChatKind.TEXT
-                    Text(buildString { append(m.author); if (m.amount != null) append(" (${m.amount})"); append(": "); append(m.text) },
-                        style = MaterialTheme.typography.bodySmall, fontWeight = if (paid) androidx.compose.ui.text.font.FontWeight.Bold else null, modifier = Modifier.padding(vertical = 1.dp))
-                }
-            }
-        }
-    }
+    ChatPanelUi(open, replay, status, lines, onToggle = { open = !open })
 }

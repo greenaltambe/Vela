@@ -37,9 +37,19 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitHorizontalTouchSlopOrCancellation
+import androidx.compose.foundation.gestures.drag
+import androidx.compose.foundation.gestures.horizontalDrag
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import kotlinx.coroutines.launch
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -78,6 +88,41 @@ class ScrubGeometry(val widthPx: Float, val thumbRadiusPx: Float) {
 /** A coloured span of the track, in fractions of the whole. */
 class ScrubMarker(val start: Float, val end: Float, val color: Color)
 
+/** One marker piece on the x axis (pixels). */
+data class MarkerSpan(val x0: Float, val x1: Float, val color: Color)
+
+/** The marker pieces left of the handle ([played]: they follow the wave) and right of it ([unplayed]: flat). */
+data class MarkerSpans(val played: List<MarkerSpan>, val unplayed: List<MarkerSpan>)
+
+/**
+ * Where each SponsorBlock marker lies relative to the handle, in pixels. The played region is `trackStart .. xNow - handleGap`, the unplayed one
+ * `xNow + handleGap .. trackEnd`; a marker partly in each is split at the handle. A played piece keeps its true width (the wave is drawn through
+ * it); an unplayed piece is at least [minFlatWidth] wide so a tiny marker stays visible on the flat track. With [segments] (the chapter segments'
+ * x ranges) every piece is also cut at the chapter gaps between them.
+ */
+fun markerSpans(
+    markers: List<ScrubMarker>, g: ScrubGeometry, xNow: Float, handleGap: Float,
+    minFlatWidth: Float = 0f, segments: List<ClosedFloatingPointRange<Float>>? = null,
+): MarkerSpans {
+    val playedEnd = xNow - handleGap
+    val unplayedStart = xNow + handleGap
+    val played = ArrayList<MarkerSpan>(); val unplayed = ArrayList<MarkerSpan>()
+    fun add(into: MutableList<MarkerSpan>, a: Float, b: Float, color: Color) {
+        if (b <= a) return
+        if (segments == null) { into += MarkerSpan(a, b, color); return }
+        for (s in segments) { val x0 = maxOf(a, s.start); val x1 = minOf(b, s.endInclusive); if (x1 > x0) into += MarkerSpan(x0, x1, color) }
+    }
+    for (mk in markers) {
+        val x0 = g.xFor(mk.start)
+        val x1 = g.xFor(mk.end)
+        add(played, maxOf(x0, g.trackStart), minOf(x1, playedEnd), mk.color)
+        // Tiny markers get their minimum width only on the flat part, grown to the right and kept inside the track.
+        val flatEnd = maxOf(x1, x0 + minFlatWidth).coerceAtMost(g.trackEnd)
+        add(unplayed, maxOf(x0, unplayedStart), flatEnd, mk.color)
+    }
+    return MarkerSpans(played, unplayed)
+}
+
 /**
  * The app's seek / volume / slider control. Tap anywhere to jump; drag to scrub; segmented chapter gaps;
  * expands bold when dragged; desktop hover segment bolding with chapter name tooltip; and video frame
@@ -105,10 +150,25 @@ fun Scrubber(
     tickColor: Color = ExtraColors.chapterMarker,
     /** False while paused: the wave stands still instead of redrawing the bar every frame. */
     animate: Boolean = true,
+    /**
+     * Whether a press alone jumps to the finger and commits on release. Null decides per touch by pointer type: a mouse or stylus click seeks (desktop
+     * users expect it), a finger does not: a touch only scrubs after it has moved sideways past the touch slop, so a brush or a tap never seeks.
+     */
+    tapToSeek: Boolean? = null,
+    /** Whether this bar takes part in the player's gesture lock (see [PlayerGestureLock]); the desktop volume bar does not. */
+    lockGestures: Boolean = true,
 ) {
     var widthPx by remember { mutableFloatStateOf(0f) }
+    // The position the bar is being dragged to (absolute fraction); while [gliding] the shown position travels from [glideFrom] to it on a spring.
     var dragging by remember { mutableStateOf<Float?>(null) }
     var hoveredFraction by remember { mutableStateOf<Float?>(null) }
+    var armed by remember { mutableStateOf(false) }
+    var gliding by remember { mutableStateOf(false) }
+    var glideFrom by remember { mutableFloatStateOf(0f) }
+    val glide = remember { androidx.compose.animation.core.Animatable(1f) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val valueNow by androidx.compose.runtime.rememberUpdatedState(value.coerceIn(0f, 1f))
+    val lock = if (lockGestures) LocalPlayerGestureLock.current else null
 
     // When dragging the entire seekbar expands bold smoothly
     val isDragging = dragging != null
@@ -118,9 +178,9 @@ fun Scrubber(
         label = "boldScale"
     )
 
-    // The thumb grows while it is held, on a snappy spring
+    // The thumb grows a little when a finger is down on the bar (armed) and more while it is held and moving, on a snappy spring
     val thumbGrow by animateFloatAsState(
-        if (isDragging) 1.35f else 1f,
+        if (isDragging) 1.35f else if (armed) 1.15f else 1f,
         com.greenaltambe.vela.ui.look.VelaMotion.snappy(LocalMotion.current),
         label = "thumbGrow"
     )
@@ -132,70 +192,92 @@ fun Scrubber(
     val density = LocalDensity.current
     val thumbPx = with(density) { metrics.endInset.toPx() }
     val geometry = ScrubGeometry(widthPx, thumbPx)
-    val shown = dragging ?: value.coerceIn(0f, 1f)
+    val shown = dragging?.let { d -> if (gliding) androidx.compose.ui.util.lerp(glideFrom, d, glide.value) else d } ?: value.coerceIn(0f, 1f)
+    androidx.compose.runtime.DisposableEffect(lock) { onDispose { if (lock?.bar != null) lock.bar = null } }
 
     Box(
         modifier
             .fillMaxWidth()
             .height(Spacing.minTouch)
             .onSizeChanged { widthPx = it.width.toFloat() }
+            .onGloballyPositioned { c -> if (lock != null) lock.bar = androidx.compose.ui.geometry.Rect(c.positionInRoot(), androidx.compose.ui.geometry.Size(c.size.width.toFloat(), c.size.height.toFloat())) }
+            // Hovering (a mouse over the bar) shows the time and chapter under it; it never consumes anything.
+            .pointerInput(enabled) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Main)
+                        val change = event.changes.firstOrNull() ?: continue
+                        when (event.type) {
+                            PointerEventType.Move -> if (!change.pressed) hoveredFraction = ScrubGeometry(widthPx, thumbPx).fractionAt(change.position.x)
+                            PointerEventType.Exit -> hoveredFraction = null
+                            else -> {}
+                        }
+                    }
+                }
+            }
             .semantics {
                 contentDescription = description
                 valueDescription?.let { stateDescription = it }
                 progressBarRangeInfo = ProgressBarRangeInfo(shown, 0f..1f)
                 if (enabled) setProgress { target -> onCommit(target.coerceIn(0f, 1f)); true }
             }
-            .pointerInput(enabled, widthPx) {
+            .pointerInput(enabled, widthPx, thumbPx, tapToSeek) {
                 if (!enabled || widthPx <= 0f) return@pointerInput
                 val g = ScrubGeometry(widthPx, thumbPx)
-                awaitPointerEventScope {
-                    while (true) {
-                        val event = awaitPointerEvent(PointerEventPass.Main)
-                        when (event.type) {
-                            PointerEventType.Press -> {
-                                val change = event.changes.firstOrNull()
-                                if (change != null) {
-                                    change.consume()
-                                    val f = g.fractionAt(change.position.x)
-                                    dragging = f
-                                    onPreview(f)
-                                }
+                val grabPx = maxOf(24.dp.toPx(), thumbPx)
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val seekOnPress = tapToSeek ?: (down.type != PointerType.Touch)
+                    lock?.begin()
+                    down.consume()
+                    var lastUptime = down.uptimeMillis
+                    var previewed = false
+                    var onComplete: (() -> Unit)? = null
+                    try {
+                        if (seekOnPress) {
+                            // Mouse / stylus: the bar jumps to the pointer at once and follows it; letting go seeks.
+                            var f = g.fractionAt(down.position.x)
+                            gliding = false; dragging = f; previewed = true; onPreview(f)
+                            val completed = drag(down.id) { ch ->
+                                ch.consume(); lastUptime = ch.uptimeMillis
+                                f = g.fractionAt(ch.position.x); dragging = f; onPreview(f)
                             }
-                            PointerEventType.Move -> {
-                                val change = event.changes.firstOrNull()
-                                if (change != null) {
-                                    val f = g.fractionAt(change.position.x)
-                                    if (change.pressed || dragging != null) {
-                                        change.consume()
-                                        dragging = f
-                                        onPreview(f)
-                                    } else {
-                                        hoveredFraction = f
-                                    }
+                            if (completed) onComplete = { onCommit(f) }
+                        } else {
+                            // Finger: pressing only arms the bar. Scrubbing starts once the finger has moved sideways past the touch slop.
+                            armed = true
+                            val startValue = valueNow
+                            val grabbed = kotlin.math.abs(down.position.x - g.xFor(startValue)) <= grabPx
+                            val slop = awaitHorizontalTouchSlopOrCancellation(down.id) { ch, _ -> ch.consume() }
+                            if (slop != null) {
+                                armed = false
+                                val anchorX = slop.position.x
+                                var f = startValue
+                                fun shownNow(): Float = if (gliding) androidx.compose.ui.util.lerp(glideFrom, f, glide.value) else f
+                                if (grabbed) {
+                                    // The handle follows the finger by relative movement: no jump when it is grabbed.
+                                    gliding = false
+                                } else {
+                                    // Elsewhere on the bar the handle glides to the finger on a short spring, then follows it.
+                                    f = g.fractionAt(anchorX)
+                                    glideFrom = startValue; gliding = true
+                                    scope.launch { glide.snapTo(0f); glide.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 500f)) }
                                 }
-                            }
-                            PointerEventType.Release -> {
-                                val change = event.changes.firstOrNull()
-                                change?.consume()
-                                val target = dragging
-                                if (target != null) {
-                                    onCommit(target)
+                                dragging = f; previewed = true; onPreview(shownNow())
+                                val completed = horizontalDrag(slop.id) { ch ->
+                                    ch.consume(); lastUptime = ch.uptimeMillis
+                                    // Only x counts: vertical drift moves nothing.
+                                    f = if (grabbed) g.fractionAt(g.xFor(startValue) + (ch.position.x - anchorX)) else g.fractionAt(ch.position.x)
+                                    dragging = f; onPreview(shownNow())
                                 }
-                                dragging = null
-                                onPreview(null)
-                            }
-                            PointerEventType.Exit -> {
-                                hoveredFraction = null
-                                if (dragging != null) {
-                                    val target = dragging
-                                    if (target != null) {
-                                        onCommit(target)
-                                    }
-                                    dragging = null
-                                    onPreview(null)
-                                }
+                                if (completed) onComplete = { onCommit(f) }
                             }
                         }
+                    } finally {
+                        armed = false; dragging = null; gliding = false
+                        onComplete?.invoke()
+                        if (previewed) onPreview(null)
+                        lock?.end(lastUptime)
                     }
                 }
             },
@@ -353,12 +435,30 @@ fun DrawScope.drawProgress(
     // Material's wavy bar: the played part is a wave, a small gap, then the flat rest of the track; the handle is a vertical pill in the gap.
     val handleGap = if (expressive) 6.dp.toPx() else 0f
     val baseTrackTh = m.track.toPx() * (if (hasThumb) 1f else grow) * boldScale
+    val round = androidx.compose.ui.graphics.StrokeCap.Round
+    // The pieces of the SponsorBlock markers left of the handle (drawn as the wave's own stroke in the marker colour) and right of it (flat).
+    val chapterRanges = (0 until segmentCount).map { i -> (g.xFor(boundaries[i]) + (if (i == 0) 0f else gapPx / 2f))..(g.xFor(boundaries[i + 1]) - (if (i == segmentCount - 1) 0f else gapPx / 2f)) }
+    val spans = markerSpans(markers, g, xNow, handleGap, minFlatWidth = 3.dp.toPx(), segments = if (expressive) chapterRanges else null)
+    /** The same stroke again in a marker's colour, clipped to its played span, so the coloured piece rises and falls with the wave. */
+    fun DrawScope.tintPath(path: androidx.compose.ui.graphics.Path, width: Float, from: Float = Float.NEGATIVE_INFINITY, to: Float = Float.POSITIVE_INFINITY, alpha: Float = 1f) {
+        for (s in spans.played) {
+            val l = maxOf(s.x0, from); val r = minOf(s.x1, to)
+            if (r <= l) continue
+            clipRect(left = l, top = 0f, right = r, bottom = size.height) {
+                drawPath(path, s.color, alpha = alpha, style = Stroke(width = width, cap = round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+            }
+        }
+    }
+    // Unplayed pieces are 15 % fainter, so what has already passed reads without hiding the category's colour.
+    fun lighter(c: Color) = c.copy(alpha = c.alpha * 0.85f)
 
     if (style == ProgressStyle.WAVE) {
         val th = baseTrackTh
         val amp = 3.dp.toPx()
         val k = (2 * Math.PI / 22.dp.toPx()).toFloat()
         drawLine(trackColor, Offset(xNow, cy), Offset(g.trackEnd, cy), strokeWidth = th * 0.75f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+        // Markers on the unplayed, flat part (the played ones are the wave itself, below).
+        for (s in spans.unplayed) drawRoundRect(lighter(s.color), Offset(s.x0, cy - th * 0.75f / 2), Size(s.x1 - s.x0, th * 0.75f), CornerRadius(th * 0.75f / 2, th * 0.75f / 2))
         if (xNow > g.trackStart) {
             val path = androidx.compose.ui.graphics.Path()
             var x = g.trackStart
@@ -370,6 +470,7 @@ fun DrawScope.drawProgress(
             }
             path.lineTo(xNow, cy)
             drawPath(path, brush, style = Stroke(width = th, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+            tintPath(path, th)
         }
         val handleH = 16.dp.toPx() * grow * boldScale
         drawLine(sample(wake, shown), Offset(xNow, cy - handleH / 2), Offset(xNow, cy + handleH / 2), strokeWidth = 4.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
@@ -403,8 +504,11 @@ fun DrawScope.drawProgress(
         }
     }
 
-    // 2. SponsorBlock markers across the entire track (clearly visible, never eaten by round corners)
-    markers.forEach { mk ->
+    // 2. SponsorBlock markers. Expressive: only the flat part right of the handle gap, with the track's rounded ends (the played part is the wave
+    // itself, tinted below). The other styles: across the entire track (clearly visible, never eaten by round corners).
+    if (expressive) {
+        for (s in spans.unplayed) drawRoundRect(lighter(s.color), Offset(s.x0, cy - baseTrackTh / 2), Size(s.x1 - s.x0, baseTrackTh), CornerRadius(baseTrackTh / 2, baseTrackTh / 2))
+    } else markers.forEach { mk ->
         val x0 = g.xFor(mk.start)
         val x1 = maxOf(g.xFor(mk.end), x0 + 3.dp.toPx()).coerceAtMost(g.trackEnd)
         if (x1 > x0) {
@@ -436,6 +540,7 @@ fun DrawScope.drawProgress(
                 x = minOf(x + 2f, xEnd)
             }
             drawPath(path, brush, style = Stroke(width = baseTrackTh, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+            tintPath(path, baseTrackTh, from = x0, to = x1)
         } else if (!expressive && xNow > x0) {
             val isHoveredSeg = hoveredFraction != null && hoveredFraction >= startF && hoveredFraction <= endF
             val segTh = if (isHoveredSeg) maxOf(baseTrackTh * 1.8f, baseTrackTh + 4.dp.toPx()) else baseTrackTh
@@ -467,6 +572,7 @@ fun DrawScope.drawProgress(
                 x = minOf(x + 2f, xNow)
             }
             drawPath(path, brush, alpha = alpha, style = Stroke(width = width, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+            tintPath(path, width, alpha = alpha)
         }
         strand(wavelength = 56.dp.toPx(), height = 1.0f, width = 1.7.dp.toPx(), alpha = 0.95f, laps = 1, phase = 0f)
         strand(wavelength = 40.dp.toPx(), height = 0.78f, width = 1.4.dp.toPx(), alpha = 0.7f, laps = 1, phase = 1.9f)
