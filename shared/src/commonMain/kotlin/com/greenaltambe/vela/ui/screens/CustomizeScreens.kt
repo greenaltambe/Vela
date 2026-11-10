@@ -68,7 +68,7 @@ object CustomizePages {
     fun settingsOn(page: String): List<Setting<*>> = LookSettings.all.filter { pageFor(it) == page }
 
     /** Every look setting has a visible row on the hub or on one of the pages: used by a test. */
-    fun covered(): Set<String> = titles.keys.flatMap { settingsOn(it) }.map { it.key }.toSet() + setOf("look.theme", "look.nav.railCollapsed")
+    fun covered(): Set<String> = titles.keys.flatMap { settingsOn(it) }.map { it.key }.toSet() + setOf("look.theme", "look.amoled", "look.nav.railCollapsed")
 }
 
 /** The top bar's menu of a Customize screen: "Reset this page" for the settings [settings] on it, with one Undo. */

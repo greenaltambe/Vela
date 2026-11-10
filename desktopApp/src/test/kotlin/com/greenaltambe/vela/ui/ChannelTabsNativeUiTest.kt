@@ -132,7 +132,7 @@ class ChannelTabsNativeUiTest {
     }
 
     @Test
-    fun shortsTabRendersShortCardsWithShortBadge() = runDesktopComposeUiTest {
+    fun shortsTabRendersShortCardsWithTheirViewsAndNoRedundantShortBadge() = runDesktopComposeUiTest {
         val shortVideo = FakeData.videos[0].copy(
             id = "short123",
             title = "Awesome Short Video",
@@ -170,7 +170,9 @@ class ChannelTabsNativeUiTest {
         waitUntil(timeoutMillis = 5_000) {
             runCatching { onNodeWithText("Awesome Short Video").assertIsDisplayed() }.isSuccess
         }
-        onNodeWithText("SHORT").assertIsDisplayed()
+        // Every card on the Shorts tab is a Short, so the card carries its views and no "SHORT" badge saying so.
+        onNodeWithText("750K views").assertIsDisplayed()
+        onNodeWithText("SHORT").assertDoesNotExist()
     }
 
     @Test

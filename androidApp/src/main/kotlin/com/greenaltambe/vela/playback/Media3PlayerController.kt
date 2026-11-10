@@ -163,6 +163,8 @@ class Media3PlayerController(
         _stats.value = stats()
     }
 
+    // Format.bitrate and friends are Media3 opt-in APIs; marked here (not left to the line-numbered lint baseline, which shifts whenever lines above change).
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     private fun stats(): PlaybackStats {
         val video = player.videoFormat
         val audio = player.audioFormat
