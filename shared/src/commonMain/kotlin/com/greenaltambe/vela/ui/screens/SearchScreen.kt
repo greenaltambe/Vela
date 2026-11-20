@@ -229,7 +229,7 @@ fun SearchScreen(services: AppServices, navigator: Navigator, query: String, mod
             }
         } else if (query.isBlank()) {
             // The start page: only while nothing is typed. Typing hides it, leaving the field and its suggestions.
-            if (text.isBlank()) SearchStart(services, navigator, history, onRemove = { services.searchHistory.remove(it); historyRevision++ }, onClear = { services.searchHistory.clear(); historyRevision++ })
+            if (text.isBlank()) SearchStart(navigator, history, onFill = { text = "$it " }, onRemove = { services.searchHistory.remove(it); historyRevision++ }, onClear = { services.searchHistory.clear(); historyRevision++ })
         } else {
             SearchTypeChips(type, types, { type = it }, Modifier.padding(bottom = Spacing.sm))
             when (type) {
@@ -307,31 +307,22 @@ private fun <T> SearchKindList(feed: TabFeed<T>, tag: String, onMore: () -> Unit
     }
 }
 
-/** Before anything is typed: recent searches as pills, recently watched videos, and the channels you subscribe to. */
-@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+/** Before anything is typed: only the recent searches. Each has an arrow that puts it in the search field (to edit it before searching) and a cross that removes it. */
 @Composable
-private fun SearchStart(services: AppServices, navigator: Navigator, history: List<String>, onRemove: (String) -> Unit, onClear: () -> Unit) {
-    val activeId = services.accounts.active.value.id
-    val watched = remember(activeId, history) {
-        services.history.recent(60).distinctBy { it.videoId }.take(12)
-            .map { VideoSummary(it.videoId, it.title, it.channelId, "", null, it.durationMs.takeIf { d -> d > 0 }?.div(1000)) }
-    }
-    val channels = remember(activeId) { services.subscriptions.all().take(24) }
+private fun SearchStart(navigator: Navigator, history: List<String>, onFill: (String) -> Unit, onRemove: (String) -> Unit, onClear: () -> Unit) {
     LazyColumn(Modifier.fillMaxSize().testTag("search.list"), contentPadding = Spacing.contentPadding, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        if (history.isNotEmpty()) {
+        if (history.isEmpty()) item { EmptyState("Search for videos, channels and topics.") }
+        else {
             item(key = "recent-h") { SectionHeader("Recent searches") { TextButton(onClick = onClear, modifier = Modifier.testTag("search.clearHistory")) { Text("Clear all", maxLines = 1) } } }
             itemsIndexed(history, key = { _, q -> "r-$q" }) { i, q ->
                 SearchTextRow(q, AppIcons.history, i, history.size, onClick = { navigator.replace(Route.Search(q)) }, modifier = Modifier.testTag("search.recent")) {
-                    IconButton(onClick = { onRemove(q) }) { Icon(AppIcons.close, "Remove from history", Modifier.size(20.dp)) }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // The same arrow as on a suggestion: copies the search into the field to keep typing after it, without searching.
+                        IconButton(onClick = { onFill(q) }, modifier = Modifier.testTag("search.recent.fill")) { Icon(AppIcons.arrowUp, "Use \"$q\" in the search field", Modifier.graphicsLayer { rotationZ = -45f }) }
+                        IconButton(onClick = { onRemove(q) }) { Icon(AppIcons.close, "Remove from history", Modifier.size(20.dp)) }
+                    }
                 }
             }
         }
-        if (watched.isNotEmpty()) item {
-            com.greenaltambe.vela.ui.components.VideoCarousel("Recently watched", watched, tag = "search.watched", onOpen = { v -> navigator.push(Route.Video(v)) }, showChannelAvatar = false)
-        }
-        if (channels.isNotEmpty()) item {
-            com.greenaltambe.vela.ui.components.ChannelCarousel("Subscriptions", channels, tag = "search.channels", onOpen = { c -> navigator.push(Route.Channel(c.channelId, c.name)) })
-        }
-        if (history.isEmpty() && watched.isEmpty() && channels.isEmpty()) item { EmptyState("Search for videos, channels and topics.") }
     }
 }

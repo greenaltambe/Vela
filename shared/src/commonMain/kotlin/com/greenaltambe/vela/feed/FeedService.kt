@@ -84,7 +84,14 @@ class FeedService(
                 val loud = ArrayList<com.greenaltambe.vela.extractor.VideoSummary>()
                 val levels = subscriptions.notifyLevels()
                 // At most the newest few per refresh: one burst of uploads must not become hundreds of rows (or database calls).
-                fresh.filter { it.video.id !in known && !isBlocked(it.video) }.sortedByDescending { it.video.uploadedAt }.take(MAX_NEW_PER_REFRESH).forEach { e ->
+                // Only what is really new: a video published in the last few days, from a channel that was already in the cache. A channel that was just subscribed (or imported,
+                // or synced from the account) brings its whole recent list, and a video that only now reached the feed (the cache was trimmed, the source reshuffled) can be
+                // weeks old: neither is "a new upload", and saying "19 minutes ago" about it would be wrong.
+                val cachedChannels = cached.mapTo(HashSet()) { it.video.channelId }
+                fresh.filter { e ->
+                    val published = e.video.uploadedAt
+                    e.video.id !in known && e.video.channelId in cachedChannels && published != null && now - published <= NEW_UPLOAD_MAX_AGE && !isBlocked(e.video)
+                }.sortedByDescending { it.video.uploadedAt }.take(MAX_NEW_PER_REFRESH).forEach { e ->
                     val level = levels[e.video.channelId] ?: com.greenaltambe.vela.data.NotifyLevel.PERSONALIZED
                     if (level != com.greenaltambe.vela.data.NotifyLevel.NONE) {
                         notifications.add(com.greenaltambe.vela.data.NotificationKind.UPLOAD, e.video.id, e.video.title, now, channelId = e.video.channelId, channelName = e.video.channelName, videoId = e.video.id, thumbnailUrl = e.video.thumbnailUrl)
@@ -104,5 +111,9 @@ class FeedService(
         }
     }
 
-    companion object { const val MAX_NEW_PER_REFRESH = 20 }
+    companion object {
+        const val MAX_NEW_PER_REFRESH = 20
+        /** An upload older than this is not announced as new. */
+        val NEW_UPLOAD_MAX_AGE = kotlin.time.Duration.parse("3d")
+    }
 }

@@ -408,7 +408,7 @@ private fun ChannelHeader(
     onSubscribedChange: (Boolean) -> Unit,
     onOpenAbout: () -> Unit,
 ) {
-    val avatarShape = remember { MaterialShapes.Cookie9Sided }.toShape()
+    val avatarShape = CircleShape
     Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.gutter, vertical = Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         page?.bannerUrl?.let { banner ->
             AsyncImage(banner, null, Modifier.fillMaxWidth().aspectRatio(16f / 5f).clip(MaterialTheme.shapes.large).background(MaterialTheme.colorScheme.surfaceContainerHigh).testTag("channel.banner"), contentScale = ContentScale.Crop)

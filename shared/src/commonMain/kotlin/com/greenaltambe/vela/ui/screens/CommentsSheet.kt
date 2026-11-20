@@ -148,6 +148,8 @@ fun CommentsPanel(
     var thread by remember { mutableStateOf<Comment?>(null) }
     var timed by remember { mutableStateOf(false) }
     PlatformBackHandler(enabled = thread != null) { thread = null }
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    androidx.compose.runtime.LaunchedEffect(sort, timed) { listState.scrollToItem(0) }
     val hasTimed = remember(comments) { comments.any { firstTimestamp(it.text) != null } }
     val shown = remember(comments, timed) { if (timed) comments.filter { firstTimestamp(it.text) != null }.sortedBy { firstTimestamp(it.text) } else comments }
     Column(
@@ -183,7 +185,7 @@ fun CommentsPanel(
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
         val open = thread
         if (open != null) ThreadView(open, replies, onSeek, creatorName, creatorAvatarUrl, Modifier.fillMaxWidth().weight(1f))
-        else LazyColumn(Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(start = Spacing.gutter, end = Spacing.gutter, top = Spacing.sm, bottom = Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+        else LazyColumn(Modifier.fillMaxWidth().weight(1f), state = listState, contentPadding = PaddingValues(start = Spacing.gutter, end = Spacing.gutter, top = Spacing.sm, bottom = Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
             when (state) {
                 ListState.Loading -> items(5, key = { "sk-$it" }) { i -> CommentSkeleton(avatar = 40.dp, lastLineWidth = if (i % 2 == 0) 0.6f else 0.8f) }
                 is ListState.Empty -> item { Text(state.message, Modifier.testTag("video.commentsStatus"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -191,10 +193,11 @@ fun CommentsPanel(
                 ListState.Ready -> {}
             }
             if (timed && shown.isEmpty() && state == ListState.Ready) item { Text("No loaded comment mentions a moment of the video yet.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            items(shown, key = { "c-${it.id}" }) { c ->
+            // While another order loads, the old comments would sit under the placeholders (scrolled out of sight, so nothing seemed to happen): show only the placeholders.
+            items(if (state == ListState.Loading) emptyList() else shown, key = { "c-${it.id}" }) { c ->
                 CommentRow(c, avatar = 40.dp, onSeek = onSeek, creatorName = creatorName, creatorAvatarUrl = creatorAvatarUrl, modifier = Modifier.testTag("comment.item"), onReplies = if (c.replyCount > 0 && c.repliesContinuation != null) ({ thread = c; replies.open(c) }) else null)
             }
-            if (hasMore) item { TextButton(onClick = onLoadMore, enabled = !loadingMore, modifier = Modifier.testTag("video.moreComments")) { Text(if (loadingMore) "Loading…" else if (loadMoreFailed) "Could not load more. Try again" else "Load more comments", maxLines = 1) } }
+            if (hasMore && state != ListState.Loading) item { TextButton(onClick = onLoadMore, enabled = !loadingMore, modifier = Modifier.testTag("video.moreComments")) { Text(if (loadingMore) "Loading…" else if (loadMoreFailed) "Could not load more. Try again" else "Load more comments", maxLines = 1) } }
         }
     }
 }

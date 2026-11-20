@@ -47,9 +47,6 @@ fun ChannelStrip(
     modifier: Modifier = Modifier,
     tag: String = "subs.channelsRow",
 ) {
-    val shapes = remember {
-        listOf(MaterialShapes.Cookie9Sided, MaterialShapes.Clover4Leaf, MaterialShapes.Pentagon, MaterialShapes.Sunny, MaterialShapes.Cookie6Sided, MaterialShapes.Gem, MaterialShapes.Flower)
-    }.map { it.toShape() }
     val gutter = Spacing.gutter
     Column(modifier.fillMaxWidth().testTag(tag), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -59,7 +56,8 @@ fun ChannelStrip(
         HScrollRow(Modifier.bleed(gutter), Arrangement.spacedBy(Spacing.md), PaddingValues(horizontal = gutter)) {
             items(channels.size, key = { channels[it].channelId }) { i ->
                 val c = channels[i]
-                val shape = shapes[i % shapes.size]
+                // Round, so none of the picture is cut away (the scalloped expressive shapes hid the corners of logos).
+                val shape = androidx.compose.foundation.shape.CircleShape
                 val hasNew = c.channelId in unread
                 Column(
                     Modifier.width(76.dp).clip(MaterialTheme.shapes.large).clickable { onOpen(c) }.padding(vertical = Spacing.xs).testTag("$tag.item"),
@@ -76,7 +74,7 @@ fun ChannelStrip(
                     Modifier.width(76.dp).clip(MaterialTheme.shapes.large).clickable(onClick = onAll).padding(vertical = Spacing.xs).testTag("$tag.allTile"),
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.xs),
                 ) {
-                    Box(Modifier.size(68.dp).padding(4.dp).clip(MaterialShapes.Square.toShape()).background(MaterialTheme.colorScheme.secondaryContainer), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(68.dp).padding(4.dp).clip(androidx.compose.foundation.shape.CircleShape).background(MaterialTheme.colorScheme.secondaryContainer), contentAlignment = Alignment.Center) {
                         Icon(AppIcons.subscriptions, null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
                     }
                     Text("All", style = MaterialTheme.typography.labelMedium, maxLines = 1, color = MaterialTheme.colorScheme.onSurfaceVariant)
