@@ -23,6 +23,7 @@ data class Appearance(
     val amoled: Boolean = false,
     val lightColors: ColorScheme = RedColorSchemes.Light,
     val darkColors: ColorScheme = RedColorSchemes.Dark,
+    val palette: com.greenaltambe.vela.core.settings.ColorPalette = com.greenaltambe.vela.core.settings.ColorPalette.VELA_RED,
     val typography: Typography = DefaultTypography,
     val shapes: Shapes = Shapes(),
     val extras: ExtraColorTokens = ExtraColorTokens.Default,
@@ -49,6 +50,9 @@ object DefaultAppearanceSource : AppearanceSource {
     override fun resolve(settings: SettingsResolver) = Appearance(
         themeMode = settings.resolve(LookSettings.theme),
         amoled = settings.resolve(LookSettings.amoled),
+        palette = settings.resolve(LookSettings.colorScheme),
+        lightColors = Palettes.light(settings.resolve(LookSettings.colorScheme)),
+        darkColors = Palettes.dark(settings.resolve(LookSettings.colorScheme)),
         progress = settings.resolve(LookSettings.progressStyle),
     )
 }
@@ -74,9 +78,13 @@ val LocalMotion = staticCompositionLocalOf { MotionTokens() }
  * The dark scheme on true black: the page and the plain surfaces are black; the tonal containers stay a few steps lighter (darker than the normal
  * dark theme) so cards, chips and sheets keep an edge against the page. Text and accent colours are untouched.
  */
-fun ColorScheme.asAmoled(): ColorScheme = copy(
-    background = androidx.compose.ui.graphics.Color.Black, surface = androidx.compose.ui.graphics.Color.Black, surfaceDim = androidx.compose.ui.graphics.Color.Black,
-    surfaceContainerLowest = androidx.compose.ui.graphics.Color.Black,
-    surfaceContainerLow = androidx.compose.ui.graphics.Color(0xFF0E0908), surfaceContainer = androidx.compose.ui.graphics.Color(0xFF160F0E),
-    surfaceContainerHigh = androidx.compose.ui.graphics.Color(0xFF211817), surfaceContainerHighest = androidx.compose.ui.graphics.Color(0xFF2C2120),
-)
+fun ColorScheme.asAmoled(): ColorScheme {
+    val black = androidx.compose.ui.graphics.Color.Black
+    // The containers are the scheme's own (so the tint of the chosen palette stays) pulled most of the way to black.
+    fun deep(c: androidx.compose.ui.graphics.Color, keep: Float) = androidx.compose.ui.graphics.lerp(black, c, keep)
+    return copy(
+        background = black, surface = black, surfaceDim = black, surfaceContainerLowest = black,
+        surfaceContainerLow = deep(surfaceContainerLow, 0.5f), surfaceContainer = deep(surfaceContainer, 0.62f),
+        surfaceContainerHigh = deep(surfaceContainerHigh, 0.78f), surfaceContainerHighest = deep(surfaceContainerHighest, 0.9f),
+    )
+}

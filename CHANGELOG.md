@@ -5,6 +5,28 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [0.4.0-beta.1]
+
+### Added
+- Color schemes under Customize: Vela red, Sakura pink, Ocean, Forest, Twilight and Sunset, each in light, dark and pure black.
+- Hide-on-scroll options: Home's filter chips (on by default), the bottom bar and a channel's tab row slide away while scrolling down and return on scrolling up.
+- Members-only videos: a "Members only" badge, and a setting (per channel too) to hide them.
+- Channel pages: videos and playlists as YouTube-style rows with a three-dot menu, a full-width Subscribe button, and refresh that keeps the chosen sort.
+- Subscriptions: "Sync from your account" on the Channels page.
+- Keep the screen awake while a video plays (Android and Linux).
+- Search start page shows only recent searches, each with an arrow that puts it in the search field.
+
+### Changed
+- The dark theme is livelier: surfaces carry the scheme's tint, and Vela red's dark theme has a brighter accent.
+- Channel and profile pictures are round again; filter pills no longer show a check mark (no more width jumps).
+- "N hidden by your filters or blocklist" on Home is now a short toast after a refresh.
+- After a restart the last video stays in the mini player, paused, instead of playing by itself. Toasts (such as Undo for a closed player) can be dismissed.
+
+### Fixed
+- Opening a channel from Home no longer says "This channel could not be found" for feed videos without a channel link.
+- Notifications are only made for videos published in the last three days from channels already followed, not for a new channel's old videos.
+- Comments show placeholders while another sort order loads.
+
 ## [0.3.0-beta.1]
 
 ### Added
@@ -113,7 +135,8 @@ First public beta. Android is the primary platform, Linux is supported, Windows 
 ### Packaging
 - Android APK (arm64-v8a), Linux .deb, .rpm and portable tarball, Windows .msi and portable zip (experimental).
 
-[Unreleased]: https://github.com/greenaltambe/Vela/compare/v0.3.0-beta.1...HEAD
+[Unreleased]: https://github.com/greenaltambe/Vela/compare/v0.4.0-beta.1...HEAD
+[0.4.0-beta.1]: https://github.com/greenaltambe/Vela/compare/v0.3.0-beta.1...v0.4.0-beta.1
 [0.3.0-beta.1]: https://github.com/greenaltambe/Vela/compare/v0.2.0-beta.1...v0.3.0-beta.1
 [0.2.0-beta.1]: https://github.com/greenaltambe/Vela/compare/v0.1.1-beta.3...v0.2.0-beta.1
 [0.1.1-beta.3]: https://github.com/greenaltambe/Vela/compare/v0.1.0-beta.2...v0.1.1-beta.3

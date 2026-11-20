@@ -2,6 +2,20 @@
 
 package com.greenaltambe.vela.ui.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.CircleShape
+import com.greenaltambe.vela.core.settings.ColorPalette
+import com.greenaltambe.vela.core.settings.ThemeMode
+import com.greenaltambe.vela.ui.theme.Palettes
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -68,7 +82,7 @@ object CustomizePages {
     fun settingsOn(page: String): List<Setting<*>> = LookSettings.all.filter { pageFor(it) == page }
 
     /** Every look setting has a visible row on the hub or on one of the pages: used by a test. */
-    fun covered(): Set<String> = titles.keys.flatMap { settingsOn(it) }.map { it.key }.toSet() + setOf("look.theme", "look.amoled", "look.nav.hideBarOnScroll", "look.nav.hideChannelTabsOnScroll", "look.nav.railCollapsed")
+    fun covered(): Set<String> = titles.keys.flatMap { settingsOn(it) }.map { it.key }.toSet() + setOf("look.theme", "look.colorScheme", "look.amoled", "look.nav.hideBarOnScroll", "look.nav.hideChannelTabsOnScroll", "look.nav.railCollapsed")
 }
 
 /** The top bar's menu of a Customize screen: "Reset this page" for the settings [settings] on it, with one Undo. */
@@ -94,6 +108,7 @@ fun CustomizeScreen(services: AppServices, navigator: Navigator, modifier: Modif
         actions = { CustomizeMenu(s, LookSettings.all, toasts, "customize.reset") },
     ) {
         settingsSection("look", "Look", listOf(LookSettings.theme, LookSettings.amoled), { it.key }) { st, shape -> SettingItem(s, st, revision, shape) }
+        item(key = "colorScheme") { ColorSchemePicker(s, revision, toasts) }
         val pages = CustomizePages.titles.keys.toList()
         settingsSection("pages", "Make it yours", pages, { it }) { id, _ ->
             val index = pages.indexOf(id)
@@ -190,5 +205,36 @@ private fun LazyListScope.homeItems(services: AppServices, revision: Int, toasts
             supportingContent = { Text("Videos and channels you sent away with Not interested or Hide this channel come back.", maxLines = 3, overflow = TextOverflow.Ellipsis) },
             modifier = Modifier.fillMaxWidth().testTag("customize.home.clearDismissed"),
         ) { Text("Bring back hidden videos and channels", maxLines = 2, overflow = TextOverflow.Ellipsis) }
+    }
+}
+
+/** The colour schemes as a row of swatch cards (accent, secondary and tertiary dots on the scheme's own page colour); the chosen one gets a ring. */
+@Composable
+private fun ColorSchemePicker(s: SettingsResolver, revision: Int, toasts: UndoToasts) {
+    val current = remember(revision) { s.resolve(LookSettings.colorScheme) }
+    val dark = when (remember(revision) { s.resolve(LookSettings.theme) }) { ThemeMode.DARK -> true; ThemeMode.LIGHT -> false; ThemeMode.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme() }
+    Column(Modifier.fillMaxWidth().padding(top = Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        Text("Color scheme", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(horizontal = Spacing.md))
+        androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(horizontal = Spacing.md), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            items(ColorPalette.entries.toList(), key = { it.name }) { p ->
+                val c = if (dark) Palettes.dark(p) else Palettes.light(p)
+                val chosen = p == current
+                val label = LookSettings.colorScheme.choices.first { it.raw == p.name }.label
+                Column(
+                    Modifier.width(112.dp).clip(MaterialTheme.shapes.large).background(c.surfaceContainer)
+                        .border(if (chosen) 3.dp else 1.dp, if (chosen) c.primary else c.outlineVariant, MaterialTheme.shapes.large)
+                        .selectable(selected = chosen, role = Role.RadioButton, onClick = { s.setWithUndo(LookSettings.colorScheme, p.name, toasts) { r -> LookSettings.colorScheme.choices.first { it.raw == r }.label } })
+                        .padding(Spacing.sm).testTag("customize.scheme.${p.name}"),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(30.dp).clip(CircleShape).background(c.primary))
+                        Box(Modifier.size(22.dp).clip(CircleShape).background(c.secondaryContainer))
+                        Box(Modifier.size(22.dp).clip(CircleShape).background(c.tertiary))
+                    }
+                    Text(label, style = MaterialTheme.typography.labelLarge, color = c.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
     }
 }

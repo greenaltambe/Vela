@@ -32,22 +32,23 @@ object RedColorSchemes {
     )
 
     val Dark: ColorScheme = darkColorScheme(
-        primary = Color(0xFFFFB4AA), onPrimary = Color(0xFF690003),
-        primaryContainer = Color(0xFF93000A), onPrimaryContainer = Color(0xFFFFDAD5),
-        secondary = Color(0xFFE7BDB7), onSecondary = Color(0xFF442926),
-        secondaryContainer = Color(0xFF5D3F3B), onSecondaryContainer = Color(0xFFFFDAD5),
-        tertiary = Color(0xFFDEC48C), onTertiary = Color(0xFF3D2F04),
-        tertiaryContainer = Color(0xFF554519), onTertiaryContainer = Color(0xFFFBDFA6),
+        primary = Color(0xFFFF8A80), onPrimary = Color(0xFF4A0004),
+        primaryContainer = Color(0xFFA81A20), onPrimaryContainer = Color(0xFFFFDAD6),
+        secondary = Color(0xFFF0B8B1), onSecondary = Color(0xFF4A1F1B),
+        secondaryContainer = Color(0xFF6E3430), onSecondaryContainer = Color(0xFFFFDAD5),
+        tertiary = Color(0xFFF0C060), onTertiary = Color(0xFF3D2900),
+        tertiaryContainer = Color(0xFF5A4200), onTertiaryContainer = Color(0xFFFFE08A),
         error = Color(0xFFFFB4AB), onError = Color(0xFF690005),
         errorContainer = Color(0xFF93000A), onErrorContainer = Color(0xFFFFDAD6),
-        background = Color(0xFF1A1110), onBackground = Color(0xFFF1DFDC),
-        surface = Color(0xFF1A1110), onSurface = Color(0xFFF1DFDC),
-        surfaceVariant = Color(0xFF534341), onSurfaceVariant = Color(0xFFD8C2BE),
-        outline = Color(0xFFA08C89), outlineVariant = Color(0xFF534341),
+        // A page with a little more red in it (it was a muddy brown-grey): the cards keep their steps above it.
+        background = Color(0xFF170D0E), onBackground = Color(0xFFF6E3E1),
+        surface = Color(0xFF170D0E), onSurface = Color(0xFFF6E3E1),
+        surfaceVariant = Color(0xFF4A3534), onSurfaceVariant = Color(0xFFE2C7C4),
+        outline = Color(0xFFB08F8C), outlineVariant = Color(0xFF574140),
         scrim = Color(0xFF000000),
-        inverseSurface = Color(0xFFF1DFDC), inverseOnSurface = Color(0xFF392E2D), inversePrimary = Color(0xFFBB1614),
-        surfaceDim = Color(0xFF1A1110), surfaceBright = Color(0xFF423735),
-        surfaceContainerLowest = Color(0xFF140C0B), surfaceContainerLow = Color(0xFF231918), surfaceContainer = Color(0xFF271D1C),
-        surfaceContainerHigh = Color(0xFF322826), surfaceContainerHighest = Color(0xFF3D3231),
+        inverseSurface = Color(0xFFF6E3E1), inverseOnSurface = Color(0xFF392E2D), inversePrimary = Color(0xFFBB1614),
+        surfaceDim = Color(0xFF170D0E), surfaceBright = Color(0xFF4A3836),
+        surfaceContainerLowest = Color(0xFF110809), surfaceContainerLow = Color(0xFF211214), surfaceContainer = Color(0xFF2A171A),
+        surfaceContainerHigh = Color(0xFF362022), surfaceContainerHighest = Color(0xFF442B2D),
     )
 }

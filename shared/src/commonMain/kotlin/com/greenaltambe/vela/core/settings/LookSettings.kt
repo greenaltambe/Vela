@@ -1,6 +1,8 @@
 package com.greenaltambe.vela.core.settings
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
+/** The colour schemes on offer (Customize > Color scheme). The palettes themselves live in `ui/theme/Palettes.kt`. */
+enum class ColorPalette { VELA_RED, SAKURA, OCEAN, FOREST, TWILIGHT, SUNSET }
 /** How the seek bar is drawn: a hairline or a bold track, each with or without a round marker, a ribbon (bold with a dot, thin silky ribbons lifting off the watched part), or a wave that moves up to the current position. */
 enum class ProgressStyle { EXPRESSIVE, HAIRLINE, HAIRLINE_DOT, BOLD, BOLD_DOT, RIBBON, WAVE }
 enum class NavTab { HOME, SHORTS, SUBSCRIPTIONS, LIBRARY, SEARCH, DOWNLOADS, EXPLORE }
@@ -26,6 +28,13 @@ object LookSettings {
 
     val theme = pick("look.theme", ThemeMode.SYSTEM, ThemeMode.entries, "Theme", mapOf(ThemeMode.SYSTEM to "System", ThemeMode.LIGHT to "Light", ThemeMode.DARK to "Dark"), listOf("dark", "light", "mode", "appearance"))
 
+    val colorScheme = pick(
+        "look.colorScheme", ColorPalette.VELA_RED, ColorPalette.entries, "Color scheme",
+        mapOf(ColorPalette.VELA_RED to "Vela red", ColorPalette.SAKURA to "Sakura pink", ColorPalette.OCEAN to "Ocean", ColorPalette.FOREST to "Forest", ColorPalette.TWILIGHT to "Twilight", ColorPalette.SUNSET to "Sunset"),
+        listOf("color", "colour", "scheme", "palette", "accent", "pink", "red", "blue", "green", "purple", "orange", "cute", "theme"),
+        "The accent and the tint of the surfaces, in both the light and the dark theme.",
+    )
+
     val amoled = flag("look.amoled", false, "Pure black in dark theme", listOf("amoled", "black", "oled", "dark", "battery"), "Backgrounds become true black (cards stay a hair lighter so they still show). Saves battery on OLED screens; only applies while the dark theme is on.")
 
     val progressStyle = pick(
@@ -45,7 +54,7 @@ object LookSettings {
     val hideChannelTabsOnScroll = flag("look.nav.hideChannelTabsOnScroll", false, "Hide channel tabs while scrolling", listOf("channel", "tabs", "videos", "shorts", "playlists", "hide", "scroll", "auto", "immersive"), "On a channel page, scrolling down slides the tab row (Home, Videos, Shorts...) away; scrolling up brings it back.")
     val railCollapsed = flag("look.nav.railCollapsed", false, "Collapse the side rail to icons", listOf("rail", "sidebar", "collapse", "icons"), "Wide windows and Linux: the left rail shows icons only.")
 
-    val all: List<Setting<*>> = listOf(theme, amoled, progressStyle, homeShelves, homeDensity, homeChips, hideChipsOnScroll, hideBarOnScroll, hideChannelTabsOnScroll, railCollapsed)
+    val all: List<Setting<*>> = listOf(theme, colorScheme, amoled, progressStyle, homeShelves, homeDensity, homeChips, hideChipsOnScroll, hideBarOnScroll, hideChannelTabsOnScroll, railCollapsed)
 }
 
 /**

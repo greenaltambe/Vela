@@ -84,6 +84,7 @@ object SettingCopy {
         "dearrow.search" to Copy("In search results", "Use DeArrow titles and thumbnails here."),
         "dearrow.videoPage" to Copy("On the video page", "Use DeArrow titles and thumbnails here."),
         "dearrow.playerTitle" to Copy("In the player and notification", "Use the DeArrow title here."),
+        "look.colorScheme" to Copy("Color scheme", "Choose the accent colour and the tint of the surfaces."),
         "look.theme" to Copy("Theme", "Follow the system, or choose light or dark."),
         "look.progressStyle" to Copy("Progress bar", "How the player's seek bar looks."),
         "look.home.density" to Copy("Shelves between videos", "How often a shelf appears among Home's videos."),

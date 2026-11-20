@@ -28,8 +28,11 @@ class RedSchemeContrastTest {
         check("inverse text", c.inverseOnSurface, c.inverseSurface)
     }
 
+    private fun amoledProblems(p: com.greenaltambe.vela.core.settings.ColorPalette): List<String> = problems("${p.name} amoled", Palettes.dark(p).asAmoled())
+
     @Test fun textRolesAreAtLeast4_5To1InLightAndDark() {
-        val bad = problems("light", RedColorSchemes.Light) + problems("dark", RedColorSchemes.Dark)
+        val bad = com.greenaltambe.vela.core.settings.ColorPalette.entries.flatMap { p -> problems("${p.name} light", Palettes.light(p)) + problems("${p.name} dark", Palettes.dark(p)) }
+            .plus(com.greenaltambe.vela.core.settings.ColorPalette.entries.flatMap { p -> amoledProblems(p) })
         assertTrue(bad.isEmpty(), "contrast failures (${bad.size}):\n" + bad.joinToString("\n"))
     }
 }
