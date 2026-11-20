@@ -6,6 +6,7 @@ import com.greenaltambe.vela.core.settings.*
 data class NavConfig(
     val tabs: List<NavTab> = NavTabs.default,
     val railCollapsed: Boolean = false,
+    val hideBarOnScroll: Boolean = false,
 ) {
     /** The tab that shows as selected on [route], or null (Settings and its pages have none). Downloads is its own tab only when the list has it. */
     fun selected(route: Route): NavTab? {
@@ -26,6 +27,7 @@ data class NavConfig(
         fun of(s: SettingsResolver) = NavConfig(
             tabs = NavTabs.default.filter { it != NavTab.SHORTS || s.shortsEnabled() },
             railCollapsed = s.resolve(LookSettings.railCollapsed),
+            hideBarOnScroll = s.resolve(LookSettings.hideBarOnScroll),
         )
     }
 }

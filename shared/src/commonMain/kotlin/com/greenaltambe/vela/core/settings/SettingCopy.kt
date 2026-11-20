@@ -36,6 +36,7 @@ object SettingCopy {
         "history.localOnly" to Copy("Keep watch history on this device", "Stops Vela sending what you watch to your account. Reading your account's history is a separate setting and still works."),
         "history.accountSync" to Copy("Read my YouTube history", "Bring what you watched on other devices into Vela's History and use it for hiding watched videos."),
         "feed.hideWatched" to Copy("Hide watched videos", "Leave videos you have already watched out of lists."),
+        "feed.hideMembersOnly" to Copy("Hide members-only videos", "Leave out videos only a channel's paying members can watch. When off, they show a \"Members only\" badge."),
         "feed.watchedThresholdPercent" to Copy("Counts as watched at", "A video is watched once you got this far, here or on your account. 1 means played at all.", " %"),
         "feed.minLengthSeconds" to Copy("Minimum video length", "Hide videos shorter than this. 0 shows everything.", " s"),
         "feed.blockKeywords" to Copy("Hide titles with these words", "Separate words with commas."),
@@ -87,6 +88,9 @@ object SettingCopy {
         "look.progressStyle" to Copy("Progress bar", "How the player's seek bar looks."),
         "look.home.density" to Copy("Shelves between videos", "How often a shelf appears among Home's videos."),
         "look.home.chips" to Copy("Filter chips on Home", "A row of quick filters above Home."),
+        "look.home.hideChipsOnScroll" to Copy("Hide filter chips while scrolling", "Scrolling down slides Home's chips away; scrolling up brings them back."),
+        "look.nav.hideBarOnScroll" to Copy("Hide the bottom bar while scrolling", "Scrolling down slides the navigation bar away; scrolling up brings it back."),
+        "look.nav.hideChannelTabsOnScroll" to Copy("Hide channel tabs while scrolling", "On a channel page, scrolling down slides the tabs away; scrolling up brings them back."),
         "look.nav.railCollapsed" to Copy("Collapse the navigation rail", "On wide windows, show the rail as icons only."),
     )
 

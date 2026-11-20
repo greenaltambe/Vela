@@ -196,6 +196,7 @@ fun AllChannelsScreen(services: AppServices, navigator: Navigator, modifier: Mod
     ) {
         item(key = "summary") {
             Column(Modifier.padding(bottom = Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                SyncFromAccountCard(services, navigator, onSynced = { revision++ })
                 Text("${channels.size} channel${if (channels.size == 1) "" else "s"} you follow", style = MaterialTheme.typography.titleMedium)
                 if (channels.size > 8) VelaSearchField(query, { query = it }, {}, Modifier.fillMaxWidth(), placeholder = "Search channels")
                 // Notifications for all of them at once; each channel's own bell is on its row.

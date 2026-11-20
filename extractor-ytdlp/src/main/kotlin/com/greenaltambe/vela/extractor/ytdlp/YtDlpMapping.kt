@@ -177,6 +177,7 @@ internal fun JsonObject.toVideoSummary(parent: JsonObject? = null): VideoSummary
         durationSeconds = double("duration")?.toLong()?.takeIf { it >= 0 },
         viewCount = long("view_count"),
         isShort = "/shorts/" in url,
+        isMembersOnly = str("availability") == "subscriber_only",
     )
 }
 

@@ -72,6 +72,12 @@ object InnertubeParsers {
      * Videos in a feed response: classic `videoRenderer`s (also inside `richItemRenderer`) and the newer video lockups. Entries without an id or title
      * are skipped. NOTE: written from the documented shapes; the throwaway account's Home feed is empty, so a real recommended feed was not seen.
      */
+    /** A "Members only" badge on a renderer: the badge style on classic renderers, the badge text on lockups. */
+    internal fun isMembersOnly(renderer: JsonElement): Boolean {
+        val s = renderer.toString()
+        return s.contains("MEMBERS_ONLY") || s.contains("\"Members only\"") || s.contains("\"Members first\"")
+    }
+
     fun videos(json: JsonElement): List<com.greenaltambe.vela.extractor.VideoSummary> {
         val classic = json.findAll("videoRenderer").mapNotNull { v ->
             val id = v["videoId"].string ?: return@mapNotNull null
@@ -85,6 +91,7 @@ object InnertubeParsers {
                 publishedText = v["publishedTimeText"].text() ?: v.findAll("publishedTimeText").firstOrNull().text(),
                 channelAvatarUrl = v["channelThumbnailSupportedRenderers"]["channelThumbnailWithLinkRenderer"]["thumbnail"]["thumbnails"].array.firstOrNull()["url"].string?.let { if (it.startsWith("//")) "https:$it" else it },
                 watchedPercent = v.findAll("thumbnailOverlayResumePlaybackRenderer").firstOrNull()?.get("percentDurationWatched").percent(),
+                isMembersOnly = isMembersOnly(v),
             )
         }
         val lockups = json.findAll("lockupViewModel").mapNotNull { l ->
@@ -127,8 +134,10 @@ object InnertubeParsers {
             com.greenaltambe.vela.extractor.VideoSummary(
                 id = id,
                 title = title,
-                channelId = "",
+                // The avatar and the channel-name part carry a browse endpoint ("UC..."); the video's own link is a watchEndpoint, so only UC ids count.
+                channelId = meta.findAll("browseEndpoint").firstNotNullOfOrNull { it["browseId"].string?.takeIf { b -> b.startsWith("UC") } } ?: "",
                 channelName = channel,
+                isMembersOnly = isMembersOnly(l),
                 thumbnailUrl = thumb?.let { if (it.startsWith("//")) "https:$it" else it },
                 durationSeconds = duration,
                 viewCount = viewCount,

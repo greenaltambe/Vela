@@ -86,6 +86,7 @@ class PlayerSheetState(
     /** Brings a closed video back into the mini player and plays it from where it stopped (the Undo of a swipe-away). */
     fun reopen(video: VideoSummary) {
         if (currentVideo != null) return
+        restoredId = null
         scope.launch { slideAnimatable.snapTo(0f); animatable.snapTo(0f) }
         currentVideo = video
         navigator.setNowPlayingDirect(video)
@@ -129,13 +130,20 @@ class PlayerSheetState(
     /** Restores a video into the collapsed miniplayer without auto-playing. */
     fun restore(video: VideoSummary) {
         if (currentVideo == null) {
+            restoredId = video.id
             currentVideo = video
             navigator.setNowPlayingDirect(video)
         }
     }
 
+    private var restoredId: String? = null
+
+    /** True once for the video [restore] brought back after a restart: its page loads it paused, so the app never starts playing by itself. */
+    fun takeRestored(id: String): Boolean = (restoredId == id).also { if (it) restoredId = null }
+
     /** Open a video and expand the sheet to full screen. */
     fun open(video: VideoSummary, start: Long? = null) {
+        restoredId = null
         val sameVideo = currentVideo?.id == video.id
         val wasAlreadyExpanded = isExpanded
         currentVideo = video

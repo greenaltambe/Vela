@@ -40,6 +40,12 @@ class HideWatched(private val watched: WatchedLookup) : FeedStep {
     }
 }
 
+/** Drops members-only videos, unless that channel's setting is off (then they stay and carry a badge). */
+object HideMembersOnly : FeedStep {
+    override fun apply(items: List<VideoSummary>, context: FeedContext): List<VideoSummary> =
+        items.filter { v -> !(v.isMembersOnly && context.resolve(Settings.hideMembersOnly, v.channelId)) }
+}
+
 /**
  * Drops videos shorter than the channel's minimum length. A video whose length the source did not report is kept:
  * the RSS feed carries no duration, and hiding everything from it would be worse than showing a short one.
@@ -94,7 +100,7 @@ object OnlyShorts : FeedStep {
 
 /** The steps of the main subscription / home feed, in order. */
 fun standardFeedPipeline(watched: WatchedLookup, block: BlockRules = BlockRules.None): FeedPipeline =
-    FeedPipeline(listOf(BlocklistStep(block), HideShorts, HideWatched(watched), MinLength, KeywordFilter))
+    FeedPipeline(listOf(BlocklistStep(block), HideShorts, HideWatched(watched), HideMembersOnly, MinLength, KeywordFilter))
 
 /** The Shorts tab inside Subscriptions: Shorts of channels whose mode is not HIDE, still through the other filters. */
 fun shortsFeedPipeline(watched: WatchedLookup, block: BlockRules = BlockRules.None): FeedPipeline =

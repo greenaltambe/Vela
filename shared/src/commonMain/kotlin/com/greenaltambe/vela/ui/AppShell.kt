@@ -300,11 +300,15 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
         val shortsUi = uiRoute == Route.Shorts || uiRoute is Route.ShortsPlayer
         LaunchedEffect(shortsUi) { if (shortsUi && sheetState.isVisible) sheetState.releaseForShorts() }
         val chrome = !fullscreenVideo
+        val scrollChrome = remember { com.greenaltambe.vela.ui.nav.ScrollChrome() }
+        // A new page starts with its chrome showing.
+        LaunchedEffect(uiRoute) { scrollChrome.show() }
         val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
         val lifecycleState by lifecycle.currentStateFlow.collectAsState()
         CompositionLocalProvider(
             LocalWindowSize provides sizeClass, LocalWindowWidthDp provides maxWidth.value,
             com.greenaltambe.vela.ui.nav.LocalNavigator provides navigator,
+            com.greenaltambe.vela.ui.nav.LocalScrollChrome provides scrollChrome,
             // Looping animations (shimmer) stop while the app is not on screen.
             com.greenaltambe.vela.ui.look.LocalAnimationsActive provides lifecycleState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED),
             com.greenaltambe.vela.ui.screens.LocalHomeFeed provides homeFeed,
@@ -341,7 +345,7 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
                     HealthStartEffect(services)
                     // Keyed by the active account, so switching rebuilds every screen on the new account's data.
                     val activeAccount by services.accounts.active.collectAsState()
-                    Box(Modifier.weight(1f).fillMaxWidth()) {
+                    Box(Modifier.weight(1f).fillMaxWidth().nestedScroll(scrollChrome.connection)) {
                         CompositionLocalProvider(com.greenaltambe.vela.ui.components.LocalRefreshHandle provides refreshHandle) {
                             androidx.compose.runtime.key(activeAccount.id) { AnimatedDestination(services, navigator, uiRoute, Modifier.fillMaxSize()) }
                         }
@@ -351,7 +355,11 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
                     // While a video is open its mini player sits on the bar: this strip is its room, and it tells the player sheet where it is.
                     if (chrome && sheetState.isVisible) com.greenaltambe.vela.ui.nav.MiniPlayerSlotSpacer(miniSlot)
                     // The video page owns the whole screen: no bar under the Shorts player.
-                    if (chrome && uiRoute !is Route.ShortsPlayer && !rail) com.greenaltambe.vela.ui.nav.AppNavigationBar(navEntries(nav.tabs), nav.selected(uiRoute), navigator::openTab)
+                    if (chrome && uiRoute !is Route.ShortsPlayer && !rail) androidx.compose.animation.AnimatedVisibility(
+                        visible = !(nav.hideBarOnScroll && scrollChrome.hidden),
+                        enter = androidx.compose.animation.expandVertically(expandFrom = Alignment.Top) + androidx.compose.animation.slideInVertically { it / 2 } + androidx.compose.animation.fadeIn(),
+                        exit = androidx.compose.animation.shrinkVertically(shrinkTowards = Alignment.Bottom) + androidx.compose.animation.slideOutVertically { it / 2 } + androidx.compose.animation.fadeOut(),
+                    ) { com.greenaltambe.vela.ui.nav.AppNavigationBar(navEntries(nav.tabs), nav.selected(uiRoute), navigator::openTab) }
                     else if (chrome && rail) Spacer(Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)))
                 }
             }

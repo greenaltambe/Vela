@@ -665,7 +665,7 @@ class ChannelBrowse(
         val published = vr["publishedTimeText"].text()
         val isLive = vr.toString().contains("LIVE")
         val avatar = vr.findAll("channelThumbnailWithLinkRenderer").firstOrNull().at("thumbnail", "thumbnails").array.firstOrNull().at("url").string
-        return VideoSummary(id, title, channelId, channelName, thumb, duration, views, publishedText = published, isLive = isLive, channelAvatarUrl = avatar)
+        return VideoSummary(id, title, channelId, channelName, thumb, duration, views, publishedText = published, isLive = isLive, channelAvatarUrl = avatar, isMembersOnly = InnertubeParsers.isMembersOnly(vr))
     }
 
     private fun parseLockupVideo(l: JsonElement): VideoSummary? {
@@ -696,7 +696,7 @@ class ChannelBrowse(
                 }
             }
         }
-        return VideoSummary(id, title, "", channelName, thumb, duration, views, publishedText = published, channelAvatarUrl = avatar)
+        return VideoSummary(id, title, "", channelName, thumb, duration, views, publishedText = published, channelAvatarUrl = avatar, isMembersOnly = InnertubeParsers.isMembersOnly(l))
     }
 
     internal fun parseShort(reel: JsonElement): VideoSummary? {

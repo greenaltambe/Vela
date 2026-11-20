@@ -110,6 +110,7 @@ object SettingsSummaries {
         "home" -> "${s.label(Settings.homeSource)} · ${s.label(Settings.contentRegion)}"
         "feed" -> buildList {
             add(if (s.v(Settings.hideWatched)) "hide watched" else "show watched")
+            if (s.v(Settings.hideMembersOnly)) add("hide members-only")
             s.v(Settings.minLengthSeconds).takeIf { it > 0 }?.let { add("min ${(it / 60).toInt().coerceAtLeast(1)} min") }
             if (s.v(Settings.blockKeywords).isNotBlank() || s.v(Settings.allowKeywords).isNotBlank()) add("keyword rules")
         }.joinToString(" · ")

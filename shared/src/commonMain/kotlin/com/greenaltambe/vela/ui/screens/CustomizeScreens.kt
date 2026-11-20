@@ -68,7 +68,7 @@ object CustomizePages {
     fun settingsOn(page: String): List<Setting<*>> = LookSettings.all.filter { pageFor(it) == page }
 
     /** Every look setting has a visible row on the hub or on one of the pages: used by a test. */
-    fun covered(): Set<String> = titles.keys.flatMap { settingsOn(it) }.map { it.key }.toSet() + setOf("look.theme", "look.amoled", "look.nav.railCollapsed")
+    fun covered(): Set<String> = titles.keys.flatMap { settingsOn(it) }.map { it.key }.toSet() + setOf("look.theme", "look.amoled", "look.nav.hideBarOnScroll", "look.nav.hideChannelTabsOnScroll", "look.nav.railCollapsed")
 }
 
 /** The top bar's menu of a Customize screen: "Reset this page" for the settings [settings] on it, with one Undo. */
@@ -104,7 +104,7 @@ fun CustomizeScreen(services: AppServices, navigator: Navigator, modifier: Modif
                 modifier = Modifier.fillMaxWidth().testTag("customize.row.$id"),
             ) { Text(CustomizePages.titles.getValue(id), maxLines = 1, overflow = TextOverflow.Ellipsis) }
         }
-        settingsSection("layout", "Layout", listOf(LookSettings.railCollapsed), { it.key }) { st, shape -> SettingItem(s, st, revision, shape) }
+        settingsSection("layout", "Layout", listOf(LookSettings.hideBarOnScroll, LookSettings.hideChannelTabsOnScroll, LookSettings.railCollapsed), { it.key }) { st, shape -> SettingItem(s, st, revision, shape) }
     }
 }
 

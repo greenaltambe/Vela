@@ -40,9 +40,12 @@ object LookSettings {
     )
     val homeDensity = pick("look.home.density", HomeDensity.NORMAL, HomeDensity.entries, "Shelves between videos", mapOf(HomeDensity.FEW to "Few (every 8 videos)", HomeDensity.NORMAL to "Normal (every 5)", HomeDensity.MANY to "Many (every 3)"), listOf("home", "shelves", "rows", "often", "density", "carousel"), "How often a shelf comes between the videos of Home's list.")
     val homeChips = flag("look.home.chips", true, "Quick filters on Home", listOf("home", "filter", "chips", "unwatched", "music", "live", "short"), "A row of chips above Home (All, Unwatched, Under 10 min, Live, Music, and your own topics). They filter what is already loaded.")
+    val hideChipsOnScroll = flag("look.home.hideChipsOnScroll", true, "Hide the filter chips while scrolling", listOf("home", "chips", "filter", "hide", "scroll", "auto", "immersive"), "Scrolling down slides Home's filter chips away so the videos get the room; scrolling up brings them back.")
+    val hideBarOnScroll = flag("look.nav.hideBarOnScroll", false, "Hide the bottom bar while scrolling", listOf("bottom", "bar", "navigation", "nav", "hide", "scroll", "auto", "immersive"), "Scrolling down slides the bottom navigation bar away; scrolling up brings it back. Phones and narrow windows.")
+    val hideChannelTabsOnScroll = flag("look.nav.hideChannelTabsOnScroll", false, "Hide channel tabs while scrolling", listOf("channel", "tabs", "videos", "shorts", "playlists", "hide", "scroll", "auto", "immersive"), "On a channel page, scrolling down slides the tab row (Home, Videos, Shorts...) away; scrolling up brings it back.")
     val railCollapsed = flag("look.nav.railCollapsed", false, "Collapse the side rail to icons", listOf("rail", "sidebar", "collapse", "icons"), "Wide windows and Linux: the left rail shows icons only.")
 
-    val all: List<Setting<*>> = listOf(theme, amoled, progressStyle, homeShelves, homeDensity, homeChips, railCollapsed)
+    val all: List<Setting<*>> = listOf(theme, amoled, progressStyle, homeShelves, homeDensity, homeChips, hideChipsOnScroll, hideBarOnScroll, hideChannelTabsOnScroll, railCollapsed)
 }
 
 /**

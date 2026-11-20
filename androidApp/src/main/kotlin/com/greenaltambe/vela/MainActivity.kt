@@ -210,7 +210,11 @@ class MainActivity : ComponentActivity() {
         android.os.Looper.myQueue().addIdleHandler {
             scope.launch {
                 combine(runtime.controller.state, runtime.session.state) { player, session -> player.status to session }.collect { (status, session) ->
-                    setPictureInPictureParams(pipParams(status == PlaybackStatus.PLAYING, (session as? SessionState.Ready)?.plan?.videoHeight != null))
+                    val hasVideo = (session as? SessionState.Ready)?.plan?.videoHeight != null
+                    setPictureInPictureParams(pipParams(status == PlaybackStatus.PLAYING, hasVideo))
+                    // The screen stays on while a video plays (not for audio-only, not paused); the flag is cleared again so it can sleep.
+                    if (status == PlaybackStatus.PLAYING && hasVideo) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 }
             }
             false

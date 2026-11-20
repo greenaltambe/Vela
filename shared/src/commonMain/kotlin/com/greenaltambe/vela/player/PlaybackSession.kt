@@ -261,7 +261,7 @@ class PlaybackSession(
      * title and channel without another request; without it they are looked up.
      */
     /** [restored] re-applies the picks saved before the process died (speed, quality cap); a normal start passes none. */
-    fun start(videoId: String, hint: VideoSummary? = null, restored: PlaybackOverrides? = null) {
+    fun start(videoId: String, hint: VideoSummary? = null, restored: PlaybackOverrides? = null, autoPlay: Boolean = true) {
         finishCurrent()
         clearPreviousVideo()
         if (_sleepTimer.value?.mode == SleepTimerMode.EndOfVideo) setSleepTimer(null)
@@ -287,7 +287,7 @@ class PlaybackSession(
         forAddons { it.onVideo(videoId, channelId, offline = false) } // before the observers, so an add-on knows the video before any state of it arrives
         ensureObservers()
         // A hint with no title (a video opened from a link carries only its id) is no hint: the title and channel are looked up.
-        work = sessionScope.launch { resolveAndLoad(videoId, resume = true, needsInfo = hint == null || hint.title.isBlank() || hint.channelId.isBlank()) }
+        work = sessionScope.launch { resolveAndLoad(videoId, resume = true, needsInfo = hint == null || hint.title.isBlank() || hint.channelId.isBlank(), autoPlay = autoPlay) }
     }
 
     /**
@@ -424,7 +424,7 @@ class PlaybackSession(
 
     // ---- resolving ----
 
-    private suspend fun resolveAndLoad(id: String, resume: Boolean, needsInfo: Boolean) {
+    private suspend fun resolveAndLoad(id: String, resume: Boolean, needsInfo: Boolean, autoPlay: Boolean = true) {
         _state.value = SessionState.Resolving(id, refresh = false)
         val (result, info) = coroutineScope {
             val s = async { extractor.streams(id) }
@@ -444,7 +444,7 @@ class PlaybackSession(
         streams = set; _captions.value = set.captions; _audioTracks.value = set.audioChoices()
         val startMs = if (resume) resumePosition(id) else 0L
         leases.awaitAvailable(set)
-        loadPlan(startMs, playWhenReady = true)
+        loadPlan(startMs, playWhenReady = autoPlay)
     }
 
     /** Re-resolves the streams of the current video and resumes at [positionMs]. */

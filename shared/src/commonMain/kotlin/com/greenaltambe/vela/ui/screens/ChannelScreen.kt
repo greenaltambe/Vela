@@ -2,6 +2,7 @@
 
 package com.greenaltambe.vela.ui.screens
 
+import kotlinx.coroutines.flow.first
 import com.greenaltambe.vela.ui.theme.AppIcons
 import androidx.compose.foundation.shape.CircleShape
 import com.greenaltambe.vela.ui.theme.ExtraColors
@@ -10,10 +11,12 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -228,6 +231,30 @@ fun ChannelScreen(
         if (tab != null && feed != null && landing != null && !feed.loaded) loadTab(scope, services, channelId, tab, feed, st.searchQuery, more = false)
     }
 
+    // Refresh (pull down, or the corner button / Ctrl+R on desktop): the header and tab list are read again and the open tab reloads with ITS selected sort/filter;
+    // the other tabs reload with theirs when they are next opened. Filters are kept in the feeds, so nothing is reset.
+    var refreshing by remember(channelId) { mutableStateOf(false) }
+    fun refresh() {
+        if (refreshing || channelId.isBlank() || landing == null) return
+        refreshing = true
+        scope.launch {
+            (services.extractor.channelLanding(channelId) as? ExtractorResult.Success)?.let { landing = it.value }
+            tabs.forEach { t -> if (t.kind != tab?.kind) st.feedFor(t.kind.name).loaded = false }
+            if (tab != null && feed != null) {
+                loadTab(scope, services, channelId, tab, feed, st.searchQuery, more = false)
+                androidx.compose.runtime.snapshotFlow { feed.loading }.first { !it }
+            }
+            refreshing = false
+        }
+    }
+    val tabsAutoHide = remember(services.settings.revision.value) { services.settings.resolve(com.greenaltambe.vela.core.settings.LookSettings.hideChannelTabsOnScroll) }
+    val scrollChrome = com.greenaltambe.vela.ui.nav.LocalScrollChrome.current
+    // Only while the tab row is pinned (the header has scrolled away): then it slides up under the top bar and comes back on a scroll up.
+    val tabsAway by androidx.compose.animation.core.animateFloatAsState(
+        if (tabsAutoHide && scrollChrome?.hidden == true && listState.firstVisibleItemIndex >= 1) 1f else 0f,
+        androidx.compose.animation.core.spring(stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow), label = "channelTabsAway",
+    )
+
     val share = com.greenaltambe.vela.ui.platform.LocalShare.current
     val toasts = com.greenaltambe.vela.ui.look.LocalUndoToasts.current
     var blocked by remember(channelId) { mutableStateOf(services.blocklist.isBlocked(channelId)) }
@@ -248,7 +275,8 @@ fun ChannelScreen(
 
     Column(modifier.fillMaxSize()) {
         ChannelTopBar(name, showTitle = titleVisible, onBack = { navigator.back() }, menu = menu)
-        Box(Modifier.weight(1f).fillMaxWidth().testTag("channel.pager"), contentAlignment = Alignment.TopCenter) {
+        RefreshBox(isRefreshing = refreshing, onRefresh = ::refresh, modifier = Modifier.weight(1f).fillMaxWidth()) {
+        Box(Modifier.fillMaxSize().testTag("channel.pager"), contentAlignment = Alignment.TopCenter) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier.widthIn(max = 900.dp).fillMaxSize().testTag("channel.list")
@@ -290,7 +318,7 @@ fun ChannelScreen(
                             edgePadding = Spacing.gutter,
                             containerColor = MaterialTheme.colorScheme.background,
                             divider = { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) },
-                            modifier = Modifier.fillMaxWidth().testTag("channel.tabs"),
+                            modifier = Modifier.fillMaxWidth().graphicsLayer { translationY = -tabsAway * size.height }.testTag("channel.tabs"),
                         ) {
                             tabs.forEachIndexed { index, t ->
                                 Tab(
@@ -319,6 +347,7 @@ fun ChannelScreen(
                     }
                 }
             }
+        }
         }
     }
 
@@ -396,18 +425,31 @@ private fun ChannelHeader(
                     page?.videoCount?.let { n -> formatCount(n)?.let { "$it ${if (n == 1L) "video" else "videos"}" } },
                 ).joinToString(" \u2022 ")
                 if (stats.isNotEmpty()) Text(stats, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.testTag("channel.stats"))
-                Row(Modifier.animateContentSize(), horizontalArrangement = Arrangement.spacedBy(androidx.compose.material3.ButtonGroupDefaults.ConnectedSpaceBetween), verticalAlignment = Alignment.CenterVertically) {
-                    SubscribeButton(
-                        subscribed, modifier = Modifier.testTag("channel.subscribe"),
-                        position = if (subscribed) ActionPosition.LEADING else ActionPosition.ALONE,
-                        onClick = {
-                            if (subscribed) { services.subscriptions.unsubscribe(channelId); services.feed.reload(); onSubscribedChange(false) }
-                            else { services.subscriptions.subscribe(channelId, name, page?.avatarUrl, services.clock.now()); onSubscribedChange(true) }
-                        },
-                    )
-                    AnimatedVisibility(subscribed, enter = androidx.compose.animation.expandHorizontally(androidx.compose.animation.core.spring(dampingRatio = 0.7f, stiffness = 380f)) + fadeIn() + androidx.compose.animation.scaleIn(initialScale = 0.6f), exit = androidx.compose.animation.shrinkHorizontally() + fadeOut()) { ChannelBell(services, channelId) }
-                }
             }
+        }
+
+        // Short description snippet that opens the About sheet
+        page?.description?.takeIf { it.isNotBlank() }?.let { desc ->
+            Row(
+                Modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraLarge).background(MaterialTheme.colorScheme.surfaceContainer).clickable(onClick = onOpenAbout).padding(horizontal = Spacing.md, vertical = Spacing.sm).testTag("channel.aboutTrigger"),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(desc, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("  More", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            }
+        }
+
+        // The wide Subscribe button, as on YouTube: the full width under the description, the bell beside it once subscribed.
+        Row(Modifier.fillMaxWidth().animateContentSize(), horizontalArrangement = Arrangement.spacedBy(androidx.compose.material3.ButtonGroupDefaults.ConnectedSpaceBetween), verticalAlignment = Alignment.CenterVertically) {
+            SubscribeButton(
+                subscribed, modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("channel.subscribe"),
+                position = if (subscribed) ActionPosition.LEADING else ActionPosition.ALONE,
+                onClick = {
+                    if (subscribed) { services.subscriptions.unsubscribe(channelId); services.feed.reload(); onSubscribedChange(false) }
+                    else { services.subscriptions.subscribe(channelId, name, page?.avatarUrl, services.clock.now()); onSubscribedChange(true) }
+                },
+            )
+            AnimatedVisibility(subscribed, enter = androidx.compose.animation.expandHorizontally(androidx.compose.animation.core.spring(dampingRatio = 0.7f, stiffness = 380f)) + fadeIn() + androidx.compose.animation.scaleIn(initialScale = 0.6f), exit = androidx.compose.animation.shrinkHorizontally() + fadeOut()) { ChannelBell(services, channelId) }
         }
 
         // Appears with the Subscribe button's own change: it grows open and fades in on a spring (and closes the same way) instead of popping in.
@@ -430,16 +472,6 @@ private fun ChannelHeader(
             }
         }
 
-        // Short description snippet that opens the About sheet
-        page?.description?.takeIf { it.isNotBlank() }?.let { desc ->
-            Row(
-                Modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraLarge).background(MaterialTheme.colorScheme.surfaceContainer).clickable(onClick = onOpenAbout).padding(horizontal = Spacing.md, vertical = Spacing.sm).testTag("channel.aboutTrigger"),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(desc, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("  More", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-            }
-        }
     }
 }
 
@@ -680,14 +712,23 @@ private fun ChannelItemCard(
 ) {
     when (item) {
         is ChannelItem.Video -> {
+            val inset = with(androidx.compose.ui.platform.LocalDensity.current) { Spacing.xs.roundToPx() }
             VideoCard(
                 video = item.summary,
                 onClick = { navigator.push(Route.Video(item.summary)) },
                 showChannelAvatar = false,
                 // On the channel's own page the name under every title is noise; a video by another channel (a collab shelf) keeps it.
                 showChannelName = item.summary.channelId.isNotBlank() && item.summary.channelId != ownerId,
-                style = if (inShelf || com.greenaltambe.vela.ui.layout.LocalWindowSize.current == com.greenaltambe.vela.ui.layout.WindowSizeClass.COMPACT) VideoCardStyle.VERTICAL else VideoCardStyle.HORIZONTAL,
-                fullBleed = !inShelf && com.greenaltambe.vela.ui.layout.LocalWindowSize.current == com.greenaltambe.vela.ui.layout.WindowSizeClass.COMPACT,
+                // As on YouTube's own channel page: a list of rows (picture left, title and numbers right, the three-dot menu at the end); shelves keep tall cards.
+                style = if (inShelf) VideoCardStyle.VERTICAL else VideoCardStyle.HORIZONTAL,
+                // The card pads its row by Spacing.xs and the menu button has 14 dp of room around its dots, so on the page's gutters the picture sat 4 dp in on the left and the
+                // dots 18 dp in on the right. Pull the row out by the first (left only) and the dots by the second, so both edges line up with the gutter.
+                modifier = if (inShelf) Modifier else Modifier.layout { m: androidx.compose.ui.layout.Measurable, c: androidx.compose.ui.unit.Constraints ->
+                    val w = c.maxWidth + inset
+                    val p = m.measure(c.copy(minWidth = w, maxWidth = w))
+                    layout(c.maxWidth, p.height) { p.place(-inset, 0) }
+                },
+                trailing = { VideoMenu(services, item.summary, if (inShelf) Modifier else Modifier.offset(x = 18.dp)) },
             )
         }
         is ChannelItem.Playlist -> {
@@ -705,31 +746,47 @@ private fun ChannelItemCard(
 @Composable
 internal fun PlaylistRow(p: PlaylistRef, onClick: () -> Unit) = CourseOrPlaylistCard(p, onClick)
 
-/** Playlist card with support for Course badge and lesson count text. */
+/** Playlist row as on YouTube: the picture with two strips behind it (a stack), a count badge, the title, "channel · Playlist" and a three-dot menu. */
 @Composable
 private fun CourseOrPlaylistCard(p: PlaylistRef, onClick: () -> Unit) {
+    val share = com.greenaltambe.vela.ui.platform.LocalShare.current
+    var menu by remember { mutableStateOf(false) }
     Row(
-        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).background(MaterialTheme.colorScheme.surfaceContainer).clickable(onClick = onClick).padding(Spacing.sm).testTag("channel.playlist"),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalAlignment = Alignment.CenterVertically,
+        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).clickable(onClick = onClick).padding(Spacing.xs).testTag("channel.playlist"),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalAlignment = Alignment.Top,
     ) {
-        Box(Modifier.width(140.dp).aspectRatio(16f / 9f).clip(MaterialTheme.shapes.small).background(MaterialTheme.colorScheme.surfaceContainerHigh)) {
-            p.thumbnailUrl?.let { AsyncImage(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
-            Row(
-                Modifier.align(Alignment.BottomEnd).padding(Spacing.xs).clip(CircleShape).background(ExtraColors.mediaBackground.copy(alpha = 0.72f)).padding(horizontal = Spacing.xs, vertical = 2.dp).testTag("playlist.badge"),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                Icon(AppIcons.playlist, null, Modifier.size(16.dp), tint = ExtraColors.onMedia)
-                val badgeText = if (p.isCourse) "COURSE" else p.videoCount?.toString()
-                badgeText?.let { Text(it, style = MaterialTheme.typography.labelSmall, maxLines = 1, color = ExtraColors.onMedia) }
+        Box(Modifier.fillMaxWidth(0.36f).widthIn(max = 168.dp)) {
+            // The two strips that make it look like a stack, each a little narrower than the one in front.
+            Box(Modifier.align(Alignment.TopCenter).padding(horizontal = 16.dp).fillMaxWidth().height(10.dp).clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp)).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f)))
+            Box(Modifier.align(Alignment.TopCenter).padding(horizontal = 8.dp, vertical = 0.dp).padding(top = 5.dp).fillMaxWidth().height(10.dp).clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp)).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)))
+            Box(Modifier.padding(top = 10.dp).fillMaxWidth().aspectRatio(16f / 9f).clip(MaterialTheme.shapes.small).background(MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                p.thumbnailUrl?.let { AsyncImage(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+                Row(
+                    Modifier.align(Alignment.BottomEnd).padding(Spacing.xs).clip(CircleShape).background(ExtraColors.mediaBackground.copy(alpha = 0.72f)).padding(horizontal = Spacing.xs, vertical = 2.dp).testTag("playlist.badge"),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Icon(AppIcons.playlist, null, Modifier.size(16.dp), tint = ExtraColors.onMedia)
+                    val badgeText = if (p.isCourse) "COURSE" else p.videoCount?.toString()
+                    badgeText?.let { Text(it, style = MaterialTheme.typography.labelSmall, maxLines = 1, color = ExtraColors.onMedia) }
+                }
             }
         }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            Text(p.title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        Column(Modifier.weight(1f).padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(p.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 3, overflow = TextOverflow.Ellipsis)
             if (p.isCourse && p.lessonCountText != null) {
                 Text(p.lessonCountText!!, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
-            } else if (p.videoCount != null) {
-                Text("${p.videoCount} videos", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                val meta = listOfNotNull(p.channelName.takeIf { it.isNotBlank() }, "Playlist").joinToString(" \u2022 ")
+                Text(meta, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                p.videoCount?.let { Text("$it videos", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
+        }
+        Box(Modifier.padding(top = Spacing.xs)) {
+            IconButton(onClick = { menu = true }, modifier = Modifier.testTag("playlist.menu")) { Icon(AppIcons.more, "More options for ${p.title}", Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+            DropdownMenu(menu, { menu = false }) {
+                DropdownMenuItem(text = { Text("Open playlist") }, onClick = { menu = false; onClick() })
+                if (share != null) DropdownMenuItem(text = { Text("Share") }, onClick = { menu = false; share(p.title, "https://www.youtube.com/playlist?list=${p.id}") })
             }
         }
     }

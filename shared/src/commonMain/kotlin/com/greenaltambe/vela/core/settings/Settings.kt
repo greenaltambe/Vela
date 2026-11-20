@@ -231,6 +231,16 @@ object Settings {
         section = SettingSection.FEED,
     )
 
+    val hideMembersOnly = Setting(
+        key = "feed.hideMembersOnly",
+        default = false,
+        scope = SettingScope.CHANNEL,
+        label = "Hide members-only videos",
+        keywords = listOf("members", "membership", "members only", "paid", "feed", "hide"),
+        codec = SettingCodecs.boolean,
+        section = SettingSection.FEED,
+    )
+
     /** A video counts as watched once its best known progress (this device or the account) reaches this. 1 = played at all. */
     val watchedThresholdPercent = Setting(
         key = "feed.watchedThresholdPercent", default = 90f, scope = SettingScope.GLOBAL,
@@ -665,7 +675,7 @@ object Settings {
     )
 
     val all: List<Setting<*>> = listOf(
-        localOnlyHistory, historyAccountSync, hideWatched, watchedThresholdPercent, minLengthSeconds, blockKeywords, allowKeywords, keywordsAreRegex,
+        localOnlyHistory, historyAccountSync, hideWatched, hideMembersOnly, watchedThresholdPercent, minLengthSeconds, blockKeywords, allowKeywords, keywordsAreRegex,
         debugFrameStats, homeSource, contentRegion, allowAgeRestricted, allowControversial, slowStreamFailover, notifyBackground, notifySystem, notifyDownloads, accountFallbackMode, accountProfilesExperimental, accountUseForChannels, accountUseForDetails, accountDownloadsMayUse, accountKillSwitch, accountTierOrder, remoteConfigUrl, ytDlpAutoUpdate,
         accountPlaybackPerHour, accountBrowsePerMinute, accountWritesPerHour, shortsMode, defaultPlaybackSpeed, autoplayNext, seekStepSeconds, holdSpeed, maxQualityUnmetered, maxQualityMetered, preferredCodec, breakReminder, shortsDailyLimit, volumeBoost, captionSize, captionBackground, captionCreatorStyle, audioOnly, ytDlpPath,
         sponsorBlockEnabled, returnYouTubeDislikeEnabled, deArrowEnabled,

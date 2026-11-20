@@ -11,6 +11,8 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Icon
+import com.greenaltambe.vela.ui.theme.AppIcons
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -166,6 +168,15 @@ fun HomeScreen(services: AppServices, navigator: Navigator, modifier: Modifier =
     }
 
     val shownBase = rememberFiltered(services, videos.items, DeArrowSurface.FEED)
+    // What the filters and the blocklist left out is said once after a refresh, as a toast that goes away by itself, not as a permanent bar over the list.
+    var announceHidden by remember { mutableStateOf(false) }
+    LaunchedEffect(loading, videos.items.size, shownBase.size) {
+        if (!loading && announceHidden && videos.items.isNotEmpty()) {
+            announceHidden = false
+            val hidden = videos.items.size - shownBase.size
+            if (hidden > 0) toasts.show("$hidden hidden by your filters or blocklist")
+        }
+    }
     val shown = remember(shownBase, dismissed, filter, topic, watched) { shownBase.withoutDismissed(dismissed).filter { v -> filter.matches(v, watched) && (topic == null || matchesTopic(v, topic!!)) } }
     // Videos saved without a title (opened from a link before this was fixed) are looked up once, then the shelf reads again.
     var healed by remember(accountId) { mutableStateOf(0) }
@@ -217,7 +228,13 @@ fun HomeScreen(services: AppServices, navigator: Navigator, modifier: Modifier =
 
     Column(modifier.fillMaxSize()) {
     // The chips stay put above the list while it scrolls, so a filter is always one tap away.
-    if (showChips) HomeChips(filter, { filter = it }, topics, topic, { topic = it }, Modifier.padding(top = Spacing.sm))
+    val hideOnScroll = remember(settingsRevision) { services.settings.resolve(LookSettings.hideChipsOnScroll) }
+    val scrolledAway = hideOnScroll && com.greenaltambe.vela.ui.nav.LocalScrollChrome.current?.hidden == true
+    val chromeEnter = androidx.compose.animation.expandVertically(androidx.compose.animation.core.spring(stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow)) + androidx.compose.animation.fadeIn()
+    val chromeExit = androidx.compose.animation.shrinkVertically(androidx.compose.animation.core.spring(stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow)) + androidx.compose.animation.fadeOut()
+    if (showChips) androidx.compose.animation.AnimatedVisibility(!scrolledAway, enter = chromeEnter, exit = chromeExit) {
+        HomeChips(filter, { filter = it }, topics, topic, { topic = it }, Modifier.padding(top = Spacing.sm))
+    }
     // What the feed has to say sits here, under the chips, not as a list item: a first item that appears after the list has loaded would land above the videos, out of sight.
     note?.let {
         Box(
@@ -229,10 +246,7 @@ fun HomeScreen(services: AppServices, navigator: Navigator, modifier: Modifier =
             Text(it, style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.testTag("home.note"))
         }
     }
-    (videos.items.size - shownBase.size).takeIf { it > 0 }?.let {
-        Text("$it hidden by your filters or blocklist.", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = Spacing.gutter).padding(top = Spacing.xs))
-    }
-    com.greenaltambe.vela.ui.components.RefreshBox(isRefreshing = pulling && loading, onRefresh = { pulling = true; shelfTick++; load(more = false) }, modifier = Modifier.weight(1f)) {
+    com.greenaltambe.vela.ui.components.RefreshBox(isRefreshing = pulling && loading, onRefresh = { pulling = true; announceHidden = true; shelfTick++; load(more = false) }, modifier = Modifier.weight(1f)) {
     VideoCollection(
         services, navigator, shown, listState, Modifier, testTag = "home.list", scroll = store?.scroll,
         trailing = { v -> VideoMenu(services, v, onNotInterested = { notInterested(v) }, onHideChannel = { hideChannel(v) }) },

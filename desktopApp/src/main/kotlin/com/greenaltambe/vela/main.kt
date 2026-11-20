@@ -204,7 +204,9 @@ fun main(args: Array<String>) {
                     raise = { java.awt.Frame.getFrames().firstOrNull { it.isVisible }?.toFront() }, quit = { exitApplication() },
                 ))
             }
-            onDispose { mpris?.close() }
+            // Keeps the screen awake while a video plays (freedesktop ScreenSaver on the session bus; Linux only).
+            val inhibitor = host?.takeIf { !com.greenaltambe.vela.data.isWindows }?.let { h -> com.greenaltambe.vela.mpris.ScreenSaverInhibitor.start(h.controllerState, h.session.state) }
+            onDispose { mpris?.close(); inhibitor?.close() }
         }
 
         Window(

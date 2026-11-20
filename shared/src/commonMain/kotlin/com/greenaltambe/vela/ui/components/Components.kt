@@ -214,6 +214,7 @@ private fun Thumbnail(video: VideoSummary, url: String?, extras: CardExtras, mod
         // Material's own pairs (error/onError, primary/onPrimary): readable in both themes, unlike white text on the dark theme's pale error colour (1.7:1).
         if (video.isLive) Badge("LIVE", MaterialTheme.colorScheme.error, Modifier.align(Alignment.TopStart).padding(Spacing.xs), textColor = MaterialTheme.colorScheme.onError)
         else if (video.isShort) Badge("SHORT", MaterialTheme.colorScheme.primary, Modifier.align(Alignment.TopStart).padding(Spacing.xs), textColor = MaterialTheme.colorScheme.onPrimary)
+        else if (video.isMembersOnly) Badge("MEMBERS ONLY", MaterialTheme.colorScheme.tertiary, Modifier.align(Alignment.TopStart).padding(Spacing.xs).testTag("card.membersOnly"), textColor = MaterialTheme.colorScheme.onTertiary)
         formatDuration(video.durationSeconds)?.takeIf { !video.isLive }?.let { Badge(it, ExtraColors.mediaScrim.copy(alpha = 0.8f), Modifier.align(Alignment.BottomEnd).padding(Spacing.xs)) }
         if (extras.downloaded) Icon(
             AppIcons.downloaded, "Downloaded",

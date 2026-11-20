@@ -31,6 +31,8 @@ data class VideoSummary(
     val publishedText: String? = null,
     /** How much of the video the signed-in account has watched (0..100), when the feed reports it; null = not reported. */
     val watchedPercent: Int? = null,
+    /** Only for the channel's paying members (a "Members only" video); the badge shows it and a setting can hide it. */
+    val isMembersOnly: Boolean = false,
 )
 
 @Serializable

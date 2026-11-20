@@ -287,7 +287,7 @@ fun VideoScreen(
                 }
                 host.session.startLocal(video.id, PlaybackPlan.Local(offline.uri, offline.hasVideo), offline.branding?.title ?: offline.download.title, offline.download.channelId, saved)
             }
-            else host.session.start(video.id, video)
+            else host.session.start(video.id, video, autoPlay = !(navigator.playerSheetState?.takeRestored(video.id) ?: false))
         }
         if (startSeconds != null) host.session.seekTo(startSeconds * 1000)
     }

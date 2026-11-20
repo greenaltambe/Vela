@@ -197,6 +197,8 @@ fun UndoSnackbarHost(toasts: UndoToasts, modifier: Modifier = Modifier, seconds:
     SnackbarHost(host, modifier) { data ->
         Snackbar(
             Modifier.testTag("undo.toast"),
+            // A cross at the end dismisses the toast at once (and with it the chance to Undo), instead of waiting for the timer.
+            dismissAction = { androidx.compose.material3.IconButton(onClick = { data.dismiss() }, modifier = Modifier.testTag("undo.dismiss")) { androidx.compose.material3.Icon(com.greenaltambe.vela.ui.theme.AppIcons.close, "Dismiss", tint = androidx.compose.material3.SnackbarDefaults.dismissActionContentColor) } },
             action = data.visuals.actionLabel?.let { label -> { TextButton(onClick = { data.performAction() }, colors = androidx.compose.material3.ButtonDefaults.textButtonColors(contentColor = androidx.compose.material3.SnackbarDefaults.actionColor), modifier = Modifier.testTag("undo.action")) { Text(label) } } },
         ) { Text(data.visuals.message, maxLines = 2, overflow = TextOverflow.Ellipsis) }
     }
