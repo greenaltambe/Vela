@@ -23,6 +23,38 @@ class WorkspaceTest {
         assertEquals(WindowPlacement.Maximized, a.state.placement)
     }
 
+    /** A tab player whose "player" is only a counter: how many times it was made and closed. */
+    private class Counter { var made = 0; var closed = 0
+        fun player() = com.greenaltambe.vela.ui.nav.TabPlayer(create = { reg -> made++; reg(AutoCloseable { closed++ }); null }, sponsorBlock = null) }
+
+    @Test fun everyTabGetsItsOwnPlayerAndClosingItReleasesIt() {
+        val c = Counter()
+        val ws = Workspace(DpSize(800.dp, 600.dp), WindowPosition.PlatformDefault, WindowPlacement.Floating) { c.player() }
+        val w = ws.windows.first(); val a = w.tabs.first(); val b = ws.newTab(w)
+        assertTrue(a.player !== b.player)
+        a.player!!.ensure(); b.player!!.ensure(); a.player!!.ensure()
+        assertEquals(2, c.made, "a player is made once per tab, on first use")
+        ws.closeTab(w, a)
+        assertEquals(1, c.closed)
+        ws.closeTab(w, b) // last tab: the window closes with it
+        assertEquals(2, c.closed)
+    }
+
+    @Test fun movingATabKeepsItsPlayerAndQuittingReleasesAll() {
+        val c = Counter()
+        val ws = Workspace(DpSize(800.dp, 600.dp), WindowPosition.PlatformDefault, WindowPlacement.Floating) { c.player() }
+        val w1 = ws.windows.first(); val t1 = w1.tabs.first(); val t2 = ws.newTab(w1)
+        t1.player!!.ensure(); t2.player!!.ensure()
+        val w2 = ws.tearOff(t2, w1, 10, 10)!!
+        assertEquals(0, c.closed, "tearing off keeps the player")
+        ws.moveTab(t2, w2, w1, 0)
+        assertEquals(0, c.closed, "moving a tab (and closing its emptied window) keeps the player")
+        ws.releaseAllPlayers()
+        assertEquals(2, c.closed)
+        ws.releaseAllPlayers()
+        assertEquals(2, c.closed, "releasing twice does nothing more")
+    }
+
     @Test fun startsWithOneWindowAndOneTab() {
         val ws = workspace()
         assertEquals(1, ws.windows.size); assertEquals(1, ws.windows[0].tabs.size)

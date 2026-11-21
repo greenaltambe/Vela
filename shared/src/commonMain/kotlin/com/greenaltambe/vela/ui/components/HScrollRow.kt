@@ -46,7 +46,7 @@ import kotlin.math.abs
 
 /**
  * A row that scrolls sideways. A finger does it everywhere; on desktop, where a mouse wheel only goes up and down, the row can also be dragged
- * with the mouse, follows a sideways wheel (or mouse wheel), and shows round arrows at its ends while there is more to see that way.
+ * with the mouse, follows a sideways swipe (a vertical wheel or swipe scrolls the page, not the row), and shows round arrows at its ends while there is more to see that way.
  */
 @Composable
 fun HScrollRow(
@@ -72,8 +72,9 @@ fun HScrollRow(
                                 val event = awaitPointerEvent()
                                 if (event.type != PointerEventType.Scroll) continue
                                 val delta = event.changes.first().scrollDelta
-                                val dx = if (abs(delta.x) > 0f) delta.x else delta.y
-                                val shouldConsume = (dx > 0f && state.canScrollForward) || (dx < 0f && state.canScrollBackward)
+                                // Only a sideways swipe moves the row: a vertical one belongs to the page, even with the pointer over the row.
+                                val dx = if (abs(delta.x) > abs(delta.y)) delta.x else 0f
+                                val shouldConsume = dx != 0f && (dx > 0f && state.canScrollForward) || (dx < 0f && state.canScrollBackward)
                                 if (shouldConsume) { scope.launch { state.scrollBy(dx * 60f) }; event.changes.forEach { it.consume() } }
                             }
                         }
@@ -126,8 +127,9 @@ fun HScrollableRow(
                                     val event = awaitPointerEvent()
                                     if (event.type != PointerEventType.Scroll) continue
                                     val delta = event.changes.first().scrollDelta
-                                    val dx = if (abs(delta.x) > 0f) delta.x else delta.y
-                                    val shouldConsume = (dx > 0f && scrollState.canScrollForward) || (dx < 0f && scrollState.canScrollBackward)
+                                    // Only a sideways swipe moves the row: a vertical one belongs to the page, even with the pointer over the row.
+                                val dx = if (abs(delta.x) > abs(delta.y)) delta.x else 0f
+                                    val shouldConsume = dx != 0f && (dx > 0f && scrollState.canScrollForward) || (dx < 0f && scrollState.canScrollBackward)
                                     if (shouldConsume) {
                                         scope.launch { scrollState.scrollBy(dx * 45f) }
                                         event.changes.forEach { it.consume() }

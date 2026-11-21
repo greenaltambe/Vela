@@ -35,6 +35,8 @@ class PlayerSheetState(
     private val scope: CoroutineScope,
     private val services: AppServices,
     private val navigator: Navigator,
+    /** The desktop tab's own player (created on first use); null where the app has one player, `services.player`. */
+    private val tabPlayer: com.greenaltambe.vela.ui.nav.TabPlayer? = null,
 ) {
     val animatable = Animatable(0f)
     val slideAnimatable = Animatable(0f)
@@ -90,11 +92,11 @@ class PlayerSheetState(
         scope.launch { slideAnimatable.snapTo(0f); animatable.snapTo(0f) }
         currentVideo = video
         navigator.setNowPlayingDirect(video)
-        services.player?.session?.start(video.id, video)
+        (tabPlayer?.ensure() ?: services.player)?.session?.start(video.id, video)
     }
 
     private fun finishClose() {
-        services.player?.session?.stop()
+        (tabPlayer?.host ?: services.player)?.session?.stop()
         currentVideo = null
         startSeconds = null
         navigator.clearNowPlaying()
@@ -130,28 +132,24 @@ class PlayerSheetState(
     /** Restores a video into the collapsed miniplayer without auto-playing. */
     fun restore(video: VideoSummary) {
         if (currentVideo == null) {
+            tabPlayer?.ensure()
             restoredId = video.id
             currentVideo = video
             navigator.setNowPlayingDirect(video)
         }
     }
 
-    /** A tab that comes to the front takes over what the shared player shows: the mini player of [video], no restart (the player already has it). */
+    /**
+     * A tab that comes back to the front shows what its own player is still playing: the mini player of [video] (or the video page, when [expanded]: the
+     * tab's page stack is on it), with no restart. The player already has the video.
+     */
     fun adopt(video: VideoSummary, expanded: Boolean = false) {
         if (currentVideo?.id != video.id) {
+            tabPlayer?.ensure()
             currentVideo = video
             navigator.setNowPlayingDirect(video)
         }
-        // A tab whose page stack is on the video page comes back with that page open, not shrunk to the mini player.
         if (expanded && progress < 0.99f) scope.launch { slideAnimatable.snapTo(0f); animatable.snapTo(1f) }
-    }
-
-    /** The shared player's video was closed elsewhere: this page stack drops its mini player too. */
-    fun dropIfNotPlaying() {
-        if (currentVideo == null) return
-        currentVideo = null
-        startSeconds = null
-        navigator.clearNowPlaying()
     }
 
     private var restoredId: String? = null
@@ -161,6 +159,7 @@ class PlayerSheetState(
 
     /** Open a video and expand the sheet to full screen. */
     fun open(video: VideoSummary, start: Long? = null) {
+        tabPlayer?.ensure()
         restoredId = null
         val sameVideo = currentVideo?.id == video.id
         val wasAlreadyExpanded = isExpanded
@@ -253,6 +252,7 @@ fun rememberPlayerSheetState(
     navigator: Navigator,
     scope: CoroutineScope = rememberCoroutineScope(),
 ): PlayerSheetState {
-    val state = remember(services, navigator) { PlayerSheetState(scope, services, navigator) }
+    val tabPlayer = com.greenaltambe.vela.ui.nav.LocalTabPlayer.current
+    val state = remember(services, navigator, tabPlayer) { PlayerSheetState(scope, services, navigator, tabPlayer) }
     return state
 }

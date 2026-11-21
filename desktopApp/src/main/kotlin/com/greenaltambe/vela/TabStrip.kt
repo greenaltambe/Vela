@@ -44,6 +44,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import com.greenaltambe.vela.ui.nav.Navigator
 import com.greenaltambe.vela.ui.nav.Route
 import com.greenaltambe.vela.ui.routeTitle
 import com.greenaltambe.vela.ui.theme.AppIcons
@@ -52,11 +53,21 @@ private val MinTab = 120.dp
 private val MaxTab = 240.dp
 private val NewTabButton = 40.dp
 
-/** What a tab is called: the video's title, the search, or the page's name. */
-fun tabTitle(route: Route): String = when (route) {
-    is Route.Video -> route.video.title.ifBlank { "Video" }
-    is Route.Search -> if (route.query.isBlank()) "Search" else "Search: ${route.query}"
-    else -> routeTitle(route)
+/**
+ * What a tab is called, so it says what is in it: the video when its page is open, else the page's own name (a channel's name, "Search: words",
+ * "Library", ...). [front]: the tab is the one showing, so the open video page is read live; a tab that is not showing has its last state.
+ */
+fun tabTitle(navigator: Navigator, front: Boolean): String {
+    val playing = navigator.nowPlaying
+    val videoOpen = if (front) navigator.playerSheetState?.isExpanded == true else navigator.sheetWasExpanded
+    if (videoOpen && playing != null) return playing.title.ifBlank { "Video" }
+    return when (val route = navigator.current) {
+        Route.Home -> "Home"
+        is Route.Video -> route.video.title.ifBlank { "Video" }
+        is Route.ShortsPlayer -> route.video.title.ifBlank { "Shorts" }
+        is Route.Search -> if (route.query.isBlank()) "Search" else "Search: ${route.query}"
+        else -> routeTitle(route)
+    }
 }
 
 /**
@@ -78,7 +89,7 @@ fun TabStrip(window: WindowModel, workspace: Workspace, onNoWindowsLeft: () -> U
                 for (tab in window.tabs.toList()) androidx.compose.runtime.key(tab.id) {
                     val selected = tab === window.selected
                     val dragging = draggedId == tab.id
-                    val title by remember(tab) { derivedStateOf { tabTitle(tab.navigator.current) } }
+                    val title by remember(tab, window) { derivedStateOf { tabTitle(tab.navigator, front = window.selected === tab) } }
                     val widthPx = with(density) { tabWidth.toPx() }
                     Row(
                         Modifier.width(tabWidth).height(window.stripHeight.dp - 6.dp)

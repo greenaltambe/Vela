@@ -169,7 +169,10 @@ fun VideoScreen(
     pageHeightPx: Float? = null,
 ) {
     val scope = rememberCoroutineScope()
-    val host = services.player
+    val tabPlayer = com.greenaltambe.vela.ui.nav.LocalTabPlayer.current
+    val host = tabPlayer?.host ?: services.player
+    // On desktop each tab has its own SponsorBlock addon (it follows one session); elsewhere the app's one.
+    val sponsorBlock = tabPlayer?.sponsorBlock ?: services.modules.sponsorBlock
     val window = LocalWindowControls.current
     val inPip = LocalInPictureInPicture.current
     val size = LocalWindowSize.current
@@ -317,13 +320,13 @@ fun VideoScreen(
     val markerFallback = com.greenaltambe.vela.ui.theme.ExtraColors.onMedia
     val brandingRevision by modules.dearrow.revision.collectAsState()
     val votesRevision by modules.ryd.revision.collectAsState()
-    val segments by modules.sponsorBlock.segments.collectAsState()
-    val prompt by modules.sponsorBlock.prompt.collectAsState()
+    val segments by sponsorBlock.segments.collectAsState()
+    val prompt by sponsorBlock.prompt.collectAsState()
     var notice by remember(video.id) { mutableStateOf<SkipNotice?>(null) }
     var showOriginalTitle by remember(video.id) { mutableStateOf(false) }
     LaunchedEffect(video.id) { if (offline == null) modules.dearrow.prefetch(listOf(video.id)) }
     LaunchedEffect(video.id) { if (offline == null) modules.ryd.votes(video.id) }
-    LaunchedEffect(video.id) { modules.sponsorBlock.notices.collectLatest { notice = it; delay(6_000); notice = null } }
+    LaunchedEffect(video.id) { sponsorBlock.notices.collectLatest { notice = it; delay(6_000); notice = null } }
     val markers = remember(segments, markerColors) {
         segments.map { s ->
             val color = markerColors[s.category] ?: markerFallback
@@ -419,7 +422,7 @@ fun VideoScreen(
                 isLive = info?.isLive == true, resolvingNote = resolvingNote, storyboard = info?.storyboard,
                 openAgeSetting = { navigator.selectTab(com.greenaltambe.vela.ui.nav.Route.Settings) },
                 tryAccountNow = services.accounts.active.value.takeIf { it.isSignedIn }?.let { a -> { services.governors.forAccount(a.id).tryNow() } }, showChapterTitle = size != WindowSizeClass.COMPACT,
-                overlay = { SponsorBlockOverlay(prompt, notice, onAccept = modules.sponsorBlock::acceptPrompt, onUndo = { n -> modules.sponsorBlock.undo(n); notice = null }) },
+                overlay = { SponsorBlockOverlay(prompt, notice, onAccept = sponsorBlock::acceptPrompt, onUndo = { n -> sponsorBlock.undo(n); notice = null }) },
             ) else Box(Modifier.fillMaxSize().padding(Spacing.gutter), contentAlignment = Alignment.Center) {
                 Text("No video player is available on this system: nothing will play. (On Linux install mpv-libs.)", Modifier.testTag("video.noPlayer"), maxLines = 4, overflow = TextOverflow.Ellipsis)
             }

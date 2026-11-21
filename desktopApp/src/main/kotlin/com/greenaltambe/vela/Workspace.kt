@@ -11,9 +11,11 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.WindowState
 import com.greenaltambe.vela.ui.nav.Navigator
 
-/** One tab: its own page stack (back, forward, scroll), sharing the app's one player and data with every other tab. */
+/** One tab: its own page stack (back, forward, scroll) and its own video player ([player], made by the [Workspace]); the data and settings are the app's. */
 class TabModel(val navigator: Navigator = Navigator()) {
     val id: Long = nextId.getAndIncrement()
+    /** This tab's player, like a browser tab's own media: created on first use, released when the tab closes. Null in tests / without a factory. */
+    var player: com.greenaltambe.vela.ui.nav.TabPlayer? = null
     /** The Home feed lives with the tab, so coming back to it shows what it showed (not a reload). */
     val homeFeed = com.greenaltambe.vela.ui.screens.HomeFeedStore()
     /** The startup animation plays once, on the very first tab. */
@@ -48,7 +50,11 @@ class WindowModel(val id: Int, first: List<TabModel>, val state: WindowState) {
  * Every window and tab of this run. Tabs move between windows by being taken out of one list and put into another (the page stack and its state travel with
  * the [TabModel]); the player, the data and the settings are the app's, shared. Closing the last tab closes its window, closing the last window ends the app.
  */
-class Workspace(private val firstSize: DpSize, private val firstPosition: WindowPosition, firstPlacement: WindowPlacement) {
+class Workspace(
+    private val firstSize: DpSize, private val firstPosition: WindowPosition, firstPlacement: WindowPlacement,
+    /** Makes the player of a new tab (null: tabs have none, as in tests). */
+    private val playerFor: (TabModel) -> com.greenaltambe.vela.ui.nav.TabPlayer? = { null },
+) {
     val windows = mutableStateListOf<WindowModel>()
     private var nextWindowId = 1
     /** The window the user used last: where a link, Ctrl+T from the media keys or a second launch lands. */
@@ -57,14 +63,21 @@ class Workspace(private val firstSize: DpSize, private val firstPosition: Window
     init { open(listOf(TabModel()), firstSize, firstPosition, firstPlacement) }
 
     fun open(tabs: List<TabModel>, size: DpSize = firstSize, position: WindowPosition = WindowPosition.PlatformDefault, placement: WindowPlacement = WindowPlacement.Floating): WindowModel {
+        tabs.forEach { if (it.player == null) it.player = playerFor(it) }
         val state = WindowState(placement = placement, position = position, size = size)
         return WindowModel(nextWindowId++, tabs, state).also { windows += it; focused = it }
     }
 
+    /** Stops and frees every tab's player (the app is quitting). */
+    fun releaseAllPlayers() { windows.forEach { w -> w.tabs.forEach { it.player?.release() } } }
+
+    /** Every tab of every window. */
+    fun allTabs(): List<TabModel> = windows.flatMap { it.tabs }
+
     fun activeNavigator(): Navigator? = (focused ?: windows.firstOrNull())?.selected?.navigator
 
     fun newTab(window: WindowModel, at: Int = window.tabs.size): TabModel {
-        val tab = TabModel()
+        val tab = TabModel().also { it.player = playerFor(it) }
         window.tabs.add(at.coerceIn(0, window.tabs.size), tab); window.selected = tab
         return tab
     }
@@ -75,11 +88,14 @@ class Workspace(private val firstSize: DpSize, private val firstPosition: Window
         if (i < 0) return windows.isEmpty()
         if (window.tabs.size == 1) return closeWindow(window)
         window.tabs.removeAt(i)
+        tab.player?.release()
         if (window.selected === tab) window.selected = window.tabs[i.coerceAtMost(window.tabs.lastIndex)]
         return false
     }
 
+    /** Closes a window and every tab in it, stopping their players (a tab already moved out of it, as in [moveTab], is not touched). */
     fun closeWindow(window: WindowModel): Boolean {
+        window.tabs.forEach { it.player?.release() }
         windows.remove(window)
         if (focused === window) focused = windows.lastOrNull()
         return windows.isEmpty()

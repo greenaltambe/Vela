@@ -209,13 +209,20 @@ fun SearchScreen(services: AppServices, navigator: Navigator, query: String, mod
     }
 
     val searching = loading || ((type == SearchType.VIDEOS || type == SearchType.LIVE) && view.size < 8 && results.continuation != null && autoPages < 4)
+    // Desktop: the top bar's search pill leads here, so the field starts as wide as the pill and grows to the row's width.
+    val desktop = com.greenaltambe.vela.ui.platform.LocalVolumeSlider.current
+    var grown by remember { mutableStateOf(!desktop) }
+    LaunchedEffect(Unit) { grown = true }
+    val fieldShare by androidx.compose.animation.core.animateFloatAsState(if (grown) 1f else 0.4f, androidx.compose.animation.core.tween(220), label = "searchFieldWidth")
     Column(modifier.fillMaxSize()) {
         Row(
-            Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)).heightIn(min = 56.dp).padding(horizontal = Spacing.xs),
+            Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)).heightIn(min = if (desktop) 64.dp else 56.dp).padding(horizontal = Spacing.xs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = { navigator.back() }, modifier = Modifier.testTag("nav.back")) { Icon(AppIcons.back, "Back") }
-            com.greenaltambe.vela.ui.components.VelaSearchField(text, { text = it }, { submit(text) }, Modifier.weight(1f).padding(end = Spacing.xs), focusRequester = focus)
+            Box(Modifier.weight(1f).padding(end = Spacing.xs), contentAlignment = Alignment.CenterEnd) {
+                com.greenaltambe.vela.ui.components.VelaSearchField(text, { text = it }, { submit(text) }, Modifier.fillMaxWidth(fieldShare), focusRequester = focus)
+            }
             if (query.isNotBlank() && type != SearchType.CHANNELS && type != SearchType.PLAYLISTS) FilterTuneButton(!filters.isDefault) { sheet = true }
         }
         if (suggestions.isNotEmpty() && text.trim() != query) {

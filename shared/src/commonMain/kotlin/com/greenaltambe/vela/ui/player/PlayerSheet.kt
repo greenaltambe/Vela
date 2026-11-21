@@ -89,7 +89,7 @@ fun PlayerSheet(
     miniSlot: com.greenaltambe.vela.ui.nav.MiniSlot? = null,
 ) {
     val video = sheetState.currentVideo ?: return
-    val host = services.player ?: return
+    val host = com.greenaltambe.vela.ui.nav.LocalTabPlayer.current?.host ?: services.player ?: return
     // Only what changes the mini player's look is read in composition (playing or not); the position is read when the bar is drawn, so a tick every
     // half second does not recompose the whole sheet.
     val controllerFlow = host.controllerState.collectAsState()

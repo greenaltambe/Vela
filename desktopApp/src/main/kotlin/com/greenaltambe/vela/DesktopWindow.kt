@@ -61,19 +61,31 @@ fun DesktopWindow(
     LaunchedEffect(state) {
         snapshotFlow { if (model.videoFullscreen) null else SavedGeometry.of(state) }.debounce(600).collect { g -> if (g != null) store.saveGeometry(g) }
     }
-    val title = tabTitle(model.selected.navigator.current).let { if (it == "Vela") it else "$it - Vela" }
+    val title = tabTitle(model.selected.navigator, front = true).let { if (it == "Home") "Vela" else "$it - Vela" }
     Window(
         onCloseRequest = { if (workspace.closeWindow(model)) onNoWindowsLeft() },
         state = state, title = title, icon = icon,
         onPreviewKeyEvent = { e -> handleKey(e, model, workspace, onNoWindowsLeft) },
     ) {
         remember(window) { window.iconImages = iconImages; model.awt = window }
+        // A window opened already maximized keeps its content at the size it was created with (a black strip along the bottom on GNOME) until
+        // the placement changes once (minimise and restore showed this); doing that change here, as soon as the window is up, gives the same result.
+        LaunchedEffect(window) {
+            if (state.placement == androidx.compose.ui.window.WindowPlacement.Maximized) {
+                kotlinx.coroutines.delay(400)
+                if (state.placement == androidx.compose.ui.window.WindowPlacement.Maximized && !model.videoFullscreen) {
+                    state.placement = androidx.compose.ui.window.WindowPlacement.Floating
+                    kotlinx.coroutines.delay(120)
+                    state.placement = androidx.compose.ui.window.WindowPlacement.Maximized
+                }
+            }
+        }
         androidx.compose.runtime.DisposableEffect(window) {
             val listener = object : java.awt.event.WindowAdapter() { override fun windowActivated(e: java.awt.event.WindowEvent?) { workspace.focused = model } }
             window.addWindowListener(listener)
             onDispose { if (model.videoFullscreen) { model.videoFullscreen = false; window.graphicsConfiguration?.device?.let { d -> if (d.fullScreenWindow === window) d.fullScreenWindow = null } }; window.removeWindowListener(listener); if (model.awt === window) model.awt = null }
         }
-        CompositionLocalProvider(LocalSystemDark provides systemDark, LocalWindowControls provides controls, LocalVolumeSlider provides true, com.greenaltambe.vela.ui.platform.LocalBlankPointer provides blankPointer) {
+        CompositionLocalProvider(com.greenaltambe.vela.ui.nav.LocalTabPlayer provides model.selected.player, LocalSystemDark provides systemDark, LocalWindowControls provides controls, LocalVolumeSlider provides true, com.greenaltambe.vela.ui.platform.LocalBlankPointer provides blankPointer) {
             AppTheme(services.settings) {
                 Column(Modifier.fillMaxSize()) {
                     // A video in fullscreen has the whole window: no tabs then.

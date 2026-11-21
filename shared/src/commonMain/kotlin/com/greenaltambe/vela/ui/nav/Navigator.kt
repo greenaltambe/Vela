@@ -74,6 +74,15 @@ class Navigator(start: Route = Route.Home) {
     private var pendingOpen: Pair<VideoSummary, Long?>? = null
     /** The page was asked for and left again before the sheet existed: the video goes to the mini player, idle. */
     private var pendingMini: VideoSummary? = null
+    /** Whether the video page was open when this page stack's app was last taken off screen (a desktop tab switched away from): it comes back the same. */
+    var sheetWasExpanded: Boolean = false
+    // What a tab's pages loaded. They live here, with the page stack, not in the shell: a desktop tab that is switched away from drops its
+    // shell, and coming back must not fetch the related videos, results or channel again.
+    val videoPageCache = com.greenaltambe.vela.ui.screens.VideoPageCache()
+    val shortsFeed = com.greenaltambe.vela.ui.screens.ShortsFeedStore()
+    val exploreStore = com.greenaltambe.vela.ui.screens.ExploreStore()
+    val channelStore = com.greenaltambe.vela.ui.screens.ChannelStore()
+    val searchStore = com.greenaltambe.vela.ui.screens.SearchStore()
     var playerSheetState: com.greenaltambe.vela.ui.player.PlayerSheetState? = null
         set(value) {
             field = value

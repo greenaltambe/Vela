@@ -24,6 +24,8 @@ class Modules(
     val dearrow: DeArrow,
     /** The shared HTTP client (cached GETs), for other readers of small public files such as subtitle tracks. */
     val client: ApiClient,
+    /** Another SponsorBlock addon over the same segment cache, with its own state: one per desktop tab, since the addon follows one playback session. */
+    val newSponsorBlock: () -> SponsorBlockAddon = { sponsorBlock },
 ) {
     val all: List<FeatureModule> get() = listOf(sponsorBlock, ryd, dearrow)
 }
@@ -36,6 +38,7 @@ fun createModules(transport: HttpTransport, database: VelaDatabase, settings: Se
     return Modules(
         log = log,
         sponsorBlock = SponsorBlockAddon(segments, api, settings, log, clock, accountId),
+        newSponsorBlock = { SponsorBlockAddon(segments, api, settings, log, clock, accountId) },
         segments = segments,
         ryd = ReturnYouTubeDislike(client, settings, log, clock),
         dearrow = DeArrow(client, settings, log, clock),

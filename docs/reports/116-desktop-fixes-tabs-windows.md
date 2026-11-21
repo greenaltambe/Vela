@@ -104,3 +104,36 @@ Videos: on this machine libmpv is not installed (`rpm -q mpv-libs` says so; `vel
 
 ## Follow-up: Classic start-up animation
 - The sail-in splash painted itself in the scheme's primary (black/white in Classic); it now uses the Classic red with white foam (`LocalSeekColor`, `ExtraColors.onMedia`). Other schemes unchanged. Compile and tests only; not seen. Manual: Classic, restart the app: red sea, white ship.
+
+## Follow-up: every tab has its own player
+- Before: one libmpv player and one mini player shared by all tabs and windows (`SharedNowPlaying`). Now each tab owns a player (`TabPlayer`, `ui/nav/TabPlayer.kt`): created the first time the tab needs it (opening a video, Shorts, or restoring the last video), released when the tab or its window closes or the app quits. A video in one tab never shows in another tab's mini player, and another video can be opened there. Chosen: all tabs keep playing at once (like a browser; no auto-pause).
+- Per-tab SponsorBlock: the addon follows one session, so each tab gets its own (`Modules.newSponsorBlock()`; segment cache shared). The video page, the player sheet and Shorts read the tab's player through `LocalTabPlayer`; Android never provides it and keeps `services.player`, unchanged.
+- Switching tabs: the tab's app is rebuilt but its player and page stack live in the `TabModel`, so it comes back playing, with the video page open if its page stack is on it. Dragging a tab to another window keeps its player.
+- Media keys (MPRIS) follow the tab in front; the screen stays awake while any tab plays (`TabPlayerBridge`). Only the first tab restores the last video after a restart and saves the snapshot (so tabs do not overwrite it).
+- Verified: `allTests` (new: per-tab player lifecycle in `WorkspaceTest`, `PerTabSponsorBlockTest`), Android compile, `:desktopApp:run` starts. NOT verified: real playback (no libmpv on this machine), several mpv instances in one process, audio overlap, MPRIS switching.
+- Not done: a "playing" marker on background tabs; freeing a tab's mpv when its video is closed (it is kept until the tab closes); each open player costs a decoder and an audio stream.
+- Manual (needs libmpv): play a video in tab 1; open tab 2: no mini player there; play another: both keep playing; back to tab 1: its video page / position intact; close tab 1: its sound stops; media keys act on the tab in front; drag a playing tab to another window: keeps playing; quit: no stray audio.
+
+## Follow-up: tab titles, and the video page after switching tabs
+- Correction: my two earlier "comes back with the video page open" fixes tested `navigator.current is Route.Video`, but the open video page is the player sheet's state, not a route on the page stack, so they never applied. Now `Navigator.sheetWasExpanded` is saved when a tab's app leaves the screen (`AppShell` `onDispose`) and used when it comes back (`PlayerSheetState.adopt(..., expanded)`).
+- Tab titles (`tabTitle(navigator, front)`): the video's title while its page is open, else the page: Home, Library, a channel's name, "Search: words", a Short's title, and so on. Window title: "<tab title> - Vela". A tab that is not showing uses its last saved state.
+- Verified: `allTests`, Android compile, `:desktopApp:test`; not seen on screen.
+- Manual: open a video page in tab 1, switch to tab 2 and back: the video page is open (not the mini player), the video kept playing; tab 1's label shows the video's title, tab 2's its own page.
+
+## Follow-up: no refetch when switching tabs, and the desktop search bar
+- Cause of the refetch: only the selected tab is composed, so a tab's shell (and the page caches it created: video page cache, search results, channel, explore, Shorts) was thrown away on every switch. They now live on the tab's `Navigator` (`videoPageCache`, `searchStore`, `channelStore`, `exploreStore`, `shortsFeed`), so coming back shows the loaded details, related videos, comments and results at once (cache ages out after 30 min as before). Scroll position of a switched-away page is still not kept.
+- Search bar (desktop): the top-bar pill is now a button that opens the search page (which already has recent searches and as-you-type suggestions), instead of a bare text field that skipped them. "/" does the same. The page's field starts at the pill's width, right-aligned, and grows to the row's width in 220 ms (header 64 dp tall to match the top bar). The old `onSearchSubmit` parameter and the `nav.searchBar.field` / `.go` tags are gone.
+- Verified: `allTests`, `:desktopApp:test`, Android and desktop compile. Not seen on screen: the grow animation is a width tween, not a shared-element transition, and the top bar itself is replaced by the search header without animation.
+- Manual: (1) open a video, scroll to related, switch to another tab and back: related and comments are there without skeletons. (2) Click the top bar's search pill: the search page opens with the field focused, history listed; type: suggestions appear; Enter searches. (3) Search results, switch tabs and back: results show without reloading.
+
+## Follow-up: black strip at the bottom after relaunching maximized
+- Seen: a window restored as maximized had its content ~38 px short of the screen's bottom (black strip); minimise + restore fixed it, so the content is not re-laid out after the window opens maximized.
+- Change (`DesktopWindow`): for a window that opens maximized, 400 ms after it is up the placement is set to Floating and, 120 ms later, back to Maximized, which is what minimise/restore did. Cost: a possible brief flash at start.
+- Unverified: I cannot see the window here, so this is a workaround for a cause I have not measured (probably the content size taken before the maximize on GNOME/XWayland). If the strip stays, or the flash bothers, tell me.
+- Manual: quit while maximized, relaunch: the window ends full height with no strip.
+
+## Follow-up: vertical scroll no longer stops on horizontal rows
+- Cause: `HScrollRow` and `HScrollableRow` turned a vertical wheel/touchpad delta into a sideways scroll while the pointer was over the row (and the row could still scroll), so the page stopped moving. They now react only when the gesture is mostly sideways (|dx| > |dy|); vertical goes to the page. Drag with the mouse and the round arrows are unchanged. This covers every row that uses these two components (home shelves, channel, customize, chips).
+- Trade-off: a plain mouse wheel no longer scrolls a row sideways (use the arrows, drag, Shift+wheel if the system sends it as sideways, or a touchpad swipe).
+- Verified: desktop compile only; not tried on a touchpad here. Rows that are not these two components (if any) are unchanged.
+- Manual: scroll a long page vertically with the pointer over a shelf: it keeps going; swipe sideways over the shelf: it moves; arrows still work.

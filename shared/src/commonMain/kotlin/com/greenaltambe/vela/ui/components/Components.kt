@@ -345,8 +345,6 @@ fun VelaTopBar(
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
     onSearch: (() -> Unit)? = null,
-    /** Desktop: with this, the search icon becomes a search bar in the top bar; Enter hands the text over. */
-    onSearchSubmit: ((String) -> Unit)? = null,
     /** The bell: opens the notifications page; [unread] puts a dot on it. */
     onNotifications: (() -> Unit)? = null,
     unread: Boolean = false,
@@ -379,7 +377,7 @@ fun VelaTopBar(
         actions = {
             actions()
             if (onSearch != null) {
-                if (onSearchSubmit != null && com.greenaltambe.vela.ui.platform.LocalVolumeSlider.current) TopBarSearchField(onSearchSubmit, Modifier.padding(end = Spacing.sm))
+                if (com.greenaltambe.vela.ui.platform.LocalVolumeSlider.current) TopBarSearchField(onSearch, Modifier.padding(end = Spacing.sm))
                 else IconButton(onClick = onSearch, modifier = Modifier.testTag("nav.search")) { Icon(AppIcons.search, "Search") }
             }
             if (onNotifications != null) IconButton(onClick = onNotifications, modifier = Modifier.testTag("nav.notifications")) {
@@ -461,26 +459,18 @@ fun LinkButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier
 }
 
 
-/** The desktop top bar's search: a pill with the search icon; Enter (or the icon) searches and clears the field. */
+/**
+ * The desktop top bar's search: a pill that opens the search page, which has the recent searches and the suggestions. The page's own field
+ * takes the same place and grows from this one (see SearchScreen), so the bar seems to widen into the page.
+ */
 @Composable
-private fun TopBarSearchField(onSubmit: (String) -> Unit, modifier: Modifier = Modifier) {
-    var text by remember { mutableStateOf("") }
-    val go = { if (text.isNotBlank()) { onSubmit(text.trim()); text = "" } }
+private fun TopBarSearchField(onOpen: () -> Unit, modifier: Modifier = Modifier) {
     val cs = MaterialTheme.colorScheme
     Row(
-        modifier.width(360.dp).height(40.dp).clip(CircleShape).background(cs.surfaceContainerHigh).padding(start = Spacing.md, end = 2.dp).testTag("nav.searchBar"),
+        modifier.width(360.dp).height(40.dp).clip(CircleShape).background(cs.surfaceContainerHigh).clickable(onClickLabel = "Search", onClick = onOpen).padding(start = Spacing.md, end = Spacing.sm).testTag("nav.searchBar"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-            if (text.isEmpty()) Text("Search", style = MaterialTheme.typography.bodyLarge, color = cs.onSurfaceVariant, maxLines = 1)
-            androidx.compose.foundation.text.BasicTextField(
-                text, { text = it }, Modifier.fillMaxWidth().testTag("nav.searchBar.field"), singleLine = true,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(color = cs.onSurface),
-                cursorBrush = androidx.compose.ui.graphics.SolidColor(cs.primary),
-                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
-                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { go() }),
-            )
-        }
-        IconButton(onClick = { go() }, modifier = Modifier.size(36.dp).testTag("nav.searchBar.go")) { Icon(AppIcons.search, "Search") }
+        Text("Search", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = cs.onSurfaceVariant, maxLines = 1)
+        Icon(AppIcons.search, "Search")
     }
 }

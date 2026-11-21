@@ -172,7 +172,10 @@ fun ShortsScreen(services: AppServices, navigator: Navigator, modifier: Modifier
     var loading by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    val host = services.player
+    val tabPlayer = com.greenaltambe.vela.ui.nav.LocalTabPlayer.current
+    // A desktop tab makes its player the first time it needs one (Shorts play through it).
+    androidx.compose.runtime.LaunchedEffect(tabPlayer) { tabPlayer?.ensure() }
+    val host = tabPlayer?.host ?: services.player
     val home = LocalHomeFeed.current
     val source = remember(accountId, start?.id) {
         store?.source?.takeIf { reuse } ?: ShortsSource(

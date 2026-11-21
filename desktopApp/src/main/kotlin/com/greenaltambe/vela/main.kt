@@ -3,6 +3,7 @@ package com.greenaltambe.vela
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
@@ -147,24 +148,30 @@ fun main(args: Array<String>) {
     Runtime.getRuntime().addShutdownHook(Thread({ com.greenaltambe.vela.platform.ChildProcesses.destroyAll() }, "vela-children"))
 
     application {
-        // Created inside the application so the Swing main dispatcher the session scope uses is up. Without libmpv
-        // the app still runs and the debug screen says there is no player.
-        val runtimeResult = remember {
-            DesktopPlaybackRuntime.create(chain, settings, SqlDelightWatchHistoryRepository(database), listOf(modules.sponsorBlock), accountId = { accounts.active.value.id })
-                .onFailure { System.err.println("Vela: no video playback: ${it.message}") }
-        }
-        val runtime = runtimeResult.getOrNull()
-        val host = remember(runtime) { runtime?.let(::DesktopPlayerHost) }
-
-        // mpv is in-process: closing must stop it and release the audio device before the JVM exits. The hook covers
-        // exits that bypass the window (SIGTERM, System.exit); close() is idempotent.
-        remember(runtime) {
-            runtime?.let { Runtime.getRuntime().addShutdownHook(Thread({ it.controller.release() }, "vela-mpv-shutdown")) }
+        // Every tab has its own player (a libmpv instance made the first time the tab plays something; see TabPlayer). Without libmpv the app still runs
+        // and a banner says so. The library is probed once here for that banner; tabs then create their own instances.
+        val libmpv = remember { com.greenaltambe.vela.player.mpv.MpvLibrary.load().also { r -> r.onFailure { System.err.println("Vela: no video playback: ${it.message}") } } }
+        var tabsMade = 0
+        val playerFor: (TabModel) -> com.greenaltambe.vela.ui.nav.TabPlayer? = {
+            if (libmpv.isFailure) null else {
+                val sponsorBlock = modules.newSponsorBlock()
+                val first = tabsMade++ == 0 // only the first tab keeps the "restore the last video" snapshot
+                com.greenaltambe.vela.ui.nav.TabPlayer(
+                    create = { register ->
+                        DesktopPlaybackRuntime.create(chain, settings, SqlDelightWatchHistoryRepository(database), listOf(sponsorBlock), accountId = { accounts.active.value.id })
+                            .onFailure { System.err.println("Vela: no video playback: ${it.message}") }
+                            .getOrNull()?.let { rt -> register(rt); DesktopPlayerHost(rt) }
+                    },
+                    sponsorBlock = sponsorBlock, persistsNowPlaying = first,
+                )
+            }
         }
 
         // The window opens where and as large as it was left (maximized too); the first start, or a screen that is gone, uses the default size.
         val geometry = remember { SavedGeometry.load(SqlDelightSettingsStore(database)) ?: SavedGeometry.Default }
-        val workspace = remember { Workspace(geometry.size(), geometry.position(), geometry.placement()) }
+        val workspace = remember { Workspace(geometry.size(), geometry.position(), geometry.placement(), playerFor) }
+        // mpv is in-process: quitting must stop every tab's player and release the audio device before the JVM exits. The hook covers exits that bypass the window (SIGTERM, System.exit); release() is idempotent.
+        remember(workspace) { Runtime.getRuntime().addShutdownHook(Thread({ runCatching { workspace.releaseAllPlayers() } }, "vela-mpv-shutdown")) }
         val geometryStore = remember { SqlDelightSettingsStore(database) }
         // "System" theme: Compose Desktop reports light on Linux whatever the desktop says, so the desktop is asked itself (and again every few seconds).
         var systemDark by remember { mutableStateOf<Boolean?>(null) }
@@ -176,8 +183,8 @@ fun main(args: Array<String>) {
                 kotlinx.coroutines.delay(3000)
             }
         }
-        val services = remember(host) {
-            AppServices(chain, settings, log, database, host, utcOffsetMinutes = { TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 60_000 }, modules = modules, downloads = downloads, accounts = accounts, login = if (accountsAvailable(secretStore)) InnertubeAccountLogin(accounts, governors) else null, sync = InnertubeAccountSync(accounts, governors, database, profiles = profileStore), actions = com.greenaltambe.vela.innertube.InnertubeAccountActions(accounts, governors, profiles = profileStore), reads = com.greenaltambe.vela.innertube.InnertubeAccountReads(accounts, governors, profiles = profileStore), profiles = com.greenaltambe.vela.innertube.InnertubeAccountProfiles(accounts, governors, profileStore), audit = audit, governors = governors, health = health, releases = releases, managedYtDlp = wiring.ytDlpUpdater, faults = faults,
+        val services = remember {
+            AppServices(chain, settings, log, database, null, utcOffsetMinutes = { TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 60_000 }, modules = modules, downloads = downloads, accounts = accounts, login = if (accountsAvailable(secretStore)) InnertubeAccountLogin(accounts, governors) else null, sync = InnertubeAccountSync(accounts, governors, database, profiles = profileStore), actions = com.greenaltambe.vela.innertube.InnertubeAccountActions(accounts, governors, profiles = profileStore), reads = com.greenaltambe.vela.innertube.InnertubeAccountReads(accounts, governors, profiles = profileStore), profiles = com.greenaltambe.vela.innertube.InnertubeAccountProfiles(accounts, governors, profileStore), audit = audit, governors = governors, health = health, releases = releases, managedYtDlp = wiring.ytDlpUpdater, faults = faults,
                 backupFiles = AwtBackupFiles(), liveChat = com.greenaltambe.vela.innertube.LiveChatClient(), autoDownloader = autoDownloader,
                 exportLog = { val dir = java.io.File(System.getProperty("user.home"), "Downloads").takeIf { it.isDirectory } ?: java.io.File(System.getProperty("user.home")); val out = java.io.File(dir, "vela-log-${System.currentTimeMillis() / 1000}.txt"); out.writeText(logFile.readAll()); out.path })
         }
@@ -193,7 +200,6 @@ fun main(args: Array<String>) {
             }
         }
 
-        val sharedNowPlaying = remember { com.greenaltambe.vela.ui.nav.SharedNowPlaying() }
         androidx.compose.runtime.LaunchedEffect(Unit) {
             for (link in links) {
                 // A link handed over by another launch of the app opens in a tab of its own, in the window used last.
@@ -201,30 +207,32 @@ fun main(args: Array<String>) {
                 workspace.focused?.awt?.let { f -> (f as? java.awt.Frame)?.let { fr -> fr.extendedState = fr.extendedState and java.awt.Frame.ICONIFIED.inv() }; f.toFront() }
             }
         }
-        // Media keys and the desktop's media widgets (GNOME/KDE) through MPRIS on the session bus; absent without a bus or without a player.
-        androidx.compose.runtime.DisposableEffect(host) {
+        // Media keys and the desktop's media widgets (GNOME/KDE) through MPRIS on the session bus, following the player of the tab in front; absent without a bus.
+        val bridgeScope = rememberCoroutineScope()
+        val bridge = remember(workspace) { TabPlayerBridge(workspace, bridgeScope) }
+        androidx.compose.runtime.DisposableEffect(bridge) {
             // MPRIS is the Linux D-Bus media interface; other systems run without it.
-            val mpris = host?.takeIf { !com.greenaltambe.vela.data.isWindows }?.let { h ->
-                val sess = h.session
-                com.greenaltambe.vela.mpris.MprisService.start(h.controllerState, sess.media, com.greenaltambe.vela.mpris.MprisCommands(
-                    play = { sess.play() }, pause = { sess.pause() },
-                    toggle = { if (h.controllerState.value.status == com.greenaltambe.vela.player.PlaybackStatus.PLAYING) sess.pause() else sess.play() },
-                    stop = { sess.stop(); sharedNowPlaying.video = null; workspace.activeNavigator()?.clearNowPlaying() }, seekTo = { sess.seekTo(it) },
-                    next = { workspace.activeNavigator()?.playNext() }, previous = { sess.seekTo(0) },
+            val mpris = if (libmpv.isSuccess && !com.greenaltambe.vela.data.isWindows) {
+                fun session() = bridge.frontHost()?.session
+                com.greenaltambe.vela.mpris.MprisService.start(bridge.frontState, bridge.frontMedia, com.greenaltambe.vela.mpris.MprisCommands(
+                    play = { session()?.play() }, pause = { session()?.pause() },
+                    toggle = { if (bridge.frontState.value.status == com.greenaltambe.vela.player.PlaybackStatus.PLAYING) session()?.pause() else session()?.play() },
+                    stop = { session()?.stop(); workspace.activeNavigator()?.clearNowPlaying() }, seekTo = { session()?.seekTo(it) },
+                    next = { workspace.activeNavigator()?.playNext() }, previous = { session()?.seekTo(0) },
                     raise = { workspace.focused?.awt?.toFront() }, quit = { exitApplication() },
                 ))
-            }
-            // Keeps the screen awake while a video plays (freedesktop ScreenSaver on the session bus; Linux only).
-            val inhibitor = host?.takeIf { !com.greenaltambe.vela.data.isWindows }?.let { h -> com.greenaltambe.vela.mpris.ScreenSaverInhibitor.start(h.controllerState, h.session.state) }
+            } else null
+            // Keeps the screen awake while a video plays in any tab (freedesktop ScreenSaver on the session bus; Linux only).
+            val inhibitor = if (libmpv.isSuccess && !com.greenaltambe.vela.data.isWindows) com.greenaltambe.vela.mpris.ScreenSaverInhibitor.start(bridge.anyState, bridge.anySession) else null
             onDispose { mpris?.close(); inhibitor?.close() }
         }
 
-        val playerNote: @Composable () -> Unit = { if (runtime == null) PlayerMissingBanner(runtimeResult.exceptionOrNull()?.message) }
-        CompositionLocalProvider(com.greenaltambe.vela.ui.nav.LocalSharedNowPlaying provides sharedNowPlaying) {
+        val playerNote: @Composable () -> Unit = { if (libmpv.isFailure) PlayerMissingBanner(libmpv.exceptionOrNull()?.message) }
+        run {
             for (w in workspace.windows.toList()) androidx.compose.runtime.key(w.id) {
                 DesktopWindow(
                     w, workspace, services, geometryStore, systemDark, playerNote, first = w.id == 1, icon = velaWindowIcon, iconImages = velaWindowImages, blankPointer = blankPointer,
-                    onNoWindowsLeft = { runtime?.close(); exitApplication() },
+                    onNoWindowsLeft = { workspace.releaseAllPlayers(); exitApplication() },
                 )
             }
         }

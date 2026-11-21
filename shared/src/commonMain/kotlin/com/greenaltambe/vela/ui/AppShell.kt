@@ -141,7 +141,9 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
     val window = LocalWindowControls.current
     val inPip = LocalInPictureInPicture.current
     val focus = remember { FocusRequester() }
-    val host = services.player
+    val tabPlayer = com.greenaltambe.vela.ui.nav.LocalTabPlayer.current
+    // Desktop: this tab's own player (none until it first plays something); elsewhere the app's one.
+    val host = tabPlayer?.host ?: services.player
     val playerState = host?.controllerState?.collectAsState()?.value
 
     // Take a break / daily Shorts limit: counted once a second while something is playing. The break reminder only asks (it never stops music playing in
@@ -191,40 +193,32 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
     // A video opened from a link has no title until the player looks it up: hand it to the mini player and the page when it arrives.
     val mediaNow = host?.session?.media?.collectAsState()?.value
     LaunchedEffect(mediaNow) { mediaNow?.let { sheetState.fillDetails(it.videoId, it.title, "", it.channelName, it.artworkUrl) } }
+    // Taken off screen (a desktop tab switched away from) with the video page open: it comes back open, not shrunk to the mini player.
+    androidx.compose.runtime.DisposableEffect(sheetState) { onDispose { navigator.sheetWasExpanded = sheetState.isExpanded } }
     val miniSlot = remember { com.greenaltambe.vela.ui.nav.MiniSlot() }
     androidx.compose.runtime.SideEffect { navigator.playerSheetState = sheetState }
 
     PlatformBackHandler(enabled = navigator.canGoBack) { navigator.back() }
 
-    // The mini player survives the process being killed: remember what it shows, and bring it back (idle) on the next start.
+    // The mini player survives the process being killed: remember what it shows, and bring it back (idle) on the next start. On desktop only one tab
+    // (the first) does this, so tabs do not overwrite each other's snapshot; a tab that comes back to the front shows what its own player still plays.
+    val persists = tabPlayer == null || tabPlayer.persistsNowPlaying
     var restored by remember { androidx.compose.runtime.mutableStateOf(false) }
-    val shared = com.greenaltambe.vela.ui.nav.LocalSharedNowPlaying.current
     LaunchedEffect(Unit) {
-        if (shared != null && (shared.video != null || shared.restoreClaimed)) {
-            // Another tab or window of this run already owns the player (or already restored it): take over what it shows.
-            shared.video?.let { sheetState.adopt(it, expanded = navigator.current is Route.Video) }
-            restored = true
-            return@LaunchedEffect
-        }
-        shared?.restoreClaimed = true
-        com.greenaltambe.vela.ui.nav.NowPlayingSnapshot.decodeAll(services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.restoreNowPlaying))?.let { (video, picks) ->
-            navigator.restore(video); host?.session?.restoreOverrides(video.id, picks)
+        val playing = navigator.nowPlaying
+        if (playing != null) {
+            // This tab's page stack already has a video (the tab was switched away from and back): its player is still playing it.
+            sheetState.adopt(playing, expanded = navigator.sheetWasExpanded)
+        } else if (persists) {
+            com.greenaltambe.vela.ui.nav.NowPlayingSnapshot.decodeAll(services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.restoreNowPlaying))?.let { (video, picks) ->
+                navigator.restore(video); tabPlayer?.ensure(); (tabPlayer?.host ?: services.player)?.session?.restoreOverrides(video.id, picks)
+            }
         }
         restored = true
     }
-    // Desktop tabs and windows share one player: publish what this one shows, follow what another one published.
-    if (shared != null) {
-        LaunchedEffect(navigator.nowPlaying, restored) { if (restored) shared.video = navigator.nowPlaying }
-        LaunchedEffect(shared.video, restored) {
-            if (!restored) return@LaunchedEffect
-            val v = shared.video
-            if (v != null && (navigator.nowPlaying?.id != v.id || (navigator.current is Route.Video && sheetState.isCollapsed))) sheetState.adopt(v, expanded = navigator.current is Route.Video)
-            else if (v == null && navigator.nowPlaying != null) sheetState.dropIfNotPlaying()
-        }
-    }
     val picks = host?.session?.overrides?.collectAsState()?.value
     LaunchedEffect(navigator.nowPlaying, restored, picks) {
-        if (!restored) return@LaunchedEffect
+        if (!restored || !persists) return@LaunchedEffect
         runCatching { services.settings.set(com.greenaltambe.vela.core.settings.Settings.restoreNowPlaying, com.greenaltambe.vela.ui.nav.NowPlayingSnapshot.encode(navigator.nowPlaying, picks)) }
     }
 
@@ -253,11 +247,11 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
     LaunchedEffect(rootFocused, route) { if (!rootFocused && route !is Route.Search) { kotlinx.coroutines.delay(60); runCatching { focus.requestFocus() } } }
 
     val shellScope = androidx.compose.runtime.rememberCoroutineScope()
-    val videoPageCache = remember { com.greenaltambe.vela.ui.screens.VideoPageCache() }
-    val shortsFeed = remember { com.greenaltambe.vela.ui.screens.ShortsFeedStore() }
-    val exploreStore = remember { com.greenaltambe.vela.ui.screens.ExploreStore() }
-    val channelStore = remember { com.greenaltambe.vela.ui.screens.ChannelStore() }
-    val searchStore = remember { com.greenaltambe.vela.ui.screens.SearchStore() }
+    val videoPageCache = navigator.videoPageCache
+    val shortsFeed = navigator.shortsFeed
+    val exploreStore = navigator.exploreStore
+    val channelStore = navigator.channelStore
+    val searchStore = navigator.searchStore
     val spaceHold = remember { SpaceHold() }
     val refreshHandle = remember { com.greenaltambe.vela.ui.components.RefreshHandle() }
     // "/" opens the search page (as on YouTube's site), from anywhere but the search page itself.
@@ -356,7 +350,7 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
                     if (chrome && uiRoute != Route.Shorts && uiRoute !is Route.ShortsPlayer && uiRoute !is Route.Video && uiRoute !is Route.Search && uiRoute != Route.Settings && uiRoute !is Route.Channel && uiRoute != Route.Accounts && uiRoute != Route.AccountActivity && uiRoute != Route.Health && uiRoute != Route.Backup && uiRoute != Route.DownloadRules && uiRoute != Route.Blocklist && uiRoute != Route.Customize && uiRoute != Route.Notifications && uiRoute != Route.History && uiRoute != Route.Downloads && uiRoute != Route.ManageSubscriptions && uiRoute !is Route.Playlist && uiRoute !is Route.CustomizePage && uiRoute !is Route.SettingsPage) {
                         VelaTopBar(
                             routeTitle(uiRoute), onBack = if (navigator.baseCanGoBack) ({ navigator.back() }) else null,
-                            onSearch = ({ navigator.push(Route.Search()) }), onSearchSubmit = { q -> navigator.push(Route.Search(q)) },
+                            onSearch = ({ navigator.push(Route.Search()) }),
                             onNotifications = ({ navigator.push(Route.Notifications) }), unread = notifUnread,
                             profile = { ProfileButton(services) { profileOpen = true } },
                         )
