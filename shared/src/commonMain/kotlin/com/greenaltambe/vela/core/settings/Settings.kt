@@ -207,7 +207,7 @@ object Settings {
         section = SettingSection.LIBRARY,
     )
 
-    /** History is only SENT to the account by reporting (not built); this setting governs whether history is READ from it. See [historyAccountSync]. */
+    /** No longer a setting anyone sees or that anything reads: what is watched is SENT to the account only with [accountReportActivity] on (the app's own history is kept regardless). Kept so old stored values and tests still resolve. Reading the account's history is [historyAccountSync]. */
     val historyAccountSync = Setting(
         key = "history.accountSync", default = AccountHistorySync.MANUAL, scope = SettingScope.GLOBAL,
         label = "Read my YouTube account's watch history into Vela",
@@ -522,9 +522,9 @@ object Settings {
 
     val accountReportActivity = Setting(
         key = "account.reportActivity", default = false, scope = SettingScope.GLOBAL,
-        label = "Tell YouTube what I watch (NOT AVAILABLE: not implemented, so it is not shown anywhere and nothing reads it)",
-        keywords = listOf("account", "history", "activity", "report", "watch"),
-        codec = SettingCodecs.boolean, section = SettingSection.ACCOUNT,
+        label = "Tell YouTube what I watch",
+        keywords = listOf("account", "history", "activity", "report", "watch", "send", "youtube"),
+        codec = SettingCodecs.boolean, section = SettingSection.LIBRARY,
     )
 
     val accountProfilesExperimental = Setting(
@@ -675,7 +675,7 @@ object Settings {
     )
 
     val all: List<Setting<*>> = listOf(
-        localOnlyHistory, historyAccountSync, hideWatched, hideMembersOnly, watchedThresholdPercent, minLengthSeconds, blockKeywords, allowKeywords, keywordsAreRegex,
+        historyAccountSync, accountReportActivity, hideWatched, hideMembersOnly, watchedThresholdPercent, minLengthSeconds, blockKeywords, allowKeywords, keywordsAreRegex,
         debugFrameStats, homeSource, contentRegion, allowAgeRestricted, allowControversial, slowStreamFailover, notifyBackground, notifySystem, notifyDownloads, accountFallbackMode, accountProfilesExperimental, accountUseForChannels, accountUseForDetails, accountDownloadsMayUse, accountKillSwitch, accountTierOrder, remoteConfigUrl, ytDlpAutoUpdate,
         accountPlaybackPerHour, accountBrowsePerMinute, accountWritesPerHour, shortsMode, defaultPlaybackSpeed, autoplayNext, seekStepSeconds, holdSpeed, maxQualityUnmetered, maxQualityMetered, preferredCodec, breakReminder, shortsDailyLimit, volumeBoost, captionSize, captionBackground, captionCreatorStyle, audioOnly, ytDlpPath,
         sponsorBlockEnabled, returnYouTubeDislikeEnabled, deArrowEnabled,

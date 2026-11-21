@@ -3,6 +3,7 @@ package com.greenaltambe.vela.library
 import androidx.compose.ui.input.key.Key
 import com.greenaltambe.vela.ui.player.ShortcutAction
 import com.greenaltambe.vela.ui.player.shortcutFor
+import com.greenaltambe.vela.ui.player.digitSeekTenth
 import com.greenaltambe.vela.ui.player.steppedSpeed
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -34,5 +35,12 @@ class ShortcutsTest {
         assertEquals(2f, steppedSpeed(2f, up = true))
         assertEquals(0.25f, steppedSpeed(0.25f, up = false))
         assertEquals(1.25f, steppedSpeed(1.1f, up = true), "snaps to the nearest step first")
+    }
+
+    @Test
+    fun digitsJumpToTenthsAndHomeEndToTheEnds() {
+        assertEquals(0, digitSeekTenth(Key.Zero)); assertEquals(5, digitSeekTenth(Key.Five)); assertEquals(9, digitSeekTenth(Key.NumPad9))
+        assertNull(digitSeekTenth(Key.A))
+        assertEquals(ShortcutAction.SeekStart, shortcutFor(Key.MoveHome, false)); assertEquals(ShortcutAction.SeekEnd, shortcutFor(Key.MoveEnd, false))
     }
 }

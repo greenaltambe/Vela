@@ -1,0 +1,32 @@
+# Flatpak manifest for Vela. It packs what the Linux release job already built (the portable app image with its own Java runtime) plus libmpv, ffmpeg and
+# notify-send with their libraries, taken from Ubuntu 24.04 by bundle-libs.sh. Nothing is compiled here; `stage/` is made by stage.sh (see docs/BUILDING.md).
+app-id: io.github.greenaltambe.Vela
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+command: vela-flatpak
+finish-args:
+  - --share=network
+  - --share=ipc                      # X11 shared memory
+  - --socket=x11                     # the window toolkit (AWT) speaks X11; Wayland sessions use XWayland
+  - --socket=pulseaudio
+  - --device=dri                     # GPU: video output and hardware decoding
+  - --filesystem=xdg-videos          # downloads go to Videos/Vela by default
+  - --talk-name=org.freedesktop.Notifications
+  - --talk-name=org.freedesktop.ScreenSaver   # keep the screen awake while a video plays
+  - --own-name=org.mpris.MediaPlayer2.vela    # media keys and the desktop's media widget
+modules:
+  - name: vela
+    buildsystem: simple
+    build-commands:
+      - mkdir -p /app/vela /app/lib /app/bin
+      - cp -a app/. /app/vela/
+      - cp -a libs/. /app/lib/
+      - cp -a bin/. /app/bin/
+      - install -Dm755 vela-flatpak /app/bin/vela-flatpak
+      - install -Dm644 io.github.greenaltambe.Vela.desktop /app/share/applications/io.github.greenaltambe.Vela.desktop
+      - install -Dm644 io.github.greenaltambe.Vela.metainfo.xml /app/share/metainfo/io.github.greenaltambe.Vela.metainfo.xml
+      - install -Dm644 vela-icon-512.png /app/share/icons/hicolor/512x512/apps/io.github.greenaltambe.Vela.png
+    sources:
+      - type: dir
+        path: stage

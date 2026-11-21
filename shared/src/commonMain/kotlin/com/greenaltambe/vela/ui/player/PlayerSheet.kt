@@ -291,7 +291,7 @@ fun PlayerSheet(
         ) {
             // LAYER 0: The persistent VideoScreen with the live video surface
             androidx.compose.runtime.CompositionLocalProvider(LocalPlayerGestureLock provides gestureLock) {
-                VideoScreen(
+                androidx.compose.runtime.key(navigator.pageRefresh) { VideoScreen(
                     services = services,
                     navigator = navigator,
                     video = video,
@@ -302,7 +302,7 @@ fun PlayerSheet(
                     modifier = Modifier.fillMaxSize(),
                     pageWidthPx = expandedWNow(),
                     pageHeightPx = winH,
-                )
+                ) }
             }
 
             // LAYER 1: MiniPlayer Controls & Progress bar (only in card mode when near collapsed)

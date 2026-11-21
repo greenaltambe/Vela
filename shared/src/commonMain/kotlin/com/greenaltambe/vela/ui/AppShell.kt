@@ -93,6 +93,8 @@ import com.greenaltambe.vela.player.SessionState
 import com.greenaltambe.vela.ui.platform.PlatformBackHandler
 import com.greenaltambe.vela.ui.player.ShortcutAction
 import com.greenaltambe.vela.ui.player.applyShortcut
+import com.greenaltambe.vela.ui.player.digitSeekTenth
+import com.greenaltambe.vela.ui.player.seekToTenth
 import com.greenaltambe.vela.ui.player.shortcutFor
 import com.greenaltambe.vela.ui.screens.AccountActivityScreen
 import com.greenaltambe.vela.ui.screens.AccountBanner
@@ -282,17 +284,30 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
         }
         if (e.type != KeyEventType.KeyDown) return@onKey false
         // Ctrl+R: refresh the page that is showing (desktop has no pull to refresh).
-        if (e.key == androidx.compose.ui.input.key.Key.R && (e.isCtrlPressed || e.isMetaPressed)) return@onKey refreshHandle.action?.let { it(); true } ?: false
+        if (e.key == androidx.compose.ui.input.key.Key.R && (e.isCtrlPressed || e.isMetaPressed)) {
+            // The video page over another page is the one to refresh; otherwise the page's own refresh, else it is rebuilt and fetches again.
+            val own = if (route is Route.Video || sheetState.isExpanded) null else refreshHandle.action
+            if (own != null) own() else navigator.refreshPage()
+            return@onKey true
+        }
         if (e.key == androidx.compose.ui.input.key.Key.Escape || (e.key == androidx.compose.ui.input.key.Key.DirectionLeft && e.isAltPressed)) {
             if (window?.isFullscreen == true) { window.toggleFullscreen(); return@onKey true }
             if (sheetState.isExpanded) { sheetState.collapse(); return@onKey true }
             return@onKey navigator.back()
+        }
+        // 0-9: jump to that tenth of the video (YouTube's own shortcut), on the video page only and never with a modifier held.
+        if (!e.isShiftPressed && !e.isCtrlPressed && !e.isAltPressed && !e.isMetaPressed) digitSeekTenth(e.key)?.let { tenth ->
+            if (host == null || navigator.nowPlaying == null || (!sheetState.isExpanded && route !is Route.Video)) return@onKey false
+            seekToTenth(tenth, host.session, host.controllerState.value)
+            return@onKey true
         }
         val action = shortcutFor(e.key, e.isShiftPressed)
         if (host == null || action == null || navigator.nowPlaying == null || (!sheetState.isExpanded && route !is Route.Video)) return@onKey false
         applyShortcut(action, host.session, host.controllerState.value) { window?.toggleFullscreen() }
         true
     }
+    androidx.compose.runtime.SideEffect { navigator.keyHandler = { e -> slashSearch(e) || onKey(e) } }
+    androidx.compose.runtime.DisposableEffect(navigator) { onDispose { navigator.keyHandler = null } }
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
@@ -338,16 +353,29 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
             com.greenaltambe.vela.ui.platform.LocalTextFetcher provides { url -> com.greenaltambe.vela.ui.platform.OfflineSubtitles.get(url) ?: (services.modules.client.get(url, ttl = kotlin.time.Duration.parse("6h")) as? com.greenaltambe.vela.core.http.ApiResult.Ok)?.body },
         ) {
             androidx.compose.runtime.SideEffect { navigator.shortsInPlayer = services.settings.shortsEnabled() }
-            Row(Modifier.fillMaxSize().then(if (chrome) Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)) else Modifier)) {
-                if (chrome && rail) com.greenaltambe.vela.ui.nav.AppNavigationRail(
+            val notifRevision by services.notificationsRevision.collectAsState()
+            val notifUnread = com.greenaltambe.vela.ui.screens.rememberAsync(notifRevision, services.activeId, keepWhileLoading = true, first = { false }, compute = { services.notifications.unreadCount() > 0 })
+            // Desktop: one top bar over everything (mark, search, bell, profile) and the side bar under it, like a website; the pages' own bars sit below.
+            val desktopBar = rail && com.greenaltambe.vela.ui.platform.LocalVolumeSlider.current
+            val shellBarRoute = uiRoute != Route.Shorts && uiRoute !is Route.ShortsPlayer && uiRoute !is Route.Video && uiRoute !is Route.Search && uiRoute != Route.Settings && uiRoute !is Route.Channel && uiRoute != Route.Accounts && uiRoute != Route.AccountActivity && uiRoute != Route.Health && uiRoute != Route.Backup && uiRoute != Route.DownloadRules && uiRoute != Route.Blocklist && uiRoute != Route.Customize && uiRoute != Route.Notifications && uiRoute != Route.History && uiRoute != Route.Downloads && uiRoute != Route.ManageSubscriptions && uiRoute !is Route.Playlist && uiRoute !is Route.CustomizePage && uiRoute !is Route.SettingsPage
+            val toggleSideBar = { services.settings.set(com.greenaltambe.vela.core.settings.LookSettings.railCollapsed, !nav.railCollapsed) }
+            Column(Modifier.fillMaxSize()) {
+            if (chrome && desktopBar) com.greenaltambe.vela.ui.components.DesktopTopBar(
+                onToggleSideBar = { toggleSideBar() }, onHome = { navigator.selectTab(Route.Home) },
+                onBack = if (shellBarRoute && navigator.baseCanGoBack) ({ navigator.back() }) else null,
+                showSearch = uiRoute !is Route.Search, onSearch = { navigator.push(Route.Search()) },
+                unread = notifUnread, onNotifications = { navigator.push(Route.Notifications) },
+                profile = { ProfileButton(services) { profileOpen = true } },
+            )
+            Row(Modifier.weight(1f).fillMaxWidth().then(if (chrome) Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)) else Modifier)) {
+                if (chrome && rail && desktopBar) com.greenaltambe.vela.ui.nav.DesktopSideBar(navEntries(nav.tabs), nav.selected(uiRoute), nav.railCollapsed, onSelect = navigator::openTab)
+                else if (chrome && rail) com.greenaltambe.vela.ui.nav.AppNavigationRail(
                     navEntries(nav.tabs), nav.selected(uiRoute), nav.railCollapsed,
                     onToggleCollapsed = { services.settings.set(com.greenaltambe.vela.core.settings.LookSettings.railCollapsed, !nav.railCollapsed) },
                     onSelect = navigator::openTab,
                 )
-                val notifRevision by services.notificationsRevision.collectAsState()
-                val notifUnread = com.greenaltambe.vela.ui.screens.rememberAsync(notifRevision, services.activeId, keepWhileLoading = true, first = { false }, compute = { services.notifications.unreadCount() > 0 })
                 Column(Modifier.weight(1f).fillMaxHeight()) {
-                    if (chrome && uiRoute != Route.Shorts && uiRoute !is Route.ShortsPlayer && uiRoute !is Route.Video && uiRoute !is Route.Search && uiRoute != Route.Settings && uiRoute !is Route.Channel && uiRoute != Route.Accounts && uiRoute != Route.AccountActivity && uiRoute != Route.Health && uiRoute != Route.Backup && uiRoute != Route.DownloadRules && uiRoute != Route.Blocklist && uiRoute != Route.Customize && uiRoute != Route.Notifications && uiRoute != Route.History && uiRoute != Route.Downloads && uiRoute != Route.ManageSubscriptions && uiRoute !is Route.Playlist && uiRoute !is Route.CustomizePage && uiRoute !is Route.SettingsPage) {
+                    if (chrome && !desktopBar && shellBarRoute) {
                         VelaTopBar(
                             routeTitle(uiRoute), onBack = if (navigator.baseCanGoBack) ({ navigator.back() }) else null,
                             onSearch = ({ navigator.push(Route.Search()) }),
@@ -365,7 +393,7 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
                     val activeAccount by services.accounts.active.collectAsState()
                     Box(Modifier.weight(1f).fillMaxWidth().nestedScroll(scrollChrome.connection)) {
                         CompositionLocalProvider(com.greenaltambe.vela.ui.components.LocalRefreshHandle provides refreshHandle) {
-                            androidx.compose.runtime.key(activeAccount.id) { AnimatedDestination(services, navigator, uiRoute, Modifier.fillMaxSize()) }
+                            androidx.compose.runtime.key(activeAccount.id, navigator.pageRefresh) { AnimatedDestination(services, navigator, uiRoute, Modifier.fillMaxSize()) }
                         }
                         // The undo snackbar sits in the page's own area, above the mini player and the bar.
                         if (!sheetState.isExpanded) com.greenaltambe.vela.ui.look.UndoSnackbarHost(com.greenaltambe.vela.ui.look.LocalUndoToasts.current, Modifier.align(Alignment.BottomCenter).padding(Spacing.sm))
@@ -381,13 +409,15 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
                     else if (chrome && rail) Spacer(Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)))
                 }
             }
+            }
             // Persistent video player sheet (seamless GPU-interpolated morphing between collapsed and expanded)
             com.greenaltambe.vela.ui.player.PlayerSheet(
                 services = services,
                 navigator = navigator,
                 sheetState = sheetState,
                 miniSlot = miniSlot,
-                modifier = Modifier.fillMaxSize(),
+                // The open video page starts under the desktop top bar, which stays on screen.
+                modifier = Modifier.fillMaxSize().then(if (chrome && desktopBar) Modifier.padding(top = com.greenaltambe.vela.ui.components.DesktopTopBarHeight) else Modifier),
             )
             // With the video page open it covers the page area, so the toast is drawn above it (it was hidden underneath).
             if (sheetState.isExpanded) com.greenaltambe.vela.ui.look.UndoSnackbarHost(

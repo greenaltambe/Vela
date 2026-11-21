@@ -66,3 +66,9 @@ __pycache__/
 /tmp/
 screens-out/
 node_modules/
+
+# Flatpak staging (made by packaging/flatpak/stage.sh)
+packaging/flatpak/stage/
+packaging/flatpak/.flatpak-builder/
+packaging/flatpak/build-dir/
+packaging/flatpak/repo/

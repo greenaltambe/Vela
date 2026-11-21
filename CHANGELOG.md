@@ -5,6 +5,25 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [0.5.0-beta.1]
+
+### Added
+- Linux: a Flatpak bundle (`Vela-<version>-linux-x86_64.flatpak`) in every release.
+- Desktop: every tab has its own player, like a browser; tabs show what is open in them, and a tab keeps its pages (no refetch) when you come back.
+- Desktop: a top bar on every page (menu, Vela logo to Home, search, notifications, profile), a rebuilt side bar, and a Classic (YouTube-like) colour scheme.
+- Desktop: real full screen for videos, Ctrl+R to refresh any page, "/" to search, number keys 0-9 and Home/End to jump in a video, round scroll arrows on every horizontal list.
+- Tell YouTube what I watch (Settings > Privacy, off by default): adds what you watch to your YouTube history. Not yet tried against a real account.
+- Social links in video descriptions with icons, and selectable description text.
+
+### Changed
+- Sakura and the other pink colour schemes are softer. Creator-styled captions (a chat shown at the side) are placed on the right, as YouTube does.
+- Horizontal lists no longer take the vertical scroll away from the page.
+- Choosing Home or a channel that is already open under the video page now minimises the video.
+
+### Fixed
+- Keyboard shortcuts keep working after the player's controls fade away.
+- A black strip at the bottom of a window restored as maximised.
+
 ## [0.4.0-beta.1]
 
 ### Added
@@ -135,7 +154,8 @@ First public beta. Android is the primary platform, Linux is supported, Windows 
 ### Packaging
 - Android APK (arm64-v8a), Linux .deb, .rpm and portable tarball, Windows .msi and portable zip (experimental).
 
-[Unreleased]: https://github.com/greenaltambe/Vela/compare/v0.4.0-beta.1...HEAD
+[Unreleased]: https://github.com/greenaltambe/Vela/compare/v0.5.0-beta.1...HEAD
+[0.5.0-beta.1]: https://github.com/greenaltambe/Vela/compare/v0.4.0-beta.1...v0.5.0-beta.1
 [0.4.0-beta.1]: https://github.com/greenaltambe/Vela/compare/v0.3.0-beta.1...v0.4.0-beta.1
 [0.3.0-beta.1]: https://github.com/greenaltambe/Vela/compare/v0.2.0-beta.1...v0.3.0-beta.1
 [0.2.0-beta.1]: https://github.com/greenaltambe/Vela/compare/v0.1.1-beta.3...v0.2.0-beta.1

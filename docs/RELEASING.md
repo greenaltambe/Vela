@@ -8,11 +8,11 @@ Maintainers only. The workflows never push, tag or publish by themselves: a tag 
 2. Bump `version.properties` (`VERSION_NAME=0.1.0-beta.2`). Check `./gradlew -p buildSrc test` still passes (it proves the Android version codes increase).
 3. Update `CHANGELOG.md`: move the `[Unreleased]` entries under a new `## [0.1.0-beta.2]` heading (the workflow takes the release notes from that section and fails without it); update the compare links at the bottom.
 4. If dependencies changed: `./gradlew generateThirdPartyNotices` and commit the result.
-5. Commit, then **dry run**: Actions > `release` > Run workflow (workflow_dispatch) on `main`. It builds the APK, the Linux packages and the Windows packages, runs the smoke tests and uploads the artifacts; it creates no release.
+5. Commit, then **dry run**: Actions > `release` > Run workflow (workflow_dispatch) on `main`. It builds the APK, the Linux packages, the Flatpak bundle and the Windows packages, runs the smoke tests and uploads the artifacts; it creates no release.
    Download the artifacts and try them (install the APK, run `bin/vela --smoke-test`, start the Windows build on a real machine).
 6. Tag and push: `git tag v0.1.0-beta.2 && git push origin v0.1.0-beta.2`. The tag must equal `v` + `VERSION_NAME`, or the workflow stops at its first job.
 7. The `publish` job creates a **published** release (pre-release when the tag has a stage) with all files, `SHA256SUMS`, and build provenance attestations (marked pre-release when the tag contains `-alpha`, `-beta` or `-rc`).
-8. Check the release: file names (`Vela-<version>-android-arm64.apk`, `...-linux-amd64.deb`, `...-linux-x86_64.rpm`, `...-linux-x64.tar.gz`, `...-windows-x64.msi`, `...-windows-x64.zip`), that the APK is **signed** (not `-unsigned`), and the checksums
+8. Check the release: file names (`Vela-<version>-android-arm64.apk`, `...-linux-amd64.deb`, `...-linux-x86_64.rpm`, `...-linux-x64.tar.gz`, `...-linux-x86_64.flatpak`, `...-windows-x64.msi`, `...-windows-x64.zip`), that the APK is **signed** (not `-unsigned`), and the checksums
    (`sha256sum -c SHA256SUMS`). `gh attestation verify <file> --repo <owner>/<repo>` verifies provenance. Then publish the release.
 9. **Rollback**: do not delete users' ability to update. If a release is bad, mark it pre-release or delete the *release* (not the tag history of signed builds you want to keep), publish a fixed version with a higher `VERSION_NAME`
    (Android refuses downgrades, so a fix is always a new, higher version), and note it in the changelog.

@@ -140,6 +140,8 @@ object Vtt {
         return lines
     }
 
+    private const val RIGHT_COLUMN_LEFT = 0.71f
+
     private fun placement(settings: String): CuePlacement? {
         if (settings.isBlank()) return null
         val map = settings.trim().split(Regex("\\s+")).mapNotNull { s -> s.substringBefore(':', "").takeIf { it.isNotEmpty() && ':' in s }?.let { it to s.substringAfter(':') } }.toMap()
@@ -149,6 +151,10 @@ object Vtt {
         // Only a cue the creator really placed counts: a line (top of the picture) or a box narrower than the picture. YouTube writes `align:start position:0%`
         // on every automatic caption (measured on 43 files, 2026-11); that is not a placement, and those captions stay centred at the bottom.
         if (line == null && (size == null || size >= 0.99f)) return null
+        // A box that runs to the right edge (position + size = 100%) is YouTube's right-hand chat column. Measured on a stream whose chat is the captions (2026-11-21):
+        // the WebVTT says `size:72..81% position:28..19%`, varying with the chat, but the same track's own data (srv3) puts the window at a fixed 71% from the left,
+        // and the YouTube player shows a narrow column at the right. The WebVTT numbers read literally gave a wide box off to the left of centre.
+        if (line != null && position != null && size != null && align == CueAlign.START && position + size >= 0.97f) return CuePlacement(line, RIGHT_COLUMN_LEFT, 0.29f, CueAlign.START)
         return CuePlacement(line, position, size, align)
     }
 

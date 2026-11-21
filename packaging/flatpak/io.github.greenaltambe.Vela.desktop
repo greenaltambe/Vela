@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Vela
+GenericName=YouTube client
+Comment=A YouTube client that keeps working: several sources for every video, your data on your device.
+Exec=vela-flatpak %U
+Icon=io.github.greenaltambe.Vela
+Terminal=false
+Type=Application
+Categories=AudioVideo;Video;
+StartupNotify=true
+StartupWMClass=Vela

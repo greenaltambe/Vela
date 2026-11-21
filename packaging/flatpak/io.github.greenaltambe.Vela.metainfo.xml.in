@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.greenaltambe.Vela</id>
+  <name>Vela</name>
+  <summary>A YouTube client that keeps working</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <developer id="io.github.greenaltambe"><name>Vela contributors</name></developer>
+  <description>
+    <p>Vela plays YouTube with several sources for every video, so it keeps working when one of them breaks. Your subscriptions, history and settings stay on your device.</p>
+    <p>It has per-tab players, SponsorBlock, Return YouTube Dislike, DeArrow, downloads, and sign-in with a YouTube account (optional).</p>
+  </description>
+  <launchable type="desktop-id">io.github.greenaltambe.Vela.desktop</launchable>
+  <url type="homepage">https://github.com/greenaltambe/Vela</url>
+  <url type="bugtracker">https://github.com/greenaltambe/Vela/issues</url>
+  <content_rating type="oars-1.1"/>
+  <provides><binary>vela-flatpak</binary></provides>
+  <releases>
+    <release version="@VERSION@" date="@DATE@"/>
+  </releases>
+</component>

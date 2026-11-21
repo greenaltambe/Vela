@@ -80,6 +80,8 @@ class ChannelStore(private val max: Int = 6) {
         return e
     }
 
+    fun clear() = entries.clear()
+
     companion object { const val MAX_AGE_MS = 30 * 60 * 1000L }
 }
 

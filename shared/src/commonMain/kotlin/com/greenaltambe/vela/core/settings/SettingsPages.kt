@@ -35,7 +35,7 @@ object SettingsPages {
         SettingsPage("shorts", "Shorts", SettingsGroup.YOUR_FEED, 5, owns = keys("feed.shortsMode", "feed.shortsDailyLimit")),
         SettingsPage("accounts", "Accounts", SettingsGroup.ACCOUNT_AND_SAFETY, 6, SettingsLink.ACCOUNTS),
         SettingsPage("safety", "Account safety", SettingsGroup.ACCOUNT_AND_SAFETY, 7) { it.key.startsWith("account.") || it.key in safetyKeys },
-        SettingsPage("privacy", "Privacy", SettingsGroup.ACCOUNT_AND_SAFETY, 8, owns = keys("history.localOnly", "history.accountSync")),
+        SettingsPage("privacy", "Privacy", SettingsGroup.ACCOUNT_AND_SAFETY, 8, owns = keys("account.reportActivity", "history.accountSync")),
         SettingsPage("downloads", "Downloads", SettingsGroup.OFFLINE, 9) { it.key.startsWith("downloads.") && it.key !in storageKeys && !it.key.startsWith("downloads.auto.") },
         SettingsPage("auto", "Automatic downloads", SettingsGroup.OFFLINE, 10, SettingsLink.DOWNLOAD_RULES, owns = prefix("downloads.auto.")),
         SettingsPage("storage", "Storage", SettingsGroup.OFFLINE, 11, owns = { it.key in storageKeys }),
@@ -118,7 +118,7 @@ object SettingsSummaries {
         "shorts" -> s.label(Settings.shortsMode)
         "accounts" -> "Sign in, switch, add"
         "safety" -> "Account ${s.label(Settings.accountFallbackMode).lowercase()} · age-restricted ${onOff(s.v(Settings.allowAgeRestricted))}${if (s.v(Settings.accountKillSwitch)) " · PAUSED" else ""}"
-        "privacy" -> (if (s.v(Settings.localOnlyHistory)) "History stays on this device" else "History is kept on this device") + " · account history: ${s.label(Settings.historyAccountSync).lowercase()}"
+        "privacy" -> (if (s.v(Settings.accountReportActivity)) "Tells YouTube what you watch" else "What you watch stays on this device") + " · account history: ${s.label(Settings.historyAccountSync).lowercase()}"
         "downloads" -> "${s.label(Settings.downloadsDefaultQuality)}${if (s.v(Settings.downloadsWifiOnly)) " · Wi-Fi only" else ""} · ${num(s.v(Settings.downloadsConcurrent))} at once"
         "auto" -> "Rules for new videos"
         "blocklist" -> "Hide channels and words everywhere"

@@ -34,7 +34,7 @@ youtube
 
     @Test fun placementIsReadFromTheCueSettings() {
         val c = Vtt.parse(chat).first()
-        assertEquals(CuePlacement(line = 0f, position = 0.25f, size = 0.75f, align = CueAlign.START), c.placement)
+        assertEquals(CuePlacement(line = 0f, position = 0.71f, size = 0.29f, align = CueAlign.START), c.placement, "a box running to the right edge is the right-hand column (YouTube shows it at 71%)")
     }
 
     @Test fun userNamesKeepTheirColoursAndMessagesKeepTheirLines() {

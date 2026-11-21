@@ -299,7 +299,7 @@ private fun TranscriptPage(captions: List<CaptionTrack>, positionMs: Long, onSee
             Text("Transcript", Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold, maxLines = 1)
             PlayerIconButton(onClose, halo = MaterialTheme.colorScheme.onSurface) { Icon(AppIcons.close, "Close", tint = MaterialTheme.colorScheme.onSurface) }
         }
-        if (captions.size > 1) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = Spacing.gutter, vertical = Spacing.xs), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        if (captions.size > 1) com.greenaltambe.vela.ui.components.HScrollableRow(Modifier.padding(horizontal = Spacing.gutter, vertical = Spacing.xs), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             captions.forEach { c ->
                 val on = c == chosen
                 Text(

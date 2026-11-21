@@ -20,6 +20,7 @@
 | Linux app image | `./gradlew :desktopApp:createDistributable` -> `desktopApp/build/compose/binaries/main/app/vela` |
 | Linux .deb and .rpm (with runtime dependencies) | `./gradlew :desktopApp:packageLinux` -> `desktopApp/build/linux-packages/` |
 | Portable archive | `:desktopApp:portableTarball` (Linux) / `:desktopApp:portableZip` (Windows) -> `desktopApp/build/portable/` |
+| Flatpak (CI does this; needs `flatpak-builder` and the Freedesktop 24.08 runtime and SDK) | on Ubuntu 24.04 `packaging/flatpak/bundle-libs.sh out`, then `packaging/flatpak/stage.sh <version> desktopApp/build/portable/Vela-<version>-linux-x64.tar.gz out`, then `flatpak-builder --user --install --force-clean build-dir packaging/flatpak/io.github.greenaltambe.Vela.yml` |
 | Windows .msi | `./gradlew :desktopApp:packageMsi` (on Windows, with WiX) |
 | Licence notices | `./gradlew generateThirdPartyNotices` (rewrite) / `checkThirdPartyNotices` (verify) |
 | Live tests (network, real tools, never in CI) | `./gradlew :extractor-newpipe:liveTest :extractor-ytdlp:liveTest` and other modules' `liveTest` |

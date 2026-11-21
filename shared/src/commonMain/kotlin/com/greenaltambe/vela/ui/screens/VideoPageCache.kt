@@ -17,6 +17,8 @@ class VideoPageCache(private val max: Int = 8) {
 
     fun get(videoId: String, now: Instant): Entry? = entries[videoId]?.takeIf { (now - it.savedAt).inWholeMilliseconds < MAX_AGE_MS }
 
+    fun clear() = entries.clear()
+
     fun put(videoId: String, entry: Entry) {
         entries.remove(videoId)
         entries[videoId] = entry

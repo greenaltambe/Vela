@@ -1,6 +1,12 @@
 package com.greenaltambe.vela.ui.nav
 
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.background
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -78,4 +84,32 @@ fun MiniPlayerSlotSpacer(slot: MiniSlot, modifier: Modifier = Modifier) {
     Spacer(
         modifier.fillMaxWidth().height(MiniPlayerHeight).onGloballyPositioned { c -> val p = c.positionInWindow(); slot.left = p.x; slot.top = p.y; slot.width = c.size.width.toFloat() },
     )
+}
+
+/**
+ * The desktop's side bar, laid out like a website's: expanded, one row per page (icon and name, 44 dp tall); folded, a narrow strip with the
+ * name under each icon. The menu button that folds it is in the top bar. Evenly spaced, starting right under the top bar.
+ */
+@Composable
+fun DesktopSideBar(entries: List<NavEntry>, selected: NavTab?, collapsed: Boolean, onSelect: (NavTab) -> Unit, modifier: Modifier = Modifier) {
+    val cs = androidx.compose.material3.MaterialTheme.colorScheme
+    androidx.compose.foundation.layout.Column(
+        modifier.testTag(ComponentIds.SIDE_RAIL).fillMaxHeight().width(if (collapsed) 76.dp else 232.dp).padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(2.dp),
+    ) {
+        entries.forEach { e ->
+            val isSelected = e.tab == selected
+            val tint = if (isSelected) cs.onSecondaryContainer else cs.onSurface
+            val shape = androidx.compose.material3.MaterialTheme.shapes.medium
+            val base = Modifier.fillMaxWidth().clip(shape).background(if (isSelected) cs.secondaryContainer else androidx.compose.ui.graphics.Color.Transparent)
+                .selectable(isSelected, role = androidx.compose.ui.semantics.Role.Tab, onClick = { onSelect(e.tab) }).testTag("rail.tab.${e.tab.name}")
+            if (collapsed) androidx.compose.foundation.layout.Column(base.padding(vertical = 10.dp), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally, verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp)) {
+                Icon(e.icon(isSelected), null, tint = tint)
+                Text(e.label, style = androidx.compose.material3.MaterialTheme.typography.labelSmall, color = tint, maxLines = 1, overflow = TextOverflow.Clip, modifier = Modifier.testTag("nav.label"))
+            } else androidx.compose.foundation.layout.Row(base.height(44.dp).padding(horizontal = 12.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(20.dp)) {
+                Icon(e.icon(isSelected), null, tint = tint)
+                Text(e.label, style = androidx.compose.material3.MaterialTheme.typography.bodyLarge, color = tint, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("nav.label"))
+            }
+        }
+    }
 }

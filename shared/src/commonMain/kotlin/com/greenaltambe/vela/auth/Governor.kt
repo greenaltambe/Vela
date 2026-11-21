@@ -14,7 +14,8 @@ import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 
 /** What an authenticated request is for; each kind has its own budget. */
-enum class CallKind { PLAYBACK, BROWSE, WRITE, SESSION_CHECK }
+/** [REPORT]: the pings that tell YouTube what is being watched (see the activity reporter); a budget of their own so they never use up the writes. */
+enum class CallKind { PLAYBACK, BROWSE, WRITE, SESSION_CHECK, REPORT }
 
 /** Why the breaker opens. [observed] marks what this project has actually seen from the services (see docs/reports/14-reliability.md). */
 enum class BlockSignal(val label: String, val observed: Boolean) {
@@ -44,6 +45,7 @@ data class GovernorLimits(
     val playbackPerHour: Int = 20,
     val browsePerMinute: Int = 6,
     val writesPerHour: Int = 10,
+    val reportsPerHour: Int = 600,
     val killSwitch: Boolean = false,
     val minSpacingMs: Long = 1500,
 )
@@ -178,6 +180,7 @@ class AccountGovernor(
         val (window, cap) = when (kind) {
             CallKind.PLAYBACK -> 1.hours to l.playbackPerHour
             CallKind.WRITE -> 1.hours to l.writesPerHour
+            CallKind.REPORT -> 1.hours to l.reportsPerHour
             CallKind.BROWSE, CallKind.SESSION_CHECK -> 1.minutes to l.browsePerMinute
         }
         val kinds = if (kind == CallKind.BROWSE || kind == CallKind.SESSION_CHECK) setOf(CallKind.BROWSE, CallKind.SESSION_CHECK) else setOf(kind)

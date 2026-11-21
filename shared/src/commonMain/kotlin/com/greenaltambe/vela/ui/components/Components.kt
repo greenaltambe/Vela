@@ -377,7 +377,7 @@ fun VelaTopBar(
         actions = {
             actions()
             if (onSearch != null) {
-                if (com.greenaltambe.vela.ui.platform.LocalVolumeSlider.current) TopBarSearchField(onSearch, Modifier.padding(end = Spacing.sm))
+                if (com.greenaltambe.vela.ui.platform.LocalVolumeSlider.current) TopBarSearchField(onSearch, Modifier.width(360.dp).padding(end = Spacing.sm))
                 else IconButton(onClick = onSearch, modifier = Modifier.testTag("nav.search")) { Icon(AppIcons.search, "Search") }
             }
             if (onNotifications != null) IconButton(onClick = onNotifications, modifier = Modifier.testTag("nav.notifications")) {
@@ -467,10 +467,50 @@ fun LinkButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier
 private fun TopBarSearchField(onOpen: () -> Unit, modifier: Modifier = Modifier) {
     val cs = MaterialTheme.colorScheme
     Row(
-        modifier.width(360.dp).height(40.dp).clip(CircleShape).background(cs.surfaceContainerHigh).clickable(onClickLabel = "Search", onClick = onOpen).padding(start = Spacing.md, end = Spacing.sm).testTag("nav.searchBar"),
+        modifier.height(40.dp).clip(CircleShape).background(cs.surfaceContainerHigh).clickable(onClickLabel = "Search", onClick = onOpen).padding(start = Spacing.md, end = Spacing.sm).testTag("nav.searchBar"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text("Search", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = cs.onSurfaceVariant, maxLines = 1)
         Icon(AppIcons.search, "Search")
+    }
+}
+
+
+/** The height of the desktop top bar (the video page and the other overlays start below it). */
+val DesktopTopBarHeight = 56.dp
+
+/**
+ * The desktop's top bar, on every page like a website's: the menu button (folds the side bar), the app's mark and name (to the Home page), the
+ * search pill in the middle (opens the search page, which is where the suggestions and recent searches are), the bell and the profile.
+ */
+@Composable
+fun DesktopTopBar(
+    onToggleSideBar: () -> Unit, onHome: () -> Unit, onBack: (() -> Unit)?, showSearch: Boolean, onSearch: () -> Unit,
+    unread: Boolean, onNotifications: () -> Unit, profile: @Composable () -> Unit, modifier: Modifier = Modifier,
+) {
+    val cs = MaterialTheme.colorScheme
+    // Three places in one box (weights left gaps when the pill is capped): the menu and mark at the left edge, the pill in the middle of the bar, the bell and profile at the right edge.
+    Box(modifier.fillMaxWidth().height(DesktopTopBarHeight).background(cs.background).padding(horizontal = Spacing.sm).testTag("topbar")) {
+        Row(Modifier.align(Alignment.CenterStart), verticalAlignment = Alignment.CenterVertically) {
+            if (onBack != null) IconButton(onClick = onBack, modifier = Modifier.testTag("nav.back")) { Icon(AppIcons.back, "Back") }
+            IconButton(onClick = onToggleSideBar, modifier = Modifier.testTag("rail.toggle")) { Icon(AppIcons.menu, "Show or hide the navigation") }
+            Row(
+                Modifier.clip(CircleShape).clickable(onClickLabel = "Home", onClick = onHome).padding(horizontal = Spacing.sm, vertical = Spacing.xs).testTag("topbar.logo"),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                com.greenaltambe.vela.ui.look.VelaMark(size = 30.dp)
+                Text("Vela", style = MaterialTheme.typography.titleLarge, maxLines = 1)
+            }
+        }
+        if (showSearch) TopBarSearchField(onSearch, Modifier.align(Alignment.Center).fillMaxWidth(0.42f).widthIn(min = 200.dp, max = 560.dp))
+        Row(Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onNotifications, modifier = Modifier.testTag("nav.notifications")) {
+                androidx.compose.material3.BadgedBox(badge = { if (unread) androidx.compose.material3.Badge(Modifier.testTag("nav.notifications.unread"), containerColor = com.greenaltambe.vela.ui.theme.LocalSeekColor.current ?: cs.error) }) {
+                    Icon(if (unread) AppIcons.notificationsFilled else AppIcons.notifications, if (unread) "Notifications, unread" else "Notifications")
+                }
+            }
+            Spacer(Modifier.width(Spacing.sm))
+            profile()
+        }
     }
 }

@@ -6,9 +6,9 @@ import com.greenaltambe.vela.player.PlaybackStatus
 import com.greenaltambe.vela.player.PlayerState
 import kotlin.math.abs
 
-enum class ShortcutAction { TogglePlay, SeekBack5, SeekForward5, SeekBack10, SeekForward10, ToggleFullscreen, ToggleMute, ToggleCaptions, VolumeUp, VolumeDown, SpeedDown, SpeedUp }
+enum class ShortcutAction { TogglePlay, SeekBack5, SeekForward5, SeekBack10, SeekForward10, ToggleFullscreen, ToggleMute, ToggleCaptions, VolumeUp, VolumeDown, SpeedDown, SpeedUp, SeekStart, SeekEnd }
 
-/** Desktop shortcuts: space and k (play / pause), arrows (5 s; with shift 10 s), j / l (10 s back / forward, as on YouTube), f, m, c (captions), up / down, < and >. Null for any other key. */
+/** Desktop shortcuts: space and k (play / pause), arrows (5 s; with shift 10 s), 0-9 (jump to that tenth of the video), Home / End, j / l (10 s back / forward, as on YouTube), f, m, c (captions), up / down, < and >. Null for any other key. */
 fun shortcutFor(key: Key, shift: Boolean): ShortcutAction? = when (key) {
     Key.Spacebar -> ShortcutAction.TogglePlay
     Key.DirectionLeft -> if (shift) ShortcutAction.SeekBack10 else ShortcutAction.SeekBack5
@@ -23,7 +23,21 @@ fun shortcutFor(key: Key, shift: Boolean): ShortcutAction? = when (key) {
     Key.DirectionDown -> ShortcutAction.VolumeDown
     Key.Comma -> ShortcutAction.SpeedDown
     Key.Period -> ShortcutAction.SpeedUp
+    Key.MoveHome -> ShortcutAction.SeekStart
+    Key.MoveEnd -> ShortcutAction.SeekEnd
     else -> null
+}
+
+/** 0 to 9 (also on the number pad) jump to that tenth of the video, as on YouTube: 0 is the start, 5 the middle, 9 nine tenths in. Null for any other key. */
+fun digitSeekTenth(key: Key): Int? = when (key) {
+    Key.Zero, Key.NumPad0 -> 0; Key.One, Key.NumPad1 -> 1; Key.Two, Key.NumPad2 -> 2; Key.Three, Key.NumPad3 -> 3; Key.Four, Key.NumPad4 -> 4
+    Key.Five, Key.NumPad5 -> 5; Key.Six, Key.NumPad6 -> 6; Key.Seven, Key.NumPad7 -> 7; Key.Eight, Key.NumPad8 -> 8; Key.Nine, Key.NumPad9 -> 9
+    else -> null
+}
+
+/** Seeks to [tenth] tenths of the video (nothing while the length is not known, as for a live stream). */
+fun seekToTenth(tenth: Int, session: PlaybackSession, player: PlayerState) {
+    if (player.durationMs > 0) session.seekTo(player.durationMs * tenth.coerceIn(0, 9) / 10)
 }
 
 val SpeedSteps = listOf(0.25f, 0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f)
@@ -48,6 +62,8 @@ fun applyShortcut(action: ShortcutAction, session: PlaybackSession, player: Play
         ShortcutAction.SeekForward5 -> seekBy(5_000)
         ShortcutAction.SeekBack10 -> seekBy(-10_000)
         ShortcutAction.SeekForward10 -> seekBy(10_000)
+        ShortcutAction.SeekStart -> session.seekTo(0)
+        ShortcutAction.SeekEnd -> if (player.durationMs > 0) session.seekTo(player.durationMs)
         ShortcutAction.ToggleFullscreen -> toggleFullscreen()
         ShortcutAction.ToggleMute -> session.toggleMute()
         // Off when a caption is showing; otherwise the first one the video has (nothing happens without captions).

@@ -19,6 +19,8 @@ class SearchStore(private val max: Int = 6) {
     /** The scroll memory of [query]'s list (made on first ask, so the page can hand it to the list before anything is stored). */
     fun scrollFor(query: String, now: Instant): ScrollMemory = entries.getOrPut(query) { Entry(com.greenaltambe.vela.extractor.videoPagedList(), now) }.scroll
 
+    fun clear() = entries.clear()
+
     fun put(query: String, videos: PagedList<VideoSummary>, now: Instant, refreshedAt: Boolean = false) {
         val e = entries.remove(query)?.also { it.videos = videos; if (refreshedAt) it.at = now } ?: Entry(videos, now)
         entries[query] = e

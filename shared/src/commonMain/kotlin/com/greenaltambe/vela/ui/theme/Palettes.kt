@@ -31,14 +31,15 @@ object Palettes {
     private fun c(v: Long) = Color(v)
 
     private fun spec(p: ColorPalette): Spec = when (p) {
+        // Soft, cute pinks (blossom, not hot pink): the primary is a muted rose, the containers are pale petals, the dark theme's containers a dusty mauve.
         ColorPalette.SAKURA -> Spec(
-            tint = c(0xFFFF7FB0),
-            lPrimary = c(0xFFC4145E), lPrimaryContainer = c(0xFFFFD9E6), lOnPrimaryContainer = c(0xFF3E001C),
-            lSecondary = c(0xFF8B4A62), lSecondaryContainer = c(0xFFFFE1EC), lOnSecondaryContainer = c(0xFF30101F),
-            lTertiary = c(0xFF7A5AB8), lTertiaryContainer = c(0xFFEADDFF), lOnTertiaryContainer = c(0xFF21005E),
-            dPrimary = c(0xFFFFA6CB), dOnPrimary = c(0xFF5E0A33), dPrimaryContainer = c(0xFFA8285F), dOnPrimaryContainer = c(0xFFFFD9E6),
-            dSecondary = c(0xFFF0B8D0), dOnSecondary = c(0xFF4A2036), dSecondaryContainer = c(0xFF6E3A52), dOnSecondaryContainer = c(0xFFFFD9E6),
-            dTertiary = c(0xFFCDB8FF), dOnTertiary = c(0xFF35128A), dTertiaryContainer = c(0xFF4E3A85), dOnTertiaryContainer = c(0xFFEADDFF),
+            tint = c(0xFFFFA3C6),
+            lPrimary = c(0xFFB9467A), lPrimaryContainer = c(0xFFFFE0EC), lOnPrimaryContainer = c(0xFF4A1230),
+            lSecondary = c(0xFF93596F), lSecondaryContainer = c(0xFFFFE8F0), lOnSecondaryContainer = c(0xFF35182A),
+            lTertiary = c(0xFF7F65B0), lTertiaryContainer = c(0xFFF0E4FF), lOnTertiaryContainer = c(0xFF2A1260),
+            dPrimary = c(0xFFFFB4D2), dOnPrimary = c(0xFF5A1B3A), dPrimaryContainer = c(0xFF8C4B6B), dOnPrimaryContainer = c(0xFFFFE0EC),
+            dSecondary = c(0xFFF3C4D8), dOnSecondary = c(0xFF4A2A3C), dSecondaryContainer = c(0xFF6E4A5C), dOnSecondaryContainer = c(0xFFFFE0EC),
+            dTertiary = c(0xFFD6C4FF), dOnTertiary = c(0xFF35206F), dTertiaryContainer = c(0xFF574682), dOnTertiaryContainer = c(0xFFF0E4FF),
         )
         ColorPalette.OCEAN -> Spec(
             tint = c(0xFF3D8FE8),
@@ -62,10 +63,10 @@ object Palettes {
             tint = c(0xFF8A6CF0),
             lPrimary = c(0xFF6847D6), lPrimaryContainer = c(0xFFE6DEFF), lOnPrimaryContainer = c(0xFF1D0066),
             lSecondary = c(0xFF625B71), lSecondaryContainer = c(0xFFE8DEF8), lOnSecondaryContainer = c(0xFF1D192B),
-            lTertiary = c(0xFF8A4A68), lTertiaryContainer = c(0xFFFFD8EB), lOnTertiaryContainer = c(0xFF3A0B26),
+            lTertiary = c(0xFF9A5878), lTertiaryContainer = c(0xFFFFE0EF), lOnTertiaryContainer = c(0xFF3A0B26),
             dPrimary = c(0xFFC9B8FF), dOnPrimary = c(0xFF2D0F85), dPrimaryContainer = c(0xFF4B2DB0), dOnPrimaryContainer = c(0xFFE6DEFF),
             dSecondary = c(0xFFCCC2DC), dOnSecondary = c(0xFF332D41), dSecondaryContainer = c(0xFF4A4458), dOnSecondaryContainer = c(0xFFE8DEF8),
-            dTertiary = c(0xFFF0B6D3), dOnTertiary = c(0xFF4A2538), dTertiaryContainer = c(0xFF633B4E), dOnTertiaryContainer = c(0xFFFFD8EB),
+            dTertiary = c(0xFFF0B6D3), dOnTertiary = c(0xFF4A2538), dTertiaryContainer = c(0xFF6B4558), dOnTertiaryContainer = c(0xFFFFE0EF),
         )
         ColorPalette.SUNSET -> Spec(
             tint = c(0xFFFF8A3D),

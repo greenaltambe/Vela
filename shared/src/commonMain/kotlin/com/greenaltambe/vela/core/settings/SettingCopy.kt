@@ -33,7 +33,7 @@ object SettingCopy {
         "playback.allowControversial" to Copy("Allow videos behind a content warning", "Off by default. The alternate client then answers YouTube's viewer-discretion prompt."),
         "ytdlp.path" to Copy("yt-dlp location", "Leave empty to use the bundled or managed copy."),
         "ytdlp.autoUpdate" to Copy("Update yt-dlp", "Keep the app's own copy of yt-dlp up to date."),
-        "history.localOnly" to Copy("Keep watch history on this device", "Stops Vela sending what you watch to your account. Reading your account's history is a separate setting and still works."),
+        "account.reportActivity" to Copy("Tell YouTube what I watch", "Off by default. When on, Vela tells your YouTube account what you watch, like the official app, so it shows in your YouTube history and shapes recommendations. Needs a signed-in account. Vela keeps its own history on this device either way."),
         "history.accountSync" to Copy("Read my YouTube history", "Bring what you watched on other devices into Vela's History and use it for hiding watched videos."),
         "feed.hideWatched" to Copy("Hide watched videos", "Leave videos you have already watched out of lists."),
         "feed.hideMembersOnly" to Copy("Hide members-only videos", "Leave out videos only a channel's paying members can watch. When off, they show a \"Members only\" badge."),

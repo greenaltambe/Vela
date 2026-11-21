@@ -106,8 +106,7 @@ fun AccountOnboardingDialog(services: AppServices, onDismiss: () -> Unit, onAcce
                 Text("Remove everything: Accounts > Remove, or Sign out everywhere. Both delete the stored cookies from this device.", style = MaterialTheme.typography.bodyMedium)
                 Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(understandsTerms, { understandsTerms = it }, modifier = Modifier.testTag("onboarding.terms")); Text("I understand the risk to this account") }
                 Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(throwaway, { throwaway = it }, modifier = Modifier.testTag("onboarding.throwaway")); Text("This is a throwaway account, or I accept the risk for it") }
-                // Reporting what you watch to the account is NOT implemented (it needs tracking URLs that only an own signed-in player call yields), so there is no switch: nothing here may promise it.
-                Text("Not available: what you watch stays on this device; Vela never adds to your YouTube history.", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("onboarding.noReporting"))
+                Text("Off by default: Vela does not tell YouTube what you watch. You can turn that on in Settings > Privacy; it then adds what you watch to your YouTube history, like the official app.", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("onboarding.noReporting"))
             }
         },
         confirmButton = {

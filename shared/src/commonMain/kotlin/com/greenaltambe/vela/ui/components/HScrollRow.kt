@@ -39,6 +39,9 @@ import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.unit.dp
 import com.greenaltambe.vela.ui.platform.LocalVolumeSlider
 import kotlinx.coroutines.launch
@@ -85,8 +88,11 @@ fun HScrollRow(
         )
         if (desktop) {
             fun page(forward: Boolean) = scope.launch { state.animateScrollBy((if (forward) 1 else -1) * state.layoutInfo.viewportSize.width * 0.8f) }
-            if (state.canScrollBackward) RowArrow(AppIcons.chevronLeft, "Scroll left", Modifier.align(Alignment.CenterStart)) { page(false) }
-            if (state.canScrollForward) RowArrow(AppIcons.chevronRight, "Scroll right", Modifier.align(Alignment.CenterEnd)) { page(true) }
+            // A row that bleeds to the window's edges has its ends outside the page: the arrows sit inside the padding the row keeps there.
+            val ltr = androidx.compose.ui.unit.LayoutDirection.Ltr
+            val startInset = contentPadding.calculateStartPadding(ltr); val endInset = contentPadding.calculateEndPadding(ltr)
+            if (state.canScrollBackward) RowArrow(AppIcons.chevronLeft, "Scroll left", Modifier.align(Alignment.CenterStart).padding(start = startInset)) { page(false) }
+            if (state.canScrollForward) RowArrow(AppIcons.chevronRight, "Scroll right", Modifier.align(Alignment.CenterEnd).padding(end = endInset)) { page(true) }
         }
     }
 }
@@ -249,7 +255,7 @@ fun HScrollableRow(
 
 @Composable
 fun RowArrow(icon: androidx.compose.ui.graphics.vector.ImageVector, description: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Box(modifier.padding(horizontal = Spacing.xs).size(36.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.92f)).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+    Box(modifier.padding(horizontal = Spacing.xs).size(40.dp).shadow(3.dp, CircleShape).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainerHigh).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
         Icon(icon, description, tint = MaterialTheme.colorScheme.onSurface)
     }
 }

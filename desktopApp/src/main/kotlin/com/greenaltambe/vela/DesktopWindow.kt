@@ -66,6 +66,8 @@ fun DesktopWindow(
         onCloseRequest = { if (workspace.closeWindow(model)) onNoWindowsLeft() },
         state = state, title = title, icon = icon,
         onPreviewKeyEvent = { e -> handleKey(e, model, workspace, onNoWindowsLeft) },
+        // Keys that reached the window without a focused element taking them (the player's controls fade out with the button that had the focus): the page's shortcuts still apply.
+        onKeyEvent = { e -> model.selected.navigator.keyHandler?.invoke(e) ?: false },
     ) {
         remember(window) { window.iconImages = iconImages; model.awt = window }
         // A window opened already maximized keeps its content at the size it was created with (a black strip along the bottom on GNOME) until

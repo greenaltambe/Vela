@@ -79,6 +79,15 @@ class PlaybackRuntime private constructor(context: Context) {
     val profiles by lazy { com.greenaltambe.vela.innertube.InnertubeAccountProfiles(accounts, governors, profileStore) }
     val sync by lazy { InnertubeAccountSync(accounts, governors, database, profiles = profileStore) }
     val reads by lazy { com.greenaltambe.vela.innertube.InnertubeAccountReads(accounts, governors, profiles = profileStore) }
+    /** Tells the signed-in account what is watched (Settings > Privacy, off by default). */
+    val activity by lazy {
+        com.greenaltambe.vela.innertube.InnertubeAccountActivity(
+            accounts, governors,
+            enabled = { settings.resolve(com.greenaltambe.vela.core.settings.Settings.accountReportActivity) },
+            note = { line -> log.record(com.greenaltambe.vela.extractor.chain.TierAttempt("activity report", com.greenaltambe.vela.extractor.chain.TierId.AUTHENTICATED, com.greenaltambe.vela.extractor.chain.AttemptOutcome.NOTE, null, line, kotlin.time.Duration.ZERO, kotlin.time.Clock.System.now())) },
+            profiles = profileStore,
+        )
+    }
     val actions by lazy { com.greenaltambe.vela.innertube.InnertubeAccountActions(accounts, governors, profiles = profileStore) }
     private fun pausedReason(): String? = accounts.active.value.takeIf { it.isSignedIn }
         ?.let { governors.forAccount(it.id).cooldownUntil() }?.let { "account cooling down until ${it.toString().substring(11, 16)} UTC" }
@@ -217,7 +226,7 @@ class PlaybackRuntime private constructor(context: Context) {
     val session: PlaybackSession by lazy {
         PlaybackSession(
             com.greenaltambe.vela.extractor.CaptchaAwareExtractor(com.greenaltambe.vela.extractor.TimeoutExtractor(chain), captcha), controller, settings, SqlDelightWatchHistoryRepository(database), scope,
-            network = network, constraints = { deviceConstraints(appContext) }, addons = listOf(modules.sponsorBlock),
+            network = network, constraints = { deviceConstraints(appContext) }, addons = listOf(modules.sponsorBlock, com.greenaltambe.vela.player.ActivityAddon(activity)),
             accountId = { accounts.active.value.id },
         )
     }

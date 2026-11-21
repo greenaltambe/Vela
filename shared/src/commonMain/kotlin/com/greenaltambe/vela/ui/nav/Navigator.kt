@@ -83,6 +83,14 @@ class Navigator(start: Route = Route.Home) {
     val exploreStore = com.greenaltambe.vela.ui.screens.ExploreStore()
     val channelStore = com.greenaltambe.vela.ui.screens.ChannelStore()
     val searchStore = com.greenaltambe.vela.ui.screens.SearchStore()
+
+    /** The shell's keyboard shortcuts. The desktop window hands it the keys nothing in the page took (focus can be nowhere: the player's controls fade away with the control that had it). */
+    var keyHandler: ((androidx.compose.ui.input.key.KeyEvent) -> Boolean)? = null
+
+    /** Bumped by Ctrl+R on a page that has no refresh of its own: the page is built again and refetches (see [refreshPage]). */
+    var pageRefresh by mutableIntStateOf(0)
+        private set
+    fun refreshPage() { videoPageCache.clear(); searchStore.clear(); channelStore.clear(); pageRefresh++ }
     var playerSheetState: com.greenaltambe.vela.ui.player.PlayerSheetState? = null
         set(value) {
             field = value
@@ -187,12 +195,14 @@ class Navigator(start: Route = Route.Home) {
             openInSheet(route.video, route.startSeconds)
             return
         }
-        if (route == current) return
+        // The page asked for is already the one underneath: opening it means closing the video page that covers it (not a second copy of the page).
         playerSheetState?.let { sheet ->
             if (sheet.isExpanded || sheet.progress > 0.5f) {
                 sheet.collapse()
             }
         }
+        val c = current
+        if (route == c || (route is Route.Channel && c is Route.Channel && route.id.isNotBlank() && route.id == c.id)) return
         lastAction = NavAction.PUSH
         stack.add(route)
     }
@@ -203,12 +213,14 @@ class Navigator(start: Route = Route.Home) {
 
     /** Switches tab: the stack becomes just that destination. Choosing the tab you are on is a request to go back to its top. */
     fun selectTab(route: Route) {
-        if (stack.size == 1 && current == route) { tabReselected++; return }
+        // The video page covers the page: choosing the page that is already open underneath only minimises the video (no scroll to top then).
+        var minimised = false
         playerSheetState?.let { sheet ->
             if (sheet.isExpanded || sheet.progress > 0.5f) {
-                sheet.collapse()
+                sheet.collapse(); minimised = true
             }
         }
+        if (stack.size == 1 && current == route) { if (!minimised) tabReselected++; return }
         lastAction = NavAction.TAB
         stack.clear()
         stack.add(route)

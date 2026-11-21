@@ -147,6 +147,13 @@ fun main(args: Array<String>) {
     // SIGTERM / logout: Java leaves child processes running, so yt-dlp and ffmpeg are stopped here.
     Runtime.getRuntime().addShutdownHook(Thread({ com.greenaltambe.vela.platform.ChildProcesses.destroyAll() }, "vela-children"))
 
+    // Tells the signed-in account what is watched (Settings > Privacy, off by default); each tab's player feeds it through an ActivityAddon.
+    val activity = com.greenaltambe.vela.innertube.InnertubeAccountActivity(
+        accounts, governors,
+        enabled = { settings.resolve(com.greenaltambe.vela.core.settings.Settings.accountReportActivity) },
+        note = { line -> log.record(com.greenaltambe.vela.extractor.chain.TierAttempt("activity report", com.greenaltambe.vela.extractor.chain.TierId.AUTHENTICATED, com.greenaltambe.vela.extractor.chain.AttemptOutcome.NOTE, null, line, kotlin.time.Duration.ZERO, kotlin.time.Clock.System.now())) },
+        profiles = profileStore,
+    )
     application {
         // Every tab has its own player (a libmpv instance made the first time the tab plays something; see TabPlayer). Without libmpv the app still runs
         // and a banner says so. The library is probed once here for that banner; tabs then create their own instances.
@@ -158,7 +165,7 @@ fun main(args: Array<String>) {
                 val first = tabsMade++ == 0 // only the first tab keeps the "restore the last video" snapshot
                 com.greenaltambe.vela.ui.nav.TabPlayer(
                     create = { register ->
-                        DesktopPlaybackRuntime.create(chain, settings, SqlDelightWatchHistoryRepository(database), listOf(sponsorBlock), accountId = { accounts.active.value.id })
+                        DesktopPlaybackRuntime.create(chain, settings, SqlDelightWatchHistoryRepository(database), listOf(sponsorBlock, com.greenaltambe.vela.player.ActivityAddon(activity)), accountId = { accounts.active.value.id })
                             .onFailure { System.err.println("Vela: no video playback: ${it.message}") }
                             .getOrNull()?.let { rt -> register(rt); DesktopPlayerHost(rt) }
                     },
