@@ -141,8 +141,18 @@ class MpvPlayerController(
                 return@submit
             }
             applyHeaders(load)
-            client.command(*load.loadfileArgs())
+            loadfile(load)
             // `speed` survives loadfile, `pause` is per file via the option above.
+        }
+    }
+
+    /** mpv older than 0.38 rejects the index argument ("invalid parameter"): the first refusal is retried without it, and that form is kept once it worked. */
+    private var legacyLoadfile = false
+
+    private fun loadfile(load: MpvLoad) {
+        if (legacyLoadfile) return client.command(*load.loadfileArgs(legacy = true))
+        try { client.command(*load.loadfileArgs()) } catch (first: Exception) {
+            try { client.command(*load.loadfileArgs(legacy = true)); legacyLoadfile = true } catch (_: Exception) { throw first }
         }
     }
 

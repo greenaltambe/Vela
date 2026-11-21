@@ -28,9 +28,14 @@ data class MpvLoad(
     val userAgent: String?,
     val mediaTitle: String?,
 ) {
-    /** The `loadfile <url> replace -1 <options>` argument list. */
-    fun loadfileArgs(): Array<String> =
-        arrayOf("loadfile", url, "replace", "-1", fileOptions.entries.joinToString(",") { (k, v) -> "$k=${escapeOptionValue(v)}" })
+    /**
+     * The `loadfile <url> replace -1 <options>` argument list. mpv before 0.38 (Ubuntu 24.04's 0.37, which the Flatpak bundles) has no index argument:
+     * there the options come third, so [legacy] leaves the `-1` out.
+     */
+    fun loadfileArgs(legacy: Boolean = false): Array<String> {
+        val options = fileOptions.entries.joinToString(",") { (k, v) -> "$k=${escapeOptionValue(v)}" }
+        return if (legacy) arrayOf("loadfile", url, "replace", options) else arrayOf("loadfile", url, "replace", "-1", options)
+    }
 }
 
 /** mpv's `%N%value` form: N is the value's length in bytes, so commas and equals signs inside need no escaping. */

@@ -70,6 +70,7 @@ class MpvOptionsTest {
         assertEquals("%2%é", escapeOptionValue("é")) // two bytes in UTF-8
         val load = MpvLoad("u", linkedMapOf("audio-file" to "http://x/a?b=1,2", "pause" to "no"), emptyList(), null, null)
         assertEquals(listOf("loadfile", "u", "replace", "-1", "audio-file=%16%http://x/a?b=1,2,pause=%2%no"), load.loadfileArgs().toList())
+        assertEquals(listOf("loadfile", "u", "replace", "audio-file=%16%http://x/a?b=1,2,pause=%2%no"), load.loadfileArgs(legacy = true).toList(), "mpv before 0.38 has no index argument")
     }
 
     @Test
