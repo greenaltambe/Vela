@@ -14,8 +14,8 @@ import com.greenaltambe.vela.core.settings.ColorPalette
  * Every text/background pair is checked to 4.5:1 by `PaletteContrastTest`. The raw colour values live in this file and in [RedColorSchemes] only.
  */
 object Palettes {
-    fun light(p: ColorPalette): ColorScheme = when (p) { ColorPalette.VELA_RED -> RedColorSchemes.Light; else -> spec(p).let { lightScheme(it) } }
-    fun dark(p: ColorPalette): ColorScheme = when (p) { ColorPalette.VELA_RED -> RedColorSchemes.Dark; else -> spec(p).let { darkScheme(it) } }
+    fun light(p: ColorPalette): ColorScheme = when (p) { ColorPalette.VELA_RED -> RedColorSchemes.Light; ColorPalette.CLASSIC -> ClassicColorSchemes.Light; else -> spec(p).let { lightScheme(it) } }
+    fun dark(p: ColorPalette): ColorScheme = when (p) { ColorPalette.VELA_RED -> RedColorSchemes.Dark; ColorPalette.CLASSIC -> ClassicColorSchemes.Dark; else -> spec(p).let { darkScheme(it) } }
 
     /** One palette: accent roles for light then dark, and the tint the neutrals take. */
     private class Spec(
@@ -76,7 +76,7 @@ object Palettes {
             dSecondary = c(0xFFE5BFAE), dOnSecondary = c(0xFF442A1E), dSecondaryContainer = c(0xFF5D4033), dOnSecondaryContainer = c(0xFFFFDBC6),
             dTertiary = c(0xFFD8CA62), dOnTertiary = c(0xFF363100), dTertiaryContainer = c(0xFF504600), dOnTertiaryContainer = c(0xFFF4E67A),
         )
-        ColorPalette.VELA_RED -> error("Vela red is RedColorSchemes")
+        ColorPalette.VELA_RED, ColorPalette.CLASSIC -> error("${p.name} has its own scheme object")
     }
 
     private val white = c(0xFFFFFFFF)

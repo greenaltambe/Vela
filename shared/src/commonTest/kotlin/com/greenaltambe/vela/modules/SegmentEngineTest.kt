@@ -125,6 +125,17 @@ class SegmentEngineTest {
         assertEquals(null, (e.onPosition(70_000).single() as SegmentEffect.Prompt).segment)
     }
 
+    @Test fun highlightIsOfferedAtTheStartOfTheVideoToo() {
+        val e = engine(seg("h", "poi_highlight", 300_000, 300_000, type = "poi"))
+        assertEquals("h", (e.onPosition(0).single() as SegmentEffect.Prompt).segment?.uuid)
+        assertTrue(e.onPosition(9_000).isEmpty(), "still the same prompt")
+        assertEquals(null, (e.onPosition(11_000).single() as SegmentEffect.Prompt).segment)
+        // Accepted: not offered again.
+        val f = engine(seg("h", "poi_highlight", 300_000, 300_000, type = "poi"))
+        f.onPosition(0); f.markHandled(listOf("h"))
+        assertTrue(f.onPosition(2_000).none { it is SegmentEffect.Prompt && it.segment != null })
+    }
+
     @Test fun skipLandingTogetherWithAMuteSegmentEvaluatesTheLandingPoint() {
         val e = engine(seg("s", "sponsor", 10_000, 20_000), seg("m", "music_offtopic", 20_000, 25_000))
         val effects = e.onPosition(10_500)

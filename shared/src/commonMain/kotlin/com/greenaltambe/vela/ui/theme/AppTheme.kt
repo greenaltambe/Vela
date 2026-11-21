@@ -23,8 +23,13 @@ import com.greenaltambe.vela.core.settings.ThemeMode
 fun AppTheme(settings: SettingsResolver, source: AppearanceSource = DefaultAppearanceSource, content: @Composable () -> Unit) {
     val revision by settings.revision.collectAsState()
     val appearance = remember(revision, source) { source.resolve(settings) }
-    AppTheme(appearance, isSystemInDarkTheme(), content)
+    // A platform that has its own way to ask the desktop (Linux, where Compose reports light whatever the system says) provides it.
+    val platformDark = LocalSystemDark.current
+    AppTheme(appearance, platformDark ?: isSystemInDarkTheme(), content)
 }
+
+/** The system's dark/light answer when the platform knows better than Compose's own check; null means "ask Compose". Provided by the desktop app. */
+val LocalSystemDark = androidx.compose.runtime.staticCompositionLocalOf<Boolean?> { null }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -33,7 +38,7 @@ fun AppTheme(appearance: Appearance, systemDark: Boolean, content: @Composable (
     val colors = appearance.colors(dark)
     // Compose Desktop does not enforce Material's 48 dp minimum for touch (Android does): it is the rule on both.
     CompositionLocalProvider(
-        LocalExtraColors provides appearance.extras, LocalProgressStyle provides appearance.progress, LocalMotion provides appearance.motion, LocalIconSet provides appearance.icons,
+        LocalExtraColors provides appearance.extras, LocalProgressStyle provides appearance.progress, LocalSeekColor provides (if (appearance.palette == com.greenaltambe.vela.core.settings.ColorPalette.CLASSIC) ClassicColorSchemes.SeekRed else null), LocalMotion provides appearance.motion, LocalIconSet provides appearance.icons,
         LocalMinimumInteractiveComponentSize provides Spacing.minTouch,
     ) {
         MaterialExpressiveTheme(colorScheme = colors, motionScheme = MotionScheme.expressive(), shapes = appearance.shapes, typography = appearance.typography) {

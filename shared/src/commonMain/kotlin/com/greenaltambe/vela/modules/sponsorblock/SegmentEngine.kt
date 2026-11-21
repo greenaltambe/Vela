@@ -19,6 +19,7 @@ sealed interface SegmentEffect {
  * - **Seeks into segments** are handled like playing into one: any position inside an unhandled SKIP segment skips.
  * - **Overlap and chains.** Overlapping or touching skip segments are skipped as one jump to the furthest end.
  * - **Minimum duration.** Segments shorter than [minDurationMs] are ignored (highlight points are exempt: they have no length).
+ * - **Highlight at the start.** A highlight point is also offered during the first [openingWindowMs] of the video, when it lies ahead.
  * - **Prompt** stays offered for as long as the position is inside the segment, or is at/before a highlight point
  *   within [pointWindowMs].
  */
@@ -26,6 +27,8 @@ class SegmentEngine(
     private val actionFor: (SegmentCategory) -> SegmentAction,
     private val minDurationMs: Long = 0,
     private val pointWindowMs: Long = 5_000,
+    /** How long from the start of the video a highlight's "Jump to highlight" button is offered. */
+    private val openingWindowMs: Long = 10_000,
 ) {
     private var segments: List<Segment> = emptyList()
     private val handled = HashSet<String>()
@@ -78,7 +81,8 @@ class SegmentEngine(
 
         val prompt = segments.firstOrNull { s ->
             s.uuid !in handled && actionOf(s) == SegmentAction.PROMPT &&
-                if (s.isPoint) positionMs >= s.startMs - pointWindowMs && positionMs <= s.startMs + pointWindowMs
+                // A highlight is offered at the very start of the video (where a viewer decides to go straight to it) and again around the point itself.
+                if (s.isPoint) (positionMs >= s.startMs - pointWindowMs && positionMs <= s.startMs + pointWindowMs) || (positionMs <= openingWindowMs && positionMs < s.startMs)
                 else positionMs >= s.startMs && positionMs < s.endMs
         }
         if (prompt?.uuid != prompted) { prompted = prompt?.uuid; effects += SegmentEffect.Prompt(prompt) }

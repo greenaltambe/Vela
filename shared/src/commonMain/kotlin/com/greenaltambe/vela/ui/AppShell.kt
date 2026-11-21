@@ -119,15 +119,14 @@ import com.greenaltambe.vela.ui.screens.VideoScreen
  * themselves, so no screen below needs to think about insets.
  */
 @Composable
-fun AppShell(services: AppServices, navigator: Navigator = remember { Navigator() }, startupAnimation: Boolean = false) {
-    val homeFeed = remember { com.greenaltambe.vela.ui.screens.HomeFeedStore() }
+fun AppShell(services: AppServices, navigator: Navigator = remember { Navigator() }, startupAnimation: Boolean = false, homeFeed: com.greenaltambe.vela.ui.screens.HomeFeedStore = remember { com.greenaltambe.vela.ui.screens.HomeFeedStore() }, onSplashDone: () -> Unit = {}) {
     var splashDone by remember { androidx.compose.runtime.mutableStateOf(!startupAnimation) }
     // Every settings change raises an undo toast from here, over whatever page is open.
     val toasts = remember { com.greenaltambe.vela.ui.look.UndoToasts() }
     com.greenaltambe.vela.ui.look.UndoHost(toasts, Modifier.fillMaxSize(), showHost = false) { androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
         AppShellContent(services, navigator, homeFeed)
         // The ship that sails while the first page loads: ready once Home has its videos (or Home is not the page the app opened on).
-        if (!splashDone) com.greenaltambe.vela.ui.look.StartupSplash(isReady = { homeFeed.loadedAt != null || navigator.current != Route.Home }, onFinished = { splashDone = true })
+        if (!splashDone) com.greenaltambe.vela.ui.look.StartupSplash(isReady = { homeFeed.loadedAt != null || navigator.current != Route.Home }, onFinished = { splashDone = true; onSplashDone() })
         val rev by services.settings.revision.collectAsState()
         val on = remember(rev) { services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.debugFrameStats) }
         // 90 Hz phones: 11.1 ms is the frame budget; the report prints through the platform log.
@@ -199,11 +198,29 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
 
     // The mini player survives the process being killed: remember what it shows, and bring it back (idle) on the next start.
     var restored by remember { androidx.compose.runtime.mutableStateOf(false) }
+    val shared = com.greenaltambe.vela.ui.nav.LocalSharedNowPlaying.current
     LaunchedEffect(Unit) {
+        if (shared != null && (shared.video != null || shared.restoreClaimed)) {
+            // Another tab or window of this run already owns the player (or already restored it): take over what it shows.
+            shared.video?.let { sheetState.adopt(it, expanded = navigator.current is Route.Video) }
+            restored = true
+            return@LaunchedEffect
+        }
+        shared?.restoreClaimed = true
         com.greenaltambe.vela.ui.nav.NowPlayingSnapshot.decodeAll(services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.restoreNowPlaying))?.let { (video, picks) ->
             navigator.restore(video); host?.session?.restoreOverrides(video.id, picks)
         }
         restored = true
+    }
+    // Desktop tabs and windows share one player: publish what this one shows, follow what another one published.
+    if (shared != null) {
+        LaunchedEffect(navigator.nowPlaying, restored) { if (restored) shared.video = navigator.nowPlaying }
+        LaunchedEffect(shared.video, restored) {
+            if (!restored) return@LaunchedEffect
+            val v = shared.video
+            if (v != null && (navigator.nowPlaying?.id != v.id || (navigator.current is Route.Video && sheetState.isCollapsed))) sheetState.adopt(v, expanded = navigator.current is Route.Video)
+            else if (v == null && navigator.nowPlaying != null) sheetState.dropIfNotPlaying()
+        }
     }
     val picks = host?.session?.overrides?.collectAsState()?.value
     LaunchedEffect(navigator.nowPlaying, restored, picks) {
@@ -231,6 +248,8 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
     // Shortcuts need the page to hold focus; a text field the user used earlier must not keep it after navigating.
     LaunchedEffect(route) { if (route !is Route.Search) runCatching { focus.requestFocus() } }
     var rootFocused by remember { mutableStateOf(true) }
+    // The page itself (not a text field or a button inside it) holds the focus: only then is "/" a shortcut, so typing a slash in a field is never taken.
+    var pageFocused by remember { mutableStateOf(true) }
     LaunchedEffect(rootFocused, route) { if (!rootFocused && route !is Route.Search) { kotlinx.coroutines.delay(60); runCatching { focus.requestFocus() } } }
 
     val shellScope = androidx.compose.runtime.rememberCoroutineScope()
@@ -241,6 +260,11 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
     val searchStore = remember { com.greenaltambe.vela.ui.screens.SearchStore() }
     val spaceHold = remember { SpaceHold() }
     val refreshHandle = remember { com.greenaltambe.vela.ui.components.RefreshHandle() }
+    // "/" opens the search page (as on YouTube's site), from anywhere but the search page itself.
+    val slashSearch: (androidx.compose.ui.input.key.KeyEvent) -> Boolean = { e ->
+        (e.type == KeyEventType.KeyDown && e.key == androidx.compose.ui.input.key.Key.Slash && !e.isCtrlPressed && !e.isAltPressed && !e.isMetaPressed && !e.isShiftPressed && route !is Route.Search)
+            .also { if (it) navigator.push(Route.Search()) }
+    }
     val onKey: (androidx.compose.ui.input.key.KeyEvent) -> Boolean = onKey@{ e ->
         // Space: a tap toggles play, holding it plays fast until it is released (the speed is a playback setting). X11 reports a held key as release+press pairs,
         // so a release only counts when no press follows within a moment.
@@ -280,13 +304,13 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             // When the focused control goes away (the player's buttons fade out after a click) nothing holds focus and the keys would stop: the page takes it back.
-            .onFocusChanged { rootFocused = it.hasFocus }
+            .onFocusChanged { rootFocused = it.hasFocus; pageFocused = it.isFocused }
             .focusRequester(focus)
             .focusable()
             // On the video page the keys are taken before a focused button can use them (Space would press the button the mouse last clicked). Elsewhere onKeyEvent
             // (not preview): a focused text field takes its own keys first, so typing never triggers a shortcut.
-            .onPreviewKeyEvent { if (route is Route.Video || sheetState.isExpanded) onKey(it) else false }
-            .onKeyEvent { onKey(it) },
+            .onPreviewKeyEvent { if (route is Route.Video || sheetState.isExpanded) (slashSearch(it) || onKey(it)) else false }
+            .onKeyEvent { (pageFocused && slashSearch(it)) || onKey(it) },
     ) {
         val revision by services.settings.revision.collectAsState()
         val nav = remember(revision) { NavConfig.of(services.settings) }
@@ -332,7 +356,7 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
                     if (chrome && uiRoute != Route.Shorts && uiRoute !is Route.ShortsPlayer && uiRoute !is Route.Video && uiRoute !is Route.Search && uiRoute != Route.Settings && uiRoute !is Route.Channel && uiRoute != Route.Accounts && uiRoute != Route.AccountActivity && uiRoute != Route.Health && uiRoute != Route.Backup && uiRoute != Route.DownloadRules && uiRoute != Route.Blocklist && uiRoute != Route.Customize && uiRoute != Route.Notifications && uiRoute != Route.History && uiRoute != Route.Downloads && uiRoute != Route.ManageSubscriptions && uiRoute !is Route.Playlist && uiRoute !is Route.CustomizePage && uiRoute !is Route.SettingsPage) {
                         VelaTopBar(
                             routeTitle(uiRoute), onBack = if (navigator.baseCanGoBack) ({ navigator.back() }) else null,
-                            onSearch = ({ navigator.push(Route.Search()) }),
+                            onSearch = ({ navigator.push(Route.Search()) }), onSearchSubmit = { q -> navigator.push(Route.Search(q)) },
                             onNotifications = ({ navigator.push(Route.Notifications) }), unread = notifUnread,
                             profile = { ProfileButton(services) { profileOpen = true } },
                         )
@@ -380,7 +404,7 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
     }
 }
 
-private fun routeTitle(route: Route): String = when (route) {
+fun routeTitle(route: Route): String = when (route) {
     Route.Home -> "Vela"
     Route.Shorts, is Route.ShortsPlayer -> "Shorts"
     is Route.ChannelPlaylist -> route.title.ifBlank { "Playlist" }

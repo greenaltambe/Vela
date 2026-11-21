@@ -2,7 +2,7 @@ package com.greenaltambe.vela.core.settings
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 /** The colour schemes on offer (Customize > Color scheme). The palettes themselves live in `ui/theme/Palettes.kt`. */
-enum class ColorPalette { VELA_RED, SAKURA, OCEAN, FOREST, TWILIGHT, SUNSET }
+enum class ColorPalette { VELA_RED, CLASSIC, SAKURA, OCEAN, FOREST, TWILIGHT, SUNSET }
 /** How the seek bar is drawn: a hairline or a bold track, each with or without a round marker, a ribbon (bold with a dot, thin silky ribbons lifting off the watched part), or a wave that moves up to the current position. */
 enum class ProgressStyle { EXPRESSIVE, HAIRLINE, HAIRLINE_DOT, BOLD, BOLD_DOT, RIBBON, WAVE }
 enum class NavTab { HOME, SHORTS, SUBSCRIPTIONS, LIBRARY, SEARCH, DOWNLOADS, EXPLORE }
@@ -30,7 +30,7 @@ object LookSettings {
 
     val colorScheme = pick(
         "look.colorScheme", ColorPalette.VELA_RED, ColorPalette.entries, "Color scheme",
-        mapOf(ColorPalette.VELA_RED to "Vela red", ColorPalette.SAKURA to "Sakura pink", ColorPalette.OCEAN to "Ocean", ColorPalette.FOREST to "Forest", ColorPalette.TWILIGHT to "Twilight", ColorPalette.SUNSET to "Sunset"),
+        mapOf(ColorPalette.VELA_RED to "Vela red", ColorPalette.CLASSIC to "Classic", ColorPalette.SAKURA to "Sakura pink", ColorPalette.OCEAN to "Ocean", ColorPalette.FOREST to "Forest", ColorPalette.TWILIGHT to "Twilight", ColorPalette.SUNSET to "Sunset"),
         listOf("color", "colour", "scheme", "palette", "accent", "pink", "red", "blue", "green", "purple", "orange", "cute", "theme"),
         "The accent and the tint of the surfaces, in both the light and the dark theme.",
     )

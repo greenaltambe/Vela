@@ -17,6 +17,7 @@ dependencies {
     implementation(project(":innertube-auth"))
 
     implementation(compose.desktop.currentOs)
+    implementation(libs.compose.material3)
     implementation(libs.kotlinx.coroutinesSwing)
     // MPRIS (media keys, GNOME/KDE media controls) over the session D-Bus.
     implementation("com.github.hypfvieh:dbus-java-core:5.1.1")

@@ -279,7 +279,7 @@ fun ChannelScreen(
         Box(Modifier.fillMaxSize().testTag("channel.pager"), contentAlignment = Alignment.TopCenter) {
             LazyColumn(
                 state = listState,
-                modifier = Modifier.widthIn(max = 900.dp).fillMaxSize().testTag("channel.list")
+                modifier = Modifier.widthIn(max = 1280.dp).fillMaxSize().testTag("channel.list")
                     .pointerInput(tabs.size, tabIndex) {
                         // A swipe sideways moves to the next / previous tab. Rows that scroll sideways (shelves) consume their own drags first.
                         var dx = 0f

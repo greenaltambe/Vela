@@ -32,7 +32,7 @@ fun VelaMark(modifier: Modifier = Modifier, size: Dp = 32.dp) {
     val jib = remember { PathParser().parsePathString(Mark.JIB).toPath() }
     val mast = remember { PathParser().parsePathString(Mark.MAST).toPath() }
     val wave = remember { PathParser().parsePathString(Mark.WAVE).toPath() }
-    val red = MaterialTheme.colorScheme.primary
+    val red = com.greenaltambe.vela.ui.theme.LocalSeekColor.current ?: MaterialTheme.colorScheme.primary // Classic: the logo is red like the seek bar
     val ink = MaterialTheme.colorScheme.onSurface
     Canvas(modifier.size(size)) {
         val k = this.size.minDimension / Mark.CROP

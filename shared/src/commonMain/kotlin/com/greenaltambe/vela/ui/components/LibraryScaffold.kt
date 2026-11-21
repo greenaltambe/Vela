@@ -107,7 +107,7 @@ fun LibraryScaffold(
         )
         Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
             LazyColumn(
-                Modifier.widthIn(max = 760.dp).fillMaxSize().testTag(listTag), state = state,
+                Modifier.widthIn(max = 1040.dp).fillMaxSize().testTag(listTag), state = state,
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(start = Spacing.gutter, end = Spacing.gutter, top = Spacing.sm, bottom = 96.dp),
                 verticalArrangement = Arrangement.spacedBy(Spacing.xs), content = content,
             )

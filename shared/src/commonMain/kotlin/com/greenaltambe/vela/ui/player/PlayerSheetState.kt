@@ -136,6 +136,24 @@ class PlayerSheetState(
         }
     }
 
+    /** A tab that comes to the front takes over what the shared player shows: the mini player of [video], no restart (the player already has it). */
+    fun adopt(video: VideoSummary, expanded: Boolean = false) {
+        if (currentVideo?.id != video.id) {
+            currentVideo = video
+            navigator.setNowPlayingDirect(video)
+        }
+        // A tab whose page stack is on the video page comes back with that page open, not shrunk to the mini player.
+        if (expanded && progress < 0.99f) scope.launch { slideAnimatable.snapTo(0f); animatable.snapTo(1f) }
+    }
+
+    /** The shared player's video was closed elsewhere: this page stack drops its mini player too. */
+    fun dropIfNotPlaying() {
+        if (currentVideo == null) return
+        currentVideo = null
+        startSeconds = null
+        navigator.clearNowPlaying()
+    }
+
     private var restoredId: String? = null
 
     /** True once for the video [restore] brought back after a restart: its page loads it paused, so the app never starts playing by itself. */

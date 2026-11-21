@@ -165,6 +165,8 @@ fun VideoScreen(
     modifier: Modifier = Modifier,
     /** The width the open page has, in pixels, when it is not the whole window (beside the desktop rail). Null: the window's width. */
     pageWidthPx: Float? = null,
+    /** The height the page has (the sheet's), when that is less than the window's. */
+    pageHeightPx: Float? = null,
 ) {
     val scope = rememberCoroutineScope()
     val host = services.player
@@ -719,7 +721,7 @@ fun VideoScreen(
         val bg = MaterialTheme.colorScheme.background
         // The page is laid out once at its open size (the sheet clips and moves it): the width the sheet will have, which beside a rail is less than the window.
         val winW = (pageWidthPx ?: containerSize.width.toFloat()).coerceAtLeast(100f)
-        val winH = containerSize.height.toFloat().coerceAtLeast(100f)
+        val winH = (pageHeightPx ?: containerSize.height.toFloat()).coerceAtLeast(100f)
 
         val fullWidthDp = with(density) { winW.toDp() }
         val fullHeightDp = with(density) { (winW * 9f / 16f).toDp() }
@@ -820,12 +822,16 @@ fun VideoScreen(
                 }
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     LazyColumn(Modifier.fillMaxSize().testTag("video.list"), state = detailsState, contentPadding = Spacing.contentPadding, verticalArrangement = gap) { details() }
-                    commentsPanel(Modifier.fillMaxSize())
-                    chaptersPanel(Modifier.fillMaxSize())
-                    descriptionPanel(Modifier.fillMaxSize())
                 }
             }
-            LazyColumn(Modifier.weight(1f).fillMaxSize().testTag("video.side"), state = sideState, contentPadding = Spacing.contentPadding, verticalArrangement = gap) { secondary() }
+            // The panels (comments, chapters, description) open over the related videos: the right column has the window's whole height, where the strip
+            // under the picture is short on a wide window.
+            Box(Modifier.weight(1f).fillMaxSize()) {
+                LazyColumn(Modifier.fillMaxSize().testTag("video.side"), state = sideState, contentPadding = Spacing.contentPadding, verticalArrangement = gap) { secondary() }
+                commentsPanel(Modifier.fillMaxSize())
+                chaptersPanel(Modifier.fillMaxSize())
+                descriptionPanel(Modifier.fillMaxSize())
+            }
         }
     }
 }

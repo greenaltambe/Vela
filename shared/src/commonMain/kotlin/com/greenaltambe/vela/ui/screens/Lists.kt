@@ -169,7 +169,7 @@ fun VideoCollection(
         val vertical = grid // a COMPACT feed uses vertical cards; list screens use horizontal rows
         Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
             LazyColumn(
-                Modifier.widthIn(max = if (vertical) Int.MAX_VALUE.dp else 900.dp).fillMaxSize().testTag(testTag),
+                Modifier.widthIn(max = if (vertical) Int.MAX_VALUE.dp else 1040.dp).fillMaxSize().testTag(testTag),
                 state = listState, contentPadding = padding, verticalArrangement = Arrangement.spacedBy(if (vertical) Spacing.lg else Spacing.md),
             ) {
                 header?.let { h -> item(key = "list-header", contentType = "header") { h() } }

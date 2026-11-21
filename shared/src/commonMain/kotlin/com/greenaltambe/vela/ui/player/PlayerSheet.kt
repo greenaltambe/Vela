@@ -37,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.layout.onSizeChanged
 import com.greenaltambe.vela.ui.components.LocalPlayerGestureLock
 import com.greenaltambe.vela.ui.components.PlayerGestureLock
 import androidx.compose.ui.Alignment
@@ -106,17 +107,20 @@ fun PlayerSheet(
 
     // Opening the mini player (swipe up or tap) while the phone is sideways goes straight to fullscreen: the cramped landscape page is never wanted there.
     val landscapeNow = androidx.compose.runtime.rememberUpdatedState(windowInfo.containerSize.width > windowInfo.containerSize.height)
+    val desktopWindow = com.greenaltambe.vela.ui.platform.LocalVolumeSlider.current // a desktop window is always wider than tall; that is not "phone turned sideways"
     val controlsNow = androidx.compose.runtime.rememberUpdatedState(windowControls)
     LaunchedEffect(sheetState) {
         var wasOpen = sheetState.progress > 0.5f
         androidx.compose.runtime.snapshotFlow { sheetState.progress }.collect { p ->
-            if (p > 0.99f && !wasOpen && landscapeNow.value && controlsNow.value?.isFullscreen == false) controlsNow.value?.toggleFullscreen()
+            if (p > 0.99f && !wasOpen && landscapeNow.value && controlsNow.value?.isFullscreen == false && !desktopWindow) controlsNow.value?.toggleFullscreen()
             if (p > 0.99f) wasOpen = true else if (p < 0.5f) wasOpen = false
         }
     }
 
-    val winW = windowInfo.containerSize.width.toFloat().coerceAtLeast(100f)
-    val winH = windowInfo.containerSize.height.toFloat().coerceAtLeast(100f)
+    // The area the sheet fills, not the window: on desktop a tab strip sits above the app, so the window is taller than the page.
+    var areaSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
+    val winW = (if (areaSize.width > 0) areaSize.width else windowInfo.containerSize.width).toFloat().coerceAtLeast(100f)
+    val winH = (if (areaSize.height > 0) areaSize.height else windowInfo.containerSize.height).toFloat().coerceAtLeast(100f)
     androidx.compose.runtime.SideEffect { sheetState.windowHeightPx = winH; sheetState.windowWidthPx = winW }
     val toasts = com.greenaltambe.vela.ui.look.LocalUndoToasts.current
     val haptics = rememberPlayerHaptics()
@@ -267,7 +271,7 @@ fun PlayerSheet(
     }
 
     // Outer Box: pure transparent wrapper with NO touch consumption
-    Box(modifier.fillMaxSize().onGloballyPositioned { rootTopPx = it.positionInWindow().y }) {
+    Box(modifier.fillMaxSize().onSizeChanged { areaSize = it }.onGloballyPositioned { rootTopPx = it.positionInWindow().y }) {
         // Morphing Sheet Box: exactly sized and positioned, only absorbs touches within its bounds
         Box(
             Modifier
@@ -297,6 +301,7 @@ fun PlayerSheet(
                     onExpand = { sheetState.expand() },
                     modifier = Modifier.fillMaxSize(),
                     pageWidthPx = expandedWNow(),
+                    pageHeightPx = winH,
                 )
             }
 

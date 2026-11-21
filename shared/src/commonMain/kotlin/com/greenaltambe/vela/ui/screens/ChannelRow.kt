@@ -55,7 +55,7 @@ fun ChannelRow(
         val textH = textP.maxOfOrNull { it.height } ?: 0
         val height = maxOf(avatarH, textH, actionsH)
         layout(maxW, height) {
-            avatarP.forEach { it.place(0, 0) }
+            avatarP.forEach { it.place(0, (height - avatarH) / 2) }
             textP.forEach { it.place(avatarW + gapPx, (height - textH) / 2) }
             actionsP.forEach { it.place(maxW - actionsW, (height - actionsH) / 2) }
         }

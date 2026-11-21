@@ -5,7 +5,11 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Window
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.rememberWindowState
 import com.greenaltambe.vela.ui.platform.LocalVolumeSlider
@@ -145,11 +149,11 @@ fun main(args: Array<String>) {
     application {
         // Created inside the application so the Swing main dispatcher the session scope uses is up. Without libmpv
         // the app still runs and the debug screen says there is no player.
-        val runtime = remember {
+        val runtimeResult = remember {
             DesktopPlaybackRuntime.create(chain, settings, SqlDelightWatchHistoryRepository(database), listOf(modules.sponsorBlock), accountId = { accounts.active.value.id })
                 .onFailure { System.err.println("Vela: no video playback: ${it.message}") }
-                .getOrNull()
         }
+        val runtime = runtimeResult.getOrNull()
         val host = remember(runtime) { runtime?.let(::DesktopPlayerHost) }
 
         // mpv is in-process: closing must stop it and release the audio device before the JVM exits. The hook covers
@@ -158,13 +162,18 @@ fun main(args: Array<String>) {
             runtime?.let { Runtime.getRuntime().addShutdownHook(Thread({ it.controller.release() }, "vela-mpv-shutdown")) }
         }
 
-        val windowState = rememberWindowState(size = DpSize(1100.dp, 800.dp))
-        val windowControls = remember(windowState) {
-            object : WindowControls {
-                override val isFullscreen: Boolean get() = windowState.placement == WindowPlacement.Fullscreen
-                override fun toggleFullscreen() {
-                    windowState.placement = if (isFullscreen) WindowPlacement.Floating else WindowPlacement.Fullscreen
-                }
+        // The window opens where and as large as it was left (maximized too); the first start, or a screen that is gone, uses the default size.
+        val geometry = remember { SavedGeometry.load(SqlDelightSettingsStore(database)) ?: SavedGeometry.Default }
+        val workspace = remember { Workspace(geometry.size(), geometry.position(), geometry.placement()) }
+        val geometryStore = remember { SqlDelightSettingsStore(database) }
+        // "System" theme: Compose Desktop reports light on Linux whatever the desktop says, so the desktop is asked itself (and again every few seconds).
+        var systemDark by remember { mutableStateOf<Boolean?>(null) }
+        LaunchedEffect(Unit) {
+            if (!SystemTheme.supported()) return@LaunchedEffect
+            while (true) {
+                val now = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { SystemTheme.isDark() }
+                if (now != null && now != systemDark) systemDark = now
+                kotlinx.coroutines.delay(3000)
             }
         }
         val services = remember(host) {
@@ -184,11 +193,12 @@ fun main(args: Array<String>) {
             }
         }
 
-        val navigator = remember { com.greenaltambe.vela.ui.nav.Navigator() }
+        val sharedNowPlaying = remember { com.greenaltambe.vela.ui.nav.SharedNowPlaying() }
         androidx.compose.runtime.LaunchedEffect(Unit) {
             for (link in links) {
-                if (link.isNotBlank()) navigator.openYoutubeLink(link)
-                java.awt.Frame.getFrames().firstOrNull { it.isVisible }?.let { f -> f.extendedState = f.extendedState and java.awt.Frame.ICONIFIED.inv(); f.toFront() }
+                // A link handed over by another launch of the app opens in a tab of its own, in the window used last.
+                if (link.isNotBlank()) workspace.focused?.let { w -> workspace.newTab(w).navigator.openYoutubeLink(link) }
+                workspace.focused?.awt?.let { f -> (f as? java.awt.Frame)?.let { fr -> fr.extendedState = fr.extendedState and java.awt.Frame.ICONIFIED.inv() }; f.toFront() }
             }
         }
         // Media keys and the desktop's media widgets (GNOME/KDE) through MPRIS on the session bus; absent without a bus or without a player.
@@ -199,9 +209,9 @@ fun main(args: Array<String>) {
                 com.greenaltambe.vela.mpris.MprisService.start(h.controllerState, sess.media, com.greenaltambe.vela.mpris.MprisCommands(
                     play = { sess.play() }, pause = { sess.pause() },
                     toggle = { if (h.controllerState.value.status == com.greenaltambe.vela.player.PlaybackStatus.PLAYING) sess.pause() else sess.play() },
-                    stop = { sess.stop(); navigator.clearNowPlaying() }, seekTo = { sess.seekTo(it) },
-                    next = { navigator.playNext() }, previous = { sess.seekTo(0) },
-                    raise = { java.awt.Frame.getFrames().firstOrNull { it.isVisible }?.toFront() }, quit = { exitApplication() },
+                    stop = { sess.stop(); sharedNowPlaying.video = null; workspace.activeNavigator()?.clearNowPlaying() }, seekTo = { sess.seekTo(it) },
+                    next = { workspace.activeNavigator()?.playNext() }, previous = { sess.seekTo(0) },
+                    raise = { workspace.focused?.awt?.toFront() }, quit = { exitApplication() },
                 ))
             }
             // Keeps the screen awake while a video plays (freedesktop ScreenSaver on the session bus; Linux only).
@@ -209,18 +219,14 @@ fun main(args: Array<String>) {
             onDispose { mpris?.close(); inhibitor?.close() }
         }
 
-        Window(
-            onCloseRequest = {
-                runtime?.close()
-                exitApplication()
-            },
-            state = windowState,
-            title = "Vela",
-            icon = velaWindowIcon,
-        ) {
-            // Every size goes to the window manager (_NET_WM_ICON), which picks the sharpest for the dock and the switcher.
-            remember(window) { window.iconImages = velaWindowImages }
-            CompositionLocalProvider(LocalWindowControls provides windowControls, LocalVolumeSlider provides true, com.greenaltambe.vela.ui.platform.LocalBlankPointer provides blankPointer) { App(services, navigator, startupAnimation = true) }
+        val playerNote: @Composable () -> Unit = { if (runtime == null) PlayerMissingBanner(runtimeResult.exceptionOrNull()?.message) }
+        CompositionLocalProvider(com.greenaltambe.vela.ui.nav.LocalSharedNowPlaying provides sharedNowPlaying) {
+            for (w in workspace.windows.toList()) androidx.compose.runtime.key(w.id) {
+                DesktopWindow(
+                    w, workspace, services, geometryStore, systemDark, playerNote, first = w.id == 1, icon = velaWindowIcon, iconImages = velaWindowImages, blankPointer = blankPointer,
+                    onNoWindowsLeft = { runtime?.close(); exitApplication() },
+                )
+            }
         }
     }
 }

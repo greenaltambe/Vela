@@ -49,7 +49,7 @@ fun SettingsScaffold(
         VelaTopBar(title, onBack = onBack, actions = actions, large = true, scrollBehavior = behavior)
         Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
             LazyColumn(
-                Modifier.widthIn(max = 720.dp).fillMaxSize().testTag(listTag), state = state, contentPadding = Spacing.contentPadding,
+                Modifier.widthIn(max = 1000.dp).fillMaxSize().testTag(listTag), state = state, contentPadding = Spacing.contentPadding,
                 verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap), content = content,
             )
         }

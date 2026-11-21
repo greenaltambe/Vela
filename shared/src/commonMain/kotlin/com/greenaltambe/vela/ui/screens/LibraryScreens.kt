@@ -92,9 +92,10 @@ fun LibraryScreen(services: AppServices, navigator: Navigator, modifier: Modifie
     val recent: List<WatchRecord> = rememberAsync(revision, keepWhileLoading = true, first = { emptyList<WatchRecord>() }, compute = { services.history.recent(60).distinctBy { it.videoId }.take(14) })
     val progress = rememberAsync(revision, keepWhileLoading = true, first = { emptyMap<String, Float>() }, compute = { services.history.progress() })
 
-    Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+    // The whole width, from the left (a capped, centred column left empty bands either side of it on a wide desktop window).
+    Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
         androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
-            androidx.compose.foundation.lazy.grid.GridCells.Adaptive(minSize = 156.dp), Modifier.widthIn(max = 900.dp).fillMaxSize().testTag("library.list"), contentPadding = Spacing.contentPadding,
+            androidx.compose.foundation.lazy.grid.GridCells.Adaptive(minSize = 156.dp), Modifier.fillMaxSize().testTag("library.list"), contentPadding = Spacing.contentPadding,
             horizontalArrangement = Arrangement.spacedBy(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
             item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {

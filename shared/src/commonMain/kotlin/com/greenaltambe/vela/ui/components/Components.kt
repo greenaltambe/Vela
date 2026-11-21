@@ -222,7 +222,7 @@ private fun Thumbnail(video: VideoSummary, url: String?, extras: CardExtras, mod
         )
         extras.watched?.takeIf { it > 0f }?.let { w ->
             Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(MaterialTheme.colorScheme.outline)) {
-                Box(Modifier.fillMaxWidth(w.coerceIn(0f, 1f)).fillMaxHeight().background(Accent.brush).testTag("card.watched"))
+                Box(Modifier.fillMaxWidth(w.coerceIn(0f, 1f)).fillMaxHeight().background(Accent.seekBrush).testTag("card.watched"))
             }
         }
     }
@@ -345,6 +345,8 @@ fun VelaTopBar(
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
     onSearch: (() -> Unit)? = null,
+    /** Desktop: with this, the search icon becomes a search bar in the top bar; Enter hands the text over. */
+    onSearchSubmit: ((String) -> Unit)? = null,
     /** The bell: opens the notifications page; [unread] puts a dot on it. */
     onNotifications: (() -> Unit)? = null,
     unread: Boolean = false,
@@ -376,9 +378,12 @@ fun VelaTopBar(
         },
         actions = {
             actions()
-            if (onSearch != null) IconButton(onClick = onSearch, modifier = Modifier.testTag("nav.search")) { Icon(AppIcons.search, "Search") }
+            if (onSearch != null) {
+                if (onSearchSubmit != null && com.greenaltambe.vela.ui.platform.LocalVolumeSlider.current) TopBarSearchField(onSearchSubmit, Modifier.padding(end = Spacing.sm))
+                else IconButton(onClick = onSearch, modifier = Modifier.testTag("nav.search")) { Icon(AppIcons.search, "Search") }
+            }
             if (onNotifications != null) IconButton(onClick = onNotifications, modifier = Modifier.testTag("nav.notifications")) {
-                androidx.compose.material3.BadgedBox(badge = { if (unread) androidx.compose.material3.Badge(Modifier.testTag("nav.notifications.unread")) }) {
+                androidx.compose.material3.BadgedBox(badge = { if (unread) androidx.compose.material3.Badge(Modifier.testTag("nav.notifications.unread"), containerColor = com.greenaltambe.vela.ui.theme.LocalSeekColor.current ?: MaterialTheme.colorScheme.error) }) {
                     Icon(if (unread) AppIcons.notificationsFilled else AppIcons.notifications, if (unread) "Notifications, unread" else "Notifications")
                 }
             }
@@ -453,4 +458,29 @@ fun ActionChip(
 @Composable
 fun LinkButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
     TextButton(onClick = onClick, modifier = modifier, enabled = enabled) { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+}
+
+
+/** The desktop top bar's search: a pill with the search icon; Enter (or the icon) searches and clears the field. */
+@Composable
+private fun TopBarSearchField(onSubmit: (String) -> Unit, modifier: Modifier = Modifier) {
+    var text by remember { mutableStateOf("") }
+    val go = { if (text.isNotBlank()) { onSubmit(text.trim()); text = "" } }
+    val cs = MaterialTheme.colorScheme
+    Row(
+        modifier.width(360.dp).height(40.dp).clip(CircleShape).background(cs.surfaceContainerHigh).padding(start = Spacing.md, end = 2.dp).testTag("nav.searchBar"),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+            if (text.isEmpty()) Text("Search", style = MaterialTheme.typography.bodyLarge, color = cs.onSurfaceVariant, maxLines = 1)
+            androidx.compose.foundation.text.BasicTextField(
+                text, { text = it }, Modifier.fillMaxWidth().testTag("nav.searchBar.field"), singleLine = true,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = cs.onSurface),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(cs.primary),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { go() }),
+            )
+        }
+        IconButton(onClick = { go() }, modifier = Modifier.size(36.dp).testTag("nav.searchBar.go")) { Icon(AppIcons.search, "Search") }
+    }
 }

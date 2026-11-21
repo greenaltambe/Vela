@@ -185,9 +185,16 @@ fun DescriptionPanel(
                         if (description.isNotBlank()) {
                             var expanded by remember { mutableStateOf(false) }
                             val linkColor = MaterialTheme.colorScheme.primary
-                            val text = remember(description, linkColor) { linkedText(description, linkColor) { seconds -> onSeek(seconds * 1000); onDismiss() } }
+                            val chip = MaterialTheme.colorScheme.surfaceContainerHighest; val chipText = MaterialTheme.colorScheme.onSurface
+                            // The raw description keeps each link's address (the plain text has dropped the ones with a name); social links become chips.
+                            val rawDescription = info?.description.orEmpty()
+                            val content = remember(rawDescription, linkColor, chip, chipText) { descriptionText(rawDescription, linkColor, chip, chipText) { seconds -> onSeek(seconds * 1000); onDismiss() } }
+                            val text = content.text
                             Column(Modifier.fillMaxWidth().reveal(n++).clip(MaterialTheme.shapes.extraLarge).background(MaterialTheme.colorScheme.surfaceContainerHigh).animateContentSize(VelaMotion.standard(motion)).padding(Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                                Text(text, style = MaterialTheme.typography.bodyLarge, maxLines = if (expanded) Int.MAX_VALUE else 8, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("video.description"))
+                                // Selectable: drag over a part of it to copy just that.
+                                androidx.compose.foundation.text.selection.SelectionContainer {
+                                    Text(text, inlineContent = content.inline, style = MaterialTheme.typography.bodyLarge, maxLines = if (expanded) Int.MAX_VALUE else 8, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("video.description"))
+                                }
                                 if (description.count { it == '\n' } > 6 || description.length > 380) {
                                     androidx.compose.material3.FilledTonalButton(
                                         onClick = { haptics.click(); expanded = !expanded }, shapes = androidx.compose.material3.ButtonDefaults.shapes(),

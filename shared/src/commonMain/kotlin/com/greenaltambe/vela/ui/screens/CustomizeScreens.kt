@@ -215,7 +215,8 @@ private fun ColorSchemePicker(s: SettingsResolver, revision: Int, toasts: UndoTo
     val dark = when (remember(revision) { s.resolve(LookSettings.theme) }) { ThemeMode.DARK -> true; ThemeMode.LIGHT -> false; ThemeMode.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme() }
     Column(Modifier.fillMaxWidth().padding(top = Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         Text("Color scheme", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(horizontal = Spacing.md))
-        androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(horizontal = Spacing.md), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        // HScrollRow: on desktop a plain LazyRow cannot be scrolled (the wheel only goes up and down); this one drags, follows the wheel and has arrows.
+        com.greenaltambe.vela.ui.components.HScrollRow(contentPadding = PaddingValues(horizontal = Spacing.md), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             items(ColorPalette.entries.toList(), key = { it.name }) { p ->
                 val c = if (dark) Palettes.dark(p) else Palettes.light(p)
                 val chosen = p == current

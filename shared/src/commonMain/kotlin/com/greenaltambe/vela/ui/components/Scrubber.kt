@@ -192,7 +192,7 @@ fun Scrubber(
 
     val wavePhase = rememberWavePhase(animate && (style == ProgressStyle.WAVE || style == ProgressStyle.RIBBON || style == ProgressStyle.EXPRESSIVE))
     val metrics = style.metrics()
-    val wake = Accent.colors
+    val wake = Accent.seekColors
     val surface = MaterialTheme.colorScheme.surfaceContainerLow
     val density = LocalDensity.current
     val thumbPx = with(density) { metrics.endInset.toPx() }

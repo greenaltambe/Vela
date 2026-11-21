@@ -52,8 +52,10 @@ private const val HULL = "M146,346L388,346C380,376 352,392 322,392L196,392C168,3
  */
 @Composable
 fun StartupSplash(isReady: () -> Boolean, onFinished: () -> Unit, modifier: Modifier = Modifier, maxMs: Long = 2_800, minDwellMs: Long = 800) {
-    val sea = MaterialTheme.colorScheme.primary
-    val foam = MaterialTheme.colorScheme.onPrimary
+    // Classic (neutral primary) keeps the red sea with white foam; every other scheme paints it in its own primary.
+    val brandRed = com.greenaltambe.vela.ui.theme.LocalSeekColor.current
+    val sea = brandRed ?: MaterialTheme.colorScheme.primary
+    val foam = if (brandRed != null) com.greenaltambe.vela.ui.theme.ExtraColors.onMedia else MaterialTheme.colorScheme.onPrimary
     val deepWater = ExtraColors.mediaBackground
     val sail = remember { PathParser().parsePathString(Mark.SAIL).toPath() }
     val jib = remember { PathParser().parsePathString(Mark.JIB).toPath() }
