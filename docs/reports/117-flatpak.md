@@ -43,3 +43,9 @@ Changed: `.github/workflows/release.yml` (jobs `flatpak-libs` and `flatpak`; `pu
 - Change: runtime and container moved to Freedesktop 25.08 (current; the image ships it ready, so there is nothing to update). `runtime-version: '25.08'`, image tag `freedesktop-25.08`.
 - Version: 0.5.0-beta.2 (the tag v0.5.0-beta.1 already exists on the remote and published no release, since `publish` waits for every job). CHANGELOG section renamed to match.
 - Unverified: whether 25.08 builds cleanly with the bundled libraries from Ubuntu 24.04 (glibc 2.39 vs the runtime's newer one is fine in that direction). Rerun and send the log if it fails.
+
+## 8. Follow-up: second CI run (tag v0.5.0-beta.2) failed the same way
+- The 25.08 container failed identically ("Invalid cross-device link" updating the runtime, then a flatpak-builder segfault), so it is the container, not the runtime's age: the action runs `flatpak-builder --install-deps-from=flathub`, which tries to update the runtime that sits in the image's layers, and that fails on the container's file system.
+- Change: the `flatpak` job no longer uses the container or the action. It runs on the Ubuntu runner: apt installs `flatpak`, `flatpak-builder` and `elfutils`, the user installation gets Platform and Sdk 25.08 from Flathub, then `flatpak-builder --user --disable-rofiles-fuse` and `flatpak build-bundle`. Also relaxed `kernel.apparmor_restrict_unprivileged_userns` (Ubuntu 24.04 blocks the user namespaces bubblewrap needs).
+- Unverified: still not run. Possible next problems: bubblewrap permissions on the runner, or a manifest error that only shows once the build really starts.
+- Lesson recorded for the release steps: run the workflow by hand (Run workflow) and look at the Flatpak job before pushing a tag; the tag only needs to exist for `publish`.

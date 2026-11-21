@@ -157,9 +157,6 @@ jobs:
     needs: [version, linux, flatpak-libs]
     runs-on: ubuntu-24.04
     timeout-minutes: 60
-    container:
-      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08
-      options: --privileged
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -170,16 +167,26 @@ jobs:
         with:
           name: flatpak-libs
           path: in/libs
+      # flatpak-builder runs on the runner itself, not in the flatpak-github-actions container: there, updating the runtime failed with "Invalid cross-device link".
+      - name: flatpak-builder and the Freedesktop runtime
+        run: |
+          set -euo pipefail
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends flatpak flatpak-builder elfutils
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true   # Ubuntu 24.04 limits the user namespaces bubblewrap needs
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user --noninteractive flathub org.freedesktop.Platform//25.08 org.freedesktop.Sdk//25.08
       - name: Stage the app image, libraries and metadata
         env:
           VERSION: ${{ needs.version.outputs.version }}
         run: packaging/flatpak/stage.sh "$VERSION" "in/linux/Vela-$VERSION-linux-x64.tar.gz" in/libs
-      - uses: flatpak/flatpak-github-actions/flatpak-builder@79327416609af08178ad73b352877e51450790b3 # v6.8
-        with:
-          bundle: Vela-${{ needs.version.outputs.version }}-linux-x86_64.flatpak
-          manifest-path: packaging/flatpak/io.github.greenaltambe.Vela.yml
-          upload-artifact: false
-          cache: false
+      - name: Build the bundle
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          flatpak-builder --user --force-clean --disable-rofiles-fuse --default-branch=master --repo=repo build-dir packaging/flatpak/io.github.greenaltambe.Vela.yml
+          flatpak build-bundle repo "Vela-$VERSION-linux-x86_64.flatpak" io.github.greenaltambe.Vela master --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo
+          ls -l Vela-*-linux-x86_64.flatpak
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: flatpak
