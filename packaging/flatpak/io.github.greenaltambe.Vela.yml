@@ -2,7 +2,7 @@
 # notify-send with their libraries, taken from Ubuntu 24.04 by bundle-libs.sh. Nothing is compiled here; `stage/` is made by stage.sh (see docs/BUILDING.md).
 app-id: io.github.greenaltambe.Vela
 runtime: org.freedesktop.Platform
-runtime-version: '24.08'
+runtime-version: '25.08'
 sdk: org.freedesktop.Sdk
 command: vela-flatpak
 finish-args:

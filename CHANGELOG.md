@@ -5,7 +5,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
-## [0.5.0-beta.1]
+## [0.5.0-beta.2]
 
 ### Added
 - Linux: a Flatpak bundle (`Vela-<version>-linux-x86_64.flatpak`) in every release.
@@ -154,8 +154,8 @@ First public beta. Android is the primary platform, Linux is supported, Windows 
 ### Packaging
 - Android APK (arm64-v8a), Linux .deb, .rpm and portable tarball, Windows .msi and portable zip (experimental).
 
-[Unreleased]: https://github.com/greenaltambe/Vela/compare/v0.5.0-beta.1...HEAD
-[0.5.0-beta.1]: https://github.com/greenaltambe/Vela/compare/v0.4.0-beta.1...v0.5.0-beta.1
+[Unreleased]: https://github.com/greenaltambe/Vela/compare/v0.5.0-beta.2...HEAD
+[0.5.0-beta.2]: https://github.com/greenaltambe/Vela/compare/v0.4.0-beta.1...v0.5.0-beta.2
 [0.4.0-beta.1]: https://github.com/greenaltambe/Vela/compare/v0.3.0-beta.1...v0.4.0-beta.1
 [0.3.0-beta.1]: https://github.com/greenaltambe/Vela/compare/v0.2.0-beta.1...v0.3.0-beta.1
 [0.2.0-beta.1]: https://github.com/greenaltambe/Vela/compare/v0.1.1-beta.3...v0.2.0-beta.1

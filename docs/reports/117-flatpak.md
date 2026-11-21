@@ -37,3 +37,9 @@ Changed: `.github/workflows/release.yml` (jobs `flatpak-libs` and `flatpak`; `pu
 2. Download the `flatpak` artifact, then `flatpak install --user ./Vela-0.5.0-beta.1-linux-x86_64.flatpak` (the runtime is fetched from Flathub), run `flatpak run io.github.greenaltambe.Vela`.
 3. In the app: play a video (libmpv found?), press the media keys, finish a download (Videos/Vela), check a notification and that the screen does not blank while playing.
 4. `flatpak run --command=sh io.github.greenaltambe.Vela -c 'vela-flatpak --smoke-test'` should print SMOKE OK.
+
+## 7. Follow-up: first CI run failed (tag v0.5.0-beta.1), fixed, version 0.5.0-beta.2
+- Failure: the `flatpak` job in the container `freedesktop-24.08` died while updating the runtime: "Invalid cross-device link", then a segfault of flatpak-builder. That runtime is end-of-life ("no longer receiving fixes"), so the container tried to update the preinstalled 24.08 and the update failed on the container's file system. The build never reached my manifest. The other jobs (Android, Linux, Windows, flatpak-libs) had passed.
+- Change: runtime and container moved to Freedesktop 25.08 (current; the image ships it ready, so there is nothing to update). `runtime-version: '25.08'`, image tag `freedesktop-25.08`.
+- Version: 0.5.0-beta.2 (the tag v0.5.0-beta.1 already exists on the remote and published no release, since `publish` waits for every job). CHANGELOG section renamed to match.
+- Unverified: whether 25.08 builds cleanly with the bundled libraries from Ubuntu 24.04 (glibc 2.39 vs the runtime's newer one is fine in that direction). Rerun and send the log if it fails.
