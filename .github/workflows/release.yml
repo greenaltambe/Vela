@@ -19,6 +19,10 @@ env:
   LIBMPV_URL: https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/20261021/mpv-dev-x86_64-20261021-git-e471496c56.7z
   LIBMPV_SHA256: efc719eff3dc5954b4a5efc800632808bcec01cc9034940dd14e5eb7fe9ea633
   LIBMPV_VERSION: "mpv-winbuild-cmake 20261021 (git e471496c56)"
+  # Windows ffmpeg (merges video and audio in downloads; not in the repository): gyan.dev "essentials" build, pinned and checksum verified. Update the three lines together.
+  FFMPEG_URL: https://github.com/GyanD/codexffmpeg/releases/download/9.1/ffmpeg-9.1-essentials_build.zip
+  FFMPEG_SHA256: b9bbbb3acece000cbeec994f856649354e52c773807841e78908374b24d658fd
+  FFMPEG_VERSION: "gyan.dev ffmpeg 9.1 essentials build"
 
 jobs:
   version:
@@ -214,6 +218,18 @@ jobs:
           if ($actual -ne $env:LIBMPV_SHA256) { throw "libmpv checksum mismatch: $actual" }
           7z x mpv-dev.7z libmpv-2.dll -odesktopApp/appResources/windows-x64
           Get-ChildItem desktopApp/appResources/windows-x64
+      - name: ffmpeg (pinned, checksum verified)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          Invoke-WebRequest -Uri $env:FFMPEG_URL -OutFile ffmpeg.zip
+          $actual = (Get-FileHash -Algorithm SHA256 ffmpeg.zip).Hash.ToLower()
+          if ($actual -ne $env:FFMPEG_SHA256) { throw "ffmpeg checksum mismatch: $actual" }
+          Expand-Archive ffmpeg.zip -DestinationPath ffmpeg-extract
+          $bin = Get-ChildItem ffmpeg-extract -Recurse -Filter ffmpeg.exe | Select-Object -First 1
+          Copy-Item $bin.FullName desktopApp/appResources/windows-x64/ffmpeg.exe
+          Copy-Item (Join-Path $bin.Directory.Parent.FullName "LICENSE") desktopApp/appResources/windows-x64/FFMPEG-LICENSE.txt
+          Get-ChildItem desktopApp/appResources/windows-x64
       - name: WiX (needed by jpackage for .msi)
         shell: pwsh
         run: |
@@ -235,6 +251,7 @@ jobs:
           if (Test-Path smoke.log) { Get-Content smoke.log }
           if ($p.ExitCode -ne 0) { throw "smoke test exit code $($p.ExitCode)" }
           if (-not (Select-String -Path smoke.log -Pattern "SMOKE OK" -Quiet)) { throw "no SMOKE OK line" }
+          if (-not (Select-String -Path smoke.log -Pattern "SMOKE ffmpeg: found" -Quiet)) { throw "bundled ffmpeg was not found by the app" }
       - name: Name the files
         shell: pwsh
         env:
@@ -245,6 +262,7 @@ jobs:
           $msi = Get-ChildItem desktopApp/build/compose/binaries/main/msi -Filter *.msi | Select-Object -First 1
           Copy-Item $msi.FullName "dist/Vela-$($env:VERSION)-windows-x64.msi"
           "libmpv: $env:LIBMPV_VERSION from $env:LIBMPV_URL (sha256 $env:LIBMPV_SHA256)" | Out-File dist/LIBMPV-SOURCE.txt
+          "ffmpeg: $env:FFMPEG_VERSION from $env:FFMPEG_URL (sha256 $env:FFMPEG_SHA256). GPLv3 build; source is available from https://www.gyan.dev/ffmpeg/builds/ and https://ffmpeg.org/" | Out-File -Append dist/LIBMPV-SOURCE.txt
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: windows

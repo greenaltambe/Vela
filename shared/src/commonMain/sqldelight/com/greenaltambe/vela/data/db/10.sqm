@@ -1,0 +1,7 @@
+-- 10 -> 11: videos the viewer removed from Continue watching.
+CREATE TABLE ContinueDismissed (
+    accountId TEXT NOT NULL,
+    videoId TEXT NOT NULL,
+    dismissedAt INTEGER NOT NULL,
+    PRIMARY KEY (accountId, videoId)
+);

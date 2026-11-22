@@ -181,8 +181,9 @@ fun HomeScreen(services: AppServices, navigator: Navigator, modifier: Modifier =
     // Videos saved without a title (opened from a link before this was fixed) are looked up once, then the shelf reads again.
     var healed by remember(accountId) { mutableStateOf(0) }
     LaunchedEffect(accountId) { healed = withContext(kotlinx.coroutines.Dispatchers.Default) { runCatching { services.healHistoryTitles() }.getOrDefault(0) } }
+    var continueTick by remember(accountId) { mutableStateOf(0) }
     val continueWatching = rememberAsync(
-        accountId, healed,
+        accountId, healed, continueTick,
         navigator.current,
         navigator.nowPlaying?.id,
         keepWhileLoading = true,
@@ -206,7 +207,7 @@ fun HomeScreen(services: AppServices, navigator: Navigator, modifier: Modifier =
     val injections = if (filtering) emptyList() else slots.filter { !feedPending || it.shelf == HomeShelf.CONTINUE }.map { slot ->
         Injection(slot.afterVideos, slot.shelf.name, "shelf-${slot.shelf.name}") {
             ShelfBlock(
-                slot.shelf, shelves[slot.shelf], shelfTick, { ensureShelf(slot.shelf) }, services, navigator, dismissed, lastOpened, continueWatching,
+                slot.shelf, shelves[slot.shelf], shelfTick, { ensureShelf(slot.shelf) }, services, navigator, dismissed, lastOpened, continueWatching, { continueTick++ },
                 subscribedAvatars, channelNames, extras, ::notInterested, ::hideChannel,
             )
         }
@@ -281,13 +282,13 @@ internal sealed interface ShelfUi {
 @Composable
 private fun ShelfBlock(
     shelf: HomeShelf, ui: ShelfUi?, tick: Int, ensure: () -> Unit, services: AppServices, navigator: Navigator, dismissed: HomeDismissed,
-    lastOpened: kotlin.time.Instant?, continueWatching: List<WatchRecord>, avatars: Map<String, String?>, channelNames: Map<String, String>,
+    lastOpened: kotlin.time.Instant?, continueWatching: List<WatchRecord>, onContinueChanged: () -> Unit, avatars: Map<String, String?>, channelNames: Map<String, String>,
     extras: (VideoSummary) -> CardExtras, onNotInterested: (VideoSummary) -> Unit, onHideChannel: (VideoSummary) -> Unit,
 ) {
     LaunchedEffect(shelf, tick) { ensure() }
     Box(Modifier.fillMaxWidth().animateContentSize()) {
         if (shelf == HomeShelf.CONTINUE) {
-            if (continueWatching.isNotEmpty()) ContinueBlock(continueWatching, channelNames, navigator)
+            if (continueWatching.isNotEmpty()) ContinueBlock(continueWatching, channelNames, navigator, services, onContinueChanged)
             return@Box
         }
         when (ui) {
@@ -328,12 +329,27 @@ private fun ShelfContent(
 
 /** Videos started and not finished, as the same carousel: the progress bar on the picture and what is left as the numbers line. */
 @Composable
-private fun ContinueBlock(records: List<WatchRecord>, channelNames: Map<String, String>, navigator: Navigator) =
-    WatchRecordCarousel("Continue watching", records, navigator, tag = "home.continueWatching", onSeeAll = { navigator.push(Route.History) }, channelNames = channelNames)
+private fun ContinueBlock(records: List<WatchRecord>, channelNames: Map<String, String>, navigator: Navigator, services: AppServices, onRemoved: () -> Unit) {
+    val toasts = com.greenaltambe.vela.ui.look.LocalUndoToasts.current
+    WatchRecordCarousel(
+        "Continue watching", records, navigator, tag = "home.continueWatching", onSeeAll = { navigator.push(Route.History) }, channelNames = channelNames,
+        trailing = { v ->
+            VideoMenu(services, v, onRemoveFromContinue = {
+                if (services.history.dismissContinue(v.id)) {
+                    onRemoved()
+                    toasts.show("Removed from Continue watching") { services.history.restoreContinue(v.id); onRemoved() }
+                }
+            })
+        },
+    )
+}
 
 /** Watch-history rows as a carousel of the standard card: progress on the picture, "7:34 left" as the numbers; the history keeps no channel name, so only the channels you subscribe to show one (no picture). */
 @Composable
-fun WatchRecordCarousel(title: String, records: List<WatchRecord>, navigator: Navigator, tag: String, onSeeAll: (() -> Unit)? = null, channelNames: Map<String, String> = emptyMap()) {
+fun WatchRecordCarousel(
+    title: String, records: List<WatchRecord>, navigator: Navigator, tag: String, onSeeAll: (() -> Unit)? = null, channelNames: Map<String, String> = emptyMap(),
+    trailing: @Composable ((VideoSummary) -> Unit)? = null,
+) {
     val videos = remember(records, channelNames) { records.map { r -> VideoSummary(id = r.videoId, title = r.title, channelId = r.channelId, channelName = channelNames[r.channelId].orEmpty(), durationSeconds = r.durationMs.takeIf { it > 0 }?.div(1000)) } }
     val byId = remember(records) { records.associateBy { it.videoId } }
     VideoCarousel(
@@ -345,6 +361,7 @@ fun WatchRecordCarousel(title: String, records: List<WatchRecord>, navigator: Na
             CardExtras(watched = fraction, badge = left)
         },
         onOpen = { v -> navigator.push(Route.Video(v)) },
+        trailing = trailing,
     )
 }
 

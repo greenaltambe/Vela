@@ -1,0 +1,20 @@
+-- Videos removed from Continue watching, with the time of the video's latest watch when it was removed. The video comes back only when it is
+-- watched again later than that (a newer watch), so the history itself is untouched. Per account; local to the device.
+CREATE TABLE ContinueDismissed (
+    accountId TEXT NOT NULL,
+    videoId TEXT NOT NULL,
+    dismissedAt INTEGER NOT NULL,
+    PRIMARY KEY (accountId, videoId)
+);
+
+upsert:
+INSERT OR REPLACE INTO ContinueDismissed(accountId, videoId, dismissedAt) VALUES (?, ?, ?);
+
+selectForAccount:
+SELECT videoId, dismissedAt FROM ContinueDismissed WHERE accountId = ?;
+
+deleteForVideo:
+DELETE FROM ContinueDismissed WHERE accountId = ? AND videoId = ?;
+
+clearForAccount:
+DELETE FROM ContinueDismissed WHERE accountId = ?;

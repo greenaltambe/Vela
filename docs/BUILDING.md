@@ -67,6 +67,16 @@ mpv is GPL-2.0-or-later (this build links FFmpeg and other libraries under GPL/L
 To build locally on Windows: download and verify the same file, extract `libmpv-2.dll` into that folder, then `./gradlew :desktopApp:packageMsi :desktopApp:portableZip`. The app also finds `libmpv-2.dll` next to `vela.exe` or on `PATH`, or via `-Dvela.libmpv=` / `VELA_LIBMPV`.
 To change the pinned build, update `LIBMPV_URL`, `LIBMPV_SHA256` and `LIBMPV_VERSION` in `.github/workflows/release.yml` and the lines above together.
 
+### Windows ffmpeg
+
+Downloads merge video and audio with ffmpeg, and Windows has none by default, so the release workflow also bundles `ffmpeg.exe` into `desktopApp/appResources/windows-x64/` (pinned, checksum-verified, not committed):
+
+- Source: gyan.dev "essentials" build (GPLv3), mirrored at GyanD/codexffmpeg, release `9.1`
+- URL: `https://github.com/GyanD/codexffmpeg/releases/download/9.1/ffmpeg-9.1-essentials_build.zip`
+- SHA-256: `b9bbbb3acece000cbeec994f856649354e52c773807841e78908374b24d658fd`
+
+The licence is shipped as `FFMPEG-LICENSE.txt` and the release's `LIBMPV-SOURCE.txt` names the build and where its source is. The app looks for ffmpeg on `PATH` first, then in its resources folder and next to `vela.exe`. To build locally: put `ffmpeg.exe` into that folder. To change the pin, update `FFMPEG_URL`, `FFMPEG_SHA256` and `FFMPEG_VERSION` in `.github/workflows/release.yml` and the lines above together.
+
 Windows specifics in the code: data in `%LOCALAPPDATA%\vela`; credentials in a DPAPI-protected file (never plaintext, and sign-in is disabled if DPAPI is unavailable); no MPRIS; no `notify-send`;
 programs found as `<name>.exe` (also winget/scoop/chocolatey shims); the managed yt-dlp updater uses the `yt-dlp.exe` asset with SHA2-256SUMS verification.
 

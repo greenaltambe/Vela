@@ -24,8 +24,17 @@ class FfmpegMediaMerger(private val binary: String = "ffmpeg", private val timeo
         }.getOrNull()
     }
 
+    private fun installHint(): String {
+        val os = System.getProperty("os.name").orEmpty()
+        return when {
+            os.startsWith("Windows", ignoreCase = true) -> "install it (winget install ffmpeg) or put ffmpeg.exe next to Vela.exe"
+            os.startsWith("Mac", ignoreCase = true) -> "install it (brew install ffmpeg)"
+            else -> "install it (Fedora: sudo dnf install ffmpeg-free; Debian/Ubuntu: sudo apt install ffmpeg)"
+        }
+    }
+
     override val available: Boolean get() = version != null
-    override val description: String get() = version ?: "ffmpeg was not found ('$binary'): install it (Fedora: sudo dnf install ffmpeg-free) to merge video and audio"
+    override val description: String get() = version ?: "ffmpeg was not found ('$binary'): ${installHint()} to merge video and audio"
 
     override suspend fun merge(job: MergeJob) = run(mergeCommand(binary, job))
 

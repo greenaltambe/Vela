@@ -58,7 +58,7 @@ import kotlinx.coroutines.withContext
 
 /** The "⋮" on a video row: Watch later and the user's playlists in a bottom sheet. */
 @Composable
-fun VideoMenu(services: AppServices, video: VideoSummary, modifier: Modifier = Modifier, onNotInterested: (() -> Unit)? = null, onHideChannel: (() -> Unit)? = null) {
+fun VideoMenu(services: AppServices, video: VideoSummary, modifier: Modifier = Modifier, onNotInterested: (() -> Unit)? = null, onHideChannel: (() -> Unit)? = null, onRemoveFromContinue: (() -> Unit)? = null) {
     var open by remember { mutableStateOf(false) }
     var download by remember { mutableStateOf(false) }
     if (download) DownloadDialog(services, listOf(video), onDismiss = { download = false })
@@ -75,6 +75,7 @@ fun VideoMenu(services: AppServices, video: VideoSummary, modifier: Modifier = M
                 onDownload = { download = true },
                 onNotInterested = onNotInterested,
                 onHideChannel = onHideChannel,
+                onRemoveFromContinue = onRemoveFromContinue,
             )
         }
     }
@@ -91,6 +92,8 @@ fun VideoMenuSheet(
     /** Home only: send this video, or its whole channel, away from Home (with an Undo there). */
     onNotInterested: (() -> Unit)? = null,
     onHideChannel: (() -> Unit)? = null,
+    /** Continue watching only: take this video off the shelf (it returns when watched again). */
+    onRemoveFromContinue: (() -> Unit)? = null,
 ) {
     val share = com.greenaltambe.vela.ui.platform.LocalShare.current
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
@@ -186,6 +189,9 @@ fun VideoMenuSheet(
                         },
                     )
                 }
+                if (onRemoveFromContinue != null) VideoMenuSheetItem(
+                    icon = AppIcons.close, title = "Remove from Continue watching", onClick = { onDismiss(); onRemoveFromContinue() }, modifier = Modifier.testTag("video.menu.removeContinue"),
+                )
                 if (onNotInterested != null) VideoMenuSheetItem(
                     icon = AppIcons.close, title = "Not interested", onClick = { onDismiss(); onNotInterested() }, modifier = Modifier.testTag("video.menu.notInterested"),
                 )

@@ -12,7 +12,7 @@ data class FoundBinary(val name: String, val path: String?, val source: String) 
 /**
  * Small, explicit lookup for yt-dlp, a JavaScript runtime and ffmpeg. A desktop launcher or an IDE does not start the app
  * from an interactive shell, so PATH is often short (no `~/.local/bin`, no version-manager shims). Order: the configured
- * path, then PATH, then the common install locations below. Nothing else is searched.
+ * path, then PATH, then the folders shipped with the app (Windows) and the common install locations below. Nothing else is searched.
  */
 class BinaryLocator(
     private val pathEnv: () -> String = { System.getenv("PATH").orEmpty() },
@@ -22,11 +22,17 @@ class BinaryLocator(
     /** Windows: programs are `<name>.exe`, paths may use backslashes, and the common places are the per-user shims of winget, scoop and chocolatey. */
     private val windows: Boolean = System.getProperty("os.name").orEmpty().startsWith("Windows", ignoreCase = true),
     private val localAppData: String = System.getenv("LOCALAPPDATA").orEmpty(),
+    /** Programs shipped with the app (the Windows package bundles ffmpeg.exe): the app's resources folder, then the folder of the executable. */
+    private val bundledDirs: List<String> = listOfNotNull(
+        System.getProperty("compose.application.resources.dir"),
+        runCatching { ProcessHandle.current().info().command().orElse(null)?.let { File(it).parent } }.getOrNull(),
+    ).filter { it.isNotBlank() },
 ) : PathLookup {
     private fun exe(name: String) = if (windows && !name.endsWith(".exe", ignoreCase = true)) "$name.exe" else name
     private fun isPath(s: String) = s.contains('/') || (windows && s.contains('\\'))
     /** Directories checked after PATH, in order (user installs first, then system, then Flatpak and snap exports). */
     val commonDirs: List<String> get() = if (windows) buildList {
+        addAll(bundledDirs)
         if (localAppData.isNotEmpty()) add("$localAppData/Microsoft/WinGet/Links")
         if (home.isNotEmpty()) { add("$home/scoop/shims"); add("$home/.local/bin"); add("$home/bin") }
         add("C:/ProgramData/chocolatey/bin")

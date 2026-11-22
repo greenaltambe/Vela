@@ -53,6 +53,7 @@ class SubscriptionRepository(private val db: VelaDatabase, private val accountId
 /** The history screen's view of [WatchHistoryRepository]'s table: listing and deleting. */
 class HistoryLibrary(private val db: VelaDatabase, private val accountId: String = LOCAL_ACCOUNT) {
     private val q get() = db.watchHistoryQueries
+    private val dq get() = db.continueDismissedQueries
 
     /** Gives the rows of [videoId] that were saved without a title their title (and channel where blank). */
     fun healMissing(videoId: String, title: String, channelId: String) { if (title.isNotBlank()) q.healMissing(title, channelId, accountId, videoId) }
@@ -68,13 +69,26 @@ class HistoryLibrary(private val db: VelaDatabase, private val accountId: String
     fun delete(id: Long) {
         val row = recent(100_000).firstOrNull { it.id == id } ?: return
         val latest = q.selectLastForVideo(accountId, row.videoId).executeAsOneOrNull()
-        if (latest == null || latest.id == id) q.deleteForVideo(accountId, row.videoId) else q.deleteById(id)
+        if (latest == null || latest.id == id) { q.deleteForVideo(accountId, row.videoId); dq.deleteForVideo(accountId, row.videoId) } else q.deleteById(id)
     }
 
     /** Every watch of a video, i.e. removing it from the list however many times it was watched. */
-    fun deleteVideo(videoId: String) { q.deleteForVideo(accountId, videoId) }
+    fun deleteVideo(videoId: String) { q.deleteForVideo(accountId, videoId); dq.deleteForVideo(accountId, videoId) }
 
-    fun clear() { q.clearForAccount(accountId) }
+    fun clear() { q.clearForAccount(accountId); dq.clearForAccount(accountId) }
+
+    /**
+     * Takes [videoId] off Continue watching without touching the history. It stays off until it is watched again (a watch newer than the latest one now),
+     * then it shows up again like any started video, until it is removed again. Returns false when the video has no watch.
+     */
+    fun dismissContinue(videoId: String): Boolean {
+        val latest = q.selectLastForVideo(accountId, videoId).executeAsOneOrNull() ?: return false
+        dq.upsert(accountId, videoId, latest.watchedAt)
+        return true
+    }
+
+    /** Undo of [dismissContinue]. */
+    fun restoreContinue(videoId: String) { dq.deleteForVideo(accountId, videoId) }
 
     fun watchedVideoIds(): Set<String> = q.watchedVideoIds(accountId).executeAsList().toSet()
 
@@ -96,11 +110,14 @@ class HistoryLibrary(private val db: VelaDatabase, private val accountId: String
     /**
      * Videos that were started but not watched completely, newest first.
      * Filtered to videos with a recorded position (at least 3 seconds or >= 2% watched)
-     * and less than 90% watched.
+     * and less than 90% watched. Videos the viewer removed ([dismissContinue]) are left out until watched again.
      */
     fun continueWatching(limit: Int = 10): List<WatchRecord> {
         val records = recent(100).distinctBy { it.videoId }
+        val dismissed = dq.selectForAccount(accountId).executeAsList().associate { it.videoId to it.dismissedAt }
         return records.filter { r ->
+            // Removed by the viewer and not watched since: the latest watch is not newer than the one that was current at removal.
+            if (dismissed[r.videoId]?.let { r.watchedAt.toEpochMilliseconds() <= it } == true) return@filter false
             if (r.durationMs > 0) {
                 val fraction = r.positionMs.toFloat() / r.durationMs
                 (fraction >= 0.02f || r.positionMs >= 3000L) && fraction < 0.90f

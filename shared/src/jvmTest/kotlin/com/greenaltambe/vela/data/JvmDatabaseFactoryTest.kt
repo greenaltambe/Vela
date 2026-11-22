@@ -43,8 +43,11 @@ class JvmDatabaseFactoryTest {
         assertEquals(1, JvmDatabaseDriverFactory(file).create().scalar("PRAGMA foreign_keys"))
     }
 
-    /** Takes a current database back to what version 8 looked like: no account watch history. */
-    private fun SqlDriver.dropVersion9Table() { execute(null, "DROP TABLE AccountWatched", 0) }
+    /** Takes a current database back to what version 10 looked like: no list of videos removed from Continue watching. */
+    private fun SqlDriver.dropVersion11Table() { execute(null, "DROP TABLE ContinueDismissed", 0) }
+
+    /** ...back to what version 8 looked like: no account watch history. */
+    private fun SqlDriver.dropVersion9Table() { dropVersion11Table(); execute(null, "DROP TABLE AccountWatched", 0) }
 
     /** ...back to what version 7 looked like: no notification level or feed. */
     private fun SqlDriver.dropVersion8Changes() {

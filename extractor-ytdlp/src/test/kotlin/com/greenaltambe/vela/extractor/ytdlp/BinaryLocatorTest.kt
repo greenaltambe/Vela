@@ -5,7 +5,7 @@ import kotlin.test.*
 
 class BinaryLocatorTest {
     private fun locator(path: String, installed: Set<String>, home: String = "/home/u") =
-        BinaryLocator(pathEnv = { path }, home = home, isExecutable = { it in installed }, listDirs = { emptyList() })
+        BinaryLocator(pathEnv = { path }, home = home, isExecutable = { it in installed }, listDirs = { emptyList() }, bundledDirs = emptyList())
 
     @Test fun pathBeatsCommonLocations() {
         val l = locator("/usr/bin:/bin", setOf("/usr/bin/node", "/home/u/.local/bin/node"))
@@ -17,6 +17,18 @@ class BinaryLocatorTest {
         val found = locator("/usr/bin:/bin", setOf("/home/u/.local/bin/yt-dlp")).locate("yt-dlp")
         assertEquals("/home/u/.local/bin/yt-dlp", found.path)
         assertEquals("common location", found.source)
+    }
+
+    /** The Windows package ships ffmpeg.exe in the app's resources folder; it is found without PATH, but PATH still wins. */
+    @Test fun windowsFindsBundledFfmpegAfterPath() {
+        fun win(path: String, installed: Set<String>) = BinaryLocator(
+            pathEnv = { path }, home = "C:/Users/u", isExecutable = { it in installed }, listDirs = { emptyList() },
+            windows = true, localAppData = "C:/Users/u/AppData/Local", bundledDirs = listOf("C:/Program Files/Vela/app/resources"),
+        )
+        val bundled = "C:/Program Files/Vela/app/resources/ffmpeg.exe"
+        assertEquals(FoundBinary("ffmpeg", bundled, "common location"), win("", setOf(bundled)).locate("ffmpeg"))
+        val onPath = "/tools/ffmpeg.exe"
+        assertEquals(onPath, win("/tools", setOf(bundled, onPath)).locate("ffmpeg").path)
     }
 
     @Test fun configuredPathIsUsedOrReportedBroken() {

@@ -65,6 +65,29 @@ class LibraryRepositoriesTest {
         assertEquals(listOf("started_recent", "half_watched"), cw.map { it.videoId })
     }
 
+    @Test fun removedFromContinueWatchingStaysOffUntilWatchedAgain() {
+        val repo = SqlDelightWatchHistoryRepository(db)
+        repo.begin("local", "a", "UC", "A", at(1), 10_000, 100_000, 10_000)
+        repo.begin("local", "b", "UC", "B", at(2), 10_000, 100_000, 10_000)
+        val lib = HistoryLibrary(db)
+        assertTrue(lib.dismissContinue("a"))
+        assertEquals(listOf("b"), lib.continueWatching().map { it.videoId })
+        assertEquals(setOf("a", "b"), lib.watchedVideoIds(), "history is untouched")
+        // Watched again and left unfinished: back on the shelf.
+        repo.begin("local", "a", "UC", "A", at(5), 20_000, 100_000, 10_000)
+        assertEquals(listOf("a", "b"), lib.continueWatching().map { it.videoId })
+        // Removed again, and undo brings it back at once.
+        lib.dismissContinue("a")
+        assertEquals(listOf("b"), lib.continueWatching().map { it.videoId })
+        lib.restoreContinue("a")
+        assertEquals(listOf("a", "b"), lib.continueWatching().map { it.videoId })
+        // Deleting the video from history forgets the removal: a later watch is simply new.
+        lib.dismissContinue("a"); lib.deleteVideo("a")
+        repo.begin("local", "a", "UC", "A", at(3), 20_000, 100_000, 10_000)
+        assertTrue("a" in lib.continueWatching().map { it.videoId })
+        assertFalse(lib.dismissContinue("never-watched"))
+    }
+
     @Test fun watchLaterExistsFromTheStartAndCannotBeRenamedOrDeleted() {
         val p = PlaylistRepository(db)
         val watchLater = p.all().single()
