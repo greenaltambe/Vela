@@ -385,6 +385,16 @@ class PlaybackSession(
         controller.setSpeed(speed)
     }
 
+    /** Plans the current video again (e.g. after the output changed to or from a cast device) and resumes at [positionMs], default the current one. */
+    fun replan(positionMs: Long? = null) {
+        if (localPlan != null) return
+        val id = videoId ?: return
+        val wasPlaying = controller.state.value.status != PlaybackStatus.PAUSED
+        val position = positionMs ?: controller.state.value.positionMs
+        work?.cancel()
+        work = sessionScope.launch { if (needsRefresh() || streams == null) refresh(id, position, wasPlaying) else { persist(); loadPlan(position, wasPlaying) } }
+    }
+
     /** Caps the resolution at [maxHeight] (null = automatic, per the network settings) and re-plans at the current position. */
     fun selectQuality(maxHeight: Int?) {
         if (localPlan != null) return // one file, one quality

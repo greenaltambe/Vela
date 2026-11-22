@@ -223,10 +223,22 @@ class PlaybackRuntime private constructor(context: Context) {
         }; false }
     }
 
+    /** The controller the session drives: Media3, or a DLNA device while casting. */
+    val switching by lazy { com.greenaltambe.vela.cast.SwitchingController(controller) }
+    val cast: com.greenaltambe.vela.cast.CastManager by lazy {
+        // Android drops multicast replies unless a MulticastLock is held; it is held only for the seconds a search runs.
+        val wifi = appContext.applicationContext.getSystemService(Context.WIFI_SERVICE) as android.net.wifi.WifiManager
+        val lock = wifi.createMulticastLock("vela-cast").apply { setReferenceCounted(false) }
+        com.greenaltambe.vela.cast.CastManager(
+            com.greenaltambe.vela.cast.dlna.DlnaCastBackend(scope, onSearchWindow = { search -> lock.acquire(); try { search() } finally { if (lock.isHeld) lock.release() } }),
+            switching,
+        )
+    }
+
     val session: PlaybackSession by lazy {
         PlaybackSession(
-            com.greenaltambe.vela.extractor.CaptchaAwareExtractor(com.greenaltambe.vela.extractor.TimeoutExtractor(chain), captcha), controller, settings, SqlDelightWatchHistoryRepository(database), scope,
-            network = network, constraints = { deviceConstraints(appContext) }, addons = listOf(modules.sponsorBlock, com.greenaltambe.vela.player.ActivityAddon(activity)),
+            com.greenaltambe.vela.extractor.CaptchaAwareExtractor(com.greenaltambe.vela.extractor.TimeoutExtractor(chain), captcha), switching, settings, SqlDelightWatchHistoryRepository(database), scope,
+            network = network, constraints = { deviceConstraints(appContext).copy(castOnly = cast.casting) }, addons = listOf(modules.sponsorBlock, com.greenaltambe.vela.player.ActivityAddon(activity)),
             accountId = { accounts.active.value.id },
         )
     }

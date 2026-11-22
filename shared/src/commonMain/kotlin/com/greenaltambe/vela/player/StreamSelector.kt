@@ -42,6 +42,8 @@ data class PlaybackConstraints(
     val supportsHls: Boolean = true,
     /** The connection right now; picks which of the settings' quality caps applies. */
     val network: NetworkType = NetworkType.UNMETERED,
+    /** The picture goes to a cast device that fetches the URL itself: one URL with picture and sound (muxed, else HLS), never separate streams, and only codecs a TV decodes (AVC). */
+    val castOnly: Boolean = false,
 )
 
 /**
@@ -70,6 +72,14 @@ object StreamSelector {
         fun audioPlan() = audio?.let { PlaybackPlan.AudioOnly(it, streams.headers + it.headers) }
 
         if (prefs.audioOnly) audioPlan()?.let { return it }
+
+        if (constraints.castOnly) {
+            val tvSafe = constraints.copy(supportedCodecs = setOf(VideoCodec.AVC))
+            pickVideo(streams.videoStreams.filter { it.hasAudio }, prefs, tvSafe)?.let { return PlaybackPlan.Muxed(it, streams.headers + it.headers) }
+            streams.hlsUrl?.let { return PlaybackPlan.Hls(it, streams.headers) }
+            audioPlan()?.let { return it }
+            return PlaybackPlan.NothingPlayable("This video has no stream a TV can play (no muxed AVC stream and no HLS).")
+        }
 
         if (audio != null) {
             pickVideo(streams.videoStreams.filter { !it.hasAudio }, prefs, constraints)?.let { video ->

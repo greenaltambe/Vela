@@ -41,7 +41,7 @@ data class GoogleIdentity(val displayName: String, val email: String?, val avata
  */
 class AccountManager(
     private val db: VelaDatabase,
-    private val credentials: CredentialStore,
+    val credentials: CredentialStore,
     private val clock: Clock = Clock.System,
 ) {
     private val settings = SqlDelightSettingsStore(db)
@@ -101,6 +101,18 @@ class AccountManager(
         reload()
         switchTo(id)
         return byId(id)!!
+    }
+
+    /**
+     * Adds a Google account that another of the viewer's devices shared through Sync (same id, so its data lines up), or gives a signed-out one its
+     * sign-in back. The first Google account on a device also becomes the active one. Nothing is verified here; a bad session shows up as NEEDS_RELOGIN.
+     */
+    fun restoreFromSync(id: String, identity: GoogleIdentity, createdAt: Instant, cookies: CookieJar) {
+        val first = q.selectAll().executeAsList().none { it.kind == AccountKind.GOOGLE.name }
+        credentials.saveCookies(id, cookies)
+        q.upsert(id, identity.displayName, (byId(id)?.createdAt ?: createdAt).toEpochMilliseconds(), AccountKind.GOOGLE.name, identity.email, identity.avatarUrl, identity.channelId, AuthState.OK.name)
+        reload()
+        if (first) switchTo(id)
     }
 
     fun setAuthState(id: String, state: AuthState) {

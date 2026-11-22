@@ -78,10 +78,14 @@ fun AccountsScreen(services: AppServices, navigator: Navigator, modifier: Modifi
         val l = login ?: return@rememberTextFilePicker
         busy = true; message = "Checking the cookies with Google…"
         scope.launch {
-            message = when (val r = l.importCookies(text)) {
-                is LoginResult.Success -> "Signed in as ${r.account.displayName}."
-                is LoginResult.Failure -> r.message
-            }
+            // Anything thrown here (credential store, database, network) must end as a message, never take the app down.
+            message = try {
+                when (val r = l.importCookies(text)) {
+                    is LoginResult.Success -> "Signed in as ${r.account.displayName}."
+                    is LoginResult.Failure -> r.message
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e
+            } catch (e: Throwable) { "Could not import the cookies: ${com.greenaltambe.vela.auth.Redaction.redact(e.message ?: e::class.simpleName ?: "unknown error")}" }
             busy = false
         }
     }

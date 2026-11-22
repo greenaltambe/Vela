@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Audiotrack
+import androidx.compose.material.icons.filled.Cast
 import androidx.compose.material.icons.filled.Comment
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.WatchLater
@@ -79,6 +80,7 @@ internal object MaterialFilled {
             "watchLater" to Icons.Filled.WatchLater,
             "comment" to Icons.AutoMirrored.Filled.Comment,
             "audioTrack" to Icons.Filled.Audiotrack,
+            "cast" to Icons.Filled.Cast,
             "menu" to Icons.Filled.Menu,
             "play" to Icons.Filled.PlayArrow,
             "pause" to Icons.Filled.Pause,

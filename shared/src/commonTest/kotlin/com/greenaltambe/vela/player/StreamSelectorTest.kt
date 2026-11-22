@@ -291,4 +291,22 @@ class StreamSelectorTest {
         assertTrue(Settings.search("codec").contains(Settings.preferredCodec))
         assertFailsWith<IllegalArgumentException> { SettingsResolver(InMemorySettingsStore()).set(Settings.maxQualityMetered, MaxQuality.P720, SettingLayer.video("v")) }
     }
+
+    // ---- casting ----
+
+    private val cast = PlaybackConstraints(castOnly = true)
+
+    @Test fun castNeverUsesSeparateStreamsAndPicksMuxedAvc() {
+        val s = set(ladder + video(18, 360, avc, muxed = true) + video(19, 720, vp9, muxed = true))
+        val p = assertIs<PlaybackPlan.Muxed>(plan(s, c = cast))
+        assertEquals(18, p.stream.itag)
+    }
+
+    @Test fun castFallsBackToHlsWhenThereIsNoMuxedAvc() {
+        assertIs<PlaybackPlan.Hls>(plan(set(ladder, hls = "https://h/m3u8"), c = cast))
+    }
+
+    @Test fun castWithNothingATvCanPlayIsAnExplainedFailure() {
+        assertIs<PlaybackPlan.NothingPlayable>(plan(set(ladder, audio = emptyList()), c = cast))
+    }
 }

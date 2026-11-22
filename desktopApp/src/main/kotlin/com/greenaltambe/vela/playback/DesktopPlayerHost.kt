@@ -26,7 +26,8 @@ import kotlinx.coroutines.flow.StateFlow
 /** The desktop [PlayerHost]: libmpv's software-rendered frames drawn on a Compose canvas. */
 class DesktopPlayerHost(private val runtime: DesktopPlaybackRuntime) : PlayerHost {
     override val session: PlaybackSession get() = runtime.session
-    override val controllerState: StateFlow<PlayerState> get() = runtime.controller.state
+    override val controllerState: StateFlow<PlayerState> get() = runtime.switching.state
+    override val cast get() = runtime.cast
     override val stats: StateFlow<PlaybackStats> get() = runtime.controller.stats
 
     @Volatile private var sink: SkiaFrameSink? = null

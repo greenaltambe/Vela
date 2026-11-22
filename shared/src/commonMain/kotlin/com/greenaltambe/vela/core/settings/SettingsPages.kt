@@ -6,7 +6,7 @@ enum class SettingsGroup(val title: String) {
 }
 
 /** Where a page row goes when it is not a list of settings: another screen of the app. */
-enum class SettingsLink { NONE, CUSTOMIZE, ACCOUNTS, DOWNLOAD_RULES, BLOCKLIST, BACKUP, HEALTH }
+enum class SettingsLink { NONE, CUSTOMIZE, ACCOUNTS, DOWNLOAD_RULES, BLOCKLIST, BACKUP, SYNC, HEALTH }
 
 /**
  * One row of the settings home. A page shows the settings it [owns]; a row with a [link] opens another screen instead (and may own
@@ -39,6 +39,7 @@ object SettingsPages {
         SettingsPage("downloads", "Downloads", SettingsGroup.OFFLINE, 9) { it.key.startsWith("downloads.") && it.key !in storageKeys && !it.key.startsWith("downloads.auto.") },
         SettingsPage("auto", "Automatic downloads", SettingsGroup.OFFLINE, 10, SettingsLink.DOWNLOAD_RULES, owns = prefix("downloads.auto.")),
         SettingsPage("storage", "Storage", SettingsGroup.OFFLINE, 11, owns = { it.key in storageKeys }),
+        SettingsPage("sync", "Sync between devices", SettingsGroup.MAINTENANCE, 17, SettingsLink.SYNC),
         SettingsPage("backup", "Backup & restore", SettingsGroup.MAINTENANCE, 12, SettingsLink.BACKUP),
         SettingsPage("updates", "Updates", SettingsGroup.MAINTENANCE, 13, owns = prefix("ytdlp.", "remoteConfig.")),
         SettingsPage("health", "Health & diagnostics", SettingsGroup.MAINTENANCE, 14, SettingsLink.HEALTH, owns = prefix("debug.")),
@@ -124,6 +125,7 @@ object SettingsSummaries {
         "blocklist" -> "Hide channels and words everywhere"
         "storage" -> "Cap ${num(s.v(Settings.downloadsStorageCapGb))} GB${if (s.v(Settings.downloadsDeleteAfterWatch)) " · delete after watching" else ""}"
         "backup" -> "Save or restore your data"
+        "sync" -> "Keep your phone and computer in step"
         "updates" -> "yt-dlp: ${s.label(Settings.ytDlpAutoUpdate).lowercase()}"
         "health" -> "Source checks and the tier log${if (s.resolve(Settings.debugFrameStats)) " · frame times shown" else ""}"
         else -> ""

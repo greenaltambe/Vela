@@ -20,7 +20,8 @@ class AndroidPlayerHost(
     private val beforePlayback: () -> Unit,
 ) : PlayerHost {
     override val session: PlaybackSession get() = runtime.session
-    override val controllerState: StateFlow<PlayerState> get() = runtime.controller.state
+    override val controllerState: StateFlow<PlayerState> get() = runtime.switching.state
+    override val cast get() = runtime.cast
     override val stats: StateFlow<PlaybackStats> get() = runtime.controller.stats
 
     @Composable

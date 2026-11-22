@@ -41,6 +41,7 @@ sealed interface Route {
     data object AccountActivity : Route
     data object Health : Route
     data object Backup : Route
+    data object Sync : Route
     data object DownloadRules : Route
     data object Blocklist : Route
     data object Downloads : Route
@@ -59,7 +60,7 @@ fun Route.topLevel(): Route = when (this) {
     Route.Explore -> Route.Explore
     Route.Subscriptions, Route.ManageSubscriptions -> Route.Subscriptions
     Route.Library, is Route.Playlist, Route.History, Route.Downloads, Route.DownloadRules -> Route.Library
-    Route.Settings, Route.Blocklist, Route.Diagnostics, Route.Accounts, Route.AccountActivity, Route.Health, Route.Backup, Route.Customize, is Route.CustomizePage, is Route.SettingsPage -> Route.Settings
+    Route.Settings, Route.Blocklist, Route.Diagnostics, Route.Accounts, Route.AccountActivity, Route.Health, Route.Backup, Route.Sync, Route.Customize, is Route.CustomizePage, is Route.SettingsPage -> Route.Settings
 }
 
 /** What the last navigation did, so the shell can animate it: tabs crossfade and slide a little, pushes slide in, pops slide out. */

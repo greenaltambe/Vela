@@ -157,7 +157,7 @@ class FakeHost(override val session: PlaybackSession, val controller: FakeContro
 
 class Fixture(val services: AppServices, val navigator: Navigator, val settings: SettingsResolver, val controller: FakeController, val dir: File)
 
-fun buildFixture(dark: Boolean = false, withDownloads: Boolean = true, login: ((AccountManager) -> com.greenaltambe.vela.auth.AccountLogin)? = null, actions: com.greenaltambe.vela.auth.AccountActions? = null, reads: com.greenaltambe.vela.auth.AccountReads? = null, extractorOverride: Extractor? = null, backupFiles: com.greenaltambe.vela.backup.BackupFiles? = null, liveChat: com.greenaltambe.vela.extractor.LiveChatSource? = null, wrapDriver: ((app.cash.sqldelight.db.SqlDriver) -> app.cash.sqldelight.db.SqlDriver)? = null): Fixture {
+fun buildFixture(dark: Boolean = false, withDownloads: Boolean = true, login: ((AccountManager) -> com.greenaltambe.vela.auth.AccountLogin)? = null, actions: com.greenaltambe.vela.auth.AccountActions? = null, reads: com.greenaltambe.vela.auth.AccountReads? = null, extractorOverride: Extractor? = null, backupFiles: com.greenaltambe.vela.backup.BackupFiles? = null, syncFolders: com.greenaltambe.vela.sync.SyncFolders? = null, lanTransport: com.greenaltambe.vela.sync.LanTransport? = null, liveChat: com.greenaltambe.vela.extractor.LiveChatSource? = null, wrapDriver: ((app.cash.sqldelight.db.SqlDriver) -> app.cash.sqldelight.db.SqlDriver)? = null): Fixture {
     val settings = SettingsResolver(InMemorySettingsStore())
     if (dark) {
         settings.set(com.greenaltambe.vela.core.settings.LookSettings.theme, com.greenaltambe.vela.core.settings.ThemeMode.DARK)
@@ -207,7 +207,7 @@ fun buildFixture(dark: Boolean = false, withDownloads: Boolean = true, login: ((
         downloads = Downloads(manager, repo, { storage }, merger)
     }
     val accounts = AccountManager(database, CredentialStore(InMemorySecretStore()))
-    val services = AppServices(extractor, settings, log, database, host, modules = modules, downloads = downloads, accounts = accounts, login = login?.invoke(accounts), actions = actions, reads = reads, backupFiles = backupFiles, liveChat = liveChat)
+    val services = AppServices(extractor, settings, log, database, host, modules = modules, downloads = downloads, accounts = accounts, login = login?.invoke(accounts), actions = actions, reads = reads, backupFiles = backupFiles, syncFolders = syncFolders, lanTransport = lanTransport, liveChat = liveChat)
     return Fixture(services, Navigator(), settings, controller, dir)
 }
 

@@ -41,6 +41,8 @@ dependencies {
     implementation(project(":extractor-newpipe"))
     implementation(project(":net-okhttp"))
     implementation(project(":innertube-auth"))
+    implementation(project(":cast-dlna"))
+    implementation(project(":sync-lan"))
     // yt-dlp tier on Android: Python 3.12 + yt-dlp + QuickJS (GPL-3.0 library, see docs/reports/22). No ffmpeg artifact: only metadata is read.
     implementation(project(":extractor-ytdlp"))
     implementation(libs.youtubedl.android)

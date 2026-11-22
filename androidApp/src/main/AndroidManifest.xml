@@ -2,6 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Cast to TV (DLNA): searching the Wi-Fi network for TVs needs these. -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <!-- Background audio: a foreground service of type mediaPlayback (API 34+ requires the typed permission). -->
     <!-- Metered vs unmetered connection, for the per-network quality caps. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />

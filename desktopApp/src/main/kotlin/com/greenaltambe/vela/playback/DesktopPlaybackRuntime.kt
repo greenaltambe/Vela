@@ -32,13 +32,18 @@ class DesktopPlaybackRuntime private constructor(
     // What this machine can decode (Fedora's ffmpeg-free has no H.264) decides which streams are asked for.
     private val constraints = constraintsFromDecoderList(controller.property("decoder-list"))
 
+    /** The controller the session drives: mpv, or a DLNA device while casting. */
+    val switching = com.greenaltambe.vela.cast.SwitchingController(controller)
+    val cast = com.greenaltambe.vela.cast.CastManager(com.greenaltambe.vela.cast.dlna.DlnaCastBackend(scope), switching)
+
     val session = PlaybackSession(
-        com.greenaltambe.vela.extractor.TimeoutExtractor(extractor), controller, settings, history, scope,
-        network = FixedNetworkMonitor(), constraints = { constraints }, addons = addons, accountId = accountId,
+        com.greenaltambe.vela.extractor.TimeoutExtractor(extractor), switching, settings, history, scope,
+        network = FixedNetworkMonitor(), constraints = { constraints.copy(castOnly = cast.casting) }, addons = addons, accountId = accountId,
     )
 
     override fun close() {
         session.stop()
+        cast.stopDiscovery()
         scope.cancel()
         controller.release()
     }

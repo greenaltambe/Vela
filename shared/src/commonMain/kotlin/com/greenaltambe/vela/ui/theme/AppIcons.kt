@@ -26,7 +26,7 @@ val LocalIconSet = staticCompositionLocalOf { MaterialIconSet.Default }
 
 /** Every icon slot the app uses. Each icon set must cover all of them (a test checks it). */
 object IconNames {
-    val all: List<String> = listOf("home", "subscriptions", "library", "settings", "search", "back", "close", "more", "play", "pause", "rewind", "forward", "fullscreen", "fullscreenExit", "volume", "mute", "download", "downloaded", "save", "share", "speed", "timer", "quality", "captions", "like", "refresh", "info", "chevronRight", "chevronLeft", "chevronDown", "chevronUp", "check", "add", "delete", "edit", "history", "playlist", "notifications", "account", "palette", "lock", "shield", "folder", "tune", "arrowUp", "arrowDown", "dislike", "link", "cloud", "visibility", "bolt", "explore", "skipNext", "skipPrevious", "watchLater", "comment", "audioTrack", "menu", "notificationsActive", "notificationsOff")
+    val all: List<String> = listOf("home", "subscriptions", "library", "settings", "search", "back", "close", "more", "play", "pause", "rewind", "forward", "fullscreen", "fullscreenExit", "volume", "mute", "download", "downloaded", "save", "share", "speed", "timer", "quality", "captions", "like", "refresh", "info", "chevronRight", "chevronLeft", "chevronDown", "chevronUp", "check", "add", "delete", "edit", "history", "playlist", "notifications", "account", "palette", "lock", "shield", "folder", "tune", "arrowUp", "arrowDown", "dislike", "link", "cloud", "visibility", "bolt", "explore", "skipNext", "skipPrevious", "watchLater", "comment", "audioTrack", "menu", "notificationsActive", "notificationsOff", "cast")
     /** The slots that have a filled form: what can be selected or switched on. */
     val withFilledForm: List<String> = listOf("home", "subscriptions", "library", "explore", "bolt", "download", "save", "like", "dislike", "notifications", "watchLater", "comment")
 }
@@ -94,6 +94,7 @@ object AppIcons {
     val skipPrevious: ImageVector @Composable @ReadOnlyComposable get() = LocalIconSet.current["skipPrevious"]
     val watchLater: ImageVector @Composable @ReadOnlyComposable get() = LocalIconSet.current["watchLater"]
     val comment: ImageVector @Composable @ReadOnlyComposable get() = LocalIconSet.current["comment"]
+    val cast: ImageVector @Composable @ReadOnlyComposable get() = LocalIconSet.current["cast"]
     val audioTrack: ImageVector @Composable @ReadOnlyComposable get() = LocalIconSet.current["audioTrack"]
     val menu: ImageVector @Composable @ReadOnlyComposable get() = LocalIconSet.current["menu"]
 

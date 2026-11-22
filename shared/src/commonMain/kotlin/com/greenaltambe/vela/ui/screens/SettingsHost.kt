@@ -70,7 +70,7 @@ import com.greenaltambe.vela.ui.theme.Spacing
 internal fun SettingsPage.tileIcon(): ImageVector = when (id) {
     "customize" -> AppIcons.palette; "playback" -> AppIcons.play; "extras" -> AppIcons.timer; "home" -> AppIcons.home; "feed" -> AppIcons.subscriptions
     "shorts" -> AppIcons.bolt; "accounts" -> AppIcons.account; "safety" -> AppIcons.shield; "privacy" -> AppIcons.lock; "downloads" -> AppIcons.download
-    "auto" -> AppIcons.refresh; "blocklist" -> AppIcons.close; "storage" -> AppIcons.folder; "backup" -> AppIcons.cloud; "updates" -> AppIcons.speed; "health" -> AppIcons.info
+    "auto" -> AppIcons.refresh; "blocklist" -> AppIcons.close; "storage" -> AppIcons.folder; "backup" -> AppIcons.save; "sync" -> AppIcons.cloud; "updates" -> AppIcons.speed; "health" -> AppIcons.info
     else -> AppIcons.settings
 }
 
@@ -95,6 +95,7 @@ internal fun SettingsPage.linkRoute(): Route = when (link) {
     SettingsLink.DOWNLOAD_RULES -> Route.DownloadRules
     SettingsLink.BLOCKLIST -> Route.Blocklist
     SettingsLink.BACKUP -> Route.Backup
+    SettingsLink.SYNC -> Route.Sync
     SettingsLink.HEALTH -> Route.Health
     SettingsLink.NONE -> Route.SettingsPage(id)
 }
@@ -104,7 +105,7 @@ internal fun SettingsPage.route(): Route =
     if (link == SettingsLink.NONE || link == SettingsLink.CUSTOMIZE || SettingsPages.settingsOf(this).isEmpty()) linkRoute() else Route.SettingsPage(id)
 
 /** The routes that live in the Settings area and share its two-pane layout on wide windows. */
-internal fun Route.isSettingsPane(): Boolean = this == Route.Settings || this is Route.SettingsPage || this == Route.Customize || this is Route.CustomizePage || this == Route.Accounts || this == Route.Backup || this == Route.Health
+internal fun Route.isSettingsPane(): Boolean = this == Route.Settings || this is Route.SettingsPage || this == Route.Customize || this is Route.CustomizePage || this == Route.Accounts || this == Route.Backup || this == Route.Sync || this == Route.Health
 
 /** The page of the settings list that is open for [route] (highlighted in the two-pane list). */
 private fun selectedPageId(route: Route): String = when (route) {
@@ -112,6 +113,7 @@ private fun selectedPageId(route: Route): String = when (route) {
     Route.Customize, is Route.CustomizePage -> "customize"
     Route.Accounts -> "accounts"
     Route.Backup -> "backup"
+    Route.Sync -> "sync"
     Route.Health -> "health"
     else -> SettingsPages.all.first().id
 }
@@ -129,6 +131,7 @@ internal fun SettingsRouteContent(services: AppServices, navigator: Navigator, r
         is Route.CustomizePage -> CustomizePageScreen(services, navigator, route.page, modifier)
         Route.Accounts -> AccountsScreen(services, navigator, modifier)
         Route.Backup -> BackupScreen(services, navigator, modifier)
+        Route.Sync -> SyncScreen(services, navigator, modifier)
         Route.Health -> HealthScreen(services, navigator, modifier)
         else -> Unit
     }

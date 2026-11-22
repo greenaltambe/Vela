@@ -14,6 +14,8 @@ dependencies {
     implementation(project(":net-okhttp"))
     implementation(project(":extractor-ytdlp"))
     implementation(project(":player-mpv"))
+    implementation(project(":cast-dlna"))
+    implementation(project(":sync-lan"))
     implementation(project(":innertube-auth"))
 
     implementation(compose.desktop.currentOs)

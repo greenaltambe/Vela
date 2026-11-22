@@ -78,6 +78,14 @@ class AppServices(
     val backupFiles: com.greenaltambe.vela.backup.BackupFiles? = null,
     /** Empties the caches only (see CacheMaintenance) and returns what was cleared. */
     val rebuildCaches: (() -> String)? = { com.greenaltambe.vela.data.CacheMaintenance.rebuild(database) },
+    /** The platform's folder chooser for Sync; null hides Sync's folder step. */
+    val syncFolders: com.greenaltambe.vela.sync.SyncFolders? = null,
+    /** What this device is called in Sync ("Pixel 8", "Linux desktop"). */
+    val deviceName: String = "This device",
+    /** Sync over the local network; null where the platform has none. */
+    val lanTransport: com.greenaltambe.vela.sync.LanTransport? = null,
+    /** Where Sync's merge runs (tests pass an inline dispatcher). */
+    syncWork: kotlin.coroutines.CoroutineContext = kotlinx.coroutines.Dispatchers.Default,
     val audit: DbAuditLog = DbAuditLog(database),
     val governors: GovernorRegistry = GovernorRegistry(clock, { governorLimits(settings) }, DbBreakerStore(database), audit),
 ) {
@@ -111,6 +119,8 @@ class AppServices(
     val homePrefs get() = com.greenaltambe.vela.home.HomePrefs(homeStore, activeId)
     /** Channels and title words the viewer blocked everywhere (shared by all accounts). */
     val blocklist = com.greenaltambe.vela.feed.Blocklist(homeStore)
+    /** Keeps this device's local data in step with the viewer's other devices through a shared folder. */
+    val syncService by lazy { com.greenaltambe.vela.sync.SyncService(database, homeStore, accounts.credentials, syncFolders, lanTransport, blocklist, accounts, deviceName, clock, work = syncWork) }
     /** Time spent in Shorts today (for the daily limit); shared by all accounts. */
     val shortsUsage = com.greenaltambe.vela.viewing.DailyUsage(homeStore, "viewing.shortsToday", { clock.now().toEpochMilliseconds() }, { utcOffsetMinutes() })
     /** The active account's subscription groups. */

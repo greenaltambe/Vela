@@ -357,7 +357,7 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
             val notifUnread = com.greenaltambe.vela.ui.screens.rememberAsync(notifRevision, services.activeId, keepWhileLoading = true, first = { false }, compute = { services.notifications.unreadCount() > 0 })
             // Desktop: one top bar over everything (mark, search, bell, profile) and the side bar under it, like a website; the pages' own bars sit below.
             val desktopBar = rail && com.greenaltambe.vela.ui.platform.LocalVolumeSlider.current
-            val shellBarRoute = uiRoute != Route.Shorts && uiRoute !is Route.ShortsPlayer && uiRoute !is Route.Video && uiRoute !is Route.Search && uiRoute != Route.Settings && uiRoute !is Route.Channel && uiRoute != Route.Accounts && uiRoute != Route.AccountActivity && uiRoute != Route.Health && uiRoute != Route.Backup && uiRoute != Route.DownloadRules && uiRoute != Route.Blocklist && uiRoute != Route.Customize && uiRoute != Route.Notifications && uiRoute != Route.History && uiRoute != Route.Downloads && uiRoute != Route.ManageSubscriptions && uiRoute !is Route.Playlist && uiRoute !is Route.CustomizePage && uiRoute !is Route.SettingsPage
+            val shellBarRoute = uiRoute != Route.Shorts && uiRoute !is Route.ShortsPlayer && uiRoute !is Route.Video && uiRoute !is Route.Search && uiRoute != Route.Settings && uiRoute !is Route.Channel && uiRoute != Route.Accounts && uiRoute != Route.AccountActivity && uiRoute != Route.Health && uiRoute != Route.Backup && uiRoute != Route.Sync && uiRoute != Route.DownloadRules && uiRoute != Route.Blocklist && uiRoute != Route.Customize && uiRoute != Route.Notifications && uiRoute != Route.History && uiRoute != Route.Downloads && uiRoute != Route.ManageSubscriptions && uiRoute !is Route.Playlist && uiRoute !is Route.CustomizePage && uiRoute !is Route.SettingsPage
             val toggleSideBar = { services.settings.set(com.greenaltambe.vela.core.settings.LookSettings.railCollapsed, !nav.railCollapsed) }
             Column(Modifier.fillMaxSize()) {
             if (chrome && desktopBar) com.greenaltambe.vela.ui.components.DesktopTopBar(
@@ -450,6 +450,7 @@ fun routeTitle(route: Route): String = when (route) {
     Route.AccountActivity -> "Account activity"
     Route.Health -> "Health"
     Route.Backup -> "Backup and restore"
+    Route.Sync -> "Sync between devices"
     Route.Downloads -> "Downloads"
     Route.DownloadRules -> "Automatic downloads"
     Route.Blocklist -> "Blocked"
@@ -491,7 +492,7 @@ private fun AnimatedDestination(services: AppServices, navigator: Navigator, rou
     ) { target -> Destination(services, navigator, if (settingsPanes && target == Route.Settings) route else target, Modifier.fillMaxSize()) }
 }
 
-private fun Route.isSettingsPaneRoute() = this == Route.Settings || this is Route.SettingsPage || this == Route.Customize || this is Route.CustomizePage || this == Route.Accounts || this == Route.Backup || this == Route.Health
+private fun Route.isSettingsPaneRoute() = this == Route.Settings || this is Route.SettingsPage || this == Route.Customize || this is Route.CustomizePage || this == Route.Accounts || this == Route.Backup || this == Route.Sync || this == Route.Health
 
 @Composable
 private fun Destination(services: AppServices, navigator: Navigator, route: Route, modifier: Modifier) {
@@ -501,7 +502,7 @@ private fun Destination(services: AppServices, navigator: Navigator, route: Rout
         is Route.ShortsPlayer -> com.greenaltambe.vela.ui.screens.ShortsScreen(services, navigator, modifier, start = route.video, following = route.following, stayOnChannel = route.stayOnChannel)
         Route.Subscriptions -> SubscriptionsScreen(services, navigator, modifier)
         Route.Library -> LibraryScreen(services, navigator, modifier)
-        Route.Settings, Route.Customize, is Route.CustomizePage, is Route.SettingsPage, Route.Accounts, Route.Backup, Route.Health -> com.greenaltambe.vela.ui.screens.SettingsPaneHost(services, navigator, route, modifier)
+        Route.Settings, Route.Customize, is Route.CustomizePage, is Route.SettingsPage, Route.Accounts, Route.Backup, Route.Sync, Route.Health -> com.greenaltambe.vela.ui.screens.SettingsPaneHost(services, navigator, route, modifier)
         Route.Explore -> com.greenaltambe.vela.ui.screens.ExploreScreen(services, navigator, modifier)
         is Route.Search -> SearchScreen(services, navigator, route.query, modifier)
         is Route.Video -> Unit   // drawn by VideoLayer, above the screen

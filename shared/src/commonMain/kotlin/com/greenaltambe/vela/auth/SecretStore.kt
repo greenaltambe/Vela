@@ -33,8 +33,14 @@ class CredentialStore(private val secrets: SecretStore) {
     fun saveCookies(accountId: String, jar: CookieJar) = secrets.put(key(accountId), jar.toNetscape())
     fun delete(accountId: String) = secrets.delete(key(accountId))
 
-    /** Deletes every credential this app holds ("sign out everywhere"). */
-    fun deleteAll() = secrets.keys().forEach { secrets.delete(it) }
+    /** Deletes every credential this app holds ("sign out everywhere"). The sync code is not a sign-in and stays (`sync.*`). */
+    fun deleteAll() = secrets.keys().filterNot { it.startsWith("sync.") }.forEach { secrets.delete(it) }
+
+    /** Other secrets that are not account cookies (the Sync code). */
+    fun secret(key: String): String? = secrets.get(key)
+    fun putSecret(key: String, value: String) = secrets.put(key, value)
+    fun deleteSecret(key: String) = secrets.delete(key)
+    fun secretKeys(prefix: String): List<String> = secrets.keys().filter { it.startsWith(prefix) }
 
     private fun key(accountId: String) = "cookies.$accountId"
 }

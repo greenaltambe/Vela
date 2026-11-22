@@ -38,6 +38,7 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Audiotrack
+import androidx.compose.material.icons.outlined.Cast
 import androidx.compose.material.icons.outlined.Comment
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.WatchLater
@@ -79,6 +80,7 @@ internal object MaterialOutlined {
             "watchLater" to Icons.Outlined.WatchLater,
             "comment" to Icons.Outlined.Comment,
             "audioTrack" to Icons.Outlined.Audiotrack,
+            "cast" to Icons.Outlined.Cast,
             "menu" to Icons.Outlined.Menu,
             "play" to Icons.Outlined.PlayArrow,
             "pause" to Icons.Outlined.Pause,

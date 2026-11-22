@@ -390,7 +390,18 @@ fun PlayerView(
     // they move to the top bar, so the bottom holds only the time, the chapter and the seek bar, well away from the play buttons.
     val captionsButton: @Composable () -> Unit = {
                         if (captions.isEmpty()) ControlButton({}, enabled = false, modifier = Modifier.testTag("player.captions")) { Icon(AppIcons.captions, "No captions for this video", tint = onMedia.copy(alpha = 0.4f)) }
-                        else ControlButton({ touch(); session.toggleCaptions() }, haptic = if (activeCaption != null) HapticKind.TOGGLE_OFF else HapticKind.TOGGLE_ON, onLongClick = { touch(); menu = Menu.CAPTIONS }, modifier = Modifier.testTag("player.captions")) { SwapIcon(AppIcons.captions, "Captions", if (activeCaption != null) MaterialTheme.colorScheme.primary else onMedia) }
+                        else ControlButton({ touch(); session.toggleCaptions() }, haptic = if (activeCaption != null) HapticKind.TOGGLE_OFF else HapticKind.TOGGLE_ON, onLongClick = { touch(); menu = Menu.CAPTIONS }, modifier = Modifier.testTag("player.captions")) {
+                            SwapIcon(AppIcons.captions, if (activeCaption != null) "Captions on" else "Captions off", if (activeCaption != null) MaterialTheme.colorScheme.primary else onMedia)
+                            // A bar under the icon: colour alone is easy to miss over video, so "on" is also a shape.
+                            if (activeCaption != null) Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp).size(width = 16.dp, height = 3.dp).background(MaterialTheme.colorScheme.primary, MaterialTheme.shapes.extraSmall).testTag("player.captions.on"))
+                        }
+    }
+    val cast = host.cast
+    val castTarget = cast?.connected?.collectAsState()?.value
+    val castButton: @Composable () -> Unit = {
+        if (cast != null) ControlButton({ touch(); menu = Menu.CAST }, modifier = Modifier.testTag("player.cast")) {
+            SwapIcon(AppIcons.cast, if (castTarget != null) "Casting to ${castTarget.name}" else "Cast to TV", if (castTarget != null) MaterialTheme.colorScheme.primary else onMedia)
+        }
     }
     val menuButtons: @Composable androidx.compose.foundation.layout.RowScope.(Boolean) -> Unit = { spaced ->
                         ControlButton({ touch(); session.toggleMute() }, haptic = if (muted) HapticKind.TOGGLE_ON else HapticKind.TOGGLE_OFF, modifier = Modifier.testTag("player.mute")) {
@@ -403,6 +414,7 @@ fun PlayerView(
                         )
                         if (spaced) Box(Modifier.weight(1f))
                         captionsButton()
+                        castButton()
                         // Only videos with more than one soundtrack (languages, dubs) offer a choice.
                         if (audioTracks.isNotEmpty()) ControlButton({ touch(); menu = Menu.AUDIO }, modifier = Modifier.testTag("player.audio-track")) { Icon(AppIcons.audioTrack, "Audio track", tint = onMedia) }
                         ControlButton({ touch(); menu = Menu.QUALITY }, modifier = Modifier.testTag("player.quality")) { Icon(AppIcons.quality, "Quality", tint = onMedia) }
@@ -424,6 +436,7 @@ fun PlayerView(
                     if (compact) {
                         Box(Modifier.weight(1f))
                         captionsButton()
+                        castButton()
                         ControlButton({ touch(); menu = Menu.SETTINGS }, modifier = Modifier.testTag("player.settings")) { Icon(AppIcons.settings, "Player settings", tint = onMedia) }
                     }
                 }
@@ -522,6 +535,7 @@ fun PlayerView(
     }
     val dismissMenu = { menu = null }
     when (menu) {
+        Menu.CAST -> host.cast?.let { CastSheet(it, session, dismissMenu) }
         Menu.CAPTIONS -> PlayerMenuSheet("Captions", dismissMenu, subtitle = activeCaption?.label ?: "Off") {
             PlayerMenuRow("Off", selected = activeCaption == null, onClick = { session.selectCaption(null); menu = null }, index = 0)
             captions.forEachIndexed { i, c -> PlayerMenuRow(c.label, selected = activeCaption == c, onClick = { session.selectCaption(c); menu = null }, index = i + 1) }
@@ -588,7 +602,7 @@ fun PlayerView(
     )
 }
 
-private enum class Menu { QUALITY, SPEED, SLEEP, CAPTIONS, CAPTION_STYLE, BOOST, AUDIO, SETTINGS }
+private enum class Menu { CAST, QUALITY, SPEED, SLEEP, CAPTIONS, CAPTION_STYLE, BOOST, AUDIO, SETTINGS }
 
 private fun describeTimer(mode: SleepTimerMode) = when (mode) {
     is SleepTimerMode.After -> "${mode.duration.inWholeMinutes} min"

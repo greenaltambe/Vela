@@ -38,6 +38,8 @@ plugins {
 include(":androidApp")
 include(":desktopApp")
 include(":extractor-newpipe")
+include(":cast-dlna")
+include(":sync-lan")
 include(":extractor-ytdlp")
 include(":net-okhttp")
 include(":player-mpv")

@@ -70,6 +70,15 @@ class MainActivity : ComponentActivity() {
             return kotlinx.coroutines.withContext(Dispatchers.IO) { contentResolver.openInputStream(uri)?.use { String(it.readBytes()) } }
         }
     }
+    private var pendingTree: kotlinx.coroutines.CompletableDeferred<android.net.Uri?>? = null
+    private val openTree = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { pendingTree?.complete(it) }
+    private val syncFolders = com.greenaltambe.vela.sync.AndroidSyncFolders(this) {
+        kotlinx.coroutines.CompletableDeferred<android.net.Uri?>().also { pendingTree = it }.let { d -> openTree.launch(null); d.await() }
+    }
+    /** Android drops broadcast packets unless a multicast lock is held; Sync holds it only while it is looking for devices. */
+    private val lanLock by lazy {
+        (applicationContext.getSystemService(android.content.Context.WIFI_SERVICE) as android.net.wifi.WifiManager).createMulticastLock("vela-sync").apply { setReferenceCounted(false) }
+    }
     private val runtime by lazy { PlaybackRuntime.get(this) }
     private val host by lazy { AndroidPlayerHost(runtime, ::ensureNotificationPermission) }
     private val healthSchedule by lazy { com.greenaltambe.vela.playback.HealthWorker.schedule(applicationContext); com.greenaltambe.vela.playback.AutoDownloadWorker.schedule(applicationContext); com.greenaltambe.vela.playback.FeedRefreshWorker.schedule(applicationContext); com.greenaltambe.vela.playback.AccountHistoryWorker.schedule(applicationContext) }
@@ -77,6 +86,8 @@ class MainActivity : ComponentActivity() {
     private val historyOnStart by lazy {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch { runCatching { services.accountHistory.syncIfDue(com.greenaltambe.vela.auth.HistorySyncTrigger.START) } }
     }
+    /** Sync between devices: shortly after start, then periodically while the app is open (nothing happens until the viewer sets it up). */
+    private val syncAuto by lazy { services.syncService.startAuto(CoroutineScope(SupervisorJob() + Dispatchers.IO)) }
     private val remoteConfigJob by lazy {
         // Fetched once per start in the background; a failure only changes the Diagnostics line and keeps the last good config.
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
@@ -103,6 +114,12 @@ class MainActivity : ComponentActivity() {
             governors = runtime.governors,
             faults = runtime.faults,
             backupFiles = backupFiles,
+            syncFolders = syncFolders,
+            lanTransport = com.greenaltambe.vela.synclan.LanSyncTransport(java.io.File(filesDir, "sync-lan"), networkLock = { on ->
+                val wifi = applicationContext.getSystemService(android.content.Context.WIFI_SERVICE) as android.net.wifi.WifiManager
+                if (on) lanLock.acquire() else if (lanLock.isHeld) lanLock.release()
+            }),
+            deviceName = Build.MODEL ?: "Android",
             liveChat = com.greenaltambe.vela.innertube.LiveChatClient(),
             captcha = runtime.captcha,
             solveCaptcha = { url -> startActivity(Intent(this, com.greenaltambe.vela.auth.CaptchaActivity::class.java).putExtra(com.greenaltambe.vela.auth.CaptchaActivity.EXTRA_URL, url)) },
@@ -155,7 +172,7 @@ class MainActivity : ComponentActivity() {
     private val pipToggle = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.action != ACTION_PIP_TOGGLE) return
-            if (runtime.controller.state.value.status == PlaybackStatus.PLAYING) runtime.session.pause() else runtime.session.play()
+            if (runtime.switching.state.value.status == PlaybackStatus.PLAYING) runtime.session.pause() else runtime.session.play()
         }
     }
 
@@ -209,7 +226,7 @@ class MainActivity : ComponentActivity() {
         // After the first frame (idle main thread): this builds ExoPlayer and the playback session, which the first screen does not need.
         android.os.Looper.myQueue().addIdleHandler {
             scope.launch {
-                combine(runtime.controller.state, runtime.session.state) { player, session -> player.status to session }.collect { (status, session) ->
+                combine(runtime.switching.state, runtime.session.state) { player, session -> player.status to session }.collect { (status, session) ->
                     val hasVideo = (session as? SessionState.Ready)?.plan?.videoHeight != null
                     setPictureInPictureParams(pipParams(status == PlaybackStatus.PLAYING, hasVideo))
                     // The screen stays on while a video plays (not for audio-only, not paused); the flag is cleared again so it can sleep.
@@ -221,6 +238,7 @@ class MainActivity : ComponentActivity() {
         }
 
         historyOnStart
+        syncAuto
         services.onNewUploads = { videos -> if (runtime.settings.resolve(com.greenaltambe.vela.core.settings.Settings.notifySystem)) com.greenaltambe.vela.playback.UploadNotifier.show(applicationContext, videos) }
         setContent {
             CompositionLocalProvider(LocalInPictureInPicture provides inPip, LocalWindowControls provides windowControls, com.greenaltambe.vela.ui.platform.LocalPlayerLevels provides playerLevels, com.greenaltambe.vela.ui.platform.LocalShare provides { title, url ->
@@ -266,6 +284,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        // Leaving the app: publish what changed (a short wait lets a burst of edits become one sync).
+        services.syncService.nudge(CoroutineScope(SupervisorJob() + Dispatchers.IO), 2_000)
         mediaController?.let(MediaController::releaseFuture)
         mediaController = null
         super.onStop()

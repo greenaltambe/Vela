@@ -20,6 +20,9 @@ interface PlayerHost {
     @Composable
     fun Surface(modifier: Modifier, fill: Boolean) = Surface(modifier)
 
+    /** Casting to a TV (DLNA); null where the platform has none. */
+    val cast: com.greenaltambe.vela.cast.CastManager? get() = null
+
     /** Called just before a video is started from the UI, e.g. to ask for the notification permission. */
     fun onBeforePlayback() {}
 }
