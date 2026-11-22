@@ -40,8 +40,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.material3.Checkbox
-import com.greenaltambe.vela.auth.ActionResult
-import com.greenaltambe.vela.auth.AccountLibrarySync
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -79,9 +77,11 @@ fun ListRow(title: String, modifier: Modifier = Modifier, subtitle: String? = nu
 
 @Composable
 fun LibraryScreen(services: AppServices, navigator: Navigator, modifier: Modifier = Modifier) {
-    var revision by remember { mutableStateOf(0) }
+    var localRevision by remember { mutableStateOf(0) }
+    val revision = localRevision + playlistRevision(services)
     val playlists = remember(revision) { services.playlists.all() }
     var creating by remember { mutableStateOf(false) }
+    var syncing by remember { mutableStateOf<PlaylistSummary?>(null) }
     var renaming by remember { mutableStateOf<PlaylistSummary?>(null) }
     var deleting by remember { mutableStateOf<PlaylistSummary?>(null) }
     var syncNote by remember { mutableStateOf<String?>(null) }
@@ -105,9 +105,10 @@ fun LibraryScreen(services: AppServices, navigator: Navigator, modifier: Modifie
                 }
             }
             if (services.reads != null && services.accounts.active.value.isSignedIn) item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
-                ShortcutTile("Sync account playlists", syncNote ?: "Copies Watch later, Liked videos and playlists from your YouTube account (adds only, never deletes)", AppIcons.cloud, {
+                val waiting = services.playlistService.waitingChanges()
+                ShortcutTile("Sync with YouTube", syncNote ?: "Reads your synced playlists from your account and sends what is waiting${if (waiting > 0) " ($waiting change${if (waiting == 1) "" else "s"})" else ""}. Tick \"Sync\" on a playlist's menu to sync it.", AppIcons.cloud, {
                     syncNote = "Syncing…"
-                    scope.launch { val r = AccountLibrarySync(services.reads, { services.playlists }, services.clock).sync(); syncNote = r.failure ?: "Added ${r.added}, already had ${r.alreadyHad}"; revision++ }
+                    scope.launch { val r = services.playlistService.syncNow(); syncNote = r.failure ?: "Brought in ${r.added} new, ${r.alreadyHad} already here"; localRevision++ }
                 }, Modifier.fillMaxWidth().testTag("library.syncAccount"))
             }
             if (recent.isNotEmpty()) item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
@@ -115,41 +116,41 @@ fun LibraryScreen(services: AppServices, navigator: Navigator, modifier: Modifie
             }
             item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) { SectionHeader("Playlists") { TextButton(onClick = { creating = true }, modifier = Modifier.testTag("library.newPlaylist")) { Text("New playlist", maxLines = 1) } } }
             gridItems(playlists, key = { it.id }) { p ->
-                val editable = !p.isWatchLater && (!p.isMirror || (p.remoteId != null && p.remoteId != "WL" && p.remoteId != "LL" && services.actions != null))
+                // Liked videos belongs to the like button (open and play only); Watch later keeps its name and cannot be deleted but can be synced.
+                val editable = !p.isReadOnly
                 // The cover is the first video's picture; an empty playlist gets the palette gradient and its icon.
                 val cover = remember(p.id, revision) { services.playlists.items(p.id).firstOrNull()?.videoId }
-                PlaylistCard(p, cover, editable, onOpen = { navigator.push(Route.Playlist(p.id)) }, onRename = { renaming = p }, onDelete = { deleting = p })
+                PlaylistCard(p, cover, editable, onOpen = { navigator.push(Route.Playlist(p.id)) }, onRename = { renaming = p }, onDelete = { deleting = p }, onSync = { syncing = p })
             }
         }
     }
 
-    val canUseAccount = services.actions != null && services.accounts.active.value.isSignedIn
     libraryError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = Spacing.gutter).testTag("library.error")) }
-    if (creating) NameDialog("New playlist", "", onDismiss = { creating = false }, offerAccount = canUseAccount) { name, onAccount ->
-        creating = false
-        if (onAccount) scope.launch {
-            val (r, id) = services.actions!!.createPlaylist(name)
-            if (r is ActionResult.Failed || id == null) libraryError = "Could not create it on your account: ${(r as? ActionResult.Failed)?.message ?: "no id"}"
-            else { libraryError = null; services.playlists.mirror(id, name, services.clock.now()); revision++ }
-        } else { services.playlists.create(name, services.clock.now()); revision++ }
+    val toasts = com.greenaltambe.vela.ui.look.LocalUndoToasts.current
+    fun report(r: com.greenaltambe.vela.auth.PlaylistResult, done: String? = null) {
+        if (!r.ok) libraryError = r.message else { libraryError = null; (r.message ?: done)?.let { toasts.show(it) } }
+        localRevision++
     }
-    renaming?.let { p -> NameDialog("Rename playlist", p.name, onDismiss = { renaming = null }) { name, _ ->
+    if (creating) NewPlaylistDialog(services, onDismiss = { creating = false }) { name, synced ->
+        creating = false
+        scope.launch { report(services.playlistService.create(name, synced)) }
+    }
+    renaming?.let { p -> NameDialog("Rename playlist", p.name, onDismiss = { renaming = null }) { name ->
         renaming = null
-        if (p.isMirror) scope.launch {
-            val r = services.actions!!.renamePlaylist(p.remoteId!!, name)
-            if (r is ActionResult.Failed) libraryError = "Could not rename it on your account: ${r.message}" else { libraryError = null; services.playlists.mirror(p.remoteId, name, services.clock.now()); revision++ }
-        } else { services.playlists.rename(p.id, name, services.clock.now()); revision++ }
+        scope.launch { report(services.playlistService.rename(p.id, name)) }
+    } }
+    syncing?.let { p -> SyncSettingsDialog(services, p, onDismiss = { syncing = null }) { on ->
+        syncing = null
+        scope.launch { report(services.playlistService.setSynced(p.id, on), if (on) "Syncing with YouTube" else "Stopped syncing") }
     } }
     deleting?.let { p ->
         AlertDialog(
             onDismissRequest = { deleting = null },
             title = { Text("Delete \"${p.name}\"?", maxLines = 2) },
+            text = { Text(deleteWarning(p), modifier = Modifier.testTag("library.deleteText")) },
             confirmButton = { TextButton(onClick = {
                 deleting = null
-                if (p.isMirror) scope.launch {
-                    val r = services.actions!!.deletePlaylist(p.remoteId!!)
-                    if (r is ActionResult.Failed) libraryError = "Could not delete it on your account: ${r.message}" else { libraryError = null; services.playlists.deleteMirror(p.id); revision++ }
-                } else { services.playlists.delete(p.id); revision++ }
+                scope.launch { report(services.playlistService.delete(p.id)) }
             }, modifier = Modifier.testTag("library.deleteConfirm")) { Text("Delete") } },
             dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel") } },
         )
@@ -157,15 +158,13 @@ fun LibraryScreen(services: AppServices, navigator: Navigator, modifier: Modifie
 }
 
 @Composable
-private fun NameDialog(title: String, initial: String, onDismiss: () -> Unit, offerAccount: Boolean = false, onConfirm: (String, Boolean) -> Unit) {
+private fun NameDialog(title: String, initial: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
     var name by remember { mutableStateOf(initial) }
-    var onAccount by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
-        text = { Column { OutlinedTextField(name, { name = it }, singleLine = true, label = { Text("Name") })
-            if (offerAccount) Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(onAccount, { onAccount = it }, modifier = Modifier.testTag("library.onAccount")); Text("Also create it on my YouTube account (private)") } } },
-        confirmButton = { TextButton(onClick = { onConfirm(name, onAccount) }, enabled = name.isNotBlank(), modifier = Modifier.testTag("library.nameOk")) { Text("OK") } },
+        text = { OutlinedTextField(name, { name = it }, singleLine = true, label = { Text("Name") }, modifier = Modifier.testTag("library.nameField")) },
+        confirmButton = { TextButton(onClick = { onConfirm(name) }, enabled = name.isNotBlank(), modifier = Modifier.testTag("library.nameOk")) { Text("OK") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }
@@ -187,7 +186,7 @@ private fun ShortcutTile(title: String, subtitle: String, icon: androidx.compose
 
 /** A playlist as a large rounded card: the cover picture (or the palette gradient) on top, name and count on the card's own surface underneath, options in the corner. */
 @Composable
-private fun PlaylistCard(p: PlaylistSummary, coverVideoId: String?, editable: Boolean, onOpen: () -> Unit, onRename: () -> Unit, onDelete: () -> Unit) {
+private fun PlaylistCard(p: PlaylistSummary, coverVideoId: String?, editable: Boolean, onOpen: () -> Unit, onRename: () -> Unit, onDelete: () -> Unit, onSync: () -> Unit) {
     val surface = MaterialTheme.colorScheme.surfaceContainerLow
     Column(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraLarge).background(surface).clickable(onClick = onOpen).testTag(ComponentIds.PLAYLIST_ROW)) {
         Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(MaterialTheme.colorScheme.surfaceContainerHighest)) {
@@ -204,8 +203,9 @@ private fun PlaylistCard(p: PlaylistSummary, coverVideoId: String?, editable: Bo
                 Box(Modifier.align(Alignment.TopEnd).padding(Spacing.xs)) {
                     IconButton(onClick = { menu = true }, modifier = Modifier.clip(CircleShape).background(surface.copy(alpha = 0.85f))) { Icon(AppIcons.more, "Playlist options", tint = MaterialTheme.colorScheme.onSurface) }
                     DropdownMenu(menu, { menu = false }) {
-                        DropdownMenuItem(text = { Text("Rename") }, onClick = { menu = false; onRename() })
-                        DropdownMenuItem(text = { Text("Delete") }, onClick = { menu = false; onDelete() })
+                        if (!p.isWatchLater) DropdownMenuItem(text = { Text("Rename") }, onClick = { menu = false; onRename() })
+                        DropdownMenuItem(text = { Text("Sync settings") }, onClick = { menu = false; onSync() }, modifier = Modifier.testTag("playlist.syncSettings"))
+                        if (!p.isWatchLater) DropdownMenuItem(text = { Text("Delete") }, onClick = { menu = false; onDelete() })
                     }
                 }
             }
@@ -213,8 +213,8 @@ private fun PlaylistCard(p: PlaylistSummary, coverVideoId: String?, editable: Bo
         Column(Modifier.fillMaxWidth().padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(p.name, style = MaterialTheme.typography.titleSmall, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurface)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                if (p.isMirror) Icon(AppIcons.cloud, "On your YouTube account", Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("${p.itemCount} video${if (p.itemCount == 1) "" else "s"}", style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                SyncBadge(p)
+                Text(playlistSupporting(p), style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

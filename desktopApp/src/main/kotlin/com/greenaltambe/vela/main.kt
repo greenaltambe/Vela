@@ -209,6 +209,17 @@ fun main(args: Array<String>) {
             }
         }
 
+        // Playlists synced with the account: what waits in the outbox is sent (whatever the setting says), and the read follows `library.accountSync` (ON_START, EVERY_6H).
+        androidx.compose.runtime.LaunchedEffect(services) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { services.playlistService.runScheduled(com.greenaltambe.vela.auth.LibrarySyncTrigger.START) }
+                while (true) {
+                    kotlinx.coroutines.delay(30 * 60_000L)
+                    runCatching { services.playlistService.runScheduled(com.greenaltambe.vela.auth.LibrarySyncTrigger.PERIODIC) }
+                }
+            }
+        }
+
         androidx.compose.runtime.LaunchedEffect(Unit) {
             for (link in links) {
                 // A link handed over by another launch of the app opens in a tab of its own, in the window used last.

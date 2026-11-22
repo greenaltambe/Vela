@@ -115,11 +115,13 @@ class PlaylistsDomain(private val db: VelaDatabase, private val now: () -> Insta
         for ((k, v) in changes.entries.sortedBy { it.key }) {
             val parts = k.removePrefix(prefix).split("/i/")
             var list = r.all().firstOrNull { !it.isMirror && listKey(it) == parts[0] }
+            // A Watch later that is synced with the account comes from the account, not from another device (and "@watchlater" is never a list's name).
+            if (list == null && parts[0] == WL) continue
             if (parts.size == 1) {
                 if (v == null) { if (list != null && !list.isWatchLater) r.delete(list.id) }
                 else if (list == null) r.create(v, now())
             } else {
-                if (list == null && v != null) list = r.all().firstOrNull { it.isWatchLater && parts[0] == WL } ?: r.create(unesc(parts[0]), now()).let { id -> r.all().first { it.id == id } }
+                if (list == null && v != null) list = r.create(unesc(parts[0]), now()).let { id -> r.all().first { it.id == id } }
                 if (list == null) continue
                 val vid = unesc(parts[1])
                 if (v == null) r.remove(list.id, vid)
@@ -208,7 +210,7 @@ class SettingsDomain(private val db: VelaDatabase) : SyncDomain {
 
     companion object {
         private val never = listOf("account.", "downloads.", "ytdlp.", "debug.", "remoteConfig.", "session.", "health.", "release.", "battery.", "captcha.", "governor.", "profile.",
-            "sync.", "device.", "sponsorblock.userId", "blocklist.", "subscriptions.groups.", "notify.", "history.accountSync", "content.region")
+            "sync.", "device.", "sponsorblock.userId", "blocklist.", "subscriptions.groups.", "notify.", "history.accountSync", "library.accountSync", "library.newPlaylistSyncDefault", "content.region")
         private val appearance = setOf("look.theme", "look.colorMode", "look.colorScheme", "look.palette", "look.amoled", "look.customColor", "look.font", "look.corners", "look.glass",
             "look.iconStyle", "look.iconWeight", "look.iconRounded", "look.titleWeight", "look.progressStyle", "look.reduceMotion")
         private val schema: Set<String> by lazy { Settings.all.map { it.key }.toSet() }

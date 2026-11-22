@@ -29,23 +29,29 @@ class AccountPlaylistsUiTest {
         override suspend fun deletePlaylist(playlistId: String): ActionResult { calls += "delete $playlistId"; return answer }
     }
 
-    @Test fun creatingOnTheAccountMakesAMirrorAndAFailureCreatesNothingLocally() = runDesktopComposeUiTest(800, 1000) {
+    private val reads = object : AccountReads {
+        override suspend fun recommended(): List<com.greenaltambe.vela.extractor.VideoSummary>? = null
+        override suspend fun playlists() = emptyList<AccountPlaylist>()
+        override suspend fun playlistVideos(playlistId: String) = emptyList<com.greenaltambe.vela.extractor.VideoSummary>()
+    }
+
+    @Test fun creatingASyncedPlaylistMakesItOnTheAccountAndAFailureCreatesNothingLocally() = runDesktopComposeUiTest(800, 1000) {
         val actions = Fake()
-        val f = buildFixture(withDownloads = false, actions = actions)
+        val f = buildFixture(withDownloads = false, actions = actions, reads = reads)
         f.services.accounts.addGoogle(GoogleIdentity("P", "p@example.com", null, "UC1"), jar)
         f.navigator.selectTab(Route.Library)
         setContent { AppUnderTest(f) }; waitForIdle()
         onNodeWithTag("library.newPlaylist").performClick(); waitForIdle()
-        onNodeWithTag("library.onAccount").performClick()
+        onNodeWithTag("playlist.syncCheckbox").performClick()
         onNodeWithText("Name").performTextInput("From the app"); waitForIdle()
         onNodeWithTag("library.nameOk").performClick(); waitForIdle()
-        waitUntil(timeoutMillis = 3_000) { f.services.playlists.all().any { it.isMirror && it.name == "From the app" } }
+        waitUntil(timeoutMillis = 3_000) { f.services.playlists.all().any { it.isSynced && it.name == "From the app" } }
         assertEquals(listOf("create From the app"), actions.calls)
         assertEquals("PLnew", f.services.playlists.all().single { it.name == "From the app" }.remoteId)
 
         actions.answer = ActionResult.Failed("Account traffic is paused.")
         onNodeWithTag("library.newPlaylist").performClick(); waitForIdle()
-        onNodeWithTag("library.onAccount").performClick()
+        onNodeWithTag("playlist.syncCheckbox").performClick()
         onNodeWithText("Name").performTextInput("Refused"); waitForIdle()
         onNodeWithTag("library.nameOk").performClick(); waitForIdle()
         waitUntil(timeoutMillis = 3_000) { runCatching { onNodeWithTag("library.error").assertIsDisplayed() }.isSuccess }

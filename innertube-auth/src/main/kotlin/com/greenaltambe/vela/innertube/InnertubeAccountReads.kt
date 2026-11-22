@@ -41,6 +41,9 @@ class InnertubeAccountReads(
     override suspend fun playlistVideos(playlistId: String): List<VideoSummary>? =
         run { playlistVideos(playlistId).map { VideoSummary(it.videoId, it.title, "", it.channelName.orEmpty(), durationSeconds = it.durationSeconds) } }
 
+    override suspend fun playlistListing(playlistId: String): PlaylistListing? =
+        run { playlistListing(playlistId).let { (vids, complete) -> PlaylistListing(vids.map { VideoSummary(it.videoId, it.title, "", it.channelName.orEmpty(), durationSeconds = it.durationSeconds) }, complete) } }
+
     override suspend fun history(): List<VideoSummary>? = run {
         val page = browse("FEhistory", kotlin.time.Duration.parse("70s"))
         if (InnertubeParsers.isSignedOutPage(page)) throw AuthFailure.LoggedOut("history is the signed-out page")

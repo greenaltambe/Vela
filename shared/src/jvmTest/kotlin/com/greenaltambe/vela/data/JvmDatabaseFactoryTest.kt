@@ -43,8 +43,15 @@ class JvmDatabaseFactoryTest {
         assertEquals(1, JvmDatabaseDriverFactory(file).create().scalar("PRAGMA foreign_keys"))
     }
 
-    /** Takes a current database back to what version 10 looked like: no list of videos removed from Continue watching. */
-    private fun SqlDriver.dropVersion11Table() { execute(null, "DROP TABLE ContinueDismissed", 0) }
+    /** Takes a current database back to what version 11 looked like: no playlist sync columns and no outbox. */
+    private fun SqlDriver.dropVersion12Changes() {
+        execute(null, "DROP TABLE PlaylistOp", 0)
+        listOf("remoteId", "syncState", "lastSyncedAt", "syncError").forEach { execute(null, "ALTER TABLE Playlist DROP COLUMN $it", 0) }
+        execute(null, "ALTER TABLE PlaylistItem DROP COLUMN rowState", 0)
+    }
+
+    /** ...back to what version 10 looked like: no list of videos removed from Continue watching. */
+    private fun SqlDriver.dropVersion11Table() { dropVersion12Changes(); execute(null, "DROP TABLE ContinueDismissed", 0) }
 
     /** ...back to what version 8 looked like: no account watch history. */
     private fun SqlDriver.dropVersion9Table() { dropVersion11Table(); execute(null, "DROP TABLE AccountWatched", 0) }
@@ -185,6 +192,39 @@ class JvmDatabaseFactoryTest {
         assertEquals("GOOGLE", db.accountQueries.selectById("g1").executeAsOne().kind)
         db.accountAuditQueries.insert("g1", 5, "BROWSE", "www.youtube.com", "ok", "allowed")
         assertEquals(1, db.accountAuditQueries.recent("g1", 10).executeAsList().size)
+    }
+
+    @Test
+    fun versionElevenPlaylistsBecomeLocalOrSyncedAndNothingSavedHereIsLost() {
+        val v11 = JvmDatabaseDriverFactory(file).create()
+        v11.dropVersion12Changes()
+        v11.execute(null, "PRAGMA user_version = 11", 0)
+        fun list(id: Int, name: String, key: String?) = v11.execute(null, "INSERT INTO Playlist(id, accountId, name, systemKey, createdAt, updatedAt) VALUES ($id,'g1','$name',${key?.let { "'$it'" } ?: "NULL"},1,1)", 0)
+        fun item(list: Int, video: String, pos: Int) = v11.execute(null, "INSERT INTO PlaylistItem(playlistId, videoId, position, title, channelId, channelName, addedAt) VALUES ($list,'$video',$pos,'T','UC','C',1)", 0)
+        list(1, "Mine", null); item(1, "m1", 0)
+        list(2, "Watch later", "watch_later"); item(2, "x", 0)
+        list(3, "Watch later (YouTube)", "yt:WL"); item(3, "y", 0); item(3, "x", 1)
+        list(4, "Remote", "yt:PL1"); item(4, "p", 0)
+        list(5, "Liked videos (YouTube)", "yt:LL"); item(5, "l", 0)
+        // A second account with a local Watch later and no mirror: it must stay local.
+        v11.execute(null, "INSERT INTO Playlist(id, accountId, name, systemKey, createdAt, updatedAt) VALUES (6,'g2','Watch later','watch_later',1,1)", 0)
+        v11.close()
+
+        val db = createDatabase(JvmDatabaseDriverFactory(file))
+        val repo = PlaylistRepository(db, "g1")
+        val all = repo.all()
+        assertEquals(null, all.single { it.name == "Mine" }.remoteId, "a local playlist stays local")
+        val wl = all.single { it.isWatchLater }
+        assertEquals("WL", wl.remoteId, "the account's Watch later is merged into the one local Watch later, which is linked to it")
+        assertEquals(setOf("x", "y"), repo.items(wl.id).map { it.videoId }.toSet(), "the two are united")
+        assertTrue(repo.items(wl.id).all { it.rowState == RowState.PENDING_ADD }, "nothing is deleted at the first pull: items wait until a sync confirms them")
+        assertEquals(1, all.count { it.name.startsWith("Watch later") }, "the old '(YouTube)' copy is gone")
+        val remote = all.single { it.remoteId == "PL1" }
+        assertEquals(PlaylistSync.SYNCED, remote.syncState); assertEquals(RowState.PENDING_ADD, repo.items(remote.id).single().rowState)
+        val liked = all.single { it.remoteId == "LL" }
+        assertEquals("Liked videos", liked.name); assertEquals(RowState.SYNCED, repo.items(liked.id).single().rowState, "liked videos has nothing to push")
+        assertEquals(null, PlaylistRepository(db, "g2").all().single { it.isWatchLater }.remoteId, "no account copy was used, so it stays local")
+        assertEquals(0, PlaylistOpRepository(db, "g1").count())
     }
 
     @Test

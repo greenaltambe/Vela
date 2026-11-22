@@ -533,6 +533,28 @@ object Settings {
         range = SettingRange(min = 0.0, max = 10.0, step = 1.0),
     )
 
+    /** When playlists synced with the YouTube account are read from it (their pending changes are sent whenever the limit allows, whatever this says). */
+    val libraryAccountSync = Setting(
+        key = "library.accountSync", default = AccountHistorySync.MANUAL, scope = SettingScope.GLOBAL,
+        label = "Sync my playlists with YouTube",
+        keywords = listOf("playlist", "watch later", "account", "sync", "youtube", "library"),
+        codec = SettingCodecs.enum(AccountHistorySync.entries), section = SettingSection.LIBRARY,
+        choices = listOf(
+            SettingChoice(AccountHistorySync.OFF.name, "Off"),
+            SettingChoice(AccountHistorySync.MANUAL.name, "Only when I ask"),
+            SettingChoice(AccountHistorySync.ON_START.name, "When the app starts"),
+            SettingChoice(AccountHistorySync.EVERY_6H.name, "Every 6 hours"),
+        ),
+    )
+
+    /** What the "Sync with my YouTube account" box starts as for a new playlist. */
+    val libraryNewPlaylistSync = Setting(
+        key = "library.newPlaylistSyncDefault", default = false, scope = SettingScope.GLOBAL,
+        label = "New playlists sync with YouTube",
+        keywords = listOf("playlist", "new", "default", "account", "sync", "youtube", "private"),
+        codec = SettingCodecs.boolean, section = SettingSection.LIBRARY,
+    )
+
     val accountReportActivity = Setting(
         key = "account.reportActivity", default = false, scope = SettingScope.GLOBAL,
         label = "Tell YouTube what I watch",
@@ -688,7 +710,7 @@ object Settings {
     )
 
     val all: List<Setting<*>> = listOf(
-        historyAccountSync, accountReportActivity, hideWatched, hideMembersOnly, watchedThresholdPercent, minLengthSeconds, blockKeywords, allowKeywords, keywordsAreRegex,
+        historyAccountSync, libraryAccountSync, libraryNewPlaylistSync, accountReportActivity, hideWatched, hideMembersOnly, watchedThresholdPercent, minLengthSeconds, blockKeywords, allowKeywords, keywordsAreRegex,
         debugFrameStats, homeSource, contentRegion, allowAgeRestricted, allowControversial, slowStreamFailover, notifyBackground, notifySystem, notifyDownloads, accountFallbackMode, accountProfilesExperimental, accountUseForChannels, accountUseForDetails, accountDownloadsMayUse, accountKillSwitch, accountTierOrder, remoteConfigUrl, ytDlpAutoUpdate,
         accountPlaybackPerHour, accountBrowsePerMinute, accountWritesPerHour, shortsMode, defaultPlaybackSpeed, autoplayNext, seekStepSeconds, holdSpeed, maxQualityUnmetered, maxQualityMetered, preferredCodec, breakReminder, miniPlayerStyle, shortsDailyLimit, volumeBoost, captionSize, captionBackground, captionCreatorStyle, audioOnly, ytDlpPath,
         sponsorBlockEnabled, returnYouTubeDislikeEnabled, deArrowEnabled,

@@ -77,8 +77,10 @@ import com.greenaltambe.vela.ui.search.*
  * elsewhere, and a new search replaces this screen rather than stacking another.
  */
 @Composable
-fun SearchScreen(services: AppServices, navigator: Navigator, query: String, modifier: Modifier = Modifier) {
-    var text by remember(query) { mutableStateOf(query) }
+fun SearchScreen(services: AppServices, navigator: Navigator, routeQuery: String, edit: Boolean, modifier: Modifier = Modifier) {
+    // The typing view of a results page (opened from the top bar's pill) is this screen with nothing searched yet and the old query in the field.
+    val query = if (edit) "" else routeQuery
+    var text by remember(routeQuery, edit) { mutableStateOf(routeQuery) }
     val store = LocalSearchStore.current
     val cached = remember(query) { if (query.isBlank()) null else store?.fresh(query, services.clock.now()) }
     var results by remember(query) { mutableStateOf(cached?.videos ?: videoPagedList()) }
@@ -234,7 +236,13 @@ fun SearchScreen(services: AppServices, navigator: Navigator, query: String, mod
     )
     Column(modifier.fillMaxSize()) {
         val tuneVisible = query.isNotBlank() && type != SearchType.CHANNELS && type != SearchType.PLAYLISTS
-        if (desktop) {
+        if (desktop && query.isNotBlank()) {
+            // A results page: the top bar's pill shows what was searched (and opens the typing view); here only back and the filters.
+            Box(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)).heightIn(min = 48.dp).padding(horizontal = Spacing.xs)) {
+                IconButton(onClick = { navigator.back() }, modifier = Modifier.align(Alignment.CenterStart).testTag("nav.back")) { Icon(AppIcons.back, "Back") }
+                if (tuneVisible) Box(Modifier.align(Alignment.CenterEnd)) { FilterTuneButton(!filters.isDefault) { sheet = true } }
+            }
+        } else if (desktop) {
             // One centred column for the field and the lists under it, so their edges line up; the back and filter buttons sit at the window's sides.
             Box(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)).heightIn(min = 64.dp).padding(horizontal = Spacing.xs)) {
                 IconButton(onClick = { navigator.back() }, modifier = Modifier.align(Alignment.CenterStart).testTag("nav.back")) { Icon(AppIcons.back, "Back") }

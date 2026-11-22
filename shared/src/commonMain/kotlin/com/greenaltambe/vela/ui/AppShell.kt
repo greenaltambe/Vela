@@ -242,12 +242,14 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
             if (navigator.repeatOne && host != null) { host.session.seekTo(0); host.session.play() } else navigator.playNext()
         }
     }
+    // The search page's typing view keeps focus in its own field; the results page leaves it to the shell so "/" works there.
+    val typingSearch = route.let { it is Route.Search && (it.query.isBlank() || it.edit) }
     // Shortcuts need the page to hold focus; a text field the user used earlier must not keep it after navigating.
-    LaunchedEffect(route) { if (route !is Route.Search) runCatching { focus.requestFocus() } }
+    LaunchedEffect(route) { if (!typingSearch) runCatching { focus.requestFocus() } }
     var rootFocused by remember { mutableStateOf(true) }
     // The page itself (not a text field or a button inside it) holds the focus: only then is "/" a shortcut, so typing a slash in a field is never taken.
     var pageFocused by remember { mutableStateOf(true) }
-    LaunchedEffect(rootFocused, route) { if (!rootFocused && route !is Route.Search) { kotlinx.coroutines.delay(60); runCatching { focus.requestFocus() } } }
+    LaunchedEffect(rootFocused, route) { if (!rootFocused && !typingSearch) { kotlinx.coroutines.delay(60); runCatching { focus.requestFocus() } } }
 
     val shellScope = androidx.compose.runtime.rememberCoroutineScope()
     val videoPageCache = navigator.videoPageCache
@@ -257,10 +259,12 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
     val searchStore = navigator.searchStore
     val spaceHold = remember { SpaceHold() }
     val refreshHandle = remember { com.greenaltambe.vela.ui.components.RefreshHandle() }
-    // "/" opens the search page (as on YouTube's site), from anywhere but the search page itself.
+    // The search pill and "/": the typing view, with the current query in the field when a results page is open.
+    val openSearch = { navigator.push(Route.Search((route as? Route.Search)?.query.orEmpty(), edit = route is Route.Search)) }
+    // "/" opens the search page (as on YouTube's site), from anywhere but its typing view.
     val slashSearch: (androidx.compose.ui.input.key.KeyEvent) -> Boolean = { e ->
-        (e.type == KeyEventType.KeyDown && e.key == androidx.compose.ui.input.key.Key.Slash && !e.isCtrlPressed && !e.isAltPressed && !e.isMetaPressed && !e.isShiftPressed && route !is Route.Search)
-            .also { if (it) navigator.push(Route.Search()) }
+        (e.type == KeyEventType.KeyDown && e.key == androidx.compose.ui.input.key.Key.Slash && !e.isCtrlPressed && !e.isAltPressed && !e.isMetaPressed && !e.isShiftPressed && !typingSearch)
+            .also { if (it) openSearch() }
     }
     val onKey: (androidx.compose.ui.input.key.KeyEvent) -> Boolean = onKey@{ e ->
         // Space: a tap toggles play, holding it plays fast until it is released (the speed is a playback setting). X11 reports a held key as release+press pairs,
@@ -401,7 +405,7 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
             if (chrome && desktopBar) com.greenaltambe.vela.ui.components.DesktopTopBar(
                 onToggleSideBar = { toggleSideBar() }, onHome = { navigator.selectTab(Route.Home) },
                 onBack = if (shellBarRoute && navigator.baseCanGoBack) ({ navigator.back() }) else null,
-                showSearch = uiRoute !is Route.Search, onSearch = { navigator.push(Route.Search()) },
+                showSearch = !(uiRoute is Route.Search && (uiRoute.query.isBlank() || uiRoute.edit)), searchText = (uiRoute as? Route.Search)?.query.orEmpty(), onSearch = { openSearch() },
                 unread = notifUnread, onNotifications = { navigator.push(Route.Notifications) },
                 profile = { ProfileButton(services) { profileOpen = true } },
             )
@@ -545,7 +549,7 @@ private fun Destination(services: AppServices, navigator: Navigator, route: Rout
         Route.Library -> LibraryScreen(services, navigator, modifier)
         Route.Settings, Route.Customize, is Route.CustomizePage, is Route.SettingsPage, Route.Accounts, Route.Backup, Route.Sync, Route.Health -> com.greenaltambe.vela.ui.screens.SettingsPaneHost(services, navigator, route, modifier)
         Route.Explore -> com.greenaltambe.vela.ui.screens.ExploreScreen(services, navigator, modifier)
-        is Route.Search -> SearchScreen(services, navigator, route.query, modifier)
+        is Route.Search -> SearchScreen(services, navigator, route.query, route.edit, modifier)
         is Route.Video -> Unit   // drawn by VideoLayer, above the screen
         is Route.ChannelPlaylist -> com.greenaltambe.vela.ui.screens.ChannelPlaylistScreen(services, navigator, route.id, modifier)
         is Route.Channel -> ChannelScreen(services, navigator, route.id, route.name, modifier, route.viaVideoId)

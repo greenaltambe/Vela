@@ -377,7 +377,7 @@ fun VelaTopBar(
         actions = {
             actions()
             if (onSearch != null) {
-                if (com.greenaltambe.vela.ui.platform.LocalVolumeSlider.current) TopBarSearchField(onSearch, Modifier.width(360.dp).padding(end = Spacing.sm))
+                if (com.greenaltambe.vela.ui.platform.LocalVolumeSlider.current) TopBarSearchField(onSearch, "", Modifier.width(360.dp).padding(end = Spacing.sm))
                 else IconButton(onClick = onSearch, modifier = Modifier.testTag("nav.search")) { Icon(AppIcons.search, "Search") }
             }
             if (onNotifications != null) IconButton(onClick = onNotifications, modifier = Modifier.testTag("nav.notifications")) {
@@ -464,13 +464,13 @@ fun LinkButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier
  * takes the same place and grows from this one (see SearchScreen), so the bar seems to widen into the page.
  */
 @Composable
-private fun TopBarSearchField(onOpen: () -> Unit, modifier: Modifier = Modifier) {
+private fun TopBarSearchField(onOpen: () -> Unit, text: String, modifier: Modifier = Modifier) {
     val cs = MaterialTheme.colorScheme
     Row(
         modifier.height(40.dp).clip(CircleShape).background(cs.surfaceContainerHigh).clickable(onClickLabel = "Search", onClick = onOpen).padding(start = Spacing.md, end = Spacing.sm).testTag("nav.searchBar"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("Search", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = cs.onSurfaceVariant, maxLines = 1)
+        Text(text.ifBlank { "Search" }, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = if (text.isBlank()) cs.onSurfaceVariant else cs.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
         // The hint that "/" opens search from anywhere, drawn like a keyboard key.
         Box(
             Modifier.padding(end = Spacing.sm).border(1.dp, cs.outlineVariant, MaterialTheme.shapes.extraSmall).padding(horizontal = 7.dp, vertical = 1.dp)
@@ -491,7 +491,7 @@ val DesktopTopBarHeight = 56.dp
 @Composable
 fun DesktopTopBar(
     onToggleSideBar: () -> Unit, onHome: () -> Unit, onBack: (() -> Unit)?, showSearch: Boolean, onSearch: () -> Unit,
-    unread: Boolean, onNotifications: () -> Unit, profile: @Composable () -> Unit, modifier: Modifier = Modifier,
+    unread: Boolean, onNotifications: () -> Unit, profile: @Composable () -> Unit, modifier: Modifier = Modifier, searchText: String = "",
 ) {
     val cs = MaterialTheme.colorScheme
     // Three places in one box (weights left gaps when the pill is capped): the menu and mark at the left edge, the pill in the middle of the bar, the bell and profile at the right edge.
@@ -507,7 +507,7 @@ fun DesktopTopBar(
                 Text("Vela", style = MaterialTheme.typography.titleLarge, maxLines = 1)
             }
         }
-        if (showSearch) TopBarSearchField(onSearch, Modifier.align(Alignment.Center).fillMaxWidth(0.42f).widthIn(min = 200.dp, max = 560.dp))
+        if (showSearch) TopBarSearchField(onSearch, searchText, Modifier.align(Alignment.Center).fillMaxWidth(0.42f).widthIn(min = 200.dp, max = 560.dp))
         Row(Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onNotifications, modifier = Modifier.testTag("nav.notifications")) {
                 androidx.compose.material3.BadgedBox(badge = { if (unread) androidx.compose.material3.Badge(Modifier.testTag("nav.notifications.unread"), containerColor = com.greenaltambe.vela.ui.theme.LocalSeekColor.current ?: cs.error) }) {

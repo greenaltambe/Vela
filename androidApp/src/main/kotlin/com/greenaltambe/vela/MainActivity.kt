@@ -84,7 +84,7 @@ class MainActivity : ComponentActivity() {
     }
     private val runtime by lazy { PlaybackRuntime.get(this) }
     private val host by lazy { AndroidPlayerHost(runtime, ::ensureNotificationPermission) }
-    private val healthSchedule by lazy { com.greenaltambe.vela.playback.HealthWorker.schedule(applicationContext); com.greenaltambe.vela.playback.AutoDownloadWorker.schedule(applicationContext); com.greenaltambe.vela.playback.FeedRefreshWorker.schedule(applicationContext); com.greenaltambe.vela.playback.AccountHistoryWorker.schedule(applicationContext); com.greenaltambe.vela.playback.SyncWorker.schedule(applicationContext); com.greenaltambe.vela.playback.AutoBackupWorker.schedule(applicationContext) }
+    private val healthSchedule by lazy { com.greenaltambe.vela.playback.HealthWorker.schedule(applicationContext); com.greenaltambe.vela.playback.AutoDownloadWorker.schedule(applicationContext); com.greenaltambe.vela.playback.FeedRefreshWorker.schedule(applicationContext); com.greenaltambe.vela.playback.AccountHistoryWorker.schedule(applicationContext); com.greenaltambe.vela.playback.PlaylistSyncWorker.schedule(applicationContext); com.greenaltambe.vela.playback.SyncWorker.schedule(applicationContext); com.greenaltambe.vela.playback.AutoBackupWorker.schedule(applicationContext) }
     /** Reads the account's history at start when the setting says so (ON_START, or EVERY_6H when six hours have passed). */
     private val historyOnStart by lazy {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch { runCatching { services.accountHistory.syncIfDue(com.greenaltambe.vela.auth.HistorySyncTrigger.START) } }

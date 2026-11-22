@@ -35,6 +35,8 @@ object SettingCopy {
         "ytdlp.path" to Copy("yt-dlp location", "Leave empty to use the bundled or managed copy."),
         "ytdlp.autoUpdate" to Copy("Update yt-dlp", "Keep the app's own copy of yt-dlp up to date."),
         "account.reportActivity" to Copy("Tell YouTube what I watch", "Off by default. When on, Vela tells your YouTube account what you watch, like the official app, so it shows in your YouTube history and shapes recommendations. Needs a signed-in account. Vela keeps its own history on this device either way."),
+        "library.accountSync" to Copy("Sync my playlists with YouTube", "How often playlists you synced are read from your account. Changes you make here are always sent as soon as YouTube's hourly limit allows."),
+        "library.newPlaylistSyncDefault" to Copy("New playlists sync with YouTube", "The box \"Sync with my YouTube account\" starts ticked for a new playlist. They are created as private playlists."),
         "history.accountSync" to Copy("Read my YouTube history", "Bring what you watched on other devices into Vela's History and use it for hiding watched videos."),
         "feed.hideWatched" to Copy("Hide watched videos", "Leave videos you have already watched out of lists."),
         "feed.hideMembersOnly" to Copy("Hide members-only videos", "Leave out videos only a channel's paying members can watch. When off, they show a \"Members only\" badge."),

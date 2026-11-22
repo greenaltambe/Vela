@@ -17,7 +17,8 @@ sealed interface Route {
     data object Library : Route
     data object Explore : Route
     data object Settings : Route
-    data class Search(val query: String = "") : Route
+    /** [edit]: the typing view (field, suggestions, recent searches) with [query] already in the field, opened from the top bar's search pill on a results page. */
+    data class Search(val query: String = "", val edit: Boolean = false) : Route
     /** [asVideoPage]: show a Short on the ordinary video page too (the Shorts player's "Open"), instead of in the Shorts player. */
     data class Video(val video: VideoSummary, val startSeconds: Long? = null, val asVideoPage: Boolean = false) : Route
     /** A Short opened from a card elsewhere: the Shorts player, starting on it. */

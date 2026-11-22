@@ -18,19 +18,20 @@ class LibrarySyncUiTest {
     private val jar = CookieJar(listOf(Cookie("SID", "s", ".google.com"), Cookie("SAPISID", "p", ".youtube.com")))
     private val reads = object : AccountReads {
         override suspend fun recommended(): List<VideoSummary>? = null
-        override suspend fun playlists() = listOf(AccountPlaylist("WL", "Watch later", 1))
+        override suspend fun playlists() = listOf(AccountPlaylist("WL", "Watch later", 1), AccountPlaylist("PL9", "Mine", 1))
         override suspend fun playlistVideos(playlistId: String) = listOf(VideoSummary("w1", "Saved on the account", "UC", "C"))
     }
 
-    @Test fun theSyncRowCopiesAccountPlaylistsNextToTheLocalOnesAndLabelsThem() = runDesktopComposeUiTest(800, 1000) {
+    @Test fun theSyncRowBringsInAccountPlaylistsAsSyncedOnesAndLeavesWatchLaterLocalUntilTicked() = runDesktopComposeUiTest(800, 1000) {
         val f = buildFixture(withDownloads = false, reads = reads)
         f.services.accounts.addGoogle(GoogleIdentity("P", "p@example.com", null, "UC1"), jar)
         f.navigator.selectTab(Route.Library)
         setContent { AppUnderTest(f) }; waitForIdle()
         onNodeWithTag("library.syncAccount").performClick(); waitForIdle()
-        waitUntil(timeoutMillis = 3_000) { runCatching { onNodeWithText("Watch later (YouTube)").assertIsDisplayed() }.isSuccess }
-        onNodeWithText("1 video").assertIsDisplayed(); onNodeWithContentDescription("On your YouTube account").assertIsDisplayed()
-        assertTrue(f.services.playlists.all().any { it.isMirror })
+        waitUntil(timeoutMillis = 3_000) { runCatching { onNodeWithText("Mine").assertIsDisplayed() }.isSuccess }
+        onNodeWithContentDescription("Synced with YouTube").assertIsDisplayed()
+        assertTrue(f.services.playlists.all().any { it.isSynced && it.name == "Mine" })
+        assertTrue(f.services.playlists.all().single { it.isWatchLater }.let { !it.isSynced }, "Watch later stays local until the box is ticked on it")
     }
 
     @Test fun signedOutThereIsNoSyncRow() = runDesktopComposeUiTest(800, 1000) {

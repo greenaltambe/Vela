@@ -45,13 +45,19 @@ import com.greenaltambe.vela.ui.theme.Spacing
  */
 @Composable
 fun PlaylistScreen(services: AppServices, navigator: Navigator, playlistId: Long, modifier: Modifier = Modifier) {
-    var revision by remember { mutableStateOf(0) }
+    var localRevision by remember { mutableStateOf(0) }
+    val revision = localRevision + playlistRevision(services)
     val scope = rememberCoroutineScope()
     val toasts = LocalUndoToasts.current
     val removal = remember { DeferredRemoval<String>(scope, toasts) }
     val selected = remember { mutableStateListOf<String>() }
     val summary = remember(revision) { services.playlists.all().firstOrNull { it.id == playlistId } }
     val items = remember(revision) { services.playlists.items(playlistId) }
+    val synced = summary?.isSynced == true
+    val readOnly = summary?.isReadOnly == true
+    var overflowOpen by remember { mutableStateOf(false) }
+    var syncOpen by remember { mutableStateOf(false) }
+    val notOnYouTube = remember(items) { items.filter { it.rowState == com.greenaltambe.vela.data.RowState.OVERFLOW }.map { it.videoId }.toSet() }
     val all = remember(items) { items.map { it.toSummary() } }
     val videos = all.filter { it.id !in removal.hidden }
     var downloadFor by remember { mutableStateOf<List<VideoSummary>?>(null) }
@@ -61,17 +67,31 @@ fun PlaylistScreen(services: AppServices, navigator: Navigator, playlistId: Long
     fun toggle(id: String) { if (id in selected) selected.remove(id) else selected.add(id) }
     fun remove(ids: List<String>) {
         selected.clear()
-        removal.remove(ids, if (ids.size == 1) "Removed from playlist" else "Removed ${ids.size} from playlist") { ids.forEach { services.playlists.remove(playlistId, it) }; revision++ }
+        removal.remove(ids, if (ids.size == 1) "Removed from playlist" else "Removed ${ids.size} from playlist") {
+            services.playlistService.launch { val r = services.playlistService.remove(playlistId, ids); if (!r.ok) toasts.show(r.message ?: "Could not remove it"); localRevision++ }
+        }
+    }
+
+    overflowOpen.takeIf { it }?.let { summary?.let { s -> OverflowDialog(services, s, onDismiss = { overflowOpen = false }) { r -> overflowOpen = false; toasts.show(r.message ?: "Done"); localRevision++ } } }
+    if (syncOpen && summary != null) SyncSettingsDialog(services, summary, onDismiss = { syncOpen = false }) { on ->
+        syncOpen = false
+        services.playlistService.launch { val r = services.playlistService.setSynced(playlistId, on); toasts.show(r.message ?: if (r.ok) (if (on) "Syncing with YouTube" else "Stopped syncing") else "Could not change it"); localRevision++ }
     }
 
     LibraryScaffold(
-        summary?.name ?: "Playlist", modifier, subtitle = "${videos.size} video${if (videos.size == 1) "" else "s"}", onBack = { navigator.back() }, listTag = "playlist.list",
-        menu = if (services.downloads != null && videos.isNotEmpty()) listOf(PageAction("Download all", "playlist.downloadAll") { downloadFor = videos }) else emptyList(),
+        summary?.name ?: "Playlist", modifier, subtitle = "${videos.size} video${if (videos.size == 1) "" else "s"}" + (summary?.takeIf { it.isSynced }?.let { " · " + playlistSupporting(it).substringBefore(" · ") } ?: ""), onBack = { navigator.back() }, listTag = "playlist.list",
+        menu = buildList {
+            if (services.downloads != null && videos.isNotEmpty()) add(PageAction("Download all", "playlist.downloadAll") { downloadFor = videos })
+            if (summary != null && !readOnly) add(PageAction("Sync settings", "playlist.syncSettings") { syncOpen = true })
+            if (synced) add(PageAction(if (summary?.syncState == com.greenaltambe.vela.data.PlaylistSync.ERROR) "Retry sync" else "Sync now", "playlist.syncNow") {
+                services.playlistService.launch { val r = if (summary?.syncState == com.greenaltambe.vela.data.PlaylistSync.ERROR) services.playlistService.retry(playlistId) else services.playlistService.syncPlaylist(playlistId); toasts.show(r.message ?: if (r.ok) "Synced" else "Could not sync"); localRevision++ }
+            })
+        },
         selectionCount = selected.size, onClearSelection = { selected.clear() },
         selectionActions = {
             IconButton(onClick = { selected.clear(); selected.addAll(videos.map { it.id }) }, modifier = Modifier.testTag("playlist.selectAll")) { Icon(AppIcons.check, "Select all") }
             if (services.downloads != null) IconButton(onClick = { downloadFor = videos.filter { it.id in selected } }, modifier = Modifier.testTag("playlist.downloadSelected")) { Icon(AppIcons.download, "Download") }
-            IconButton(onClick = { remove(selected.toList()) }, modifier = Modifier.testTag("playlist.removeSelected")) { Icon(AppIcons.delete, "Remove from playlist") }
+            if (!readOnly) IconButton(onClick = { remove(selected.toList()) }, modifier = Modifier.testTag("playlist.removeSelected")) { Icon(AppIcons.delete, "Remove from playlist") }
         },
     ) {
         item(key = "actions") {
@@ -79,6 +99,27 @@ fun PlaylistScreen(services: AppServices, navigator: Navigator, playlistId: Long
                 PrimaryButton("Play all", onClick = { navigator.playAll(videos) }, enabled = videos.isNotEmpty(), modifier = Modifier.weight(1f).testTag("playlist.playAll"))
                 com.greenaltambe.vela.ui.components.SecondaryButton("Shuffle", { navigator.playAll(videos.shuffled()) }, enabled = videos.size > 1, modifier = Modifier.testTag("playlist.shuffle"))
                 if (services.downloads != null) FilledTonalIconButton(onClick = { downloadFor = videos }, enabled = videos.isNotEmpty(), shapes = IconButtonDefaults.shapes(), modifier = Modifier.testTag("playlist.downloadAllButton")) { Icon(AppIcons.download, "Download all") }
+            }
+        }
+        if (summary != null && synced) {
+            val err = summary.syncState == com.greenaltambe.vela.data.PlaylistSync.ERROR
+            if (err || summary.pendingCount > 0 || summary.syncState == com.greenaltambe.vela.data.PlaylistSync.LINKING) item(key = "syncstate") {
+                Row(Modifier.fillMaxWidth().padding(bottom = Spacing.sm), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    SyncBadge(summary)
+                    Text(
+                        if (err) "Sync failed: ${summary.syncError ?: "try again"}" else if (summary.syncState == com.greenaltambe.vela.data.PlaylistSync.LINKING) "Syncing, ${summary.pendingCount} left" else "${summary.pendingCount} change${if (summary.pendingCount == 1) "" else "s"} waiting to reach YouTube",
+                        style = androidx.compose.material3.MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f).testTag("playlist.syncState"),
+                    )
+                    if (err) com.greenaltambe.vela.ui.components.SecondaryButton("Retry", {
+                        services.playlistService.launch { val r = services.playlistService.retry(playlistId); toasts.show(r.message ?: if (r.ok) "Synced" else "Could not sync"); localRevision++ }
+                    }, modifier = Modifier.testTag("playlist.retry"))
+                }
+            }
+            if (summary.overflowCount > 0) item(key = "overflow") {
+                Row(Modifier.fillMaxWidth().padding(bottom = Spacing.sm), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    Text("${summary.overflowCount} video${if (summary.overflowCount == 1) "" else "s"} did not fit on YouTube (its limit is ${com.greenaltambe.vela.data.YOUTUBE_PLAYLIST_LIMIT}). They are kept here.", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f).testTag("playlist.overflowNote"))
+                    com.greenaltambe.vela.ui.components.SecondaryButton("Add the rest to another playlist", { overflowOpen = true }, modifier = Modifier.testTag("playlist.overflowAction"))
+                }
             }
         }
         if (videos.isEmpty()) item(key = "empty") { EmptyState("This playlist is empty. Add videos from the ⋮ menu on any video.") }
@@ -89,17 +130,17 @@ fun PlaylistScreen(services: AppServices, navigator: Navigator, playlistId: Long
                 v.title, v.thumbnailUrl ?: "https://i.ytimg.com/vi/${v.id}/mqdefault.jpg",
                 onClick = { if (selected.isNotEmpty()) toggle(v.id) else navigator.push(Route.Video(v)) }, onLongClick = { toggle(v.id) },
                 duration = com.greenaltambe.vela.ui.components.formatDuration(v.durationSeconds), progress = extras(v).watched, selected = v.id in selected,
-                supporting = listOfNotNull(v.channelName.takeIf { it.isNotBlank() }, com.greenaltambe.vela.ui.components.formatViews(v.viewCount)),
+                supporting = listOfNotNull(v.channelName.takeIf { it.isNotBlank() }, com.greenaltambe.vela.ui.components.formatViews(v.viewCount), "Not on YouTube".takeIf { v.id in notOnYouTube }),
                 modifier = Modifier.testTag("playlist.row"),
                 trailing = {
                     Box {
                         IconButton(onClick = { menu = true }, modifier = Modifier.testTag("playlist.itemMenu")) { Icon(AppIcons.more, "Options") }
                         DropdownMenu(menu, { menu = false }) {
                             ShareMenuItem(v, onDone = { menu = false })
-                            if (position > 1) DropdownMenuItem(text = { Text("Move to top") }, leadingIcon = { Icon(AppIcons.arrowUp, null) }, onClick = { menu = false; services.playlists.move(playlistId, position, 0); revision++ })
-                            if (position > 0) DropdownMenuItem(text = { Text("Move up") }, leadingIcon = { Icon(AppIcons.arrowUp, null) }, onClick = { menu = false; services.playlists.move(playlistId, position, position - 1); revision++ })
-                            if (position < all.lastIndex) DropdownMenuItem(text = { Text("Move down") }, leadingIcon = { Icon(AppIcons.arrowDown, null) }, onClick = { menu = false; services.playlists.move(playlistId, position, position + 1); revision++ })
-                            DropdownMenuItem(text = { Text("Remove from playlist") }, leadingIcon = { Icon(AppIcons.delete, null) }, onClick = { menu = false; remove(listOf(v.id)) }, modifier = Modifier.testTag("playlist.remove"))
+                            if (!synced && position > 1) DropdownMenuItem(text = { Text("Move to top") }, leadingIcon = { Icon(AppIcons.arrowUp, null) }, onClick = { menu = false; services.playlists.move(playlistId, position, 0); localRevision++ })
+                            if (!synced && position > 0) DropdownMenuItem(text = { Text("Move up") }, leadingIcon = { Icon(AppIcons.arrowUp, null) }, onClick = { menu = false; services.playlists.move(playlistId, position, position - 1); localRevision++ })
+                            if (!synced && position < all.lastIndex) DropdownMenuItem(text = { Text("Move down") }, leadingIcon = { Icon(AppIcons.arrowDown, null) }, onClick = { menu = false; services.playlists.move(playlistId, position, position + 1); localRevision++ })
+                            if (!readOnly) DropdownMenuItem(text = { Text("Remove from playlist") }, leadingIcon = { Icon(AppIcons.delete, null) }, onClick = { menu = false; remove(listOf(v.id)) }, modifier = Modifier.testTag("playlist.remove"))
                         }
                     }
                 },

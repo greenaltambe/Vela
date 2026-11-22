@@ -56,6 +56,18 @@ Batching (UNVERIFIED, measure): `browse/edit_playlist` takes an `actions` array,
 - Settings: `library.accountSync`, `library.newPlaylistSyncDefault` in the schema with copy, pages and search keywords like every other setting (the settings-orphan tests must stay green).
 - Android: a worker like `AccountHistoryWorker` for the schedule and for draining the outbox when the network or the budget window returns; desktop: timer in `main.kt`.
 
+## Overflow when YouTube's playlist size limit is hit (added after design discussion)
+
+When linking a playlist (R5) or pushing pending adds, YouTube may refuse videos because the target playlist is full. The limit is UNVERIFIED: measure it live
+(throwaway account) and put the number and the exact error in the report; do not hard-code a guess.
+- Detect "playlist full" as its own outcome (not a generic failure, never retried in a loop). The videos that did not fit stay in the local playlist as PENDING_ADD rows.
+- Show a clear state on the playlist ("N videos did not fit on YouTube") with a button "Add the rest to another synced playlist".
+- That action picks the overflow target: an existing SYNCED playlist that has room (offer the list, with free space shown if the limit is known), or "Create a new synced playlist"
+  (default name "<name> 2", then "<name> 3"...; created private on the account). Then the leftover videos are MOVED there (removed from the full list's pending set, added to the target
+  through `PlaylistActions`, batched, resumable via the outbox). The full playlist keeps what it already holds.
+- If the user dismisses it, the leftovers stay local-only in the original list and are shown as "Not on YouTube"; nothing is dropped. Overflow is offered again on the next sync.
+- Tests: a fake `AccountActions` that returns "full" after N items; assert the leftovers are kept, the prompt state is raised, creating a new list moves exactly the leftovers, and nothing is lost on a restart mid-move.
+
 ## Tests
 
 Offline (fakes for `AccountActions`/`AccountReads`): each rule R1-R9 at least once; two accounts never see each other's playlists/ops; remove/add/rename/delete on SYNCED call the account once and roll back on `Failed`; `Queued` persists across a simulated restart (new repository over the same DB); ADD+REMOVE coalescing; sync algorithm steps 1-6 incl. the empty-read guard and the migration "no loss" case; link of a 120-item list in chunks with a mid-way `GovernorDenied` resuming; unlink keeps items and never calls delete; Liked videos rejects every write; migration 9 -> 10 from a DB that has a local list, local Watch later and `yt:WL`/`yt:LL`/`yt:PL...` mirrors; Backup round trip keeps LOCAL lists and loses nothing pending; Compose UI tests for the checkbox in the three places, the badge states and the delete text.

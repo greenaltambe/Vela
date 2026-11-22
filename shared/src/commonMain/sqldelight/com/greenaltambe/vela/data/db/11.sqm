@@ -1,0 +1,43 @@
+-- 11 -> 12: one playlist model. A playlist is LOCAL (remoteId null) or SYNCED with one YouTube playlist (remoteId set); account writes wait in an outbox.
+ALTER TABLE Playlist ADD COLUMN remoteId TEXT;
+ALTER TABLE Playlist ADD COLUMN syncState TEXT NOT NULL DEFAULT 'LOCAL';
+ALTER TABLE Playlist ADD COLUMN lastSyncedAt INTEGER;
+ALTER TABLE Playlist ADD COLUMN syncError TEXT;
+ALTER TABLE PlaylistItem ADD COLUMN rowState TEXT NOT NULL DEFAULT 'SYNCED';
+
+CREATE TABLE PlaylistOp (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    accountId TEXT NOT NULL,
+    playlistId INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    videoId TEXT,
+    payload TEXT,
+    createdAt INTEGER NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    lastError TEXT
+);
+CREATE INDEX PlaylistOp_list ON PlaylistOp(accountId, playlistId, id);
+
+-- Data. The old account mirrors ("yt:<id>" system keys) become SYNCED playlists. What a mirror holds that the account may not (saved here on purpose)
+-- is marked PENDING_ADD, never deleted: the first sync sets the ones the account has to SYNCED and pushes the rest.
+-- 1. The old "Watch later (YouTube)" mirror is merged into the one local Watch later (created when missing).
+INSERT INTO Playlist(accountId, name, systemKey, createdAt, updatedAt)
+SELECT m.accountId, 'Watch later', 'watch_later', m.createdAt, m.updatedAt FROM Playlist m
+WHERE m.systemKey = 'yt:WL' AND NOT EXISTS (SELECT 1 FROM Playlist w WHERE w.accountId = m.accountId AND w.systemKey = 'watch_later');
+
+INSERT OR IGNORE INTO PlaylistItem(playlistId, videoId, position, title, channelId, channelName, thumbnailUrl, durationSeconds, addedAt, rowState)
+SELECT w.id, i.videoId, i.position + (SELECT COALESCE(MAX(x.position), -1) + 1 FROM PlaylistItem x WHERE x.playlistId = w.id), i.title, i.channelId, i.channelName, i.thumbnailUrl, i.durationSeconds, i.addedAt, 'PENDING_ADD'
+FROM PlaylistItem i JOIN Playlist m ON m.id = i.playlistId AND m.systemKey = 'yt:WL'
+JOIN Playlist w ON w.accountId = m.accountId AND w.systemKey = 'watch_later';
+
+-- 2. The merged Watch later is linked to the account's (the viewer used the account copy, so they opted in); every item there is pending until a sync confirms it.
+UPDATE PlaylistItem SET rowState = 'PENDING_ADD' WHERE playlistId IN (
+    SELECT w.id FROM Playlist w WHERE w.systemKey = 'watch_later' AND EXISTS (SELECT 1 FROM Playlist m WHERE m.accountId = w.accountId AND m.systemKey = 'yt:WL'));
+UPDATE Playlist SET remoteId = 'WL', syncState = 'SYNCED' WHERE systemKey = 'watch_later' AND EXISTS (SELECT 1 FROM Playlist m WHERE m.accountId = Playlist.accountId AND m.systemKey = 'yt:WL');
+DELETE FROM PlaylistItem WHERE playlistId IN (SELECT id FROM Playlist WHERE systemKey = 'yt:WL');
+DELETE FROM Playlist WHERE systemKey = 'yt:WL';
+
+-- 3. The other mirrors. Liked videos is the account's alone, so it has nothing pending.
+UPDATE PlaylistItem SET rowState = 'PENDING_ADD' WHERE playlistId IN (SELECT id FROM Playlist WHERE systemKey LIKE 'yt:%' AND systemKey != 'yt:LL');
+UPDATE Playlist SET name = 'Liked videos' WHERE systemKey = 'yt:LL';
+UPDATE Playlist SET remoteId = substr(systemKey, 4), syncState = 'SYNCED', systemKey = NULL WHERE systemKey LIKE 'yt:%';

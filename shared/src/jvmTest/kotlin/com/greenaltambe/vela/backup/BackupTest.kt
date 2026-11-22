@@ -73,7 +73,7 @@ class BackupTest {
 
     @Test fun historyAndSearchHistoryAreOptionalAndAccountMirroredPlaylistsAreLeftOut() {
         val db = filled()
-        PlaylistRepository(db).mirror("WL", "Watch later (YouTube)", at)
+        PlaylistRepository(db).linked("PL1", "Remote list (YouTube)", at)
         val text = BackupService(db).create(includeHistory = false, includeSearchHistory = false)
         val file = BackupService(db).parse(text).first
         assertTrue(file.history.isEmpty() && file.searchHistory.isEmpty()); assertTrue(file.playlists.none { it.name.contains("YouTube") })

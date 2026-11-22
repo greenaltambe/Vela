@@ -30,6 +30,7 @@ object SettingsPages {
         SettingsPage("extras", "SponsorBlock & extras", SettingsGroup.WATCHING, 2, owns = prefix("sponsorblock.", "ryd.", "dearrow.", "modules.")),
         SettingsPage("home", "Home", SettingsGroup.YOUR_FEED, 3, owns = keys("home.source", "content.region")),
         SettingsPage("feed", "Subscriptions & feed filters", SettingsGroup.YOUR_FEED, 4, owns = prefix("feed.hide", "feed.watched", "feed.min", "feed.block", "feed.allow", "feed.keywords")),
+        SettingsPage("playlists", "Playlists & YouTube", SettingsGroup.YOUR_FEED, 18, owns = prefix("library.")),
         SettingsPage("blocklist", "Blocked channels & words", SettingsGroup.YOUR_FEED, 16, SettingsLink.BLOCKLIST),
         SettingsPage("notifications", "Notifications", SettingsGroup.YOUR_FEED, 15, owns = prefix("notify.")),
         SettingsPage("shorts", "Shorts", SettingsGroup.YOUR_FEED, 5, owns = keys("feed.shortsMode", "feed.shortsDailyLimit")),
@@ -122,6 +123,7 @@ object SettingsSummaries {
         "privacy" -> (if (s.v(Settings.accountReportActivity)) "Tells YouTube what you watch" else "What you watch stays on this device") + " · account history: ${s.label(Settings.historyAccountSync).lowercase()}"
         "downloads" -> "${s.label(Settings.downloadsDefaultQuality)}${if (s.v(Settings.downloadsWifiOnly)) " · Wi-Fi only" else ""} · ${num(s.v(Settings.downloadsConcurrent))} at once"
         "auto" -> "Rules for new videos"
+        "playlists" -> "Sync: ${s.label(Settings.libraryAccountSync).lowercase()}"
         "blocklist" -> "Hide channels and words everywhere"
         "storage" -> "Cap ${num(s.v(Settings.downloadsStorageCapGb))} GB${if (s.v(Settings.downloadsDeleteAfterWatch)) " · delete after watching" else ""}"
         "backup" -> "Save or restore your data"

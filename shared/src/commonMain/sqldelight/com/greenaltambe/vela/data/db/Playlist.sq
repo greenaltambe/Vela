@@ -5,6 +5,12 @@ CREATE TABLE Playlist (
     systemKey TEXT,
     createdAt INTEGER NOT NULL,
     updatedAt INTEGER NOT NULL,
+    -- null = a LOCAL playlist; otherwise the id of the YouTube playlist it is synced with ("WL" is Watch later, "LL" Liked videos)
+    remoteId TEXT,
+    -- LOCAL, SYNCED, LINKING (items still being pushed after "Sync with YouTube" was ticked) or ERROR
+    syncState TEXT NOT NULL DEFAULT 'LOCAL',
+    lastSyncedAt INTEGER,
+    syncError TEXT,
     UNIQUE (accountId, systemKey)
 );
 
@@ -18,13 +24,18 @@ CREATE TABLE PlaylistItem (
     thumbnailUrl TEXT,
     durationSeconds INTEGER,
     addedAt INTEGER NOT NULL,
+    -- SYNCED, PENDING_ADD (not on YouTube yet), PENDING_REMOVE (hidden tombstone, still on YouTube) or OVERFLOW (YouTube's playlist is full)
+    rowState TEXT NOT NULL DEFAULT 'SYNCED',
     PRIMARY KEY (playlistId, videoId)
 );
 
 CREATE INDEX PlaylistItem_order ON PlaylistItem(playlistId, position);
 
 selectForAccount:
-SELECT p.*, (SELECT COUNT(*) FROM PlaylistItem i WHERE i.playlistId = p.id) AS itemCount
+SELECT p.*,
+  (SELECT COUNT(*) FROM PlaylistItem i WHERE i.playlistId = p.id AND i.rowState != 'PENDING_REMOVE') AS itemCount,
+  (SELECT COUNT(*) FROM PlaylistItem i WHERE i.playlistId = p.id AND i.rowState = 'PENDING_ADD') AS pendingCount,
+  (SELECT COUNT(*) FROM PlaylistItem i WHERE i.playlistId = p.id AND i.rowState = 'OVERFLOW') AS overflowCount
 FROM Playlist p WHERE p.accountId = ? ORDER BY p.systemKey IS NULL, p.createdAt;
 
 selectById:
@@ -42,8 +53,20 @@ SELECT last_insert_rowid();
 rename:
 UPDATE Playlist SET name = ?, updatedAt = ? WHERE id = ? AND systemKey IS NULL;
 
-renameMirror:
-UPDATE Playlist SET name = ?, updatedAt = ? WHERE id = ? AND systemKey LIKE 'yt:%';
+setRemote:
+UPDATE Playlist SET remoteId = ?, syncState = ?, lastSyncedAt = ?, syncError = ? WHERE id = ?;
+
+setSyncState:
+UPDATE Playlist SET syncState = ?, syncError = ? WHERE id = ?;
+
+setSynced:
+UPDATE Playlist SET syncState = ?, lastSyncedAt = ?, syncError = NULL WHERE id = ?;
+
+renameFromRemote:
+UPDATE Playlist SET name = ?, updatedAt = ? WHERE id = ? AND systemKey IS NULL;
+
+selectByRemote:
+SELECT * FROM Playlist WHERE accountId = ? AND remoteId = ?;
 
 touch:
 UPDATE Playlist SET updatedAt = ? WHERE id = ?;
@@ -51,21 +74,36 @@ UPDATE Playlist SET updatedAt = ? WHERE id = ?;
 delete:
 DELETE FROM Playlist WHERE id = ? AND systemKey IS NULL;
 
-deleteMirror:
-DELETE FROM Playlist WHERE id = ? AND systemKey LIKE 'yt:%';
-
 selectItems:
+SELECT * FROM PlaylistItem WHERE playlistId = ? AND rowState != 'PENDING_REMOVE' ORDER BY position;
+
+selectAllRows:
 SELECT * FROM PlaylistItem WHERE playlistId = ? ORDER BY position;
 
 selectItemVideoIds:
+SELECT videoId FROM PlaylistItem WHERE playlistId = ? AND rowState != 'PENDING_REMOVE';
+
+selectAllVideoIds:
 SELECT videoId FROM PlaylistItem WHERE playlistId = ?;
+
+selectRow:
+SELECT * FROM PlaylistItem WHERE playlistId = ? AND videoId = ?;
+
+setRowState:
+UPDATE PlaylistItem SET rowState = ? WHERE playlistId = ? AND videoId = ?;
+
+changeRowStates:
+UPDATE PlaylistItem SET rowState = ? WHERE playlistId = ? AND rowState = ?;
+
+dropTombstones:
+DELETE FROM PlaylistItem WHERE playlistId = ? AND rowState = 'PENDING_REMOVE';
 
 maxPosition:
 SELECT COALESCE(MAX(position), -1) FROM PlaylistItem WHERE playlistId = ?;
 
 insertItem:
-INSERT OR IGNORE INTO PlaylistItem(playlistId, videoId, position, title, channelId, channelName, thumbnailUrl, durationSeconds, addedAt)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+INSERT OR IGNORE INTO PlaylistItem(playlistId, videoId, position, title, channelId, channelName, thumbnailUrl, durationSeconds, addedAt, rowState)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 deleteItem:
 DELETE FROM PlaylistItem WHERE playlistId = ? AND videoId = ?;

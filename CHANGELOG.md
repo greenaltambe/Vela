@@ -5,6 +5,21 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [0.6.1-beta.4]
+
+### Added
+- Playlists are one thing now: each is either on this device only or synced with your YouTube account, chosen by one box ("Sync with my YouTube account") when you create a playlist and in its "Sync settings". Synced playlists work both ways: saving or removing a video here is sent to YouTube, and changes made on YouTube come here. Changes the hourly limit holds back are kept and sent later, even after a restart.
+- One Watch later. It stays on this device until you tick the box on it; then both lists are merged and everything ends up in both places. The separate "Watch later (YouTube)" copy is gone.
+- YouTube holds 5000 videos per playlist. Videos that do not fit stay here, marked "Not on YouTube", and one button adds them to another synced playlist or to a new one.
+- Settings > Playlists & YouTube: when synced playlists are read from your account (off, on request, at start, every 6 hours) and whether new playlists start synced.
+- Adding or removing a video from a playlist shows a toast with Undo.
+- Liking or un-liking a video updates your Liked videos list straight away.
+- Desktop: on a results page the top bar's search box shows what you searched; clicking it or pressing `/` opens the search page with that text ready to edit.
+
+### Changed
+- "Sync account playlists" is now "Sync with YouTube". Playlists synced with your account are no longer part of Sync between devices (they come from YouTube), and the backup keeps only the videos that never reached YouTube from them.
+- Old copies of account playlists become synced playlists. Nothing is deleted when updating; videos saved here that YouTube may not have are sent on the first sync. A backup of the database is kept next to it before it is updated.
+
 ## [0.6.1-beta.3]
 
 ### Added
@@ -205,6 +220,7 @@ First public beta. Android is the primary platform, Linux is supported, Windows 
 - Android APK (arm64-v8a), Linux .deb, .rpm and portable tarball, Windows .msi and portable zip (experimental).
 
 [Unreleased]: https://github.com/greenaltambe/Vela/compare/v0.6.1-beta.3...HEAD
+[0.6.1-beta.4]: https://github.com/greenaltambe/Vela/compare/v0.6.1-beta.3...v0.6.1-beta.4
 [0.6.1-beta.3]: https://github.com/greenaltambe/Vela/compare/v0.6.1-beta.2...v0.6.1-beta.3
 [0.6.1-beta.2]: https://github.com/greenaltambe/Vela/compare/v0.6.0-beta.2...v0.6.1-beta.2
 [0.6.0-beta.2]: https://github.com/greenaltambe/Vela/compare/v0.6.0-beta.1...v0.6.0-beta.2

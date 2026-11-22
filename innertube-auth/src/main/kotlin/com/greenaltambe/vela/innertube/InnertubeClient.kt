@@ -91,6 +91,13 @@ class InnertubeClient(
 
     /** [playlistId] may be "WL" (Watch Later) or "LL" (Liked videos). */
     fun addToPlaylist(playlistId: String, videoId: String) = editPlaylist(playlistId, buildJsonObject { put("action", "ACTION_ADD_VIDEO"); put("addedVideoId", videoId) })
+    /** Several videos in one request (`actions` takes a list). Throws like a single add when YouTube refuses. */
+    fun addManyToPlaylist(playlistId: String, videoIds: List<String>) {
+        if (videoIds.isEmpty()) return
+        val r = write("browse/edit_playlist", buildJsonObject { put("playlistId", playlistId); putJsonArray("actions") { videoIds.forEach { v -> add(buildJsonObject { put("action", "ACTION_ADD_VIDEO"); put("addedVideoId", v) }) } } })
+        val status = r["status"].string
+        if (status != null && status != "STATUS_SUCCEEDED") throw AuthFailure.Unparseable("playlist edit answered $status")
+    }
     fun removeFromPlaylist(playlistId: String, videoId: String) = editPlaylist(playlistId, buildJsonObject { put("action", "ACTION_REMOVE_VIDEO_BY_VIDEO_ID"); put("removedVideoId", videoId) })
     fun renamePlaylist(playlistId: String, title: String) = editPlaylist(playlistId, buildJsonObject { put("action", "ACTION_SET_PLAYLIST_NAME"); put("playlistName", title) })
 
@@ -132,15 +139,18 @@ class InnertubeClient(
     }
 
     /** One playlist's videos ("WL", "LL" or a playlist id), following continuations. */
-    fun playlistVideos(playlistId: String, maxPages: Int = 10): List<AccountPlaylistVideo> {
+    fun playlistVideos(playlistId: String, maxPages: Int = 10): List<AccountPlaylistVideo> = playlistListing(playlistId, maxPages).first
+
+    /** The videos and whether the list was read to its end (false when [maxPages] ran out first). A playlist holds up to 5000 videos, about 50 pages. */
+    fun playlistListing(playlistId: String, maxPages: Int = 60): Pair<List<AccountPlaylistVideo>, Boolean> {
         val out = LinkedHashMap<String, AccountPlaylistVideo>()
         var page = browse("VL$playlistId", LISTING_PATIENCE)
         repeat(maxPages) {
             InnertubeParsers.playlistVideos(page).forEach { out.putIfAbsent(it.videoId, it) }
-            val token = InnertubeParsers.continuationToken(page) ?: return out.values.toList()
+            val token = InnertubeParsers.continuationToken(page) ?: return out.values.toList() to true
             page = continuation(token, LISTING_PATIENCE)
         }
-        return out.values.toList()
+        return out.values.toList() to false
     }
 }
 

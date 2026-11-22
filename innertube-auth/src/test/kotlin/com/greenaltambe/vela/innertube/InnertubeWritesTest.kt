@@ -32,6 +32,17 @@ class InnertubeWritesTest {
         assertEquals(10, audits.size); assertTrue(audits.all { it.kind == CallKind.WRITE.name || it.kind.contains("WRITE", true) }, audits.map { it.kind }.toString())
     }
 
+    @Test fun addingSeveralVideosIsOneWriteWithOneActionEach() {
+        answer = { """{"status":"STATUS_SUCCEEDED"}""" }
+        val c = client(GovernorLimits(minSpacingMs = 0, writesPerHour = 100))
+        c.addManyToPlaylist("PL1", listOf("v1", "v2", "v3"))
+        assertEquals(1, bodies.size, "one request for the three videos")
+        assertEquals(3, Regex("ACTION_ADD_VIDEO").findAll(bodies[0].second).count())
+        assertTrue("\"addedVideoId\":\"v1\"" in bodies[0].second && "\"addedVideoId\":\"v3\"" in bodies[0].second)
+        assertEquals(1, audits.size, "and it costs one write of the budget")
+        c.addManyToPlaylist("PL1", emptyList()); assertEquals(1, bodies.size, "nothing to add sends nothing")
+    }
+
     @Test fun theWriteBudgetOfTheGovernorStopsTheFourthWriteWithoutSendingIt() {
         val c = client(GovernorLimits(minSpacingMs = 0, writesPerHour = 3))
         repeat(3) { c.subscribe("UC$it") }

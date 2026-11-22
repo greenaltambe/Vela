@@ -1,0 +1,52 @@
+-- The outbox of writes to a synced playlist on the viewer's YouTube account: kept in the database so a restart loses nothing.
+CREATE TABLE PlaylistOp (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    accountId TEXT NOT NULL,
+    -- the local playlist (not a foreign key: a DELETE op outlives its playlist and carries the remote id in payload)
+    playlistId INTEGER NOT NULL,
+    -- ADD, REMOVE, RENAME, DELETE
+    kind TEXT NOT NULL,
+    videoId TEXT,
+    payload TEXT,
+    createdAt INTEGER NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    lastError TEXT
+);
+
+CREATE INDEX PlaylistOp_list ON PlaylistOp(accountId, playlistId, id);
+
+insert:
+INSERT INTO PlaylistOp(accountId, playlistId, kind, videoId, payload, createdAt) VALUES (?, ?, ?, ?, ?, ?);
+
+selectForAccount:
+SELECT * FROM PlaylistOp WHERE accountId = ? ORDER BY id;
+
+selectForPlaylist:
+SELECT * FROM PlaylistOp WHERE accountId = ? AND playlistId = ? ORDER BY id;
+
+findVideoOp:
+SELECT * FROM PlaylistOp WHERE accountId = ? AND playlistId = ? AND kind = ? AND videoId = ? LIMIT 1;
+
+findOp:
+SELECT * FROM PlaylistOp WHERE accountId = ? AND playlistId = ? AND kind = ? LIMIT 1;
+
+delete:
+DELETE FROM PlaylistOp WHERE id = ?;
+
+deleteForPlaylist:
+DELETE FROM PlaylistOp WHERE accountId = ? AND playlistId = ?;
+
+deleteForAccount:
+DELETE FROM PlaylistOp WHERE accountId = ?;
+
+failed:
+UPDATE PlaylistOp SET attempts = attempts + 1, lastError = ? WHERE id = ?;
+
+setPayload:
+UPDATE PlaylistOp SET payload = ? WHERE id = ?;
+
+countForAccount:
+SELECT COUNT(*) FROM PlaylistOp WHERE accountId = ?;
+
+resetAttempts:
+UPDATE PlaylistOp SET attempts = 0, lastError = NULL WHERE accountId = ? AND playlistId = ?;

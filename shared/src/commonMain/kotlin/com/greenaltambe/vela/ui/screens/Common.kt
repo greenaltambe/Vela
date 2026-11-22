@@ -99,7 +99,9 @@ fun VideoMenuSheet(
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     var revision by remember { mutableStateOf(0) }
     val isDownloaded = remember(video.id, revision) { services.downloads?.isDownloaded(video.id) == true }
-    val lists = remember(revision) { services.playlists.all() }
+    val serviceRevision = playlistRevision(services)
+    val lists = remember(revision, serviceRevision) { services.playlists.all().filter { !it.isReadOnly } }
+    val menuScope = androidx.compose.runtime.rememberCoroutineScope()
     val navigator = com.greenaltambe.vela.ui.nav.LocalNavigator.current
     val toasts = com.greenaltambe.vela.ui.look.LocalUndoToasts.current
 
@@ -238,9 +240,7 @@ fun VideoMenuSheet(
                         trailingContentDescription = if (has) "In this playlist" else null,
                         highlightTrailing = true,
                         onClick = {
-                            if (has) services.playlists.remove(list.id, video.id)
-                            else services.playlists.add(list.id, listOf(video), services.clock.now())
-                            revision++
+                            toggleInPlaylist(menuScope, services, toasts, list, video, has) { revision++ }
                             onDismiss()
                         },
                         modifier = Modifier.testTag("video.menu.playlist.${list.id}")

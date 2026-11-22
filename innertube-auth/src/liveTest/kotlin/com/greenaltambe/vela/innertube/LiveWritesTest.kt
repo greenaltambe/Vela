@@ -71,6 +71,22 @@ class LiveWritesTest {
         summary()
     }
 
+    /** Task 84: does `browse/edit_playlist` take several ACTION_ADD_VIDEO in one request? Prints the answer and the order YouTube lists them in. */
+    @Test fun addingSeveralVideosInOneRequestWorks() {
+        val videos = listOf("jNQXAC9IVRw", "dQw4w9WgXcQ", "9bZkp7q19f0")
+        val id = client.createPlaylist("vela-live-batch")
+        try {
+            val started = System.nanoTime()
+            client.addManyToPlaylist(id, videos)
+            val ms = (System.nanoTime() - started) / 1_000_000
+            settle()
+            val listed = client.playlistVideos(id).map { it.videoId }
+            println("BATCH requested=${videos.size} listed=${listed.size} order=${listed} ms=$ms")
+            summary()
+            assertEquals(videos.toSet(), listed.toSet())
+        } finally { client.deletePlaylist(id) }
+    }
+
     @Test fun likeAndUnlikeRestoreTheOriginalRating() {
         val video = "jNQXAC9IVRw"
         val original = client.rating(video) ?: return println("SKIP: no like status in the watch data")

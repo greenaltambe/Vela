@@ -110,14 +110,23 @@ class InnertubeAccountActions(
         }
     }
 
-    private suspend fun unit(block: InnertubeClient.() -> Unit) = run(block).first
+
+    /**
+     * A playlist write. Nothing is queued here: the playlist outbox (in the database) is the queue, so when the hourly limit or a cool-down refuses the
+     * call the answer is [ActionResult.Queued] and the caller keeps the work.
+     */
+    private suspend fun deferrable(block: InnertubeClient.() -> Unit): ActionResult = when (val a = attempt(block)) {
+        is Attempt.Done -> a.result
+        is Attempt.Denied -> if (a.denial.reason == DenyReason.BUDGET || a.denial.reason == DenyReason.COOLING_DOWN) ActionResult.Queued(friendly(a.denial)) else ActionResult.Failed(friendly(a.denial))
+    }
 
     override suspend fun subscribe(channelId: String) = queueable("sub:$channelId") { subscribe(channelId) }
     override suspend fun unsubscribe(channelId: String) = queueable("sub:$channelId") { unsubscribe(channelId) }
     override suspend fun rate(videoId: String, rating: VideoRating) = queueable("rate:$videoId") { rate(videoId, rating) }
-    override suspend fun addToPlaylist(playlistId: String, videoId: String) = queueable("pl:$playlistId:$videoId") { addToPlaylist(playlistId, videoId) }
-    override suspend fun removeFromPlaylist(playlistId: String, videoId: String) = queueable("pl:$playlistId:$videoId") { removeFromPlaylist(playlistId, videoId) }
+    override suspend fun addToPlaylist(playlistId: String, videoId: String) = deferrable { addToPlaylist(playlistId, videoId) }
+    override suspend fun removeFromPlaylist(playlistId: String, videoId: String) = deferrable { removeFromPlaylist(playlistId, videoId) }
+    override suspend fun addManyToPlaylist(playlistId: String, videoIds: List<String>) = deferrable { addManyToPlaylist(playlistId, videoIds) }
     override suspend fun createPlaylist(title: String): Pair<ActionResult, String?> = run { createPlaylist(title) }
-    override suspend fun renamePlaylist(playlistId: String, title: String) = unit { renamePlaylist(playlistId, title) }
-    override suspend fun deletePlaylist(playlistId: String) = unit { deletePlaylist(playlistId) }
+    override suspend fun renamePlaylist(playlistId: String, title: String) = deferrable { renamePlaylist(playlistId, title) }
+    override suspend fun deletePlaylist(playlistId: String) = deferrable { deletePlaylist(playlistId) }
 }

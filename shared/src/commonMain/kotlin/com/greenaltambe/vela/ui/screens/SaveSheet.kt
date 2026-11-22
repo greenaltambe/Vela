@@ -17,7 +17,7 @@ import com.greenaltambe.vela.AppServices
 import com.greenaltambe.vela.extractor.VideoSummary
 import com.greenaltambe.vela.ui.player.PlayerMenuRow
 import com.greenaltambe.vela.ui.player.PlayerMenuSheet
-import com.greenaltambe.vela.auth.ActionResult
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.launch
 
 /**
@@ -27,59 +27,40 @@ import kotlinx.coroutines.launch
 @Composable
 fun SaveSheet(services: AppServices, video: VideoSummary, onMessage: (note: String?, error: String?) -> Unit, onChanged: () -> Unit, onDismiss: () -> Unit) {
     val scope = rememberCoroutineScope()
+    val toasts = com.greenaltambe.vela.ui.look.LocalUndoToasts.current
     var revision by remember { mutableStateOf(0) }
-    val lists = remember(revision) { services.playlists.all() }
-    val signedIn = services.actions != null && services.accounts.active.value.isSignedIn
+    val serviceRevision = playlistRevision(services)
+    val lists = remember(revision, serviceRevision) { services.playlists.all().filter { !it.isReadOnly } }
+    var creating by remember { mutableStateOf(false) }
+
+    if (creating) NewPlaylistDialog(services, onDismiss = { creating = false }) { name, synced ->
+        creating = false
+        scope.launch {
+            val made = services.playlistService.create(name, synced)
+            val id = made.id
+            if (id == null || !made.ok) { onMessage(null, made.message ?: "Could not create the playlist"); return@launch }
+            val r = services.playlistService.add(id, listOf(video))
+            revision++; onChanged()
+            if (!r.ok) onMessage(null, r.message) else toasts.show("Added to $name") { scope.launch { services.playlistService.remove(id, listOf(video.id)); onChanged() } }
+        }
+    }
 
     PlayerMenuSheet("Save to", onDismiss, subtitle = video.title) {
-        var i = 0
-        if (signedIn) PlayerMenuRow(
-            "Watch later", selected = false, index = i++, leading = AppIcons.watchLater, supporting = "On your YouTube account",
-            onClick = {
-                scope.launch {
-                    when (val r = services.actions!!.addToPlaylist("WL", video.id)) {
-                        is ActionResult.Failed -> onMessage(null, "Could not add to Watch later: ${r.message}")
-                        is ActionResult.Queued -> onMessage(r.message, null)
-                        else -> onMessage("Added to Watch later", null)
-                    }
-                }
-                onDismiss()
-            },
-            modifier = Modifier.testTag("video.saveWatchLater"),
-        )
-        if (lists.isEmpty() && !signedIn) Text("No playlists yet. Create one in Library.", Modifier.padding(horizontal = Spacing.gutter), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        lists.forEach { list ->
-            val has = remember(revision, list.id) { services.playlists.contains(list.id, video.id) }
+        // One row per playlist (Watch later included): a check marks the ones that hold the video, a tap adds or takes it out, and a synced one says so.
+        if (lists.isEmpty()) Text("No playlists yet.", Modifier.padding(horizontal = Spacing.gutter), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        lists.forEachIndexed { i, list ->
+            val has = remember(revision, serviceRevision, list.id) { services.playlists.contains(list.id, video.id) }
             PlayerMenuRow(
-                list.name, selected = has, index = i++, leading = if (list.isWatchLater) AppIcons.watchLater else AppIcons.playlist,
-                supporting = (if (list.isWatchLater) "On this device · " else "") + "${list.itemCount} video${if (list.itemCount == 1) "" else "s"}",
-                onClick = {
-                    if (has) services.playlists.remove(list.id, video.id) else services.playlists.add(list.id, listOf(video), services.clock.now())
-                    revision++; onChanged()
-                },
+                list.name, selected = has, index = i, leading = if (list.isWatchLater) AppIcons.watchLater else AppIcons.playlist,
+                supporting = playlistSupporting(list),
+                onClick = { toggleInPlaylist(scope, services, toasts, list, video, has) { revision++; onChanged() } },
+                modifier = Modifier.testTag(if (list.isWatchLater) "video.saveWatchLater" else "video.save.row"),
             )
         }
-        // A new playlist, made and saved to in one step.
-        var creating by remember { mutableStateOf(false) }
-        var newName by remember { mutableStateOf("") }
-        if (!creating) androidx.compose.material3.FilledTonalButton(
+        androidx.compose.material3.FilledTonalButton(
             onClick = { creating = true }, shapes = androidx.compose.material3.ButtonDefaults.shapes(),
             modifier = Modifier.padding(horizontal = Spacing.gutter, vertical = Spacing.sm).testTag("video.save.new"),
         ) { Text("New playlist", maxLines = 1) }
-        else androidx.compose.foundation.layout.Row(
-            Modifier.padding(horizontal = Spacing.gutter, vertical = Spacing.sm), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(Spacing.sm),
-        ) {
-            androidx.compose.material3.OutlinedTextField(newName, { newName = it }, Modifier.weight(1f).testTag("video.save.newName"), singleLine = true, label = { Text("Playlist name") })
-            androidx.compose.material3.FilledTonalButton(
-                onClick = {
-                    val id = services.playlists.create(newName.trim(), services.clock.now())
-                    services.playlists.add(id, listOf(video), services.clock.now())
-                    creating = false; newName = ""; revision++; onChanged()
-                },
-                enabled = newName.isNotBlank(), shapes = androidx.compose.material3.ButtonDefaults.shapes(), modifier = Modifier.testTag("video.save.create"),
-            ) { Text("Create", maxLines = 1) }
-        }
     }
 }
 
@@ -87,16 +68,19 @@ fun SaveSheet(services: AppServices, video: VideoSummary, onMessage: (note: Stri
 @Composable
 fun SaveManySheet(services: AppServices, videos: List<VideoSummary>, onDismiss: () -> Unit) {
     val toasts = com.greenaltambe.vela.ui.look.LocalUndoToasts.current
-    val lists = remember { services.playlists.all() }
+    val scope = rememberCoroutineScope()
+    val lists = remember { services.playlists.all().filter { !it.isReadOnly } }
     PlayerMenuSheet(if (videos.size == 1) "Save to" else "Save ${videos.size} videos to", onDismiss, subtitle = videos.firstOrNull()?.title?.takeIf { videos.size == 1 }) {
         if (lists.isEmpty()) Text("No playlists yet. Create one in Library.", Modifier.padding(horizontal = Spacing.gutter), style = MaterialTheme.typography.bodyMedium)
         lists.forEachIndexed { i, list ->
             PlayerMenuRow(
                 list.name, selected = false, index = i, leading = if (list.isWatchLater) AppIcons.watchLater else AppIcons.playlist,
-                supporting = "${list.itemCount} video${if (list.itemCount == 1) "" else "s"}",
+                supporting = playlistSupporting(list),
                 onClick = {
-                    services.playlists.add(list.id, videos, services.clock.now())
-                    toasts.show("Saved ${videos.size} to ${list.name}")
+                    services.playlistService.launch {
+                        val r = services.playlistService.add(list.id, videos)
+                        toasts.show(if (!r.ok) r.message ?: "Could not save to ${list.name}" else "Saved ${videos.size} to ${list.name}" + (if (r.pending) ". It will reach YouTube later." else ""))
+                    }
                     onDismiss()
                 },
                 modifier = Modifier.testTag("history.saveTo"),

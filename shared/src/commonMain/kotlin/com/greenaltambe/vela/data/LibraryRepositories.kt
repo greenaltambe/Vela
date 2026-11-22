@@ -169,7 +169,28 @@ class SearchHistoryRepository(private val db: VelaDatabase, private val accountI
     fun clear() { q.clearForAccount(accountId) }
 }
 
-data class PlaylistSummary(val id: Long, val name: String, val isWatchLater: Boolean, val itemCount: Int, val isMirror: Boolean = false, val remoteId: String? = null)
+/** How a playlist relates to the viewer's YouTube account. */
+enum class PlaylistSync { LOCAL, SYNCED, LINKING, ERROR }
+
+/** The state of one saved video: [PENDING_ADD] is not on YouTube yet, [PENDING_REMOVE] a hidden tombstone for one still there, [OVERFLOW] did not fit (YouTube's playlist is full). */
+enum class RowState { SYNCED, PENDING_ADD, PENDING_REMOVE, OVERFLOW }
+
+/** YouTube's limit on the videos in one playlist (Watch later included). */
+const val YOUTUBE_PLAYLIST_LIMIT = 5000
+
+data class PlaylistSummary(
+    val id: Long, val name: String, val isWatchLater: Boolean, val itemCount: Int,
+    /** The YouTube playlist this one is synced with ("WL" Watch later, "LL" Liked videos); null = LOCAL. */
+    val remoteId: String? = null,
+    val syncState: PlaylistSync = if (remoteId == null) PlaylistSync.LOCAL else PlaylistSync.SYNCED,
+    val pendingCount: Int = 0, val overflowCount: Int = 0, val lastSyncedAt: Long? = null, val syncError: String? = null,
+) {
+    /** Linked with YouTube (the old "mirror"). */
+    val isMirror: Boolean get() = remoteId != null
+    val isSynced: Boolean get() = remoteId != null
+    /** Liked videos belongs to the like button: it can be opened and played, nothing else. */
+    val isReadOnly: Boolean get() = remoteId == "LL"
+}
 
 data class PlaylistVideo(
     val videoId: String,
@@ -178,6 +199,7 @@ data class PlaylistVideo(
     val channelName: String,
     val thumbnailUrl: String?,
     val durationSeconds: Long?,
+    val rowState: RowState = RowState.SYNCED,
 ) {
     fun toSummary() = VideoSummary(videoId, title, channelId, channelName, thumbnailUrl, durationSeconds)
 
@@ -186,24 +208,41 @@ data class PlaylistVideo(
     }
 }
 
-/** Local playlists, including the built-in Watch Later. Positions are always 0..n-1 after every change. */
+/** Playlists, including the built-in Watch later. Positions are always 0..n-1 after every change made here (a sync may leave gaps; only the order matters). */
 class PlaylistRepository(private val db: VelaDatabase, private val accountId: String = LOCAL_ACCOUNT) {
     private val q get() = db.playlistQueries
 
+    private fun state(s: String) = runCatching { PlaylistSync.valueOf(s) }.getOrDefault(PlaylistSync.LOCAL)
+    private fun rowState(s: String) = runCatching { RowState.valueOf(s) }.getOrDefault(RowState.SYNCED)
+
     fun all(): List<PlaylistSummary> {
         watchLaterId()
-        return q.selectForAccount(accountId).executeAsList().map { PlaylistSummary(it.id, it.name, it.systemKey == WATCH_LATER, it.itemCount.toInt(), it.systemKey?.startsWith(MIRROR_PREFIX) == true, it.systemKey?.takeIf { k -> k.startsWith(MIRROR_PREFIX) }?.removePrefix(MIRROR_PREFIX)) }
+        return q.selectForAccount(accountId).executeAsList().map {
+            PlaylistSummary(it.id, it.name, it.systemKey == WATCH_LATER, it.itemCount.toInt(), it.remoteId, state(it.syncState), it.pendingCount.toInt(), it.overflowCount.toInt(), it.lastSyncedAt, it.syncError)
+        }
     }
 
+    fun get(id: Long): PlaylistSummary? = all().firstOrNull { it.id == id }
+    fun byRemote(remoteId: String): PlaylistSummary? = all().firstOrNull { it.remoteId == remoteId }
+
     /**
-     * The local copy of an account playlist ([remoteId] "WL", "LL" or a playlist id), created on first use and renamed when the account renames it.
-     * Keyed by `systemKey = "yt:<remoteId>"`, so no schema change; the rows are the account's, and sync only ever adds to them.
+     * The playlist synced with an account playlist ([remoteId] "WL", "LL" or a playlist id), created on first use and renamed when the account renames it.
+     * Watch later is the one local Watch later, linked to "WL".
      */
-    fun mirror(remoteId: String, title: String, at: Instant): Long {
-        val key = MIRROR_PREFIX + remoteId
-        val existing = q.selectBySystemKey(accountId, key).executeAsOneOrNull()
-        if (existing == null) return create(title, at, key)
-        if (existing.name != title.trim() && title.isNotBlank()) q.renameMirror(title.trim(), at.toEpochMilliseconds(), existing.id)
+    fun linked(remoteId: String, title: String, at: Instant): Long {
+        if (remoteId == "WL") {
+            val id = watchLaterId(at)
+            val cur = q.selectById(id).executeAsOne()
+            if (cur.remoteId == null) q.setRemote("WL", PlaylistSync.SYNCED.name, null, null, id)
+            return id
+        }
+        val existing = q.selectByRemote(accountId, remoteId).executeAsList().firstOrNull()
+        if (existing == null) {
+            val id = create(if (remoteId == "LL") "Liked videos" else title, at)
+            q.setRemote(remoteId, PlaylistSync.SYNCED.name, null, null, id)
+            return id
+        }
+        if (existing.name != title.trim() && title.isNotBlank() && remoteId != "LL" && existing.systemKey == null) q.renameFromRemote(title.trim(), at.toEpochMilliseconds(), existing.id)
         return existing.id
     }
 
@@ -224,35 +263,53 @@ class PlaylistRepository(private val db: VelaDatabase, private val accountId: St
     /** Built-in playlists cannot be deleted. */
     fun delete(id: Long) { q.delete(id) }
 
-    /** Removes the local copy of an account playlist (after the account deleted it). */
-    fun deleteMirror(id: Long) { q.deleteMirror(id) }
-
-    fun items(id: Long): List<PlaylistVideo> = q.selectItems(id).executeAsList().map {
-        PlaylistVideo(it.videoId, it.title, it.channelId, it.channelName, it.thumbnailUrl, it.durationSeconds)
+    /** Links [id] to the YouTube playlist [remoteId] (LINKING until its items are pushed) or, with null, makes it LOCAL again; the items stay either way. */
+    fun setRemote(id: Long, remoteId: String?, state: PlaylistSync, at: Instant? = null, error: String? = null) {
+        q.setRemote(remoteId, state.name, at?.toEpochMilliseconds(), error, id)
     }
+    fun setState(id: Long, state: PlaylistSync, error: String? = null) { q.setSyncState(state.name, error, id) }
+    fun markSynced(id: Long, at: Instant) { q.setSynced(PlaylistSync.SYNCED.name, at.toEpochMilliseconds(), id) }
+
+    /** The visible videos (a tombstone for a removed video is hidden). */
+    fun items(id: Long): List<PlaylistVideo> = q.selectItems(id).executeAsList().map {
+        PlaylistVideo(it.videoId, it.title, it.channelId, it.channelName, it.thumbnailUrl, it.durationSeconds, rowState(it.rowState))
+    }
+    /** Every row including tombstones (for the sync). */
+    fun rows(id: Long): List<PlaylistVideo> = q.selectAllRows(id).executeAsList().map {
+        PlaylistVideo(it.videoId, it.title, it.channelId, it.channelName, it.thumbnailUrl, it.durationSeconds, rowState(it.rowState))
+    }
+    fun rowState(id: Long, videoId: String): RowState? = q.selectRow(id, videoId).executeAsOneOrNull()?.let { rowState(it.rowState) }
 
     fun contains(id: Long, videoId: String): Boolean = q.selectItemVideoIds(id).executeAsList().contains(videoId)
 
-    /** Appends [videos] that are not already in the playlist; returns how many were added. */
-    fun add(id: Long, videos: List<VideoSummary>, at: Instant): Int = q.transactionWithResult {
-        val existing = q.selectItemVideoIds(id).executeAsList().toHashSet()
+    /** Appends [videos] that are not already in the playlist (a hidden tombstone is revived); returns how many were added. New rows get [state]. */
+    fun add(id: Long, videos: List<VideoSummary>, at: Instant, state: RowState = RowState.SYNCED): Int = q.transactionWithResult {
+        val existing = q.selectAllVideoIds(id).executeAsList().toHashSet()
+        val visible = q.selectItemVideoIds(id).executeAsList().toHashSet()
         var next = q.maxPosition(id).executeAsOne() + 1
         var added = 0
         for (v in videos) {
-            if (!existing.add(v.id)) continue
-            q.insertItem(id, v.id, next++, v.title, v.channelId, v.channelName, v.thumbnailUrl, v.durationSeconds, at.toEpochMilliseconds())
+            if (!visible.add(v.id)) continue
+            if (v.id in existing) { q.setRowState(RowState.SYNCED.name, id, v.id); added++; continue }   // revived: it never left YouTube
+            existing.add(v.id)
+            q.insertItem(id, v.id, next++, v.title, v.channelId, v.channelName, v.thumbnailUrl, v.durationSeconds, at.toEpochMilliseconds(), state.name)
             added++
         }
         q.touch(at.toEpochMilliseconds(), id)
         added
     }
 
+    fun setRowState(id: Long, videoId: String, state: RowState) { q.setRowState(state.name, id, videoId) }
+    fun changeRowStates(id: Long, from: RowState, to: RowState) { q.changeRowStates(to.name, id, from.name) }
+    fun dropTombstones(id: Long) { q.dropTombstones(id) }
+
+    /** Deletes the row for good (a LOCAL playlist, or a pending add that never reached YouTube). */
     fun remove(id: Long, videoId: String) = q.transaction {
         q.deleteItem(id, videoId)
-        renumber(id, q.selectItems(id).executeAsList().map { it.videoId })
+        renumber(id, q.selectAllRows(id).executeAsList().map { it.videoId })
     }
 
-    /** Moves the item at [from] to index [to] (both 0-based); out-of-range moves are ignored. */
+    /** Moves the item at [from] to index [to] (both 0-based); out-of-range moves are ignored. Only LOCAL playlists are reordered (YouTube's order is the truth for the others). */
     fun move(id: Long, from: Int, to: Int) = q.transaction {
         val ids = q.selectItems(id).executeAsList().map { it.videoId }.toMutableList()
         if (from !in ids.indices || to !in ids.indices || from == to) return@transaction
@@ -264,9 +321,74 @@ class PlaylistRepository(private val db: VelaDatabase, private val accountId: St
         ordered.forEachIndexed { index, videoId -> q.setItemPosition(index.toLong(), id, videoId) }
     }
 
+    /** Rewrites the order of the SYNCED rows to [remoteOrder] (YouTube's), keeping every other row after them in its current order. */
+    fun applyRemoteOrder(id: Long, remoteOrder: List<String>) = q.transaction {
+        val rows = q.selectAllRows(id).executeAsList().map { it.videoId }
+        val have = rows.toHashSet()
+        val first = remoteOrder.filter { it in have }.distinct()
+        val rest = rows.filter { it !in first.toHashSet() }
+        if (first + rest != rows) renumber(id, first + rest)
+    }
+
     companion object {
         const val WATCH_LATER = "watch_later"
     }
+}
+
+/** What waits to be written to a synced playlist's YouTube copy. */
+enum class OpKind { ADD, REMOVE, RENAME, DELETE }
+data class PlaylistOpRow(val id: Long, val playlistId: Long, val kind: OpKind, val videoId: String?, val payload: String?, val attempts: Int, val lastError: String?)
+
+/**
+ * The outbox of account writes for synced playlists. It is data, not cache: a restart (or "Clear cache") never loses a pending change.
+ * An ADD followed by a REMOVE of the same video cancels both, and a repeated RENAME keeps the last.
+ */
+class PlaylistOpRepository(private val db: VelaDatabase, private val accountId: String = LOCAL_ACCOUNT) {
+    private val q get() = db.playlistOpQueries
+
+    private fun row(o: com.greenaltambe.vela.data.db.PlaylistOp) = PlaylistOpRow(o.id, o.playlistId, runCatching { OpKind.valueOf(o.kind) }.getOrDefault(OpKind.ADD), o.videoId, o.payload, o.attempts.toInt(), o.lastError)
+
+    fun all(): List<PlaylistOpRow> = q.selectForAccount(accountId).executeAsList().map(::row)
+    fun forPlaylist(playlistId: Long): List<PlaylistOpRow> = q.selectForPlaylist(accountId, playlistId).executeAsList().map(::row)
+    fun count(): Int = q.countForAccount(accountId).executeAsOne().toInt()
+
+    fun enqueueAdd(playlistId: Long, videoId: String, at: Instant) = q.transaction {
+        if (q.findVideoOp(accountId, playlistId, OpKind.ADD.name, videoId).executeAsOneOrNull() != null) return@transaction
+        val remove = q.findVideoOp(accountId, playlistId, OpKind.REMOVE.name, videoId).executeAsOneOrNull()
+        if (remove != null) { q.delete(remove.id); return@transaction }   // removed here, added again before it was sent: nothing to say to YouTube
+        q.insert(accountId, playlistId, OpKind.ADD.name, videoId, null, at.toEpochMilliseconds())
+    }
+
+    fun enqueueRemove(playlistId: Long, videoId: String, at: Instant) = q.transaction {
+        val add = q.findVideoOp(accountId, playlistId, OpKind.ADD.name, videoId).executeAsOneOrNull()
+        if (add != null) { q.delete(add.id); return@transaction }          // added here, removed before it was sent: both cancel
+        if (q.findVideoOp(accountId, playlistId, OpKind.REMOVE.name, videoId).executeAsOneOrNull() != null) return@transaction
+        q.insert(accountId, playlistId, OpKind.REMOVE.name, videoId, null, at.toEpochMilliseconds())
+    }
+
+    fun enqueueRename(playlistId: Long, name: String, at: Instant) = q.transaction {
+        val cur = q.findOp(accountId, playlistId, OpKind.RENAME.name).executeAsOneOrNull()
+        if (cur != null) q.setPayload(name, cur.id) else q.insert(accountId, playlistId, OpKind.RENAME.name, null, name, at.toEpochMilliseconds())
+    }
+
+    /** Deleting the playlist on YouTube: every other op of it is moot. [remoteId] rides in the payload because the local row is gone by then. */
+    fun enqueueDelete(playlistId: Long, remoteId: String, at: Instant) = q.transaction {
+        q.deleteForPlaylist(accountId, playlistId)
+        q.insert(accountId, playlistId, OpKind.DELETE.name, null, remoteId, at.toEpochMilliseconds())
+    }
+
+    /** Drops a waiting ADD of [videoId] (the video left the playlist before it was ever sent). */
+    fun cancelAdd(playlistId: Long, videoId: String) { q.findVideoOp(accountId, playlistId, OpKind.ADD.name, videoId).executeAsOneOrNull()?.let { q.delete(it.id) } }
+    fun hasAdd(playlistId: Long, videoId: String): Boolean = q.findVideoOp(accountId, playlistId, OpKind.ADD.name, videoId).executeAsOneOrNull() != null
+    /** Drops a waiting REMOVE of [videoId] (the video came back before it was sent, or the removal failed). */
+    fun cancelRemove(playlistId: Long, videoId: String) { q.findVideoOp(accountId, playlistId, OpKind.REMOVE.name, videoId).executeAsOneOrNull()?.let { q.delete(it.id) } }
+    fun clearRename(playlistId: Long) { q.findOp(accountId, playlistId, OpKind.RENAME.name).executeAsOneOrNull()?.let { q.delete(it.id) } }
+    /** Lets a playlist that gave up (3 failures) try again. */
+    fun retry(playlistId: Long) { q.resetAttempts(accountId, playlistId) }
+
+    fun done(id: Long) { q.delete(id) }
+    fun failed(id: Long, error: String) { q.failed(error.take(300), id) }
+    fun clearPlaylist(playlistId: Long) { q.deleteForPlaylist(accountId, playlistId) }
 }
 
 /** The cached subscription feed: shown at once, refreshed afterwards. */
@@ -294,5 +416,4 @@ class FeedRepository(private val db: VelaDatabase, private val accountId: String
     fun clear() { q.clearForAccount(accountId) }
 }
 
-/** Playlists copied from the signed-in account carry this prefix in their system key. */
-const val MIRROR_PREFIX = "yt:"
+

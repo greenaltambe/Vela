@@ -23,7 +23,7 @@ const val BACKUP_SCHEMA_VERSION = 2
 /**
  * One JSON file with everything personal that is not a credential and not a file: settings (including per-channel and per-video overrides),
  * subscriptions, local playlists (with Watch later), watch history and search history of the LOCAL account. NEVER in it: accounts, cookies
- * or any credential, downloads, caches, the account-mirrored playlists (they come back from the account), or state like the remote-config
+ * or any credential, downloads, caches, the playlists synced with the account (they come back from it; only videos that never reached it are saved), or state like the remote-config
  * version. History and search history are optional ([include]).
  */
 @Serializable
@@ -66,7 +66,13 @@ class BackupService(private val db: VelaDatabase, private val clock: Clock = Clo
     fun create(includeHistory: Boolean = true, includeSearchHistory: Boolean = true): String {
         val subs = SubscriptionRepository(db, accountId).all().map { BackupSubscription(it.channelId, it.name, it.avatarUrl, it.subscribedAt.toEpochMilliseconds()) }
         val playlists = PlaylistRepository(db, accountId).let { repo ->
-            repo.all().filter { !it.isMirror }.map { p -> BackupPlaylist(p.name, p.isWatchLater, repo.items(p.id).map { BackupVideo(it.videoId, it.title, it.channelId, it.channelName, it.thumbnailUrl, it.durationSeconds) }) }
+            fun video(it: com.greenaltambe.vela.data.PlaylistVideo) = BackupVideo(it.videoId, it.title, it.channelId, it.channelName, it.thumbnailUrl, it.durationSeconds)
+            // Local playlists in full. A synced playlist comes back from the account, so only what never reached it (waiting or "not on YouTube") is saved, as a local playlist.
+            repo.all().filter { !it.isMirror }.map { p -> BackupPlaylist(p.name, p.isWatchLater, repo.items(p.id).map(::video)) } +
+                repo.all().filter { it.isMirror && !it.isReadOnly }.mapNotNull { p ->
+                    val unsent = repo.items(p.id).filter { it.rowState == com.greenaltambe.vela.data.RowState.PENDING_ADD || it.rowState == com.greenaltambe.vela.data.RowState.OVERFLOW }
+                    if (unsent.isEmpty()) null else BackupPlaylist(p.name + " (not yet on YouTube)", false, unsent.map(::video))
+                }
         }
         val history = if (includeHistory) HistoryLibrary(db, accountId).recent(100_000).map { BackupHistory(it.videoId, it.channelId, it.title, it.watchedAt.toEpochMilliseconds(), it.positionMs, it.durationMs, it.watchedMs) } else emptyList()
         val searches = if (includeSearchHistory) SearchHistoryRepository(db, accountId).recent(1000).map { BackupSearch(it) } else emptyList()

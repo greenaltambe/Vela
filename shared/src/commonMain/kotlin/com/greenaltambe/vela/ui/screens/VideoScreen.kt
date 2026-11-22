@@ -509,7 +509,7 @@ fun VideoScreen(
                     if (!canRate) { actionNote = "Sign in to rate videos"; return }
                     val (wasLiked, wasDisliked) = liked to disliked
                     liked = target == VideoRating.LIKE; disliked = target == VideoRating.DISLIKE
-                    scope.launch { val r = services.actions!!.rate(video.id, target); (r as? ActionResult.Queued)?.let { actionNote = it.message }; (r as? ActionResult.Failed)?.let { liked = wasLiked; disliked = wasDisliked; actionError = "Could not rate on the account: ${it.message}" } }
+                    scope.launch { val r = services.actions!!.rate(video.id, target); (r as? ActionResult.Queued)?.let { actionNote = it.message }; (r as? ActionResult.Failed)?.let { liked = wasLiked; disliked = wasDisliked; actionError = "Could not rate on the account: ${it.message}" } ?: services.playlistService.noteRating(video, target) }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(androidx.compose.material3.ButtonGroupDefaults.ConnectedSpaceBetween)) {
                     ActionChip(AppIcons.like, votes?.let { compact(it.likes) } ?: "Like", { rate(if (liked) VideoRating.NONE else VideoRating.LIKE) }, Modifier.testTag("video.votes"), selected = liked, selectedIcon = AppIcons.likeFilled, position = com.greenaltambe.vela.ui.components.ActionPosition.LEADING)

@@ -148,7 +148,7 @@ class AccountManager(
         if (id == LOCAL_ACCOUNT || byId(id)?.kind != AccountKind.GOOGLE) return
         credentials.delete(id)
         db.transaction {
-            q.deleteSubscriptions(id); q.deletePlaylistItems(id); q.deletePlaylists(id)
+            q.deleteSubscriptions(id); q.deletePlaylistItems(id); q.deletePlaylists(id); db.playlistOpQueries.deleteForAccount(id)
             db.watchHistoryQueries.clearForAccount(id)
             db.searchHistoryQueries.clearForAccount(id)
             db.accountWatchedQueries.clearForAccount(id)
@@ -220,10 +220,21 @@ interface AccountActions {
     /** [playlistId] "WL" is Watch Later. */
     suspend fun addToPlaylist(playlistId: String, videoId: String): ActionResult
     suspend fun removeFromPlaylist(playlistId: String, videoId: String): ActionResult
+    /**
+     * Adds several videos in order. The implementation sends them in one request when it can; callers pass at most [ADD_CHUNK] ids. The default adds them one by one.
+     * [ActionResult.Queued] here means "the limit or a cool-down refused it, try again later": the caller's outbox keeps the work (nothing is queued in memory).
+     */
+    suspend fun addManyToPlaylist(playlistId: String, videoIds: List<String>): ActionResult {
+        for (id in videoIds) { val r = addToPlaylist(playlistId, id); if (r !is ActionResult.Ok && r !is ActionResult.LocalOnly) return r }
+        return ActionResult.Ok
+    }
     suspend fun createPlaylist(title: String): Pair<ActionResult, String?>
     suspend fun renamePlaylist(playlistId: String, title: String): ActionResult
     suspend fun deletePlaylist(playlistId: String): ActionResult
 }
+
+/** Videos per write when many are added at once. */
+const val ADD_CHUNK = 50
 
 /** An account playlist as the library lists it. [id] "WL" is Watch Later, "LL" Liked videos. */
 data class AccountPlaylist(val id: String, val title: String, val videoCount: Int?)
@@ -234,6 +245,11 @@ interface AccountReads {
     suspend fun recommended(): List<com.greenaltambe.vela.extractor.VideoSummary>?
     suspend fun playlists(): List<AccountPlaylist>?
     suspend fun playlistVideos(playlistId: String): List<com.greenaltambe.vela.extractor.VideoSummary>?
+    /**
+     * Like [playlistVideos] but says whether the whole list was read. A cut-off list must never be used to decide that a video was removed on YouTube.
+     * The default treats the answer as complete.
+     */
+    suspend fun playlistListing(playlistId: String): PlaylistListing? = playlistVideos(playlistId)?.let { PlaylistListing(it, true) }
     /** The account's watch history (newest first); entries carry no time, only the order YouTube lists them in. */
     suspend fun history(): List<com.greenaltambe.vela.extractor.VideoSummary>? = null
 
@@ -244,6 +260,9 @@ interface AccountReads {
     suspend fun historyPage(continuation: String? = null): HistoryPage? =
         if (continuation != null) HistoryPage(emptyList(), null) else history()?.let { HistoryPage(it, null) }
 }
+
+/** One account playlist as read: [complete] is false when the listing stopped early (page limit). */
+class PlaylistListing(val videos: List<com.greenaltambe.vela.extractor.VideoSummary>, val complete: Boolean)
 
 /** A page of the account's watch history, newest first; [continuation] is null at the end. */
 class HistoryPage(val videos: List<com.greenaltambe.vela.extractor.VideoSummary>, val continuation: String?)
