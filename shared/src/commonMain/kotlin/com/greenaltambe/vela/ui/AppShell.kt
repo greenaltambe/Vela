@@ -306,8 +306,9 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
             navigator.selectTab(Route.Library); navigator.push(Route.History)
             return@onKey true
         }
-        // 1-9: the nth item of the navigation bar as the viewer set it up (Shorts missing when hidden, and so on). Going to a page minimises a playing video.
-        if (!e.isShiftPressed && !e.isCtrlPressed && !e.isAltPressed && !e.isMetaPressed) {
+        // Ctrl+1-9: the nth item of the navigation bar as the viewer set it up (Shorts missing when hidden, and so on). Going to a page minimises a playing video.
+        // (Plain 1-9 stay the video's jump-to-a-tenth keys.)
+        if (ctrl) {
             val n = listOf(androidx.compose.ui.input.key.Key.One, androidx.compose.ui.input.key.Key.Two, androidx.compose.ui.input.key.Key.Three, androidx.compose.ui.input.key.Key.Four, androidx.compose.ui.input.key.Key.Five,
                 androidx.compose.ui.input.key.Key.Six, androidx.compose.ui.input.key.Key.Seven, androidx.compose.ui.input.key.Key.Eight, androidx.compose.ui.input.key.Key.Nine).indexOf(e.key)
             val tab = if (n >= 0) com.greenaltambe.vela.ui.nav.NavConfig.of(services.settings).tabs.getOrNull(n) else null
@@ -322,12 +323,14 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
             if (sheetState.isExpanded) { sheetState.collapse(); return@onKey true }
             return@onKey navigator.back()
         }
-        // 0 and the number pad: jump to that tenth of the video (YouTube's own shortcut), on the video page only and never with a modifier held. The number row's 1-9 go to the navigation bar (above).
-        if (!e.isShiftPressed && !e.isCtrlPressed && !e.isAltPressed && !e.isMetaPressed) digitSeekTenth(e.key)?.takeIf { e.key.keyCode !in (androidx.compose.ui.input.key.Key.One.keyCode..androidx.compose.ui.input.key.Key.Nine.keyCode) }?.let { tenth ->
+        // 0-9: jump to that tenth of the video (YouTube's own shortcut), on the video page only and never with a modifier held. Ctrl+1-9 go to the navigation bar (above).
+        if (!e.isShiftPressed && !e.isCtrlPressed && !e.isAltPressed && !e.isMetaPressed) digitSeekTenth(e.key)?.let { tenth ->
             if (host == null || navigator.nowPlaying == null || (!sheetState.isExpanded && route !is Route.Video)) return@onKey false
             seekToTenth(tenth, host.session, host.controllerState.value)
             return@onKey true
         }
+        // The video keys are plain keys: Ctrl+K, Ctrl+F, Ctrl+Left, Alt+... belong to the app, the window or the system, never to the player.
+        if (e.isCtrlPressed || e.isAltPressed || e.isMetaPressed) return@onKey false
         val action = shortcutFor(e.key, e.isShiftPressed)
         if (host == null || action == null || navigator.nowPlaying == null || (!sheetState.isExpanded && route !is Route.Video)) return@onKey false
         applyShortcut(action, host.session, host.controllerState.value) { window?.toggleFullscreen() }

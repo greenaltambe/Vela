@@ -13,7 +13,7 @@ Maintainers only. The workflows never push, tag or publish by themselves: a tag 
 6. Tag and push: `git tag v0.1.0-beta.2 && git push origin v0.1.0-beta.2`. The tag must equal `v` + `VERSION_NAME`, or the workflow stops at its first job.
 7. The `publish` job creates a **published** release (pre-release when the tag has a stage) with all files, `SHA256SUMS`, and build provenance attestations (marked pre-release when the tag contains `-alpha`, `-beta` or `-rc`).
 8. Check the release: file names (`Vela-<version>-android-arm64.apk`, `...-linux-amd64.deb`, `...-linux-x86_64.rpm`, `...-linux-x64.tar.gz`, `...-linux-x86_64.flatpak`, `...-windows-x64.msi`, `...-windows-x64.zip`), that the APK is **signed** (not `-unsigned`), and the checksums
-   (`sha256sum -c SHA256SUMS`). `gh attestation verify <file> --repo <owner>/<repo>` verifies provenance. Then publish the release.
+   (`sha256sum -c SHA256SUMS`). `gh attestation verify <file> --repo <owner>/<repo>` verifies provenance. The attestation step is best-effort (a failure of GitHub's attestation service only produces a warning, as seen with "error fetching tlog entry (404)"); if the run shows that warning, re-run the `publish` job or publish without provenance and say so in the notes. Then publish the release.
 9. **Rollback**: do not delete users' ability to update. If a release is bad, mark it pre-release or delete the *release* (not the tag history of signed builds you want to keep), publish a fixed version with a higher `VERSION_NAME`
    (Android refuses downgrades, so a fix is always a new, higher version), and note it in the changelog.
 

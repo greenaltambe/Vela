@@ -273,9 +273,16 @@ jobs:
           mkdir release
           find artifacts -type f \( -name '*.apk' -o -name '*.deb' -o -name '*.rpm' -o -name '*.flatpak' -o -name '*.msi' -o -name '*.zip' -o -name '*.tar.gz' -o -name 'LIBMPV-SOURCE.txt' \) -exec cp {} release/ \;
           (cd release && sha256sum -- * > SHA256SUMS && cat SHA256SUMS)
-      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+      # Provenance is a bonus, not a gate: Sigstore/GitHub's attestation service has failed on its own side ("error fetching tlog entry (404)") after the
+      # files were built and checksummed. A failure here must not stop the release; the warning below says so and SHA256SUMS still covers integrity.
+      - id: attest
+        continue-on-error: true
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: release/*
+      - name: Say so when provenance could not be created
+        if: steps.attest.outcome == 'failure'
+        run: echo "::warning title=No build provenance::The attestation service failed; this release has SHA256SUMS but no provenance attestation. Re-run the job to try again."
       - name: Release notes from CHANGELOG.md
         env:
           VERSION: ${{ needs.version.outputs.version }}

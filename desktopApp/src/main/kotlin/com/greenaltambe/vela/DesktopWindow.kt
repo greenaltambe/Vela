@@ -10,6 +10,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isAltPressed
 import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
@@ -104,9 +105,16 @@ fun DesktopWindow(
     }
 }
 
-/** Ctrl+T new tab, Ctrl+W close, Ctrl+Tab / Ctrl+Shift+Tab next / previous, Ctrl+1..9 jump, Ctrl+Shift+N new window. Everything else goes on to the page. */
+/** Ctrl+T new tab, Ctrl+W close, Ctrl+Tab / Ctrl+Shift+Tab next / previous, Alt+1..9 jump to a tab (Ctrl+1..9 open the page's navigation items), Ctrl+Shift+N new window. Everything else goes on to the page. */
 private fun handleKey(e: androidx.compose.ui.input.key.KeyEvent, w: WindowModel, ws: Workspace, onNoWindowsLeft: () -> Unit): Boolean {
-    if (e.type != KeyEventType.KeyDown || !e.isCtrlPressed) return false
+    if (e.type != KeyEventType.KeyDown) return false
+    // Alt+1..9 jumps to that tab (as in Firefox on Linux); Alt+9 is the last one. Ctrl+1..9 are the page's: the navigation items.
+    if (e.isAltPressed && !e.isCtrlPressed && !e.isShiftPressed) {
+        val tabDigit = (Key.One.keyCode..Key.Nine.keyCode).indexOf(e.key.keyCode)
+        if (tabDigit >= 0) { w.tabs.getOrNull(if (tabDigit == 8) w.tabs.lastIndex else tabDigit)?.let { w.select(it) }; return true }
+        return false
+    }
+    if (!e.isCtrlPressed) return false
     when (e.key) {
         Key.T -> { if (e.isShiftPressed) return false; ws.newTab(w); return true }
         Key.W -> { if (ws.closeTab(w, w.selected)) onNoWindowsLeft(); return true }
@@ -118,7 +126,5 @@ private fun handleKey(e: androidx.compose.ui.input.key.KeyEvent, w: WindowModel,
         Key.PageDown -> { w.select(w.tabs[(w.indexOf(w.selected) + 1) % w.tabs.size]); return true }
         Key.PageUp -> { w.select(w.tabs[(w.indexOf(w.selected) - 1 + w.tabs.size) % w.tabs.size]); return true }
     }
-    val digit = (Key.One.keyCode..Key.Nine.keyCode).indexOf(e.key.keyCode)
-    if (digit >= 0 && !e.isShiftPressed) { w.tabs.getOrNull(if (digit == 8) w.tabs.lastIndex else digit)?.let { w.select(it) }; return true }
     return false
 }
