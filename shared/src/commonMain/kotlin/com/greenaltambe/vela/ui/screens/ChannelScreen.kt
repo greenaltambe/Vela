@@ -409,6 +409,12 @@ private fun ChannelHeader(
     onOpenAbout: () -> Unit,
 ) {
     val avatarShape = CircleShape
+    // On a wide window the header is laid out like YouTube's: a wide banner, then a big round picture with the name, the details, a one-line description
+    // and a Subscribe button at its natural size (a full-width button is for a phone).
+    if (com.greenaltambe.vela.ui.layout.LocalWindowSize.current != com.greenaltambe.vela.ui.layout.WindowSizeClass.COMPACT) {
+        WideChannelHeader(services, channelId, name, page, subscribed, onSubscribedChange, onOpenAbout)
+        return
+    }
     Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.gutter, vertical = Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         page?.bannerUrl?.let { banner ->
             AsyncImage(banner, null, Modifier.fillMaxWidth().aspectRatio(16f / 5f).clip(MaterialTheme.shapes.large).background(MaterialTheme.colorScheme.surfaceContainerHigh).testTag("channel.banner"), contentScale = ContentScale.Crop)
@@ -452,7 +458,13 @@ private fun ChannelHeader(
             AnimatedVisibility(subscribed, enter = androidx.compose.animation.expandHorizontally(androidx.compose.animation.core.spring(dampingRatio = 0.7f, stiffness = 380f)) + fadeIn() + androidx.compose.animation.scaleIn(initialScale = 0.6f), exit = androidx.compose.animation.shrinkHorizontally() + fadeOut()) { ChannelBell(services, channelId) }
         }
 
-        // Appears with the Subscribe button's own change: it grows open and fades in on a spring (and closes the same way) instead of popping in.
+        AutoDownloadRow(services, channelId, name, subscribed)
+    }
+}
+
+@Composable
+private fun AutoDownloadRow(services: AppServices, channelId: String, name: String, subscribed: Boolean) {
+    // Appears with the Subscribe button's own change: it grows open and fades in on a spring (and closes the same way) instead of popping in.
         AnimatedVisibility(
             subscribed && services.downloads != null,
             enter = androidx.compose.animation.expandVertically(androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 380f)) + fadeIn(),
@@ -472,6 +484,47 @@ private fun ChannelHeader(
             }
         }
 
+}
+
+/** The channel header for a wide window (desktop, large tablet): banner, then picture and details side by side, Subscribe at its natural size. */
+@Composable
+private fun WideChannelHeader(
+    services: AppServices, channelId: String, name: String, page: ChannelPage?, subscribed: Boolean, onSubscribedChange: (Boolean) -> Unit, onOpenAbout: () -> Unit,
+) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.gutter, vertical = Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+        page?.bannerUrl?.let { banner ->
+            AsyncImage(banner, null, Modifier.fillMaxWidth().aspectRatio(6.2f).clip(MaterialTheme.shapes.extraLarge).background(MaterialTheme.colorScheme.surfaceContainerHigh).testTag("channel.banner"), contentScale = ContentScale.Crop)
+        }
+        Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.lg), verticalAlignment = Alignment.Top) {
+            Avatar(name, size = 136.dp, url = page?.avatarUrl, shape = CircleShape)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                Text(name, style = MaterialTheme.typography.headlineLarge, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("channel.name"))
+                val stats = listOfNotNull(
+                    page?.handle,
+                    formatCount(page?.subscriberCount)?.let { "$it subscribers" },
+                    page?.videoCount?.let { n -> formatCount(n)?.let { "$it ${if (n == 1L) "video" else "videos"}" } },
+                ).joinToString(" \u2022 ")
+                if (stats.isNotEmpty()) Text(stats, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.testTag("channel.stats"))
+                page?.description?.takeIf { it.isNotBlank() }?.let { desc ->
+                    Row(Modifier.clip(MaterialTheme.shapes.small).clickable(onClick = onOpenAbout).testTag("channel.aboutTrigger"), verticalAlignment = Alignment.CenterVertically) {
+                        Text(desc.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty(), style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f, fill = false))
+                        Text("  \u2026more", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+                Row(Modifier.padding(top = Spacing.xs).animateContentSize(), horizontalArrangement = Arrangement.spacedBy(androidx.compose.material3.ButtonGroupDefaults.ConnectedSpaceBetween), verticalAlignment = Alignment.CenterVertically) {
+                    SubscribeButton(
+                        subscribed, modifier = Modifier.heightIn(min = 48.dp).testTag("channel.subscribe"),
+                        position = if (subscribed) ActionPosition.LEADING else ActionPosition.ALONE,
+                        onClick = {
+                            if (subscribed) { services.subscriptions.unsubscribe(channelId); services.feed.reload(); onSubscribedChange(false) }
+                            else { services.subscriptions.subscribe(channelId, name, page?.avatarUrl, services.clock.now()); onSubscribedChange(true) }
+                        },
+                    )
+                    AnimatedVisibility(subscribed, enter = androidx.compose.animation.expandHorizontally(androidx.compose.animation.core.spring(dampingRatio = 0.7f, stiffness = 380f)) + fadeIn() + androidx.compose.animation.scaleIn(initialScale = 0.6f), exit = androidx.compose.animation.shrinkHorizontally() + fadeOut()) { ChannelBell(services, channelId) }
+                }
+            }
+        }
+        AutoDownloadRow(services, channelId, name, subscribed)
     }
 }
 

@@ -290,13 +290,40 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
             if (own != null) own() else navigator.refreshPage()
             return@onKey true
         }
+        val ctrl = (e.isCtrlPressed || e.isMetaPressed) && !e.isAltPressed && !e.isShiftPressed
+        // Ctrl+M: the video goes to the mini player, and from the mini player back to the video page. From fullscreen it leaves fullscreen and minimises in one go;
+        // the next Ctrl+M opens the video page (not fullscreen).
+        if (e.key == androidx.compose.ui.input.key.Key.M && ctrl) {
+            if (navigator.nowPlaying == null) return@onKey false
+            val wasFullscreen = window?.isFullscreen == true
+            if (wasFullscreen) window?.toggleFullscreen()
+            if (wasFullscreen || route is Route.Video || sheetState.isExpanded) sheetState.collapse() else navigator.expandNowPlaying()
+            return@onKey true
+        }
+        // Ctrl+H: History (a playing video goes to the mini player).
+        if (e.key == androidx.compose.ui.input.key.Key.H && ctrl) {
+            if (window?.isFullscreen == true) window.toggleFullscreen()
+            navigator.selectTab(Route.Library); navigator.push(Route.History)
+            return@onKey true
+        }
+        // 1-9: the nth item of the navigation bar as the viewer set it up (Shorts missing when hidden, and so on). Going to a page minimises a playing video.
+        if (!e.isShiftPressed && !e.isCtrlPressed && !e.isAltPressed && !e.isMetaPressed) {
+            val n = listOf(androidx.compose.ui.input.key.Key.One, androidx.compose.ui.input.key.Key.Two, androidx.compose.ui.input.key.Key.Three, androidx.compose.ui.input.key.Key.Four, androidx.compose.ui.input.key.Key.Five,
+                androidx.compose.ui.input.key.Key.Six, androidx.compose.ui.input.key.Key.Seven, androidx.compose.ui.input.key.Key.Eight, androidx.compose.ui.input.key.Key.Nine).indexOf(e.key)
+            val tab = if (n >= 0) com.greenaltambe.vela.ui.nav.NavConfig.of(services.settings).tabs.getOrNull(n) else null
+            if (tab != null) {
+                if (window?.isFullscreen == true) window.toggleFullscreen()
+                navigator.openTab(tab)
+                return@onKey true
+            }
+        }
         if (e.key == androidx.compose.ui.input.key.Key.Escape || (e.key == androidx.compose.ui.input.key.Key.DirectionLeft && e.isAltPressed)) {
             if (window?.isFullscreen == true) { window.toggleFullscreen(); return@onKey true }
             if (sheetState.isExpanded) { sheetState.collapse(); return@onKey true }
             return@onKey navigator.back()
         }
-        // 0-9: jump to that tenth of the video (YouTube's own shortcut), on the video page only and never with a modifier held.
-        if (!e.isShiftPressed && !e.isCtrlPressed && !e.isAltPressed && !e.isMetaPressed) digitSeekTenth(e.key)?.let { tenth ->
+        // 0 and the number pad: jump to that tenth of the video (YouTube's own shortcut), on the video page only and never with a modifier held. The number row's 1-9 go to the navigation bar (above).
+        if (!e.isShiftPressed && !e.isCtrlPressed && !e.isAltPressed && !e.isMetaPressed) digitSeekTenth(e.key)?.takeIf { e.key.keyCode !in (androidx.compose.ui.input.key.Key.One.keyCode..androidx.compose.ui.input.key.Key.Nine.keyCode) }?.let { tenth ->
             if (host == null || navigator.nowPlaying == null || (!sheetState.isExpanded && route !is Route.Video)) return@onKey false
             seekToTenth(tenth, host.session, host.controllerState.value)
             return@onKey true
@@ -483,7 +510,10 @@ private fun AnimatedDestination(services: AppServices, navigator: Navigator, rou
             }
             val slide = if (action == NavAction.TAB) 14 else 5
             // Switching tabs is a quick cross-fade only: sliding two whole pages while the new one loads its first content was the stutter. Pushes and pops still slide.
-            (if (action == NavAction.TAB) fadeIn(VelaMotion.tween(m, VelaMotion.Level.QUICK)).togetherWith(fadeOut(VelaMotion.tween(m, VelaMotion.Level.QUICK)))
+            // Opening or leaving the search page is also only a quick cross-fade: its field settles into place by itself (see SearchScreen), and sliding the whole page made it
+            // come in sideways from nowhere.
+            val searchSwap = targetState is Route.Search || initialState is Route.Search
+            (if (action == NavAction.TAB || searchSwap) fadeIn(VelaMotion.tween(m, VelaMotion.Level.QUICK)).togetherWith(fadeOut(VelaMotion.tween(m, VelaMotion.Level.QUICK)))
             else (fadeIn(fade) + slideInHorizontally(VelaMotion.tween(m, VelaMotion.Level.STANDARD)) { toward * it / slide })
                 .togetherWith(fadeOut(VelaMotion.tween(m, VelaMotion.Level.QUICK)) + slideOutHorizontally(VelaMotion.tween(m, VelaMotion.Level.STANDARD)) { -toward * it / (slide * 2) }))
                 .using(androidx.compose.animation.SizeTransform(clip = false) { _, _ -> androidx.compose.animation.core.snap() })

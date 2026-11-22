@@ -28,10 +28,12 @@ import com.greenaltambe.vela.ui.theme.AppIcons
 fun VelaSearchField(
     value: String, onValueChange: (String) -> Unit, onSubmit: () -> Unit, modifier: Modifier = Modifier,
     placeholder: String = "Search videos", focusRequester: FocusRequester? = null,
+    /** A slimmer field (desktop: 48 dp instead of 56). */
+    compact: Boolean = false,
 ) {
     TextField(
         value, onValueChange,
-        modifier = modifier.heightIn(min = 56.dp).let { if (focusRequester != null) it.focusRequester(focusRequester) else it }.testTag("search.field"),
+        modifier = modifier.heightIn(min = if (compact) 48.dp else 56.dp).let { if (focusRequester != null) it.focusRequester(focusRequester) else it }.testTag("search.field"),
         singleLine = true, shape = CircleShape,
         placeholder = { Text(placeholder, maxLines = 1) },
         leadingIcon = { IconButton(onClick = onSubmit, enabled = value.isNotBlank(), modifier = Modifier.testTag("search.submit")) { Icon(AppIcons.search, "Search") } },

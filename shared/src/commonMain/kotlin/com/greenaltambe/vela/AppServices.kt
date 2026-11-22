@@ -84,6 +84,14 @@ class AppServices(
     val deviceName: String = "This device",
     /** Sync over the local network; null where the platform has none. */
     val lanTransport: com.greenaltambe.vela.sync.LanTransport? = null,
+    /** Sync through a WebDAV server; null where the platform has none. */
+    val webDavFactory: com.greenaltambe.vela.sync.WebDavFactory? = null,
+    /** The app's own folder for automatic backups; null where the platform has none (then there are no automatic backups). */
+    val backupStorage: com.greenaltambe.vela.backup.BackupStorage? = null,
+    /** Picks the optional second folder for automatic backups (one that survives reinstalling the app). */
+    val backupFolders: com.greenaltambe.vela.backup.BackupFolders? = null,
+    /** The current connection type (Android); null where unknown. Lets Sync skip mobile data when asked and stay quiet while offline. */
+    val networkType: (() -> com.greenaltambe.vela.core.network.NetworkType)? = null,
     /** Where Sync's merge runs (tests pass an inline dispatcher). */
     syncWork: kotlin.coroutines.CoroutineContext = kotlinx.coroutines.Dispatchers.Default,
     val audit: DbAuditLog = DbAuditLog(database),
@@ -119,8 +127,10 @@ class AppServices(
     val homePrefs get() = com.greenaltambe.vela.home.HomePrefs(homeStore, activeId)
     /** Channels and title words the viewer blocked everywhere (shared by all accounts). */
     val blocklist = com.greenaltambe.vela.feed.Blocklist(homeStore)
+    /** Automatic backups: daily, before the first sync and before a large sync change. */
+    val autoBackups by lazy { com.greenaltambe.vela.backup.AutoBackups(database, homeStore, backupStorage, backupFolders, accounts, clock) }
     /** Keeps this device's local data in step with the viewer's other devices through a shared folder. */
-    val syncService by lazy { com.greenaltambe.vela.sync.SyncService(database, homeStore, accounts.credentials, syncFolders, lanTransport, blocklist, accounts, deviceName, clock, work = syncWork) }
+    val syncService by lazy { com.greenaltambe.vela.sync.SyncService(database, homeStore, accounts.credentials, syncFolders, lanTransport, webDavFactory, blocklist, accounts, deviceName, clock, work = syncWork, network = networkType, safetyBackup = { reason -> if (autoBackups.isAvailable) autoBackups.create(if (reason == "first") com.greenaltambe.vela.backup.BackupKind.FIRST_SYNC else com.greenaltambe.vela.backup.BackupKind.BEFORE_CHANGE) }) }
     /** Time spent in Shorts today (for the daily limit); shared by all accounts. */
     val shortsUsage = com.greenaltambe.vela.viewing.DailyUsage(homeStore, "viewing.shortsToday", { clock.now().toEpochMilliseconds() }, { utcOffsetMinutes() })
     /** The active account's subscription groups. */

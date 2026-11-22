@@ -9,6 +9,7 @@ import com.greenaltambe.vela.extractor.VideoSummary
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Arrangement
@@ -83,6 +84,7 @@ fun SearchScreen(services: AppServices, navigator: Navigator, query: String, mod
     var results by remember(query) { mutableStateOf(cached?.videos ?: videoPagedList()) }
     var state by remember(query) { mutableStateOf<ListState>(if (query.isBlank() || cached != null) ListState.Ready else ListState.Loading) }
     var loading by remember(query) { mutableStateOf(false) }
+    var confirmClearSearches by remember { mutableStateOf(false) }
     var historyRevision by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
     val focus = remember { FocusRequester() }
@@ -211,22 +213,46 @@ fun SearchScreen(services: AppServices, navigator: Navigator, query: String, mod
     val searching = loading || ((type == SearchType.VIDEOS || type == SearchType.LIVE) && view.size < 8 && results.continuation != null && autoPages < 4)
     // Desktop: the top bar's search pill leads here, so the field starts as wide as the pill and grows to the row's width.
     val desktop = com.greenaltambe.vela.ui.platform.LocalVolumeSlider.current
-    var grown by remember { mutableStateOf(!desktop) }
-    LaunchedEffect(Unit) { grown = true }
-    val fieldShare by androidx.compose.animation.core.animateFloatAsState(if (grown) 1f else 0.4f, androidx.compose.animation.core.tween(220), label = "searchFieldWidth")
+    // The field settles into place instead of sliding in: from where the top bar's search pill was (slightly higher, a touch smaller) and faded in; on a phone only the
+    // fade and the small scale. Skipped with reduced motion.
+    val reduced = com.greenaltambe.vela.ui.theme.LocalMotion.current.reduced
+    var entered by remember { mutableStateOf(reduced) }
+    LaunchedEffect(Unit) { entered = true }
+    val enter by androidx.compose.animation.core.animateFloatAsState(if (entered) 1f else 0f, androidx.compose.animation.core.tween(240, easing = androidx.compose.animation.core.FastOutSlowInEasing), label = "searchFieldEnter")
+    val fieldShare = 1f
+    val settle = Modifier.graphicsLayer {
+        alpha = enter
+        val s = 0.96f + 0.04f * enter
+        scaleX = s; scaleY = s
+        if (desktop) translationY = -(1f - enter) * 56.dp.toPx()
+    }
+    if (confirmClearSearches) androidx.compose.material3.AlertDialog(
+        onDismissRequest = { confirmClearSearches = false }, title = { Text("Clear recent searches?") },
+        text = { Text("This clears them here and, through Sync, on your other devices too.") },
+        confirmButton = { androidx.compose.material3.TextButton({ services.syncService.markIntentionalDelete(); services.searchHistory.clear(); historyRevision++; confirmClearSearches = false }, Modifier.testTag("search.clearHistory.confirm")) { Text("Clear") } },
+        dismissButton = { androidx.compose.material3.TextButton({ confirmClearSearches = false }) { Text("Cancel") } },
+    )
     Column(modifier.fillMaxSize()) {
-        Row(
-            Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)).heightIn(min = if (desktop) 64.dp else 56.dp).padding(horizontal = Spacing.xs),
+        val tuneVisible = query.isNotBlank() && type != SearchType.CHANNELS && type != SearchType.PLAYLISTS
+        if (desktop) {
+            // One centred column for the field and the lists under it, so their edges line up; the back and filter buttons sit at the window's sides.
+            Box(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)).heightIn(min = 64.dp).padding(horizontal = Spacing.xs)) {
+                IconButton(onClick = { navigator.back() }, modifier = Modifier.align(Alignment.CenterStart).testTag("nav.back")) { Icon(AppIcons.back, "Back") }
+                com.greenaltambe.vela.ui.components.VelaSearchField(text, { text = it }, { submit(text) }, Modifier.align(Alignment.Center).widthIn(max = SearchColumnMax).fillMaxWidth(fieldShare).then(settle), focusRequester = focus, compact = true)
+                if (tuneVisible) Box(Modifier.align(Alignment.CenterEnd)) { FilterTuneButton(!filters.isDefault) { sheet = true } }
+            }
+        } else Row(
+            Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)).heightIn(min = 56.dp).padding(horizontal = Spacing.xs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = { navigator.back() }, modifier = Modifier.testTag("nav.back")) { Icon(AppIcons.back, "Back") }
             Box(Modifier.weight(1f).padding(end = Spacing.xs), contentAlignment = Alignment.CenterEnd) {
-                com.greenaltambe.vela.ui.components.VelaSearchField(text, { text = it }, { submit(text) }, Modifier.fillMaxWidth(fieldShare), focusRequester = focus)
+                com.greenaltambe.vela.ui.components.VelaSearchField(text, { text = it }, { submit(text) }, Modifier.fillMaxWidth(fieldShare).then(settle), focusRequester = focus)
             }
-            if (query.isNotBlank() && type != SearchType.CHANNELS && type != SearchType.PLAYLISTS) FilterTuneButton(!filters.isDefault) { sheet = true }
+            if (tuneVisible) FilterTuneButton(!filters.isDefault) { sheet = true }
         }
         if (suggestions.isNotEmpty() && text.trim() != query) {
-            LazyColumn(Modifier.fillMaxSize().testTag("search.suggestions"), contentPadding = Spacing.contentPadding, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            LazyColumn(Modifier.then(if (desktop) Modifier.widthIn(max = SearchColumnMax).align(Alignment.CenterHorizontally) else Modifier).fillMaxSize().testTag("search.suggestions"), contentPadding = if (desktop) PaddingValues(top = Spacing.sm, bottom = Spacing.lg) else Spacing.contentPadding, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 itemsIndexed(suggestions, key = { _, it -> it }) { i, q ->
                     SearchTextRow(q, AppIcons.search, i, suggestions.size, onClick = { submit(q) }) {
                         // The arrow copies the suggestion into the field to keep typing after it, without searching.
@@ -236,7 +262,7 @@ fun SearchScreen(services: AppServices, navigator: Navigator, query: String, mod
             }
         } else if (query.isBlank()) {
             // The start page: only while nothing is typed. Typing hides it, leaving the field and its suggestions.
-            if (text.isBlank()) SearchStart(navigator, history, onFill = { text = "$it " }, onRemove = { services.searchHistory.remove(it); historyRevision++ }, onClear = { services.searchHistory.clear(); historyRevision++ })
+            if (text.isBlank()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) { SearchStart(navigator, history, onFill = { text = "$it " }, onRemove = { services.searchHistory.remove(it); historyRevision++ }, onClear = { if (services.syncService.config.value.isSetUp && com.greenaltambe.vela.sync.SyncKind.HISTORY in services.syncService.config.value.kinds) confirmClearSearches = true else { services.searchHistory.clear(); historyRevision++ } }) }
         } else {
             SearchTypeChips(type, types, { type = it }, Modifier.padding(bottom = Spacing.sm))
             when (type) {
@@ -314,10 +340,15 @@ private fun <T> SearchKindList(feed: TabFeed<T>, tag: String, onMore: () -> Unit
     }
 }
 
+/** The width of the search field and the lists under it on desktop (one column, so their edges line up). */
+private val SearchColumnMax = 720.dp
+
 /** Before anything is typed: only the recent searches. Each has an arrow that puts it in the search field (to edit it before searching) and a cross that removes it. */
 @Composable
 private fun SearchStart(navigator: Navigator, history: List<String>, onFill: (String) -> Unit, onRemove: (String) -> Unit, onClear: () -> Unit) {
-    LazyColumn(Modifier.fillMaxSize().testTag("search.list"), contentPadding = Spacing.contentPadding, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    // On desktop the recent searches are a centred list of reasonable width, not a stripe across the whole window.
+    val desktop = com.greenaltambe.vela.ui.platform.LocalVolumeSlider.current
+    LazyColumn(Modifier.then(if (desktop) Modifier.widthIn(max = SearchColumnMax) else Modifier).fillMaxSize().testTag("search.list"), contentPadding = if (desktop) PaddingValues(top = Spacing.sm, bottom = Spacing.lg) else Spacing.contentPadding, verticalArrangement = Arrangement.spacedBy(2.dp)) {
         if (history.isEmpty()) item { EmptyState("Search for videos, channels and topics.") }
         else {
             item(key = "recent-h") { SectionHeader("Recent searches") { TextButton(onClick = onClear, modifier = Modifier.testTag("search.clearHistory")) { Text("Clear all", maxLines = 1) } } }

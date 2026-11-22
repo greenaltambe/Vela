@@ -18,14 +18,14 @@ class BackupTest {
         SearchHistoryRepository(db).add("lofi", at)
         SqlDelightSettingsStore(db).apply {
             put("playback.defaultSpeed", SettingLayer.Global, "1.25"); put("playback.defaultSpeed", SettingLayer.channel("UC1"), "2.0")
-            put("sponsorblock.userId", SettingLayer.Global, "SECRET-ID"); put("health.results", SettingLayer.Global, "cache"); put("remoteConfig.version", SettingLayer.Global, "9"); put("session.nowPlaying", SettingLayer.Global, "x"); put("governor.google-abc.state", SettingLayer.Global, "OPEN"); put("governor.google-abc.until", SettingLayer.Global, "99")
+            put("sponsorblock.userId", SettingLayer.Global, "SECRET-ID"); put("sync.folder", SettingLayer.Global, "/synced/device-only"); put("sync.deviceId", SettingLayer.Global, "devid123"); put("backup.folder", SettingLayer.Global, "/backups/device-only"); put("health.results", SettingLayer.Global, "cache"); put("remoteConfig.version", SettingLayer.Global, "9"); put("session.nowPlaying", SettingLayer.Global, "x"); put("governor.google-abc.state", SettingLayer.Global, "OPEN"); put("governor.google-abc.until", SettingLayer.Global, "99")
         }
         return db
     }
 
     @Test fun roundTripIntoAFreshDatabaseRestoresEverythingPersonalAndNothingSecret() {
         val text = BackupService(filled()).create()
-        listOf("SECRET-ID", "cache", "remoteConfig", "cookie", "SAPISID", "session.nowPlaying", "governor.", "OPEN").forEach { assertFalse(it in text, "$it must not be in the backup") }
+        listOf("device-only", "devid123", "SECRET-ID", "cache", "remoteConfig", "cookie", "SAPISID", "session.nowPlaying", "governor.", "OPEN").forEach { assertFalse(it in text, "$it must not be in the backup") }
         val fresh = createDatabase(JvmDatabaseDriverFactory())
         val svc = BackupService(fresh)
         val p = svc.preview(text)

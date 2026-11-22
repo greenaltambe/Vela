@@ -41,6 +41,22 @@ class BackupUiTest {
         assertEquals(before, b.services.subscriptions.all().size)
     }
 
+    @Test fun automaticBackupsCanBeMadeListedAndRestoredFromTheBackupScreen() = runDesktopComposeUiTest(800, 2200) {
+        val storage = com.greenaltambe.vela.backup.fileBackupStorage(java.nio.file.Files.createTempDirectory("bk-ui").toFile().path, "App folder")
+        val f = buildFixture(withDownloads = false, backupFiles = MemoryFiles(), backupStorage = storage)
+        f.navigator.push(Route.Backup)
+        setContent { AppUnderTest(f) }; waitForIdle()
+        onNodeWithTag("backup.auto").assertExists()
+        onNodeWithTag("backup.now").performClick()
+        waitUntil(timeoutMillis = 10_000) { kotlinx.coroutines.runBlocking { storage.list().size } == 1 }
+        val name = kotlinx.coroutines.runBlocking { storage.list().single().name }
+        waitUntil(timeoutMillis = 10_000) { runCatching { onNodeWithTag("backup.item.$name").assertExists() }.isSuccess }
+        onNodeWithTag("backup.item.$name").performClick(); waitForIdle()
+        onNodeWithTag("backup.item.restore").performClick()
+        waitUntil(timeoutMillis = 10_000) { runCatching { onNodeWithTag("backup.preview").assertExists() }.isSuccess }
+        onNodeWithTag("backup.confirm").assertExists()
+    }
+
     @Test fun aFileThatIsNotABackupIsExplainedAndNothingIsChanged() = runDesktopComposeUiTest(800, 1000) {
         val f = buildFixture(withDownloads = false, backupFiles = MemoryFiles("hello"))
         f.navigator.push(Route.Backup)

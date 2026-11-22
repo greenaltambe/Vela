@@ -48,7 +48,12 @@ interface SyncBackend {
     /** Replaces the file as a whole; implementations should make this atomic (write temp then rename). */
     suspend fun write(name: String, data: ByteArray)
     suspend fun delete(name: String)
+    /** A cheap marker that changes when any file in the storage changed, or null when the storage cannot tell. Lets the app poll without downloading. */
+    suspend fun fingerprint(): String? = null
 }
+
+/** Builds the WebDAV backend (the implementation lives in `:sync-webdav`). */
+fun interface WebDavFactory { fun create(folderUrl: String, user: String, password: String): SyncBackend }
 
 /** Turns bytes into what is stored, and back. A wrong passphrase must throw [SyncDecodeException]. */
 interface SyncCodec {

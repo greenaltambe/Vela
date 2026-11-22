@@ -132,7 +132,7 @@ fun SearchTextRow(
 ) {
     Row(
         modifier.fillMaxWidth().clip(segmentedShape(index, count)).background(MaterialTheme.colorScheme.surfaceContainerLow).clickable(onClick = onClick)
-            .heightIn(min = 56.dp).padding(start = Spacing.md, end = Spacing.xs),
+            .heightIn(min = if (com.greenaltambe.vela.ui.platform.LocalVolumeSlider.current) 48.dp else 56.dp).padding(start = Spacing.md, end = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
         Icon(icon, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -169,6 +169,26 @@ fun ShortsGrid(videos: List<VideoSummary>, onOpen: (VideoSummary) -> Unit, onEnd
 /** The channel the search is about: a tonal card with its picture, name, subscribers and the two things you do next. */
 @Composable
 fun TopChannelCard(channel: com.greenaltambe.vela.extractor.ChannelRef, subscribed: Boolean, onSubscribe: () -> Unit, onOpen: () -> Unit, modifier: Modifier = Modifier, bell: (@Composable () -> Unit)? = null) {
+    // On a wide window the card is one row, like YouTube's result: a big round picture, the name and details, and Subscribe at the end at its natural size.
+    // The whole card opens the channel, so there is no separate "Go to channel" button.
+    if (com.greenaltambe.vela.ui.layout.LocalWindowSize.current != com.greenaltambe.vela.ui.layout.WindowSizeClass.COMPACT) {
+        Row(
+            modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraLarge).background(MaterialTheme.colorScheme.surfaceContainerLow).clickable(onClick = onOpen).padding(horizontal = Spacing.lg, vertical = Spacing.md).testTag("search.topChannel"),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.lg),
+        ) {
+            com.greenaltambe.vela.ui.components.Avatar(channel.name, size = 112.dp, url = channel.avatarUrl)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                Text(channel.name, style = MaterialTheme.typography.headlineSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurface)
+                com.greenaltambe.vela.ui.components.formatCount(channel.subscriberCount)?.let { Text("$it subscribers", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                if (channel.description.isNotBlank()) Text(channel.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            Row(Modifier.animateContentSize(), horizontalArrangement = Arrangement.spacedBy(androidx.compose.material3.ButtonGroupDefaults.ConnectedSpaceBetween), verticalAlignment = Alignment.CenterVertically) {
+                com.greenaltambe.vela.ui.components.SubscribeButton(subscribed, onSubscribe, Modifier.testTag("search.topChannel.subscribe"), position = if (subscribed && bell != null) com.greenaltambe.vela.ui.components.ActionPosition.LEADING else com.greenaltambe.vela.ui.components.ActionPosition.ALONE)
+                androidx.compose.animation.AnimatedVisibility(subscribed && bell != null, enter = androidx.compose.animation.expandHorizontally(androidx.compose.animation.core.spring(dampingRatio = 0.7f, stiffness = 380f)) + androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(initialScale = 0.6f), exit = androidx.compose.animation.shrinkHorizontally() + androidx.compose.animation.fadeOut()) { bell?.invoke() }
+            }
+        }
+        return
+    }
     Column(
         modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraLarge).background(MaterialTheme.colorScheme.surfaceContainerLow).border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.extraLarge).clickable(onClick = onOpen).padding(Spacing.md).testTag("search.topChannel"),
         verticalArrangement = Arrangement.spacedBy(Spacing.md),

@@ -233,7 +233,9 @@ fun PlayerView(
     val blank = com.greenaltambe.vela.ui.platform.LocalBlankPointer.current
     // Always attached, only its icon changes: adding / removing the modifier under a resting pointer made Compose replay a hover event, which showed the controls again.
     val cursorModifier = if (blank != null) Modifier.pointerHoverIcon(if (fullscreen && !showControls) blank else PointerIcon.Default) else Modifier
-    Box(boxModifier.then(hoverModifier).then(cursorModifier).background(ExtraColors.mediaBackground).androidx_onPos { videoBottomPx = it }.testTag("player.view")) {
+    // The picture of the video page on desktop has softly rounded corners (a phone's edge-to-edge player and fullscreen keep square ones).
+    val cornerClip = if (!fullscreen && desktop) Modifier.clip(MaterialTheme.shapes.small) else Modifier
+    Box(boxModifier.then(cornerClip).then(hoverModifier).then(cursorModifier).background(ExtraColors.mediaBackground).androidx_onPos { videoBottomPx = it }.testTag("player.view")) {
         // The poster fills the box until the video has played: after that it only shows in the bars beside a letterboxed picture (fullscreen on a wide
         // screen), where it looked like part of the home screen bleeding through.
         var hasPlayed by remember(video.id) { mutableStateOf(false) }
@@ -391,16 +393,14 @@ fun PlayerView(
     val captionsButton: @Composable () -> Unit = {
                         if (captions.isEmpty()) ControlButton({}, enabled = false, modifier = Modifier.testTag("player.captions")) { Icon(AppIcons.captions, "No captions for this video", tint = onMedia.copy(alpha = 0.4f)) }
                         else ControlButton({ touch(); session.toggleCaptions() }, haptic = if (activeCaption != null) HapticKind.TOGGLE_OFF else HapticKind.TOGGLE_ON, onLongClick = { touch(); menu = Menu.CAPTIONS }, modifier = Modifier.testTag("player.captions")) {
-                            SwapIcon(AppIcons.captions, if (activeCaption != null) "Captions on" else "Captions off", if (activeCaption != null) MaterialTheme.colorScheme.primary else onMedia)
-                            // A bar under the icon: colour alone is easy to miss over video, so "on" is also a shape.
-                            if (activeCaption != null) Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp).size(width = 16.dp, height = 3.dp).background(MaterialTheme.colorScheme.primary, MaterialTheme.shapes.extraSmall).testTag("player.captions.on"))
+                            SwapIcon(AppIcons.captions, if (activeCaption != null) "Captions on" else "Captions off", if (activeCaption != null) ExtraColors.activeOnMedia else onMedia)
                         }
     }
     val cast = host.cast
     val castTarget = cast?.connected?.collectAsState()?.value
     val castButton: @Composable () -> Unit = {
         if (cast != null) ControlButton({ touch(); menu = Menu.CAST }, modifier = Modifier.testTag("player.cast")) {
-            SwapIcon(AppIcons.cast, if (castTarget != null) "Casting to ${castTarget.name}" else "Cast to TV", if (castTarget != null) MaterialTheme.colorScheme.primary else onMedia)
+            SwapIcon(AppIcons.cast, if (castTarget != null) "Casting to ${castTarget.name}" else "Cast to TV", if (castTarget != null) ExtraColors.activeOnMedia else onMedia)
         }
     }
     val menuButtons: @Composable androidx.compose.foundation.layout.RowScope.(Boolean) -> Unit = { spaced ->
@@ -419,7 +419,7 @@ fun PlayerView(
                         if (audioTracks.isNotEmpty()) ControlButton({ touch(); menu = Menu.AUDIO }, modifier = Modifier.testTag("player.audio-track")) { Icon(AppIcons.audioTrack, "Audio track", tint = onMedia) }
                         ControlButton({ touch(); menu = Menu.QUALITY }, modifier = Modifier.testTag("player.quality")) { Icon(AppIcons.quality, "Quality", tint = onMedia) }
                         ControlButton({ touch(); menu = Menu.SPEED }, modifier = Modifier.testTag("player.speed")) { Icon(AppIcons.speed, "Speed", tint = onMedia) }
-                        ControlButton({ touch(); menu = Menu.SLEEP }, modifier = Modifier.testTag("player.sleep-timer")) { SwapIcon(AppIcons.timer, "Sleep timer", if (sleep != null) MaterialTheme.colorScheme.primary else onMedia) }
+                        ControlButton({ touch(); menu = Menu.SLEEP }, modifier = Modifier.testTag("player.sleep-timer")) { SwapIcon(AppIcons.timer, "Sleep timer", if (sleep != null) ExtraColors.activeOnMedia else onMedia) }
     }
 
         AnimatedVisibility(showControls, Modifier.fillMaxSize(), enter = fadeIn(), exit = fadeOut()) {

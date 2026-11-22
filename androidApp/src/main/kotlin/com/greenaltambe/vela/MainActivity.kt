@@ -75,19 +75,22 @@ class MainActivity : ComponentActivity() {
     private val syncFolders = com.greenaltambe.vela.sync.AndroidSyncFolders(this) {
         kotlinx.coroutines.CompletableDeferred<android.net.Uri?>().also { pendingTree = it }.let { d -> openTree.launch(null); d.await() }
     }
+    private val backupFolders = com.greenaltambe.vela.sync.AndroidBackupFolders(this) {
+        kotlinx.coroutines.CompletableDeferred<android.net.Uri?>().also { pendingTree = it }.let { d -> openTree.launch(null); d.await() }
+    }
     /** Android drops broadcast packets unless a multicast lock is held; Sync holds it only while it is looking for devices. */
     private val lanLock by lazy {
         (applicationContext.getSystemService(android.content.Context.WIFI_SERVICE) as android.net.wifi.WifiManager).createMulticastLock("vela-sync").apply { setReferenceCounted(false) }
     }
     private val runtime by lazy { PlaybackRuntime.get(this) }
     private val host by lazy { AndroidPlayerHost(runtime, ::ensureNotificationPermission) }
-    private val healthSchedule by lazy { com.greenaltambe.vela.playback.HealthWorker.schedule(applicationContext); com.greenaltambe.vela.playback.AutoDownloadWorker.schedule(applicationContext); com.greenaltambe.vela.playback.FeedRefreshWorker.schedule(applicationContext); com.greenaltambe.vela.playback.AccountHistoryWorker.schedule(applicationContext) }
+    private val healthSchedule by lazy { com.greenaltambe.vela.playback.HealthWorker.schedule(applicationContext); com.greenaltambe.vela.playback.AutoDownloadWorker.schedule(applicationContext); com.greenaltambe.vela.playback.FeedRefreshWorker.schedule(applicationContext); com.greenaltambe.vela.playback.AccountHistoryWorker.schedule(applicationContext); com.greenaltambe.vela.playback.SyncWorker.schedule(applicationContext); com.greenaltambe.vela.playback.AutoBackupWorker.schedule(applicationContext) }
     /** Reads the account's history at start when the setting says so (ON_START, or EVERY_6H when six hours have passed). */
     private val historyOnStart by lazy {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch { runCatching { services.accountHistory.syncIfDue(com.greenaltambe.vela.auth.HistorySyncTrigger.START) } }
     }
     /** Sync between devices: shortly after start, then periodically while the app is open (nothing happens until the viewer sets it up). */
-    private val syncAuto by lazy { services.syncService.startAuto(CoroutineScope(SupervisorJob() + Dispatchers.IO)) }
+    private val syncAuto by lazy { val s = CoroutineScope(SupervisorJob() + Dispatchers.IO); services.syncService.startAuto(s); services.autoBackups.startAuto(s) }
     private val remoteConfigJob by lazy {
         // Fetched once per start in the background; a failure only changes the Diagnostics line and keeps the last good config.
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
@@ -115,6 +118,10 @@ class MainActivity : ComponentActivity() {
             faults = runtime.faults,
             backupFiles = backupFiles,
             syncFolders = syncFolders,
+            networkType = { runtime.network.type.value },
+            backupStorage = com.greenaltambe.vela.backup.fileBackupStorage(java.io.File(filesDir, "backups").path, "This app's folder"),
+            backupFolders = backupFolders,
+            webDavFactory = { u, n, pw -> com.greenaltambe.vela.syncwebdav.WebDavSyncBackend(u, n, pw) },
             lanTransport = com.greenaltambe.vela.synclan.LanSyncTransport(java.io.File(filesDir, "sync-lan"), networkLock = { on ->
                 val wifi = applicationContext.getSystemService(android.content.Context.WIFI_SERVICE) as android.net.wifi.WifiManager
                 if (on) lanLock.acquire() else if (lanLock.isHeld) lanLock.release()

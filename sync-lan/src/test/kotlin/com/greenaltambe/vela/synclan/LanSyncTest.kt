@@ -20,7 +20,7 @@ class LanSyncTest {
     private class Dev(val name: String, val lan: LanSyncTransport, code: String) {
         val db = createDatabase(JvmDatabaseDriverFactory())
         val store = SqlDelightSettingsStore(db)
-        val service = SyncService(db, store, CredentialStore(InMemorySecretStore()), null, lan, Blocklist(store), null, name).also { it.setCode(code) }
+        val service = SyncService(db, store, CredentialStore(InMemorySecretStore()), null, lan, null, Blocklist(store), null, name).also { it.setCode(code) }
     }
 
     private fun waitFor(ms: Long = 15_000, cond: () -> Boolean) { val end = System.currentTimeMillis() + ms; while (!cond() && System.currentTimeMillis() < end) Thread.sleep(100); assertTrue(cond(), "timed out") }

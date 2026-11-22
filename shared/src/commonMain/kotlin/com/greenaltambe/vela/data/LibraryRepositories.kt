@@ -61,7 +61,15 @@ class HistoryLibrary(private val db: VelaDatabase, private val accountId: String
         WatchRecord(it.id, it.accountId, it.videoId, it.channelId, it.title, Instant.fromEpochMilliseconds(it.watchedAt), it.positionMs, it.durationMs, it.watchedMs)
     }
 
-    fun delete(id: Long) { q.deleteById(id) }
+    /**
+     * Removes one watch. When it is the latest watch of its video the whole video goes: with older watches left behind, the video would reappear in the list
+     * (and Sync would hand the newer watch back from another device).
+     */
+    fun delete(id: Long) {
+        val row = recent(100_000).firstOrNull { it.id == id } ?: return
+        val latest = q.selectLastForVideo(accountId, row.videoId).executeAsOneOrNull()
+        if (latest == null || latest.id == id) q.deleteForVideo(accountId, row.videoId) else q.deleteById(id)
+    }
 
     /** Every watch of a video, i.e. removing it from the list however many times it was watched. */
     fun deleteVideo(videoId: String) { q.deleteForVideo(accountId, videoId) }
@@ -130,6 +138,9 @@ class SearchHistoryRepository(private val db: VelaDatabase, private val accountI
     private val q get() = db.searchHistoryQueries
 
     fun recent(limit: Long = 20): List<String> = q.selectRecent(accountId, limit).executeAsList()
+
+    /** Each recent query with when it was searched (epoch ms), for Sync. */
+    fun recentWithTime(limit: Long = 1000): List<Pair<String, Long>> = q.selectRecentWithTime(accountId, limit).executeAsList().map { it.query to it.searchedAt }
 
     /** Repeating a query moves it to the top rather than duplicating it. */
     fun add(query: String, at: Instant) {

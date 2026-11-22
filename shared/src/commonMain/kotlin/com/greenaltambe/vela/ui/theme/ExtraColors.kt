@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 
 /**
  * Colours Material has no role for: the seek-bar markers (one per SponsorBlock category), and what is drawn over video (icons and text on
@@ -30,12 +31,23 @@ data class ExtraColorTokens(
 
 val LocalExtraColors = staticCompositionLocalOf { ExtraColorTokens.Default }
 
+/** The accent for "on" controls drawn over video, when the palette has a fixed one (Classic: red); null means derive it from the colour scheme. */
+val LocalMediaAccent = staticCompositionLocalOf<Color?> { null }
+
+/**
+ * The colour of a control that is switched on while drawn over video (captions on, casting, sleep timer set). The picture is dark whatever the theme, so
+ * the scheme's own `primary` is wrong in a light theme (it is a dark tone there): the light theme uses its light tone ([ColorScheme.inversePrimary]).
+ */
+fun mediaAccentFor(scheme: androidx.compose.material3.ColorScheme, fixed: Color?): Color =
+    fixed ?: if (scheme.background.luminance() > 0.5f) scheme.inversePrimary else scheme.primary
+
 /** `ExtraColors.onMedia` and friends, read from the active theme. */
 object ExtraColors {
     val markers: Map<String, Color> @Composable @ReadOnlyComposable get() = LocalExtraColors.current.markers
     val onMedia: Color @Composable @ReadOnlyComposable get() = LocalExtraColors.current.onMedia
     val mediaScrim: Color @Composable @ReadOnlyComposable get() = LocalExtraColors.current.mediaScrim
     val mediaBackground: Color @Composable @ReadOnlyComposable get() = LocalExtraColors.current.mediaBackground
+    val activeOnMedia: Color @Composable @ReadOnlyComposable get() = mediaAccentFor(MaterialTheme.colorScheme, LocalMediaAccent.current)
     /** The tick of a chapter on the seek bar: the page's text colour, so it shows on either theme. */
     val chapterMarker: Color @Composable @ReadOnlyComposable get() = MaterialTheme.colorScheme.onBackground
 }

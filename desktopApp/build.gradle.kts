@@ -16,6 +16,7 @@ dependencies {
     implementation(project(":player-mpv"))
     implementation(project(":cast-dlna"))
     implementation(project(":sync-lan"))
+    implementation(project(":sync-webdav"))
     implementation(project(":innertube-auth"))
 
     implementation(compose.desktop.currentOs)

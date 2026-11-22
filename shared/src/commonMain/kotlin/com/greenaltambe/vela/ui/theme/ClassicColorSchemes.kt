@@ -14,6 +14,9 @@ object ClassicColorSchemes {
     /** The seek bar's played part in Classic: the one red in an otherwise neutral scheme (a red that reads on both the light and the dark page). */
     val SeekRed = Color(0xFFF00000)
 
+    /** What an "on" control draws in over video in Classic (captions on, casting): a red that reads on the dark picture. Classic's own primary is black or white, which is invisible or no different from "off". */
+    val MediaRed = Color(0xFFFF4E45)
+
     val Light: ColorScheme = lightColorScheme(
         primary = Color(0xFF0F0F0F), onPrimary = Color(0xFFFFFFFF),
         primaryContainer = Color(0xFFE5E5E5), onPrimaryContainer = Color(0xFF0F0F0F),

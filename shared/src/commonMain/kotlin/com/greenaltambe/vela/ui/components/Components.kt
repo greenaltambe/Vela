@@ -471,6 +471,11 @@ private fun TopBarSearchField(onOpen: () -> Unit, modifier: Modifier = Modifier)
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text("Search", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = cs.onSurfaceVariant, maxLines = 1)
+        // The hint that "/" opens search from anywhere, drawn like a keyboard key.
+        Box(
+            Modifier.padding(end = Spacing.sm).border(1.dp, cs.outlineVariant, MaterialTheme.shapes.extraSmall).padding(horizontal = 7.dp, vertical = 1.dp)
+                .semantics { contentDescription = "Press slash to search" }.testTag("nav.searchHint"),
+        ) { Text("/", style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant) }
         Icon(AppIcons.search, "Search")
     }
 }

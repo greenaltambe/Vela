@@ -14,7 +14,7 @@ import kotlin.time.Instant
 enum class SyncKind(val title: String, val detail: String) {
     SUBSCRIPTIONS("Subscriptions and groups", "Channels you follow, their notification level and your groups."),
     PLAYLISTS("Playlists and Watch later", "Your own playlists and their videos."),
-    HISTORY("Watch history", "What you watched, and where you stopped."),
+    HISTORY("Watch and search history", "What you watched and where you stopped, and your recent searches."),
     BLOCKLIST("Blocklist", "Blocked channels and words."),
     SETTINGS("Settings and look", "Playback, feed and appearance settings (not paths, downloads or sign-in)."),
     ACCOUNTS("Google sign-in (off by default)", "Signs your other devices in to the same Google accounts, and keeps each account's own subscriptions, groups, playlists and history in step. The sign-in is encrypted with your sync code; only use this on devices you own."),
@@ -163,6 +163,28 @@ class HistoryDomain(private val db: VelaDatabase, private val now: () -> Instant
             if (have[id]?.watchedAt?.let { it >= at } == true && have[id]?.watchedAt != at) continue
             val row = repo.begin(accountId, id, f.getOrElse(4) { "" }, f.getOrElse(5) { "" }, at, f[1].toLongOrNull() ?: 0, f[2].toLongOrNull() ?: 0, f[3].toLongOrNull() ?: 0)
             repo.update(row, at, f[1].toLongOrNull() ?: 0, f[2].toLongOrNull() ?: 0, f[3].toLongOrNull() ?: 0)
+        }
+    }
+}
+
+/** Recent searches: one record per query, timestamped by when it was searched, so a later search wins over an older delete and a delete wins over an older search. */
+class SearchHistoryDomain(private val db: VelaDatabase, private val now: () -> Instant, private val accountId: String = LOCAL_ACCOUNT) : SyncDomain {
+    override val prefix = scopePrefix(accountId) + "srch/"
+    private val repo get() = SearchHistoryRepository(db, accountId)
+
+    override fun read(): Map<String, String> = repo.recentWithTime(1000).associate { (q, at) -> "$prefix${esc(q.lowercase())}" to join(q, at) }
+
+    override fun happenedAt(value: String) = fields(value).getOrNull(1)?.toLongOrNull()
+
+    override fun apply(changes: Map<String, String?>) {
+        val r = repo
+        for ((k, v) in changes) {
+            if (v == null) { val have = r.recentWithTime(1000).firstOrNull { "$prefix${esc(it.first.lowercase())}" == k }; if (have != null) r.remove(have.first); continue }
+            val f = fields(v)
+            val at = f.getOrNull(1)?.toLongOrNull() ?: continue
+            // the same query in another case is the same search: keep one row
+            r.recentWithTime(1000).firstOrNull { it.first.equals(f[0], ignoreCase = true) && it.first != f[0] }?.let { r.remove(it.first) }
+            r.add(f[0], Instant.fromEpochMilliseconds(at))
         }
     }
 }

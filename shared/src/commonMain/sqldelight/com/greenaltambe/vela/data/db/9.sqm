@@ -1,0 +1,2 @@
+-- 9 -> 10: Shorts has two choices now, Hide or Show; the old "Separate tab" became Show (the Shorts tab is shown whenever Shorts are).
+UPDATE Setting SET value = 'SHOW' WHERE `key` = 'feed.shortsMode' AND value = 'SEPARATE_TAB';

@@ -38,6 +38,8 @@ class SyncEngine(
     private val deviceName: String = "",
     /** A sync that would delete more than this many keys at once, and over half of what it knew, is refused (a failed read must not wipe a library). */
     private val massDeleteFloor: Int = 10,
+    /** Called with how many local items the merge is about to change, before anything is changed (a safety backup is made here). A throw stops the sync before it changes anything. */
+    private val beforeApply: (suspend (changes: Int) -> Unit)? = null,
 ) {
     @Serializable
     private data class Saved(val lastWall: Long = 0, val lastCounter: Int = 0, val records: Map<String, SyncRecord> = emptyMap(), val publishedSig: String = "", val publishedAt: Long = 0, val seenLocal: Set<String>? = null)
@@ -73,7 +75,7 @@ class SyncEngine(
         val removed = known.filter { (k, r) -> r.value != null && k !in local && k in had && domains.any { k.startsWith(it.prefix) } }.keys
         val live = known.values.count { it.value != null }
         if (removed.size > massDeleteFloor && removed.size * 2 > live) {
-            throw SyncAbortedException("This sync would remove ${removed.size} of $live items from every device; refusing (local data may have failed to load).")
+            throw SyncAbortedException("Sync was stopped to protect your data: it would remove ${removed.size} of $live items from all your devices, which looks like data that failed to load. If you cleared them on purpose, use the Clear option in the app again (it asks for confirmation), then sync.")
         }
         for (k in removed) authored += SyncRecord(k, null, tick())
         for (r in authored) known[r.key] = r
@@ -117,12 +119,13 @@ class SyncEngine(
         }
 
         // 4. Apply what differs locally. Only after the upload succeeded, so a failed sync changes nothing here.
+        val pending = domains.map { d ->
+            d to HashMap<String, String?>().also { m -> for ((k, r) in known) if (k.startsWith(d.prefix) && local[k] != r.value) m[k] = r.value }
+        }.filter { it.second.isNotEmpty() }
+        val total = pending.sumOf { it.second.size }
+        if (total > 0) beforeApply?.invoke(total)
         var applied = 0
-        for (d in domains) {
-            val changes = HashMap<String, String?>()
-            for ((k, r) in known) if (k.startsWith(d.prefix) && local[k] != r.value) changes[k] = r.value
-            if (changes.isNotEmpty()) { d.apply(changes); applied += changes.size }
-        }
+        for ((d, changes) in pending) { d.apply(changes); applied += changes.size }
 
         // 5. Remember. Tombstones older than 90 days are dropped from the books.
         val cutoff = now() - 90L * 24 * 3600 * 1000

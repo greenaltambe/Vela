@@ -11,6 +11,9 @@ SELECT query FROM SearchHistory WHERE accountId = ? ORDER BY searchedAt DESC LIM
 upsert:
 INSERT OR REPLACE INTO SearchHistory(accountId, query, searchedAt) VALUES (?, ?, ?);
 
+selectRecentWithTime:
+SELECT query, searchedAt FROM SearchHistory WHERE accountId = ? ORDER BY searchedAt DESC LIMIT ?;
+
 delete:
 DELETE FROM SearchHistory WHERE accountId = ? AND query = ?;
 

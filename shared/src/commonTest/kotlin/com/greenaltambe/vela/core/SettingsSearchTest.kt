@@ -40,7 +40,7 @@ class SettingsSearchTest {
     @Test
     fun metadataIsPopulatedForExistingSettings() {
         assertEquals(3, Settings.accountFallbackMode.choices.size)
-        assertEquals(ShortsMode.entries.map { it.name }, Settings.shortsMode.choices.map { it.raw })
+        assertEquals(listOf("HIDE", "SHOW"), Settings.shortsMode.choices.map { it.raw })
         assertTrue(Settings.accountFallbackMode.choices.map { it.raw }.all { Settings.accountFallbackMode.codec.decode(it) != null })
         assertEquals(1.0, Settings.defaultPlaybackSpeed.default.toDouble())
         assertTrue(Settings.defaultPlaybackSpeed.default.toDouble() in Settings.defaultPlaybackSpeed.range!!.min..Settings.defaultPlaybackSpeed.range!!.max)

@@ -29,6 +29,29 @@ class SyncUiTest {
         override fun reset() {}
     }
 
+    @Test fun webDavNeedsAWorkingTestBeforeItCanStart() = runDesktopComposeUiTest(800, 3600) {
+        val dir = Files.createTempDirectory("vsync-dav").toFile()
+        val factory = com.greenaltambe.vela.sync.WebDavFactory { _, _, pass -> check(pass == "good") { "The server rejected the username or password." }; FolderSyncBackend(dir) }
+        val f = buildFixture(withDownloads = false, syncFolders = TempFolders(dir), webDavFactory = factory)
+        f.navigator.push(Route.Sync)
+        setContent { AppUnderTest(f) }; waitForIdle()
+        onNodeWithTag("sync.mode.webdav").performClick(); waitForIdle()
+        onNodeWithTag("sync.newCode").performClick(); waitForIdle()
+        onNodeWithTag("sync.start").assertIsNotEnabled()
+        onNodeWithTag("sync.dav.user").performTextInput("me@example.org")
+        onNodeWithTag("sync.dav.preview").assertTextContains("https://app.koofr.net/dav/Koofr/Vela%20sync", substring = true)
+        onNodeWithTag("sync.dav.pass").performTextInput("bad")
+        onNodeWithTag("sync.dav.test").performClick()
+        waitUntil(timeoutMillis = 20_000) { runCatching { onNodeWithTag("sync.dav.error").assertExists() }.isSuccess }
+        onNodeWithTag("sync.start").assertIsNotEnabled()
+        onNodeWithTag("sync.dav.pass").performTextClearance(); onNodeWithTag("sync.dav.pass").performTextInput("good")
+        onNodeWithTag("sync.dav.test").performClick()
+        waitUntil(timeoutMillis = 20_000) { runCatching { onNodeWithTag("sync.dav.ok").assertExists() }.isSuccess }
+        onNodeWithTag("sync.start").assertIsEnabled().performClick()
+        waitUntil(timeoutMillis = 20_000) { runCatching { onNodeWithTag("sync.statusTitle").assertTextEquals("Up to date") }.isSuccess }
+        assertEquals(com.greenaltambe.vela.sync.SyncMode.WEBDAV, f.services.syncService.config.value.mode)
+    }
+
     @Test fun wifiIsTheDefaultAndNeedsNoFolder() = runDesktopComposeUiTest(800, 3200) {
         val lan = FakeLan(Files.createTempDirectory("vsync-lan").toFile())
         val f = buildFixture(withDownloads = false, syncFolders = TempFolders(lan.dir), lanTransport = lan)

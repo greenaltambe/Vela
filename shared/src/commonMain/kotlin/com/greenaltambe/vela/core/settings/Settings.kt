@@ -8,6 +8,7 @@ enum class YtDlpAutoUpdate { OFF, ASK, AUTO }
 /** When the account's watch history is read into the app. Reading is not affected by `history.localOnly`. */
 enum class AccountHistorySync { OFF, MANUAL, ON_START, EVERY_6H }
 
+/** HIDE or SHOW are what the viewer can pick; SEPARATE_TAB is kept only so older saved values and per-channel overrides still read (a database migration turns them into SHOW). */
 enum class ShortsMode { HIDE, SHOW, SEPARATE_TAB }
 
 /** Highest resolution to play; [height] is the cap in pixels of video height, null for no cap. */
@@ -72,7 +73,6 @@ object Settings {
         choices = listOf(
             SettingChoice(ShortsMode.HIDE.name, "Hide"),
             SettingChoice(ShortsMode.SHOW.name, "Show"),
-            SettingChoice(ShortsMode.SEPARATE_TAB.name, "Separate tab"),
         ),
     )
 

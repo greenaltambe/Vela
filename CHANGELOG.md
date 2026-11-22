@@ -5,6 +5,24 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [0.6.0-beta.1]
+
+### Added
+- Sync between your devices (Settings > Sync between devices): subscriptions and groups, playlists and Watch later, watch and search history, the blocklist, settings and look, and (optional, off by default) your Google sign-in with each account's own data. Connect over the same Wi-Fi (no extra app), through a shared folder (Syncthing, Dropbox, Nextcloud...) or through online storage (WebDAV: Koofr, Nextcloud, Synology...). Everything is encrypted with a sync code before it leaves a device. Choose how often it syncs and "Only on Wi-Fi"; a failed sync retries by itself.
+- Automatic backups (Settings > Backup & restore): a daily copy, one before the first sync and one before a large sync change, optionally also to a folder of your choice, with a list to restore from.
+- Cast to a TV (DLNA/UPnP) from the player.
+- Desktop shortcuts: Ctrl+M minimises the video to the mini player and brings it back, Ctrl+H opens History, 1-9 open the matching item of the navigation bar (and minimise a playing video). A "/" key hint in the top search bar.
+
+### Changed
+- Shorts has two choices, Hide or Show (the old "Separate tab" became Show).
+- Desktop: the channel search result and the channel page use YouTube-like wide layouts; the search page is a centred column that opens with a short cross-fade; the video page picture has softly rounded corners.
+- The "on" state of the caption, cast and sleep-timer buttons over the video is red in Classic and readable in every colour scheme.
+- Desktop file pickers (sync folder, cookie file, download folder, backup) use the system's native dialog when available.
+- The number row no longer jumps to a tenth of the video on desktop (0 and the number pad still do).
+
+### Fixed
+- Backups no longer contain this device's own sync and backup folder settings.
+
 ## [0.5.0-beta.4]
 
 ### Fixed
@@ -159,7 +177,8 @@ First public beta. Android is the primary platform, Linux is supported, Windows 
 ### Packaging
 - Android APK (arm64-v8a), Linux .deb, .rpm and portable tarball, Windows .msi and portable zip (experimental).
 
-[Unreleased]: https://github.com/greenaltambe/Vela/compare/v0.5.0-beta.4...HEAD
+[Unreleased]: https://github.com/greenaltambe/Vela/compare/v0.6.0-beta.1...HEAD
+[0.6.0-beta.1]: https://github.com/greenaltambe/Vela/compare/v0.5.0-beta.4...v0.6.0-beta.1
 [0.5.0-beta.4]: https://github.com/greenaltambe/Vela/compare/v0.5.0-beta.3...v0.5.0-beta.4
 [0.5.0-beta.3]: https://github.com/greenaltambe/Vela/compare/v0.4.0-beta.1...v0.5.0-beta.3
 [0.4.0-beta.1]: https://github.com/greenaltambe/Vela/compare/v0.3.0-beta.1...v0.4.0-beta.1

@@ -95,7 +95,7 @@ fun HistoryScreen(services: AppServices, navigator: Navigator, modifier: Modifie
     fun toggle(id: String) { if (id in selected) selected.remove(id) else selected.add(id) }
     fun delete(ids: List<String>) {
         selected.clear()
-        removal.remove(ids, if (ids.size == 1) "Removed from history" else "Removed ${ids.size} from history") { ids.forEach { services.history.deleteVideo(it) }; revision++ }
+        removal.remove(ids, if (ids.size == 1) "Removed from history" else "Removed ${ids.size} from history") { if (ids.size >= 10) services.syncService.markIntentionalDelete(); ids.forEach { services.history.deleteVideo(it) }; revision++ }
     }
 
     LibraryScaffold(
@@ -152,8 +152,8 @@ fun HistoryScreen(services: AppServices, navigator: Navigator, modifier: Modifie
     if (confirmClear) AlertDialog(
         onDismissRequest = { confirmClear = false },
         title = { Text("Clear all watch history?") },
-        text = { Text("This only removes the history on this device.") },
-        confirmButton = { TextButton(onClick = { services.history.clear(); revision++; confirmClear = false }, modifier = Modifier.testTag("history.clearConfirm")) { Text("Clear") } },
+        text = { Text(if (services.syncService.config.value.isSetUp && com.greenaltambe.vela.sync.SyncKind.HISTORY in services.syncService.config.value.kinds) "This clears your watch history here and, through Sync, on your other devices too. Automatic backups keep the last copies." else "This only removes the history on this device.") },
+        confirmButton = { TextButton(onClick = { services.syncService.markIntentionalDelete(); services.history.clear(); revision++; confirmClear = false }, modifier = Modifier.testTag("history.clearConfirm")) { Text("Clear") } },
         dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } },
     )
     saveFor?.let { list -> SaveManySheet(services, list, onDismiss = { saveFor = null; selected.clear() }) }

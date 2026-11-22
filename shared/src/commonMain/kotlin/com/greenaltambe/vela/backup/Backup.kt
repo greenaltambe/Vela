@@ -36,6 +36,8 @@ data class BackupFile(
     val playlists: List<BackupPlaylist> = emptyList(),
     val history: List<BackupHistory> = emptyList(),
     val searchHistory: List<BackupSearch> = emptyList(),
+    /** Which account the subscriptions, playlists and history belong to (null = the local profile; older files have none). */
+    val account: String? = null,
 )
 
 /** What a restore would change, before anything is written. */
@@ -69,7 +71,7 @@ class BackupService(private val db: VelaDatabase, private val clock: Clock = Clo
         val history = if (includeHistory) HistoryLibrary(db, accountId).recent(100_000).map { BackupHistory(it.videoId, it.channelId, it.title, it.watchedAt.toEpochMilliseconds(), it.positionMs, it.durationMs, it.watchedMs) } else emptyList()
         val searches = if (includeSearchHistory) SearchHistoryRepository(db, accountId).recent(1000).map { BackupSearch(it) } else emptyList()
         val settings = store.entries().filter { backedUp(it.key) }.map { BackupSetting(it.key, it.scope, it.id, it.value) }
-        return json.encodeToString(BackupFile.serializer(), BackupFile(createdAt = clock.now().toEpochMilliseconds(), settings = settings, subscriptions = subs, playlists = playlists, history = history, searchHistory = searches))
+        return json.encodeToString(BackupFile.serializer(), BackupFile(createdAt = clock.now().toEpochMilliseconds(), settings = settings, subscriptions = subs, playlists = playlists, history = history, searchHistory = searches, account = accountId.takeIf { it != LOCAL_ACCOUNT }))
     }
 
     /** Parses and upgrades; throws [BackupException] for anything that is not a Vela backup this version can read. */
@@ -153,7 +155,7 @@ class BackupService(private val db: VelaDatabase, private val clock: Clock = Clo
 
     companion object {
         /** Settings rows that are state, caches, secrets or per-device flags and so are neither saved nor restored. */
-        private val excluded = listOf("health.", "release.", "remoteConfig.file", "remoteConfig.version", "session.", "battery.", "sponsorblock.userId", "captcha.", "governor.", "profile.", "sync.")
+        private val excluded = listOf("health.", "release.", "remoteConfig.file", "remoteConfig.version", "session.", "battery.", "sponsorblock.userId", "captcha.", "governor.", "profile.", "sync.", "backup.")
         fun backedUp(key: String) = excluded.none { key.startsWith(it) }
     }
 }
