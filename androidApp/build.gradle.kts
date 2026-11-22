@@ -36,6 +36,19 @@ kotlin {
         jvmTarget = JvmTarget.JVM_11
     }
 }
+// Robolectric downloads the Android jar its tests run on with its own fetcher, which fails on CI whenever Maven Central answers it badly (two runs in a row did).
+// Gradle fetches the same jar as an ordinary dependency (cached, with retries) and Robolectric runs offline from that folder: no download at test time.
+val robolectricAndroidAll: Configuration by configurations.creating { isCanBeConsumed = false; isCanBeResolved = true }
+val robolectricJars = tasks.register<Sync>("robolectricJars") {
+    from(robolectricAndroidAll)
+    into(layout.buildDirectory.dir("robolectric-jars"))
+}
+tasks.withType<Test>().configureEach {
+    dependsOn(robolectricJars)
+    systemProperty("robolectric.offline", "true")
+    systemProperty("robolectric.dependency.dir", layout.buildDirectory.dir("robolectric-jars").get().asFile.absolutePath)
+}
+
 dependencies {
     implementation(project(":shared"))
     implementation(project(":extractor-newpipe"))
@@ -63,6 +76,7 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
+    robolectricAndroidAll(libs.robolectric.androidAll)
     testImplementation(libs.kotlin.testJunit)
 
     implementation(libs.compose.uiToolingPreview)

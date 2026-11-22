@@ -16,6 +16,8 @@ kotlinx-coroutines = "1.11.0"
 kotlinx-serialization = "1.12.0"
 media3 = "1.11.1"
 robolectric = "4.17"
+# The Android jar Robolectric runs @Config(sdk = [34]) tests on. Gradle fetches it (see androidApp/build.gradle.kts); keep it the one Robolectric 4.17 names for SDK 34.
+robolectric-android-all = "14-robolectric-10818077-i7"
 newpipe-extractor = "v0.26.5"
 # Release date of the NewPipeExtractor above (scripts/bump-newpipe.sh keeps it in step); drives the staleness warning.
 newpipe-released = "2026-08-15"
@@ -60,6 +62,7 @@ androidx-media3-exoplayerHls = { module = "androidx.media3:media3-exoplayer-hls"
 androidx-media3-session = { module = "androidx.media3:media3-session", version.ref = "media3" }
 androidx-media3-ui = { module = "androidx.media3:media3-ui", version.ref = "media3" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
+robolectric-androidAll = { module = "org.robolectric:android-all-instrumented", version.ref = "robolectric-android-all" }
 # NewPipeExtractor's own JSON library (the exact commit it depends on); used to read raw YouTube responses next to it.
 newpipe-nanojson = { module = "com.github.TeamNewPipe:nanojson", version = "e9d656ddb49a412a5a0a5d5ef20ca7ef09549996" }
 newpipe-extractor = { module = "com.github.TeamNewPipe:NewPipeExtractor", version.ref = "newpipe-extractor" }
