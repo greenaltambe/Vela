@@ -80,9 +80,10 @@ fun AppNavigationRail(entries: List<NavEntry>, selected: NavTab?, collapsed: Boo
 
 /** The room the shell keeps for the mini player between the page and the bar while a video is open; it reports where it is to [slot]. */
 @Composable
-fun MiniPlayerSlotSpacer(slot: MiniSlot, modifier: Modifier = Modifier) {
+fun MiniPlayerSlotSpacer(slot: MiniSlot, modifier: Modifier = Modifier, floating: Boolean = false) {
+    // The floating window takes no room of its own (it hovers over the page); the strip still tells the sheet where the page area is.
     Spacer(
-        modifier.fillMaxWidth().height(MiniPlayerHeight).onGloballyPositioned { c -> val p = c.positionInWindow(); slot.left = p.x; slot.top = p.y; slot.width = c.size.width.toFloat() },
+        modifier.fillMaxWidth().height(if (floating) 0.dp else MiniPlayerHeight).onGloballyPositioned { c -> val p = c.positionInWindow(); slot.left = p.x; slot.top = p.y; slot.width = c.size.width.toFloat() },
     )
 }
 

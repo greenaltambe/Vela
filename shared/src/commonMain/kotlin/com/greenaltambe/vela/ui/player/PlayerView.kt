@@ -119,6 +119,8 @@ fun PlayerView(
     /** Name the current chapter inside the controls; narrow players show it on the page instead. */
     showChapterTitle: Boolean = false,
     onBack: (() -> Unit)? = null,
+    /** Closes the video (stops it and leaves the page); shown as a cross beside the back arrow where the player is wide (desktop, fullscreen). Null: no cross. */
+    onClose: (() -> Unit)? = null,
     /** Ends the active account's pause (the caller owns the governor); null when there is nothing to end. PlayerView asks first, then retries. */
     tryAccountNow: (() -> Unit)? = null,
     /** One line shown under the spinner while resolving takes long (see [resolveNote]); null shows nothing. */
@@ -430,6 +432,9 @@ fun PlayerView(
                 Row(Modifier.align(Alignment.TopStart).fillMaxWidth().padding(Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
                     if (onBack != null) ControlButton({ touch(); onBack() }, modifier = Modifier.testTag("player.back")) {
                         Icon(AppIcons.back, "Back", tint = onMedia)
+                    }
+                    if (onClose != null && !compact) ControlButton({ touch(); onClose() }, modifier = Modifier.testTag("player.close")) {
+                        Icon(AppIcons.close, "Close video", tint = onMedia)
                     }
                     // The small portrait player keeps its top bar to three things (back, captions, settings); quality, speed, soundtrack and the
                     // sleep timer live one tap away in the settings sheet (the bottom of the picture is for the time, chapter and seek bar).

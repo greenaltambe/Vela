@@ -155,7 +155,7 @@ class BackupService(private val db: VelaDatabase, private val clock: Clock = Clo
 
     companion object {
         /** Settings rows that are state, caches, secrets or per-device flags and so are neither saved nor restored. */
-        private val excluded = listOf("health.", "release.", "remoteConfig.file", "remoteConfig.version", "session.", "battery.", "sponsorblock.userId", "captcha.", "governor.", "profile.", "sync.", "backup.")
+        private val excluded = listOf("health.", "release.", "remoteConfig.file", "remoteConfig.version", "session.", "battery.", "sponsorblock.userId", "captcha.", "governor.", "profile.", "sync.", "backup.", "device.")
         fun backedUp(key: String) = excluded.none { key.startsWith(it) }
     }
 }

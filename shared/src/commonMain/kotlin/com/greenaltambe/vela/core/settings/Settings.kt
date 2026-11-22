@@ -34,6 +34,12 @@ enum class CaptionSize(val scale: Float, val label: String) { SMALL(0.8f, "Small
 /** What sits behind caption text: nothing but an outline and shadow, a soft dark box, or a solid black one. */
 enum class CaptionBackground(val label: String) { OUTLINE("Outline"), SHADE("Shade"), SOLID("Solid") }
 
+/**
+ * How the video looks while minimised: a bar on the navigation (BAR) or a small floating window inside the app that can be dragged and resized (FLOATING).
+ * AUTOMATIC is BAR on a phone and FLOATING on a desktop. Stored under `device.`, so it is never synced or backed up: each device keeps its own choice.
+ */
+enum class MiniPlayerStyle { AUTOMATIC, BAR, FLOATING }
+
 /** What Home shows. RECOMMENDED only applies while a Google account is signed in; signed out (or when the account's feed fails) it is Trending. */
 enum class HomeSource { RECOMMENDED, TRENDING }
 
@@ -132,6 +138,13 @@ object Settings {
         key = "playback.breakReminder", default = BreakReminder.OFF, scope = SettingScope.GLOBAL, label = "Take a break reminder",
         keywords = listOf("break", "reminder", "rest", "watching", "time", "limit", "wellbeing", "screen time"),
         codec = SettingCodecs.enum(BreakReminder.entries), section = SettingSection.PLAYBACK, choices = BreakReminder.entries.map { SettingChoice(it.name, it.label) },
+    )
+
+    val miniPlayerStyle = Setting(
+        key = "device.miniPlayerStyle", default = MiniPlayerStyle.AUTOMATIC, scope = SettingScope.GLOBAL, label = "Minimised video",
+        keywords = listOf("mini", "player", "miniplayer", "floating", "pip", "picture", "window", "bar", "minimise", "minimize"),
+        codec = SettingCodecs.enum(MiniPlayerStyle.entries), section = SettingSection.PLAYBACK,
+        choices = listOf(SettingChoice("AUTOMATIC", "Automatic"), SettingChoice("BAR", "Mini bar"), SettingChoice("FLOATING", "Floating window")),
     )
 
     val shortsDailyLimit = Setting(
@@ -677,7 +690,7 @@ object Settings {
     val all: List<Setting<*>> = listOf(
         historyAccountSync, accountReportActivity, hideWatched, hideMembersOnly, watchedThresholdPercent, minLengthSeconds, blockKeywords, allowKeywords, keywordsAreRegex,
         debugFrameStats, homeSource, contentRegion, allowAgeRestricted, allowControversial, slowStreamFailover, notifyBackground, notifySystem, notifyDownloads, accountFallbackMode, accountProfilesExperimental, accountUseForChannels, accountUseForDetails, accountDownloadsMayUse, accountKillSwitch, accountTierOrder, remoteConfigUrl, ytDlpAutoUpdate,
-        accountPlaybackPerHour, accountBrowsePerMinute, accountWritesPerHour, shortsMode, defaultPlaybackSpeed, autoplayNext, seekStepSeconds, holdSpeed, maxQualityUnmetered, maxQualityMetered, preferredCodec, breakReminder, shortsDailyLimit, volumeBoost, captionSize, captionBackground, captionCreatorStyle, audioOnly, ytDlpPath,
+        accountPlaybackPerHour, accountBrowsePerMinute, accountWritesPerHour, shortsMode, defaultPlaybackSpeed, autoplayNext, seekStepSeconds, holdSpeed, maxQualityUnmetered, maxQualityMetered, preferredCodec, breakReminder, miniPlayerStyle, shortsDailyLimit, volumeBoost, captionSize, captionBackground, captionCreatorStyle, audioOnly, ytDlpPath,
         sponsorBlockEnabled, returnYouTubeDislikeEnabled, deArrowEnabled,
         sponsorBlockMinSegmentSeconds, sponsorBlockNotifications, showContribute, sponsorBlockServer, sponsorBlockUserId, rydInFeed, rydServer,
         deArrowFeed, deArrowSearch, deArrowVideoPage, deArrowPlayerTitle, deArrowTitleCasing, deArrowMinVotes, deArrowGeneratedThumbnails, deArrowThumbnailServer,

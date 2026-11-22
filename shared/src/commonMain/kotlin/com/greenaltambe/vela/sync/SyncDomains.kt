@@ -208,7 +208,7 @@ class SettingsDomain(private val db: VelaDatabase) : SyncDomain {
 
     companion object {
         private val never = listOf("account.", "downloads.", "ytdlp.", "debug.", "remoteConfig.", "session.", "health.", "release.", "battery.", "captcha.", "governor.", "profile.",
-            "sync.", "sponsorblock.userId", "blocklist.", "subscriptions.groups.", "notify.", "history.accountSync", "content.region")
+            "sync.", "device.", "sponsorblock.userId", "blocklist.", "subscriptions.groups.", "notify.", "history.accountSync", "content.region")
         private val appearance = setOf("look.theme", "look.colorMode", "look.colorScheme", "look.palette", "look.amoled", "look.customColor", "look.font", "look.corners", "look.glass",
             "look.iconStyle", "look.iconWeight", "look.iconRounded", "look.titleWeight", "look.progressStyle", "look.reduceMotion")
         private val schema: Set<String> by lazy { Settings.all.map { it.key }.toSet() }

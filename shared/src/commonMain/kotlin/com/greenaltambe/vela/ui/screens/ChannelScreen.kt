@@ -799,6 +799,9 @@ private fun ChannelItemCard(
 @Composable
 internal fun PlaylistRow(p: PlaylistRef, onClick: () -> Unit) = CourseOrPlaylistCard(p, onClick)
 
+/** The widest a playlist's picture gets in a list (a phone's is a third of the row, well under it). */
+private val PlaylistPictureMax = 340.dp
+
 /** Playlist row as on YouTube: the picture with two strips behind it (a stack), a count badge, the title, "channel · Playlist" and a three-dot menu. */
 @Composable
 private fun CourseOrPlaylistCard(p: PlaylistRef, onClick: () -> Unit) {
@@ -808,7 +811,13 @@ private fun CourseOrPlaylistCard(p: PlaylistRef, onClick: () -> Unit) {
         Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).clickable(onClick = onClick).padding(Spacing.xs).testTag("channel.playlist"),
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalAlignment = Alignment.Top,
     ) {
-        Box(Modifier.fillMaxWidth(0.36f).widthIn(max = 168.dp)) {
+        // A little over a third of the row, but never wider than PlaylistPictureMax: with only fillMaxWidth(0.36f) the cap had no effect (the fixed
+        // width it hands down wins over a later widthIn), so on a wide window the search page showed a picture far bigger than the channel page's.
+        Box(Modifier.layout { measurable, constraints ->
+            val w = minOf(constraints.maxWidth * 0.36f, PlaylistPictureMax.toPx()).toInt()
+            val placeable = measurable.measure(androidx.compose.ui.unit.Constraints.fixedWidth(w))
+            layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+        }) {
             // The two strips that make it look like a stack, each a little narrower than the one in front.
             Box(Modifier.align(Alignment.TopCenter).padding(horizontal = 16.dp).fillMaxWidth().height(10.dp).clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp)).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f)))
             Box(Modifier.align(Alignment.TopCenter).padding(horizontal = 8.dp, vertical = 0.dp).padding(top = 5.dp).fillMaxWidth().height(10.dp).clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp)).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)))
@@ -976,7 +985,8 @@ private fun SortAndFilterBar(
 ) {
     HScrollRow(Modifier.testTag("channel.sort"), contentPadding = PaddingValues(horizontal = Spacing.gutter)) {
         groups.forEach { group ->
-            if (group.isDropdown) {
+            // A short list of choices is shown as pills like the Videos tab's Latest / Popular / Oldest; only a long one stays a dropdown.
+            if (group.isDropdown && group.options.size > 5) {
                 item {
                     var expanded by remember { mutableStateOf(false) }
                     val activeLabel = selectedOption?.label ?: group.options.firstOrNull { it.selected }?.label ?: group.title ?: "Sort by"
@@ -996,9 +1006,11 @@ private fun SortAndFilterBar(
                     }
                 }
             } else {
+                // A group that used to be a dropdown can have the selection in it or not; the others' selected one must not blank it.
+                val sel = if (group.isDropdown) selectedOption?.takeIf { s -> group.options.any { it.label == s.label } } else selectedOption
                 items(group.options) { opt ->
                     // By label: a reload hands back new option objects (new tokens, new selected flags), so equality with the clicked one never matches.
-                    val isSelected = if (selectedOption != null) opt.label == selectedOption.label else opt.selected
+                    val isSelected = if (sel != null) opt.label == sel.label else opt.selected
                     com.greenaltambe.vela.ui.components.ExpressiveChip(isSelected, opt.label, { onSelect(opt) }, Modifier.testTag("channel.sort.${opt.label.lowercase().replace(' ', '_')}"))
                 }
             }

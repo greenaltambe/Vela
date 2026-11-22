@@ -45,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.drawBehind
@@ -96,6 +97,10 @@ fun PlayerSheet(
     val miniPlaying by remember(controllerFlow) { androidx.compose.runtime.derivedStateOf { controllerFlow.value.status == PlaybackStatus.PLAYING } }
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
+    // The viewer's choice (per device) of how the video looks minimised: the bar on the navigation, or a floating window they can drag and resize.
+    val floating = rememberFloatingMini(services)
+    val pip = sheetState.pip
+    val pipShape = MaterialTheme.shapes.medium
     val windowControls = LocalWindowControls.current
     val windowInfo = LocalWindowInfo.current
     val isFullscreen = windowControls?.isFullscreen == true
@@ -140,17 +145,31 @@ fun PlayerSheet(
     var rootLeftPx by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
     var rootTopPx by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
     val slot = miniSlot
-    val cardLeftNow = { if (slot != null && slot.isSet) slot.left - rootLeftPx else 0f }
-    val cardTopNow = { if (slot != null && slot.isSet) slot.top - rootTopPx else winH - bottomInsetPx - cardHeightPx }
-    val cardWidthNow = { if (slot != null && slot.isSet) slot.width else winW }
-    val expandedXNow = { if (beside) cardLeftNow() else 0f }
-    val expandedWNow = { if (beside) cardWidthNow() else winW }
+    // The strip the shell keeps beside the rail (or the whole window on a phone): where the open page sits, and where the floating window may roam.
+    val slotLeftNow = { if (slot != null && slot.isSet) slot.left - rootLeftPx else 0f }
+    val slotWidthNow = { if (slot != null && slot.isSet) slot.width else winW }
+    // Floating window: its size and place come from [pip]; at least 240 dp wide, at most 60% of the strip, 360 dp to start with.
+    val pipMarginPx = with(density) { 16.dp.toPx() }
+    val pipMinPx = with(density) { 240.dp.toPx() }
+    val pipDefaultPx = with(density) { 360.dp.toPx() }
+    val pipWNow = { pip.width(pipMinPx, minOf(slotWidthNow() * 0.6f, with(density) { 720.dp.toPx() }), pipDefaultPx) }
+    val pipHNow = { pipWNow() * 9f / 16f }
+    val pipArea = { Rect(slotLeftNow(), 0f, slotLeftNow() + slotWidthNow(), winH) }
+    val pipBounds = { Rect(slotLeftNow() + pipMarginPx, topInsetPx + pipMarginPx, slotLeftNow() + slotWidthNow() - pipMarginPx, winH - bottomInsetPx - pipMarginPx) }
+    val pipPosNow = { pip.position(pipWNow(), pipHNow(), pipBounds(), pipArea()) }
 
-    // Each is a function of the progress `p` (0 collapsed .. 1 expanded); called from layout/draw lambdas only.
+    val cardLeftNow = { if (floating) pipPosNow().x else if (slot != null && slot.isSet) slot.left - rootLeftPx else 0f }
+    val cardTopNow = { if (floating) pipPosNow().y else if (slot != null && slot.isSet) slot.top - rootTopPx else winH - bottomInsetPx - cardHeightPx }
+    val cardWidthNow = { if (floating) pipWNow() else if (slot != null && slot.isSet) slot.width else winW }
+    val cardHeightNow = { if (floating) pipHNow() else cardHeightPx }
+    val expandedXNow = { if (beside) slotLeftNow() else 0f }
+    val expandedWNow = { if (beside) slotWidthNow() else winW }
+
+    // Each is a function of the progress `p` (0 collapsed .. 1 expanded); called from layout/draw lambdas only. The same morph for the bar and the window.
     val sheetXAt = { p: Float -> cardLeftNow() * (1f - p) + expandedXNow() * p }
     val sheetYAt = { p: Float -> cardTopNow() * (1f - p) }
     val sheetWAt = { p: Float -> cardWidthNow() + (expandedWNow() - cardWidthNow()) * p }
-    val sheetHAt = { p: Float -> cardHeightPx + (winH - cardHeightPx) * p }
+    val sheetHAt = { p: Float -> cardHeightNow() + (winH - cardHeightNow()) * p }
     val progressNow = { sheetState.progress.coerceIn(0f, 1f) }
     val backgroundExpanded = MaterialTheme.colorScheme.background
     val backgroundCollapsed = MaterialTheme.colorScheme.surfaceContainer
@@ -162,7 +181,8 @@ fun PlayerSheet(
     // The seek bar tells every other gesture of the player to keep out while a finger is on it (see PlayerGestureLock).
     val gestureLock = remember { PlayerGestureLock() }
     var sheetRoot by remember { mutableStateOf(Offset.Zero) }
-    val gestureModifier = Modifier.onGloballyPositioned { sheetRoot = it.positionInRoot() }.pointerInput(winW, winH, isFullscreen) {
+    var areaRoot by remember { mutableStateOf(Offset.Zero) }
+    val gestureModifier = Modifier.onGloballyPositioned { sheetRoot = it.positionInRoot() }.pointerInput(winW, winH, isFullscreen, floating) {
         var startProgress = 0f
         var startWindowY = 0f
         var isDragging = false
@@ -175,6 +195,38 @@ fun PlayerSheet(
             // The finger is on / right beside the seek bar (it locks at once, before this parent sees the touch): this is not a sheet drag. NOTE: a
             // consumed DOWN is not a reason to drop it: the picture's own tap detector consumes every down, and swiping that picture must still work.
             if (gestureLock.isLocked(down.uptimeMillis) || gestureLock.onBar(sheetRoot + down.position, with(density) { PlayerGestureLock.BAND_DP.dp.toPx() })) return@awaitEachGesture
+
+            // The floating window (page closed): drag it anywhere and it settles into the nearest corner; start on the grip to resize it. A tap is the overlay's.
+            if (floating && currentP < 0.15f && !isFullscreen) {
+                if (sheetState.slideY > 50f) return@awaitEachGesture
+                val w = pipWNow(); val h = pipHNow()
+                val gripPx = with(density) { 40.dp.toPx() }
+                val grab = down.position
+                val inGrip = (if (pip.corner.right) grab.x < gripPx else grab.x > w - gripPx) && (if (pip.corner.bottom) grab.y < gripPx else grab.y > h - gripPx)
+                val origin = { sheetRoot - areaRoot }
+                // The corner that stays put while resizing, in the sheet area's coordinates.
+                val fixed = origin() + Offset(if (pip.corner.right) w else 0f, if (pip.corner.bottom) h else 0f)
+                val pipTracker = VelocityTracker()
+                var started = false
+                val slop = with(density) { 6.dp.toPx() }
+                while (true) {
+                    val event = awaitPointerEvent()
+                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                    if (!started && change.isConsumed) break
+                    val pointer = origin() + change.position
+                    if (!change.pressed) {
+                        if (started && !inGrip) { val v = pipTracker.calculateVelocity(); pip.release(v.x, v.y, pipWNow(), pipHNow(), pipBounds(), pipArea()) }
+                        break
+                    }
+                    if (!started && (change.position - grab).getDistance() > slop) started = true
+                    if (started) {
+                        change.consume()
+                        if (inGrip) pip.resizeTo((abs(pointer.x - fixed.x) + abs(pointer.y - fixed.y) * 16f / 9f) / 2f)
+                        else { pipTracker.addPosition(change.uptimeMillis, pointer); pip.moveTo(pointer - grab, pipWNow(), pipHNow(), pipBounds()) }
+                    }
+                }
+                return@awaitEachGesture
+            }
 
             // Fullscreen has its own gestures (swipe down leaves it); the sheet must not also drag the page down under it.
             val canDrag = if (isFullscreen) {
@@ -271,7 +323,7 @@ fun PlayerSheet(
     }
 
     // Outer Box: pure transparent wrapper with NO touch consumption
-    Box(modifier.fillMaxSize().onSizeChanged { areaSize = it }.onGloballyPositioned { rootTopPx = it.positionInWindow().y }) {
+    Box(modifier.fillMaxSize().onSizeChanged { areaSize = it }.onGloballyPositioned { rootTopPx = it.positionInWindow().y; areaRoot = it.positionInRoot() }) {
         // Morphing Sheet Box: exactly sized and positioned, only absorbs touches within its bounds
         Box(
             Modifier
@@ -283,7 +335,16 @@ fun PlayerSheet(
                     val placeable = measurable.measure(androidx.compose.ui.unit.Constraints.fixed(w, h))
                     layout(w, h) { placeable.place(0, 0) }
                 }
-                .graphicsLayer { clip = true; alpha = sheetState.swipeAlpha() }
+                .graphicsLayer {
+                    clip = true; alpha = sheetState.swipeAlpha()
+                    // The floating window has rounded corners and a shadow that fade as it opens into the page.
+                    if (floating) {
+                        val q = 1f - progressNow()
+                        // The corner radius of the look's medium shape, fading out as the window opens into the page.
+                        shape = RoundedCornerShape(((pipShape as? androidx.compose.foundation.shape.CornerBasedShape)?.topStart?.toPx(size, this) ?: 0f) * q)
+                        shadowElevation = Spacing.sm.toPx() * q
+                    }
+                }
                 .drawBehind { drawRect(if (progressNow() > 0.4f) backgroundExpanded else backgroundCollapsed) }
                 .then(gestureModifier)
                 // Collapsed, the sheet is the mini player: named as such for the tests and for accessibility tooling.
@@ -302,11 +363,21 @@ fun PlayerSheet(
                     modifier = Modifier.fillMaxSize(),
                     pageWidthPx = expandedWNow(),
                     pageHeightPx = winH,
+                    miniPicture = if (floating) ({ Rect(0f, 0f, pipWNow(), pipHNow()) }) else null,
                 ) }
             }
 
-            // LAYER 1: MiniPlayer Controls & Progress bar (only in card mode when near collapsed)
-            if (showCardControls) {
+            // LAYER 1 (floating window): outline, buttons on hover, progress line.
+            if (floating && showCardControls) FloatingPipOverlay(
+                video = video, corner = pip.corner, playing = miniPlaying, controller = controllerFlow,
+                alphaNow = { ((0.6f - progressNow()) / 0.6f).coerceIn(0f, 1f) },
+                onExpand = { sheetState.expand() },
+                onToggle = { if (miniPlaying) host.session.pause() else host.session.play() },
+                onClose = { sheetState.dismiss() },
+            )
+
+            // LAYER 1 (mini bar): Controls & Progress bar (only in card mode when near collapsed)
+            if (!floating && showCardControls) {
                 val cardAlphaNow = { ((0.6f - progressNow()) / 0.6f).coerceIn(0f, 1f) }
                 val controlsLeftDp = thumbWidthDp + 24.dp   // the picture sits 12 dp in; its text starts 12 dp after it
 

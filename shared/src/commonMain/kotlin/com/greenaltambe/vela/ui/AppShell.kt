@@ -192,6 +192,7 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
     }
 
     val sheetState = com.greenaltambe.vela.ui.player.rememberPlayerSheetState(services, navigator)
+    val toasts = com.greenaltambe.vela.ui.look.LocalUndoToasts.current
     // A video opened from a link has no title until the player looks it up: hand it to the mini player and the page when it arrives.
     val mediaNow = host?.session?.media?.collectAsState()?.value
     LaunchedEffect(mediaNow) { mediaNow?.let { sheetState.fillDetails(it.videoId, it.title, "", it.channelName, it.artworkUrl) } }
@@ -298,6 +299,13 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
             val wasFullscreen = window?.isFullscreen == true
             if (wasFullscreen) window?.toggleFullscreen()
             if (wasFullscreen || route is Route.Video || sheetState.isExpanded) sheetState.collapse() else navigator.expandNowPlaying()
+            return@onKey true
+        }
+        // Ctrl+X: close the video (playing or paused, in the mini player or on the video page): leaves fullscreen and the page, stops it, with an Undo.
+        if (e.key == androidx.compose.ui.input.key.Key.X && ctrl) {
+            if (navigator.nowPlaying == null) return@onKey false
+            if (window?.isFullscreen == true) window.toggleFullscreen()
+            sheetState.dismiss { closed -> toasts.show("Player closed") { sheetState.reopen(closed) } }
             return@onKey true
         }
         // Ctrl+H: History (a playing video goes to the mini player).
@@ -429,7 +437,7 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
                         if (!sheetState.isExpanded) com.greenaltambe.vela.ui.look.UndoSnackbarHost(com.greenaltambe.vela.ui.look.LocalUndoToasts.current, Modifier.align(Alignment.BottomCenter).padding(Spacing.sm))
                     }
                     // While a video is open its mini player sits on the bar: this strip is its room, and it tells the player sheet where it is.
-                    if (chrome && sheetState.isVisible) com.greenaltambe.vela.ui.nav.MiniPlayerSlotSpacer(miniSlot)
+                    if (chrome && sheetState.isVisible) com.greenaltambe.vela.ui.nav.MiniPlayerSlotSpacer(miniSlot, floating = com.greenaltambe.vela.ui.player.rememberFloatingMini(services))
                     // The video page owns the whole screen: no bar under the Shorts player.
                     if (chrome && uiRoute !is Route.ShortsPlayer && !rail) androidx.compose.animation.AnimatedVisibility(
                         visible = !(nav.hideBarOnScroll && scrollChrome.hidden),

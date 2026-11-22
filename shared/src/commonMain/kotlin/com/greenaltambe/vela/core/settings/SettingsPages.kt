@@ -26,7 +26,7 @@ object SettingsPages {
 
     val all: List<SettingsPage> = listOf(
         SettingsPage("customize", "Customize Vela", SettingsGroup.MAKE_IT_YOURS, 0, SettingsLink.CUSTOMIZE) { LookKeys.isLookKey(it.key) },
-        SettingsPage("playback", "Playback & quality", SettingsGroup.WATCHING, 1) { it.key.startsWith("playback.") && it.key !in safetyKeys },
+        SettingsPage("playback", "Playback & quality", SettingsGroup.WATCHING, 1) { (it.key.startsWith("playback.") && it.key !in safetyKeys) || it.key == "device.miniPlayerStyle" },
         SettingsPage("extras", "SponsorBlock & extras", SettingsGroup.WATCHING, 2, owns = prefix("sponsorblock.", "ryd.", "dearrow.", "modules.")),
         SettingsPage("home", "Home", SettingsGroup.YOUR_FEED, 3, owns = keys("home.source", "content.region")),
         SettingsPage("feed", "Subscriptions & feed filters", SettingsGroup.YOUR_FEED, 4, owns = prefix("feed.hide", "feed.watched", "feed.min", "feed.block", "feed.allow", "feed.keywords")),
@@ -63,7 +63,7 @@ object SettingsPages {
             else -> "Modules"
         }
         "playback" -> when (s.key) {
-            "playback.speed", "playback.autoplayNext", "playback.seekSeconds", "playback.holdSpeed" -> "Playing"
+            "playback.speed", "playback.autoplayNext", "playback.seekSeconds", "playback.holdSpeed", "device.miniPlayerStyle" -> "Playing"
             "playback.maxQualityWifi", "playback.maxQualityCellular", "playback.preferredCodec", "playback.audioOnly" -> "Quality and data"
             else -> "Reliability"
         }

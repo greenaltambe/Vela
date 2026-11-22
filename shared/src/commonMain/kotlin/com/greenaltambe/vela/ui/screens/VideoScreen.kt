@@ -167,6 +167,8 @@ fun VideoScreen(
     pageWidthPx: Float? = null,
     /** The height the page has (the sheet's), when that is less than the window's. */
     pageHeightPx: Float? = null,
+    /** Where the picture sits while minimised, in the sheet's pixels (read at layout time): the floating window's whole size. Null: the thumbnail of the mini bar. */
+    miniPicture: (() -> androidx.compose.ui.geometry.Rect)? = null,
 ) {
     val scope = rememberCoroutineScope()
     val tabPlayer = com.greenaltambe.vela.ui.nav.LocalTabPlayer.current
@@ -355,6 +357,11 @@ fun VideoScreen(
     val minimised by remember { derivedStateOf { progressNow() < 0.05f } }
     LaunchedEffect(window?.isFullscreen, minimised) { if (window?.isFullscreen == true && minimised && !inPip) window.toggleFullscreen() }
     val leaveFullscreen: () -> Unit = { window?.toggleFullscreen() }
+    // The cross beside the back arrow: leave fullscreen if in it, stop the video and close the page, with an Undo (the same as Ctrl+X).
+    val closeVideo: () -> Unit = {
+        if (window?.isFullscreen == true) window.toggleFullscreen()
+        navigator.playerSheetState?.dismiss { closed -> actionToasts.show("Player closed") { navigator.playerSheetState?.reopen(closed) } }
+    }
     PlatformBackHandler(enabled = fullscreenNow) { leaveFullscreen() }
 
     if (host != null && (fullscreenNow || inPip)) {
@@ -383,6 +390,7 @@ fun VideoScreen(
                 ))
                 .graphicsLayer { translationY = fsDrag; alpha = 1f - (fsDrag / (leaveAt * 4f)).coerceIn(0f, 0.4f) },
             fullscreen = true, controlsEnabled = !inPip, onBack = if (inPip) null else ({ leaveFullscreen() }),
+            onClose = if (inPip) null else closeVideo,
         )
         return
     }
@@ -412,7 +420,7 @@ fun VideoScreen(
     val playerBox: @Composable () -> Unit = {
         Box(Modifier.fillMaxSize().testTag("video.player")) {
             if (host != null) PlayerView(
-                host, video, chapters, markers, Modifier.fillMaxSize(), onBack = onBack ?: { navigator.back(); Unit }, seekStepSeconds = seekStep, holdSpeed = holdSpeedSetting, onPrevious = onPreviousVideo, onNext = onNextVideo,
+                host, video, chapters, markers, Modifier.fillMaxSize(), onBack = onBack ?: { navigator.back(); Unit }, onClose = closeVideo, seekStepSeconds = seekStep, holdSpeed = holdSpeedSetting, onPrevious = onPreviousVideo, onNext = onNextVideo,
                 onOpenChapters = if (chapters.isNotEmpty()) ({ chaptersOpen = true; commentsOpen = false; descriptionOpen = false }) else null,
                 autoplay = autoplay, onAutoplayChange = { services.settings.set(com.greenaltambe.vela.core.settings.Settings.autoplayNext, it) },
                 repeat = navigator.repeatOne, onRepeatChange = { navigator.repeatOne = it },
@@ -740,15 +748,17 @@ fun VideoScreen(
         targetWidthDp = 64.dp
         targetHeightDp = 36.dp
 
-        val cornerBaseDp = 8f
+        val cornerBaseDp = if (miniPicture != null) 0f else 8f
         // Position and size of the video box as functions of the progress, evaluated in the layout/draw lambdas below.
         val fullWidthPx = with(density) { fullWidthDp.roundToPx() }
         val fullHeightPx = with(density) { fullHeightDp.roundToPx() }
-        val miniWidthPx = with(density) { targetWidthDp.roundToPx() }
-        val miniHeightPx = with(density) { targetHeightDp.roundToPx() }
-        val miniLeftPx = with(density) { targetLeftDp.roundToPx() }
-        val miniTopPx = with(density) { targetTopDp.roundToPx() }
+        val barWidthPx = with(density) { targetWidthDp.roundToPx() }.toFloat()
+        val barHeightPx = with(density) { targetHeightDp.roundToPx() }.toFloat()
+        val barLeftPx = with(density) { targetLeftDp.roundToPx() }.toFloat()
+        val barTopPx = with(density) { targetTopDp.roundToPx() }.toFloat()
         val fullTopPx = with(density) { topInsetDp.roundToPx() }
+        // Where the picture is at rest in the minimised player: the bar's thumbnail, or the whole floating window.
+        val miniRect = { miniPicture?.invoke() ?: androidx.compose.ui.geometry.Rect(barLeftPx, barTopPx, barLeftPx + barWidthPx, barTopPx + barHeightPx) }
 
         Box(
             modifier.fillMaxSize()
@@ -793,15 +803,16 @@ fun VideoScreen(
                 Modifier
                     .layout { measurable, _ ->
                         val p = progressNow()
-                        val w = (miniWidthPx + (fullWidthPx - miniWidthPx) * p).roundToInt()
-                        val h = (miniHeightPx + (fullHeightPx - miniHeightPx) * p).roundToInt()
+                        val mini = miniRect()
+                        val w = (mini.width + (fullWidthPx - mini.width) * p).roundToInt()
+                        val h = (mini.height + (fullHeightPx - mini.height) * p).roundToInt()
                         // The picture is always measured at its full size (so the player, its controls and the video surface are laid out once) and
                         // drawn scaled down to the current size: the morph costs a transform per frame, not a re-measure of everything inside.
                         val placeable = measurable.measure(androidx.compose.ui.unit.Constraints.fixed(fullWidthPx, fullHeightPx))
                         layout(w, h) {
-                            placeable.placeWithLayer((miniLeftPx * (1f - p)).roundToInt(), (fullTopPx * p + miniTopPx * (1f - p)).roundToInt()) {
+                            placeable.placeWithLayer((mini.left * (1f - p)).roundToInt(), (fullTopPx * p + mini.top * (1f - p)).roundToInt()) {
                                 val q = progressNow()
-                                val scale = (miniWidthPx + (fullWidthPx - miniWidthPx) * q) / fullWidthPx
+                                val scale = (mini.width + (fullWidthPx - mini.width) * q) / fullWidthPx
                                 scaleX = scale; scaleY = scale
                                 transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
                                 shape = RoundedCornerShape((cornerBaseDp * (1f - q)).dp.toPx() / scale)

@@ -5,6 +5,16 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [0.6.1-beta.3]
+
+### Added
+- A floating video window as an alternative to the mini bar (Settings > Playback > Minimised video: Automatic, Mini bar, Floating window). It can be dragged (it settles into the nearest corner) and resized, shows its buttons on hover, and opens into the video page with the same animation as the mini bar. Automatic is the bar on a phone and the floating window on a computer. The choice is kept on each device and is never synced or backed up.
+- Desktop: Ctrl+X closes the video (playing or paused, in the mini player or on the video page) with an Undo, and the video page's top bar has a cross beside the back arrow that does the same.
+
+### Fixed
+- Playlist pictures in Search were far larger than on the channel page on a wide window; both are now capped at the same size.
+- A channel's Playlists tab shows its sort choices as pills (like Videos) instead of a dropdown.
+
 ## [0.6.1-beta.2]
 
 ### Added
@@ -194,7 +204,8 @@ First public beta. Android is the primary platform, Linux is supported, Windows 
 ### Packaging
 - Android APK (arm64-v8a), Linux .deb, .rpm and portable tarball, Windows .msi and portable zip (experimental).
 
-[Unreleased]: https://github.com/greenaltambe/Vela/compare/v0.6.1-beta.2...HEAD
+[Unreleased]: https://github.com/greenaltambe/Vela/compare/v0.6.1-beta.3...HEAD
+[0.6.1-beta.3]: https://github.com/greenaltambe/Vela/compare/v0.6.1-beta.2...v0.6.1-beta.3
 [0.6.1-beta.2]: https://github.com/greenaltambe/Vela/compare/v0.6.0-beta.2...v0.6.1-beta.2
 [0.6.0-beta.2]: https://github.com/greenaltambe/Vela/compare/v0.6.0-beta.1...v0.6.0-beta.2
 [0.6.0-beta.1]: https://github.com/greenaltambe/Vela/compare/v0.5.0-beta.4...v0.6.0-beta.1

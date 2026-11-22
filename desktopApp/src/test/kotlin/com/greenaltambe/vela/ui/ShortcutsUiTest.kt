@@ -3,7 +3,9 @@
 package com.greenaltambe.vela.ui
 
 import androidx.compose.ui.input.key.Key
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.*
+import androidx.compose.ui.unit.dp
 import com.greenaltambe.vela.core.settings.Settings
 import com.greenaltambe.vela.core.settings.ShortsMode
 import com.greenaltambe.vela.ui.nav.Route
@@ -51,6 +53,36 @@ class ShortcutsUiTest {
         press(Key.Three, ctrl = true); mainClock.advanceTimeBy(1000); waitForIdle()
         assertEquals(false, sheet.isExpanded, "Ctrl+number minimises a playing video")
         assertEquals(Route.Subscriptions, f.navigator.current)
+    }
+
+    @Test fun ctrlXClosesTheVideoFromThePageAndFromTheMiniPlayer() = runDesktopComposeUiTest(1280, 800) {
+        val f = buildFixture(withDownloads = false)
+        f.navigator.push(Route.Video(FakeData.videos[0]))
+        setContent { AppUnderTest(f) }; waitForIdle()
+        mainClock.advanceTimeBy(1000); waitForIdle()
+        val sheet = f.navigator.playerSheetState!!
+        assertEquals(true, sheet.isExpanded)
+        press(Key.X, ctrl = true); mainClock.advanceTimeBy(1000); waitForIdle()
+        assertEquals(null, f.navigator.nowPlaying, "closed from the video page")
+        assertEquals(false, sheet.isVisible)
+        // From the mini player, paused or playing.
+        f.navigator.push(Route.Video(FakeData.videos[1])); mainClock.advanceTimeBy(1000); waitForIdle()
+        press(Key.M, ctrl = true); mainClock.advanceTimeBy(1000); waitForIdle()
+        assertEquals(false, sheet.isExpanded); assertEquals(FakeData.videos[1].id, f.navigator.nowPlaying?.id)
+        press(Key.X, ctrl = true); mainClock.advanceTimeBy(1000); waitForIdle()
+        assertEquals(null, f.navigator.nowPlaying, "closed from the mini player")
+        press(Key.X, ctrl = true); assertEquals(null, f.navigator.nowPlaying, "nothing to close: nothing happens")
+    }
+
+    @Test fun theCrossBesideTheBackArrowClosesTheVideo() = runDesktopComposeUiTest(1280, 800) {
+        val f = buildFixture(withDownloads = false)
+        f.navigator.push(Route.Video(FakeData.videos[0]))
+        setContent { CompositionLocalProvider(com.greenaltambe.vela.ui.platform.LocalVolumeSlider provides true) { AppUnderTest(f) } }; waitForIdle()
+        mainClock.advanceTimeBy(1000); waitForIdle()
+        val back = onNodeWithTag("player.back").getUnclippedBoundsInRoot(); val close = onNodeWithTag("player.close").getUnclippedBoundsInRoot()
+        kotlin.test.assertTrue(kotlin.math.abs(back.top.value - close.top.value) < 1f && close.left > back.right - 1.dp, "the cross sits on the back arrow's line, after it: $back $close")
+        onNodeWithTag("player.close").performClick(); mainClock.advanceTimeBy(1000); waitForIdle()
+        assertEquals(null, f.navigator.nowPlaying)
     }
 
     private fun ComposeUiTest.videoPage(): Fixture {

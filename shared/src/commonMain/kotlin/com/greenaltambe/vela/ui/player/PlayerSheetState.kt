@@ -39,6 +39,9 @@ class PlayerSheetState(
     private val tabPlayer: com.greenaltambe.vela.ui.nav.TabPlayer? = null,
 ) {
     val animatable = Animatable(0f)
+
+    /** Where the minimised video floats, when the viewer chose the floating window over the bar. */
+    val pip = FloatingPip(scope)
     val slideAnimatable = Animatable(0f)
 
     var windowHeightPx: Float = 2000f
@@ -236,12 +239,14 @@ class PlayerSheetState(
         navigator.clearNowPlaying()
     }
 
-    /** Dismiss the miniplayer, stopping playback. */
-    fun dismiss() {
+    /** Dismiss the miniplayer (or close the open video page), stopping playback. [onClosed] gets the video once it is gone (for an Undo). */
+    fun dismiss(onClosed: (VideoSummary) -> Unit = {}) {
+        val video = currentVideo
         scope.launch {
             slideAnimatable.snapTo(0f)
             animatable.animateTo(0f, tween(180, easing = FastOutSlowInEasing))
             finishClose()
+            video?.let(onClosed)
         }
     }
 }

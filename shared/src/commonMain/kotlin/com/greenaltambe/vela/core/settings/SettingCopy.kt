@@ -19,6 +19,7 @@ object SettingCopy {
         "playback.preferredCodec" to Copy("Preferred video codec", "VP9 and AV1 save data; AVC (H.264) plays everywhere."),
         "playback.breakReminder" to Copy("Take a break reminder", "After this long of watching without a pause of 5 minutes, a reminder appears. Only time spent playing counts."),
         "feed.shortsDailyLimit" to Copy("Daily Shorts limit", "After this much time in Shorts in one day, Vela stops and asks whether to leave. You can take 5 more minutes. The day ends at midnight."),
+        "device.miniPlayerStyle" to Copy("Minimised video", "How the video looks when you leave its page: a bar above the navigation, or a small floating window you can drag and resize. Automatic is the bar on a phone and the floating window on a computer. This is kept on this device only and is not synced."),
         "playback.volumeBoost" to Copy("Volume boost", "Makes every video louder than your phone's maximum, for quiet recordings. Loud videos can distort; lower it if the sound turns harsh. Android only."),
         "playback.captionSize" to Copy("Caption size", "How big captions are. Large and Huge help on a small screen or in bright light."),
         "playback.captionBackground" to Copy("Caption background", "Outline draws the words with a dark edge and nothing behind them; Shade is a soft dark box; Solid is a black box."),
