@@ -13,6 +13,7 @@ video fails, Vela quietly tries the next one. It looks like Material 3 Expressiv
 - Local history, subscriptions with new-upload notifications, and playlists, all without signing in
 - Optional Google accounts, used only when everything else fails
 - Keyboard shortcuts and media keys on desktop
+- Sync using webdav and lan
 
 ## Install
 
