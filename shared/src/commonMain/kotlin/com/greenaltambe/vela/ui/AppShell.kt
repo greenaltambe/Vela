@@ -21,6 +21,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.onSizeChanged
+import com.greenaltambe.vela.ui.nav.drawsUnderBar
+import com.greenaltambe.vela.ui.nav.recordsBackdrop
+import com.greenaltambe.vela.ui.nav.frostedArea
 import androidx.compose.foundation.background
 import com.greenaltambe.vela.ui.look.VelaMotion
 import com.greenaltambe.vela.ui.nav.NavAction
@@ -401,6 +405,9 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
             val desktopBar = rail && com.greenaltambe.vela.ui.platform.LocalVolumeSlider.current
             val shellBarRoute = uiRoute != Route.Shorts && uiRoute !is Route.ShortsPlayer && uiRoute !is Route.Video && uiRoute !is Route.Search && uiRoute != Route.Settings && uiRoute !is Route.Channel && uiRoute != Route.Accounts && uiRoute != Route.AccountActivity && uiRoute != Route.Health && uiRoute != Route.Backup && uiRoute != Route.Sync && uiRoute != Route.DownloadRules && uiRoute != Route.Blocklist && uiRoute != Route.Customize && uiRoute != Route.Notifications && uiRoute != Route.History && uiRoute != Route.Downloads && uiRoute != Route.ManageSubscriptions && uiRoute !is Route.Playlist && uiRoute !is Route.CustomizePage && uiRoute !is Route.SettingsPage
             val toggleSideBar = { services.settings.set(com.greenaltambe.vela.core.settings.LookSettings.railCollapsed, !nav.railCollapsed) }
+            // The page behind see-through bars is shown blurred where the platform can (Android 12+, desktop); elsewhere the bars are just more opaque.
+            val blurOk = remember { com.greenaltambe.vela.ui.platform.backdropBlurSupported() }
+            val backdrop = com.greenaltambe.vela.ui.nav.rememberBarBackdrop()
             Column(Modifier.fillMaxSize()) {
             if (chrome && desktopBar) com.greenaltambe.vela.ui.components.DesktopTopBar(
                 onToggleSideBar = { toggleSideBar() }, onHome = { navigator.selectTab(Route.Home) },
@@ -410,45 +417,101 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
                 profile = { ProfileButton(services) { profileOpen = true } },
             )
             Row(Modifier.weight(1f).fillMaxWidth().then(if (chrome) Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)) else Modifier)) {
-                if (chrome && rail && desktopBar) com.greenaltambe.vela.ui.nav.DesktopSideBar(navEntries(nav.tabs), nav.selected(uiRoute), nav.railCollapsed, onSelect = navigator::openTab)
+                if (chrome && rail && desktopBar) com.greenaltambe.vela.ui.nav.DesktopSideBar(navEntries(nav.tabs), nav.selected(uiRoute), nav.railCollapsed, onSelect = navigator::openTab, showLabels = nav.showLabels)
                 else if (chrome && rail) com.greenaltambe.vela.ui.nav.AppNavigationRail(
                     navEntries(nav.tabs), nav.selected(uiRoute), nav.railCollapsed,
                     onToggleCollapsed = { services.settings.set(com.greenaltambe.vela.core.settings.LookSettings.railCollapsed, !nav.railCollapsed) },
-                    onSelect = navigator::openTab,
+                    onSelect = navigator::openTab, showLabels = nav.showLabels,
                 )
                 Column(Modifier.weight(1f).fillMaxHeight()) {
-                    if (chrome && !desktopBar && shellBarRoute) {
-                        VelaTopBar(
-                            routeTitle(uiRoute), onBack = if (navigator.baseCanGoBack) ({ navigator.back() }) else null,
-                            onSearch = ({ navigator.push(Route.Search()) }),
-                            onNotifications = ({ navigator.push(Route.Notifications) }), unread = notifUnread,
-                            profile = { ProfileButton(services) { profileOpen = true } },
-                        )
+                    val density = androidx.compose.ui.platform.LocalDensity.current
+                    val topBarShown = chrome && !desktopBar && shellBarRoute
+                    val barShown = chrome && uiRoute !is Route.ShortsPlayer && !rail
+                    // See-through bars: the page runs underneath and the bars are laid over its edges. Top and bottom are independent (a wide window without a bottom bar still has a top bar).
+                    val overlayTop = nav.translucentBar && topBarShown
+                    val overlayBar = nav.translucentBar && barShown
+                    // What a page hangs under the top bar (Home's chip strip) is shown inside the same frosted top area, so the two are one surface.
+                    val topExtras = remember(overlayTop) { com.greenaltambe.vela.ui.nav.TopExtras(overlayTop) }
+                    var topChrome by remember { mutableStateOf(0.dp) }
+                    var bottomChrome by remember { mutableStateOf(0.dp) }
+                    // The strip the mini player sits in fades with it while it is swiped away; it is MiniPlayerHeight tall when a docked mini player is open.
+                    var bottomChromePx by remember { mutableStateOf(0f) }
+                    val floatingMini = com.greenaltambe.vela.ui.player.rememberFloatingMini(services)
+                    val miniStripPx = with(density) { com.greenaltambe.vela.ui.nav.MiniPlayerHeight.toPx() }
+                    val hiddenByScroll = nav.hideBarOnScroll && scrollChrome.hidden
+                    // Everything above the page: the top bar, the profile menu, the banners.
+                    val topArea: @Composable (Boolean) -> Unit = { frosted ->
+                        if (topBarShown) {
+                            VelaTopBar(
+                                routeTitle(uiRoute), onBack = if (navigator.baseCanGoBack) ({ navigator.back() }) else null,
+                                onSearch = ({ navigator.push(Route.Search()) }),
+                                onNotifications = ({ navigator.push(Route.Notifications) }), unread = notifUnread,
+                                profile = { ProfileButton(services) { profileOpen = true } },
+                                translucent = frosted,
+                            )
+                        }
+                        if (profileOpen) ProfileMenu(services, navigator) { profileOpen = false }
+                        if (chrome) AccountBanner(services, navigator)
+                        if (chrome) com.greenaltambe.vela.ui.screens.HealthBanner(services, navigator)
+                        if (chrome) com.greenaltambe.vela.ui.screens.CaptchaBanner(services)
                     }
-                    if (profileOpen) ProfileMenu(services, navigator) { profileOpen = false }
-                    if (chrome) AccountBanner(services, navigator)
-                    if (chrome) com.greenaltambe.vela.ui.screens.HealthBanner(services, navigator)
-                    if (chrome) com.greenaltambe.vela.ui.screens.CaptchaBanner(services)
+                    if (!overlayTop) topArea(false)
                     SessionCheckEffect(services)
                     HealthStartEffect(services)
                     // Keyed by the active account, so switching rebuilds every screen on the new account's data.
                     val activeAccount by services.accounts.active.collectAsState()
-                    Box(Modifier.weight(1f).fillMaxWidth().nestedScroll(scrollChrome.connection)) {
-                        CompositionLocalProvider(com.greenaltambe.vela.ui.components.LocalRefreshHandle provides refreshHandle) {
-                            androidx.compose.runtime.key(activeAccount.id, navigator.pageRefresh) { AnimatedDestination(services, navigator, uiRoute, Modifier.fillMaxSize()) }
+                    val pageContent: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit = {
+                        // The insets hold while the bar slides away on scroll, so the lists do not jump; pages the shell pads itself are padded here.
+                        val bottomInset = if (overlayBar) bottomChrome else 0.dp
+                        val topInset = if (overlayTop) topChrome else 0.dp
+                        val selfPadded = uiRoute.drawsUnderBar()
+                        CompositionLocalProvider(
+                            com.greenaltambe.vela.ui.components.LocalRefreshHandle provides refreshHandle,
+                            com.greenaltambe.vela.ui.nav.LocalBarInset provides (if (selfPadded) bottomInset else 0.dp),
+                            com.greenaltambe.vela.ui.nav.LocalTopBarInset provides (if (selfPadded) topInset else 0.dp),
+                            com.greenaltambe.vela.ui.nav.LocalTopExtras provides topExtras,
+                        ) {
+                            androidx.compose.runtime.key(activeAccount.id, navigator.pageRefresh) {
+                                AnimatedDestination(services, navigator, uiRoute, Modifier.fillMaxSize().padding(top = if (selfPadded) 0.dp else topInset, bottom = if (selfPadded) 0.dp else bottomInset))
+                            }
                         }
                         // The undo snackbar sits in the page's own area, above the mini player and the bar.
-                        if (!sheetState.isExpanded) com.greenaltambe.vela.ui.look.UndoSnackbarHost(com.greenaltambe.vela.ui.look.LocalUndoToasts.current, Modifier.align(Alignment.BottomCenter).padding(Spacing.sm))
+                        if (!sheetState.isExpanded) com.greenaltambe.vela.ui.look.UndoSnackbarHost(com.greenaltambe.vela.ui.look.LocalUndoToasts.current, Modifier.align(Alignment.BottomCenter).padding(Spacing.sm).padding(bottom = bottomInset))
                     }
-                    // While a video is open its mini player sits on the bar: this strip is its room, and it tells the player sheet where it is.
-                    if (chrome && sheetState.isVisible) com.greenaltambe.vela.ui.nav.MiniPlayerSlotSpacer(miniSlot, floating = com.greenaltambe.vela.ui.player.rememberFloatingMini(services))
-                    // The video page owns the whole screen: no bar under the Shorts player.
-                    if (chrome && uiRoute !is Route.ShortsPlayer && !rail) androidx.compose.animation.AnimatedVisibility(
-                        visible = !(nav.hideBarOnScroll && scrollChrome.hidden),
-                        enter = androidx.compose.animation.expandVertically(expandFrom = Alignment.Top) + androidx.compose.animation.slideInVertically { it / 2 } + androidx.compose.animation.fadeIn(),
-                        exit = androidx.compose.animation.shrinkVertically(shrinkTowards = Alignment.Bottom) + androidx.compose.animation.slideOutVertically { it / 2 } + androidx.compose.animation.fadeOut(),
-                    ) { com.greenaltambe.vela.ui.nav.AppNavigationBar(navEntries(nav.tabs), nav.selected(uiRoute), navigator::openTab) }
-                    else if (chrome && rail) Spacer(Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)))
+                    val bottomBar: @Composable () -> Unit = {
+                        // While a video is open its mini player sits on the bar: this strip is its room, and it tells the player sheet where it is.
+                        if (chrome && sheetState.isVisible) com.greenaltambe.vela.ui.nav.MiniPlayerSlotSpacer(miniSlot, floating = floatingMini)
+                        // The video page owns the whole screen: no bar under the Shorts player.
+                        if (barShown) androidx.compose.animation.AnimatedVisibility(
+                            visible = !hiddenByScroll,
+                            enter = androidx.compose.animation.expandVertically(expandFrom = Alignment.Top) + androidx.compose.animation.slideInVertically { it / 2 } + androidx.compose.animation.fadeIn(),
+                            exit = androidx.compose.animation.shrinkVertically(shrinkTowards = Alignment.Bottom) + androidx.compose.animation.slideOutVertically { it / 2 } + androidx.compose.animation.fadeOut(),
+                        ) { com.greenaltambe.vela.ui.nav.AppNavigationBar(navEntries(nav.tabs), nav.selected(uiRoute), navigator::openTab, showLabels = nav.showLabels, translucent = nav.translucentBar, animateIcons = nav.animateIcons) }
+                        else if (chrome && rail) Spacer(Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)))
+                    }
+                    if (overlayTop || overlayBar) Box(Modifier.weight(1f).fillMaxWidth().nestedScroll(scrollChrome.connection)) {
+                        Box(Modifier.fillMaxSize().then(if (blurOk) Modifier.recordsBackdrop(backdrop) else Modifier)) { pageContent() }
+                        val cs = MaterialTheme.colorScheme
+                        val frostSource = if (blurOk) backdrop else null
+                        if (overlayTop) Column(
+                            Modifier.align(Alignment.TopCenter)
+                                .frostedArea(frostSource, cs.surface, edge = cs.outlineVariant.copy(alpha = 0.6f), edgeAtBottom = true)
+                                // The room kept for the lists is not re-measured while the strip is slid away on scroll, so they do not jump.
+                                .onSizeChanged { if (!topExtras.held) topChrome = with(density) { it.height.toDp() } },
+                        ) { topArea(true); topExtras.content?.invoke() }
+                        if (overlayBar) Column(
+                            Modifier.align(Alignment.BottomCenter)
+                                .frostedArea(
+                                    frostSource, cs.surfaceContainer, edge = cs.outlineVariant.copy(alpha = 0.6f), edgeAtBottom = false,
+                                    fade = { if (sheetState.isVisible && !floatingMini) sheetState.swipeAlpha() else 1f },
+                                    fadeFraction = { if (bottomChromePx > 0f) miniStripPx / bottomChromePx else 0f },
+                                )
+                                .onSizeChanged { bottomChromePx = it.height.toFloat(); if (!hiddenByScroll) bottomChrome = with(density) { it.height.toDp() } },
+                        ) { bottomBar() }
+                    } else {
+                        Box(Modifier.weight(1f).fillMaxWidth().nestedScroll(scrollChrome.connection)) { pageContent() }
+                    }
+                    if (!overlayBar) bottomBar()
                 }
             }
             }
@@ -458,6 +521,7 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
                 navigator = navigator,
                 sheetState = sheetState,
                 miniSlot = miniSlot,
+                frostedBelow = nav.translucentBar && !rail,
                 // The open video page starts under the desktop top bar, which stays on screen.
                 modifier = Modifier.fillMaxSize().then(if (chrome && desktopBar) Modifier.padding(top = com.greenaltambe.vela.ui.components.DesktopTopBarHeight) else Modifier),
             )

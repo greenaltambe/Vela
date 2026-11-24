@@ -40,3 +40,5 @@ actual fun rememberFolderPicker(onPicked: (String?) -> Unit): () -> Unit {
     }
     return { launcher.launch(null) }
 }
+
+actual fun backdropBlurSupported(): Boolean = android.os.Build.VERSION.SDK_INT >= 31

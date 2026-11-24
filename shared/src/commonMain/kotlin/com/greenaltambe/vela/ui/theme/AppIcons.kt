@@ -26,7 +26,7 @@ val LocalIconSet = staticCompositionLocalOf { MaterialIconSet.Default }
 
 /** Every icon slot the app uses. Each icon set must cover all of them (a test checks it). */
 object IconNames {
-    val all: List<String> = listOf("home", "subscriptions", "library", "settings", "search", "back", "close", "more", "play", "pause", "rewind", "forward", "fullscreen", "fullscreenExit", "volume", "mute", "download", "downloaded", "save", "share", "speed", "timer", "quality", "captions", "like", "refresh", "info", "chevronRight", "chevronLeft", "chevronDown", "chevronUp", "check", "add", "delete", "edit", "history", "playlist", "notifications", "account", "palette", "lock", "shield", "folder", "tune", "arrowUp", "arrowDown", "dislike", "link", "cloud", "visibility", "bolt", "explore", "skipNext", "skipPrevious", "watchLater", "comment", "audioTrack", "menu", "notificationsActive", "notificationsOff", "cast")
+    val all: List<String> = listOf("home", "subscriptions", "library", "settings", "search", "back", "close", "more", "play", "pause", "rewind", "forward", "fullscreen", "fullscreenExit", "volume", "mute", "download", "downloaded", "save", "share", "speed", "timer", "quality", "captions", "like", "refresh", "info", "chevronRight", "chevronLeft", "chevronDown", "chevronUp", "check", "add", "delete", "edit", "history", "playlist", "notifications", "account", "palette", "lock", "shield", "folder", "tune", "arrowUp", "arrowDown", "dislike", "link", "cloud", "visibility", "bolt", "explore", "skipNext", "skipPrevious", "watchLater", "comment", "audioTrack", "menu", "notificationsActive", "notificationsOff", "cast", "topicGaming", "topicPodcasts", "topicMusic", "topicNews", "topicSports", "topicMovies", "topicLearning", "topicCooking", "topicTech", "topicLive")
     /** The slots that have a filled form: what can be selected or switched on. */
     val withFilledForm: List<String> = listOf("home", "subscriptions", "library", "explore", "bolt", "download", "save", "like", "dislike", "notifications", "watchLater", "comment")
 }
@@ -36,6 +36,9 @@ object IconNames {
  * for like / dislike / save / download / notifications / watch later / comment when they are on. One-weight icons (search, close, ...) have no filled form.
  */
 object AppIcons {
+    /** A named icon slot of the active set (Explore's topic pills use "topicGaming" and the like). */
+    @Composable @ReadOnlyComposable fun named(name: String): ImageVector = LocalIconSet.current[name]
+
     val home: ImageVector @Composable @ReadOnlyComposable get() = LocalIconSet.current["home"]
     val subscriptions: ImageVector @Composable @ReadOnlyComposable get() = LocalIconSet.current["subscriptions"]
     val library: ImageVector @Composable @ReadOnlyComposable get() = LocalIconSet.current["library"]

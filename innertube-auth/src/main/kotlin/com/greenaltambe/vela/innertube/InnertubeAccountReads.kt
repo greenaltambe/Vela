@@ -36,6 +36,19 @@ class InnertubeAccountReads(
         InnertubeParsers.videos(page)
     }
 
+    override suspend fun home(chip: String?, continuation: String?): HomePage? = run {
+        val interactive = kotlin.time.Duration.parse("15s") // a person is waiting: a little patience, then the caller shows Retry
+        val first = chip == null && continuation == null
+        val page = when {
+            continuation != null -> continuation(continuation, interactive)
+            chip != null -> continuation(chip, interactive)
+            else -> browse("FEwhat_to_watch", interactive)
+        }
+        if (first && InnertubeParsers.isSignedOutPage(page)) throw AuthFailure.LoggedOut("home is the signed-out page")
+        // The chips ride on the first page of the unfiltered feed only.
+        HomePage(InnertubeParsers.videos(page), InnertubeParsers.feedContinuation(page), if (first) InnertubeParsers.homeChips(page) else emptyList())
+    }
+
     override suspend fun playlists(): List<AccountPlaylist>? = run { playlists().map { AccountPlaylist(it.id, it.title, it.videoCount) } }
 
     override suspend fun playlistVideos(playlistId: String): List<VideoSummary>? =

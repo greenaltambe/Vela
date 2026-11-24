@@ -7,7 +7,7 @@ import kotlin.test.*
 
 class NavConfigTest {
     @Test fun theTabsAreFixed() {
-        assertEquals(listOf(NavTab.HOME, NavTab.SHORTS, NavTab.SUBSCRIPTIONS, NavTab.LIBRARY), NavTabs.default)
+        assertEquals(listOf(NavTab.HOME, NavTab.SHORTS, NavTab.SUBSCRIPTIONS, NavTab.EXPLORE, NavTab.LIBRARY), NavTabs.default)
     }
 
     @Test fun settingsIsNeverATabAndHasNoSelectedTab() {
@@ -22,6 +22,23 @@ class NavConfigTest {
         assertEquals(NavTab.LIBRARY, nav.selected(Route.History)); assertEquals(NavTab.LIBRARY, nav.selected(Route.Downloads), "without a Downloads tab it belongs to Library")
         val withDownloads = NavConfig(tabs = listOf(NavTab.HOME, NavTab.DOWNLOADS))
         assertEquals(NavTab.DOWNLOADS, withDownloads.selected(Route.Downloads)); assertNull(withDownloads.selected(Route.Subscriptions), "a page whose tab is hidden shows none")
+    }
+
+    @Test fun exploreAndTheNamesFollowTheirSwitchesAndHomeSubsAndLibraryAreAlwaysThere() {
+        val s = SettingsResolver(InMemorySettingsStore())
+        assertTrue(NavTab.EXPLORE in NavConfig.of(s).tabs); assertTrue(NavConfig.of(s).showLabels)
+        s.set(LookSettings.showExplore, false); s.set(LookSettings.showNavLabels, false); s.set(Settings.shortsMode, ShortsMode.HIDE)
+        val n = NavConfig.of(s)
+        assertEquals(listOf(NavTab.HOME, NavTab.SUBSCRIPTIONS, NavTab.LIBRARY), n.tabs, "everything that can be switched off is off")
+        assertFalse(n.showLabels)
+        assertNull(n.selected(Route.Explore), "Explore reached by a button while its tab is off highlights no tab")
+    }
+
+    @Test fun theBarIsSolidAndTheIconsAnimateUntilTheViewerChangesIt() {
+        val s = SettingsResolver(InMemorySettingsStore())
+        assertFalse(NavConfig.of(s).translucentBar); assertTrue(NavConfig.of(s).animateIcons)
+        s.set(LookSettings.translucentNavBar, true); s.set(LookSettings.animateNavIcons, false)
+        assertTrue(NavConfig.of(s).translucentBar); assertFalse(NavConfig.of(s).animateIcons)
     }
 
     @Test fun theNavigationIsFixedAndOnlyTheRailStateIsRemembered() {

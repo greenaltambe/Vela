@@ -7,6 +7,12 @@ data class NavConfig(
     val tabs: List<NavTab> = NavTabs.default,
     val railCollapsed: Boolean = false,
     val hideBarOnScroll: Boolean = false,
+    /** Each tab's name under its icon (bottom bar and folded side bar); off = icons only. */
+    val showLabels: Boolean = true,
+    /** The bottom bar is see-through with a blur of the page behind it (phones and narrow windows). */
+    val translucentBar: Boolean = false,
+    /** The tapped tab's icon pops and settles. */
+    val animateIcons: Boolean = true,
 ) {
     /** The tab that shows as selected on [route], or null (Settings and its pages have none). Downloads is its own tab only when the list has it. */
     fun selected(route: Route): NavTab? {
@@ -25,9 +31,12 @@ data class NavConfig(
 
     companion object {
         fun of(s: SettingsResolver) = NavConfig(
-            tabs = NavTabs.default.filter { it != NavTab.SHORTS || s.shortsEnabled() },
+            tabs = NavTabs.default.filter { (it != NavTab.SHORTS || s.shortsEnabled()) && (it != NavTab.EXPLORE || s.resolve(LookSettings.showExplore)) },
             railCollapsed = s.resolve(LookSettings.railCollapsed),
             hideBarOnScroll = s.resolve(LookSettings.hideBarOnScroll),
+            showLabels = s.resolve(LookSettings.showNavLabels),
+            translucentBar = s.resolve(LookSettings.translucentNavBar),
+            animateIcons = s.resolve(LookSettings.animateNavIcons),
         )
     }
 }

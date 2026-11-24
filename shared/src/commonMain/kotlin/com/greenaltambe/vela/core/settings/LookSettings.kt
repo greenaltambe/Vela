@@ -7,9 +7,9 @@ enum class ColorPalette { VELA_RED, CLASSIC, SAKURA, OCEAN, FOREST, TWILIGHT, SU
 enum class ProgressStyle { EXPRESSIVE, HAIRLINE, HAIRLINE_DOT, BOLD, BOLD_DOT, RIBBON, WAVE }
 enum class NavTab { HOME, SHORTS, SUBSCRIPTIONS, LIBRARY, SEARCH, DOWNLOADS, EXPLORE }
 
-/** The tabs of the navigation: fixed (no setting). Shorts only while Shorts are on, see [com.greenaltambe.vela.ui.nav.NavConfig]. */
+/** The tabs of the navigation, in order. Shorts only while Shorts are on and Explore only while its switch is on, see [com.greenaltambe.vela.ui.nav.NavConfig]. Home, Subs and Library are always there. */
 object NavTabs {
-    val default = listOf(NavTab.HOME, NavTab.SHORTS, NavTab.SUBSCRIPTIONS, NavTab.LIBRARY)
+    val default = listOf(NavTab.HOME, NavTab.SHORTS, NavTab.SUBSCRIPTIONS, NavTab.EXPLORE, NavTab.LIBRARY)
 }
 
 /**
@@ -48,13 +48,17 @@ object LookSettings {
         codec = SettingCodecs.string, section = SettingSection.APPEARANCE, info = "Which shelves Home shows above its list, and in what order. A shelf with nothing to show is left out.",
     )
     val homeDensity = pick("look.home.density", HomeDensity.NORMAL, HomeDensity.entries, "Shelves between videos", mapOf(HomeDensity.FEW to "Few (every 8 videos)", HomeDensity.NORMAL to "Normal (every 5)", HomeDensity.MANY to "Many (every 3)"), listOf("home", "shelves", "rows", "often", "density", "carousel"), "How often a shelf comes between the videos of Home's list.")
-    val homeChips = flag("look.home.chips", true, "Quick filters on Home", listOf("home", "filter", "chips", "unwatched", "music", "live", "short"), "A row of chips above Home (All, Unwatched, Under 10 min, Live, Music, and your own topics). They filter what is already loaded.")
+    val homeChips = flag("look.home.chips", true, "Chips on Home", listOf("home", "filter", "chips", "unwatched", "music", "live", "short", "custom feed"), "The row above Home: a Filter button (Unwatched, Under 10 min) and, when signed in, YouTube's own chips for your feed (All, your custom feeds, topics, Live, ...).")
     val hideChipsOnScroll = flag("look.home.hideChipsOnScroll", true, "Hide the filter chips while scrolling", listOf("home", "chips", "filter", "hide", "scroll", "auto", "immersive"), "Scrolling down slides Home's filter chips away so the videos get the room; scrolling up brings them back.")
     val hideBarOnScroll = flag("look.nav.hideBarOnScroll", false, "Hide the bottom bar while scrolling", listOf("bottom", "bar", "navigation", "nav", "hide", "scroll", "auto", "immersive"), "Scrolling down slides the bottom navigation bar away; scrolling up brings it back. Phones and narrow windows.")
     val hideChannelTabsOnScroll = flag("look.nav.hideChannelTabsOnScroll", false, "Hide channel tabs while scrolling", listOf("channel", "tabs", "videos", "shorts", "playlists", "hide", "scroll", "auto", "immersive"), "On a channel page, scrolling down slides the tab row (Home, Videos, Shorts...) away; scrolling up brings it back.")
+    val showExplore = flag("look.nav.showExplore", true, "Explore in the navigation", listOf("explore", "tab", "navigation", "nav", "bar", "rail", "hide", "show", "topics", "discover"), "Shows Explore (topics and live streams) as a tab in the bottom bar and the side bar. Off: it is still reachable from the buttons that say Browse Explore.")
+    val showNavLabels = flag("look.nav.showLabels", true, "Names under the icons", listOf("labels", "names", "text", "navigation", "nav", "bar", "icons", "hide", "minimal"), "Shows each tab's name under its icon in the bottom bar and the folded side bar. Off: icons only (screen readers still announce the names). The unfolded desktop side bar always shows names.")
+    val translucentNavBar = flag("look.nav.translucent", false, "Translucent bars", listOf("translucent", "transparent", "blur", "blurred", "frosted", "glass", "see-through", "bottom", "top", "bar", "navigation", "nav", "chips", "mini player"), "The page scrolls under the top bar, Home's chip row, the bottom bar and the mini player and shows through them, blurred, like YouTube's. Phones and narrow windows. On Android 11 and older they are only tinted (no blur).")
+    val animateNavIcons = flag("look.nav.animateIcons", true, "Animate the tab icons", listOf("animation", "animate", "icons", "bounce", "pop", "navigation", "nav", "bar", "motion"), "The tab you tap pops and settles, and the one you leave shrinks back. Off: the icons just change.")
     val railCollapsed = flag("look.nav.railCollapsed", false, "Collapse the side rail to icons", listOf("rail", "sidebar", "collapse", "icons"), "Wide windows and Linux: the left rail shows icons only.")
 
-    val all: List<Setting<*>> = listOf(theme, colorScheme, amoled, progressStyle, homeShelves, homeDensity, homeChips, hideChipsOnScroll, hideBarOnScroll, hideChannelTabsOnScroll, railCollapsed)
+    val all: List<Setting<*>> = listOf(theme, colorScheme, amoled, progressStyle, homeShelves, homeDensity, homeChips, hideChipsOnScroll, hideBarOnScroll, hideChannelTabsOnScroll, showExplore, showNavLabels, translucentNavBar, animateNavIcons, railCollapsed)
 }
 
 /**
@@ -71,7 +75,7 @@ object LookKeys {
  * databases may still carry them; they are left alone, unused, and a restore does not warn about them.
  */
 object LegacySettingKeys {
-    private val exact = setOf("appearance.look", "appearance.performanceMode")
+    private val exact = setOf("appearance.look", "appearance.performanceMode", "home.source", "look.nav.barOpacity")
     private val prefixes = listOf(
         "look.palette", "look.colorMode", "look.customColor", "look.corners", "look.density", "look.textScale", "look.font", "look.titleWeight",
         "look.iconStyle", "look.iconWeight", "look.iconRounded", "look.glass", "look.reduceMotion", "look.nav.tabs", "look.nav.openOn", "look.nav.labels",

@@ -25,14 +25,32 @@ import com.greenaltambe.vela.ui.nav.Navigator
 import kotlinx.coroutines.launch
 import kotlin.time.Instant
 
-/** What Explore offers besides Trending: each is a search for the topic. */
-val ExploreTopics = listOf("Music", "Gaming", "News", "Live", "Sports", "Podcasts", "Movies", "Learning", "Cooking", "Tech")
-private const val TRENDING = "Trending"
+/**
+ * One pill of Explore. YouTube removed its Trending page, so there is no "Trending" here. A pill with a [kiosk] shows that named list of the
+ * extractor (real lists: live streams, trending gaming, trending podcasts); the others are a search for the topic. Each has a fixed icon, so the row
+ * reads differently from Home's chips even where a word is the same.
+ */
+data class ExploreTopic(val label: String, val icon: String, val kiosk: String? = null)
+
+/** In this order; Live is last on purpose (it is not what most people come to Explore for), and the first one is where Explore opens. */
+val ExploreTopics = listOf(
+    ExploreTopic("Gaming", "topicGaming", kiosk = "trending_gaming"),
+    ExploreTopic("Podcasts", "topicPodcasts", kiosk = "trending_podcasts_episodes"),
+    ExploreTopic("Music", "topicMusic"),
+    ExploreTopic("News", "topicNews"),
+    ExploreTopic("Sports", "topicSports"),
+    ExploreTopic("Movies", "topicMovies"),
+    ExploreTopic("Learning", "topicLearning"),
+    ExploreTopic("Cooking", "topicCooking"),
+    ExploreTopic("Tech", "topicTech"),
+    ExploreTopic("Live", "topicLive", kiosk = "live"),
+)
+private val DEFAULT_TOPIC = ExploreTopics.first().label
 
 /** Explore's last state, kept while the shell lives: the open topic, each topic's loaded videos and scroll position. */
 class ExploreStore {
     class Entry(var videos: PagedList<VideoSummary> = videoPagedList(), var at: Instant? = null, val scroll: ScrollMemory = ScrollMemory())
-    var topic: String = TRENDING
+    var topic: String = DEFAULT_TOPIC
     private val entries = HashMap<String, Entry>()
     fun entry(topic: String) = entries.getOrPut(topic) { Entry() }
     fun fresh(topic: String, now: Instant) = entry(topic).takeIf { e -> e.videos.items.isNotEmpty() && e.at?.let { (now - it).inWholeMilliseconds < 30 * 60 * 1000L } == true }
@@ -40,7 +58,7 @@ class ExploreStore {
 
 val LocalExploreStore = staticCompositionLocalOf<ExploreStore?> { null }
 
-/** Explore: Trending and topic pills (Music, Gaming, ...) above the matching videos. Switching pills keeps what each already loaded. */
+/** Explore: topic pills (Gaming, Podcasts, Music, ... Live), each with an icon, above the matching videos. Switching pills keeps what each already loaded. */
 @Composable
 fun ExploreScreen(services: AppServices, navigator: Navigator, modifier: Modifier = Modifier) {
     val store = LocalExploreStore.current ?: remember { ExploreStore() }
@@ -59,7 +77,8 @@ fun ExploreScreen(services: AppServices, navigator: Navigator, modifier: Modifie
         val t = topic
         scope.launch {
             val token = videos.continuation.takeIf { more }
-            val result = if (t == TRENDING) services.extractor.trending(token) else services.extractor.search(t, token)
+            val kiosk = ExploreTopics.firstOrNull { it.label == t }?.kiosk
+            val result = if (kiosk != null) services.extractor.kiosk(kiosk, token) else services.extractor.search(t, token)
             when (result) {
                 is ExtractorResult.Success -> {
                     videos = if (more) videos.append(result.value) else videos.replace(result.value)
@@ -80,7 +99,7 @@ fun ExploreScreen(services: AppServices, navigator: Navigator, modifier: Modifie
             services, navigator, shown, state, Modifier, testTag = "explore.list", scroll = entry.scroll,
             header = {
                 com.greenaltambe.vela.ui.components.ChipRow(Modifier.testTag("explore.topics")) {
-                    items(listOf(TRENDING) + ExploreTopics) { t -> com.greenaltambe.vela.ui.components.ExpressiveChip(topic == t, t, { topic = t }, Modifier.testTag("explore.topic.$t")) }
+                    items(ExploreTopics) { t -> com.greenaltambe.vela.ui.components.ExpressiveChip(topic == t.label, t.label, { topic = t.label }, Modifier.testTag("explore.topic.${t.label}"), icon = com.greenaltambe.vela.ui.theme.AppIcons.named(t.icon)) }
                 }
             },
             onEndReached = { if (videos.continuation != null && !loading && state == ListState.Ready) load(more = true) },

@@ -354,8 +354,12 @@ fun VelaTopBar(
     profile: (@Composable () -> Unit)? = null,
     large: Boolean = false,
     scrollBehavior: androidx.compose.material3.TopAppBarScrollBehavior? = null,
+    /** See-through: the bar paints no background of its own, its parent frosts the area behind it (the bar and what hangs under it are one surface). */
+    translucent: Boolean = false,
 ) {
     val back = if (LocalEmbeddedInPane.current) null else onBack
+    val colors = if (!translucent) androidx.compose.material3.TopAppBarDefaults.topAppBarColors()
+        else androidx.compose.material3.TopAppBarDefaults.topAppBarColors(containerColor = androidx.compose.ui.graphics.Color.Transparent, scrolledContainerColor = androidx.compose.ui.graphics.Color.Transparent)
     if (large) {
         LargeFlexibleTopAppBar(
             title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
@@ -369,6 +373,7 @@ fun VelaTopBar(
     TopAppBar(
         title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         modifier = modifier.testTag("topbar"),
+        colors = colors,
         scrollBehavior = scrollBehavior,
         navigationIcon = {
             if (back != null) IconButton(onClick = back, modifier = Modifier.testTag("nav.back")) { Icon(AppIcons.back, "Back") }

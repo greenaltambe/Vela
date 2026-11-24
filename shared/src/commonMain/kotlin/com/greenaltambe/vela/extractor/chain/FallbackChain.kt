@@ -73,6 +73,7 @@ class FallbackChain(
 
     override suspend fun suggestions(query: String) = run("suggestions", AccountOp.NEVER) { it.suggestions(query) }
     override suspend fun trending(continuation: String?) = run("trending(${page(continuation)})", AccountOp.FEED) { it.trending(continuation) }
+    override suspend fun kiosk(kioskId: String, continuation: String?) = run("kiosk($kioskId${page(continuation)})", AccountOp.NEVER) { it.kiosk(kioskId, continuation) }
     override suspend fun related(videoId: String) = run("related($videoId)", AccountOp.NEVER) { it.related(videoId) }
     override suspend fun channelVideosSorted(channelId: String, sort: ChannelVideoSort, continuation: String?) =
         run("channelVideosSorted($channelId, $sort${page(continuation)})", AccountOp.CHANNELS) { it.channelVideosSorted(channelId, sort, continuation) }

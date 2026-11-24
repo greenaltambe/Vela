@@ -11,11 +11,11 @@ class LookSettingsTest {
     }
 
     @Test fun onlyTheThemeTheProgressBarAndHomeAreLeftToCustomize() {
-        assertEquals(setOf("look.theme", "look.colorScheme", "look.amoled", "look.progressStyle", "look.home.shelves", "look.home.density", "look.home.chips", "look.home.hideChipsOnScroll", "look.nav.hideBarOnScroll", "look.nav.hideChannelTabsOnScroll", "look.nav.railCollapsed"), LookSettings.all.map { it.key }.toSet())
+        assertEquals(setOf("look.theme", "look.colorScheme", "look.amoled", "look.progressStyle", "look.home.shelves", "look.home.density", "look.home.chips", "look.home.hideChipsOnScroll", "look.nav.hideBarOnScroll", "look.nav.hideChannelTabsOnScroll", "look.nav.showExplore", "look.nav.showLabels", "look.nav.translucent", "look.nav.animateIcons", "look.nav.railCollapsed"), LookSettings.all.map { it.key }.toSet())
     }
 
     @Test fun theRemovedSettingsAreKnownAsLegacySoOldBackupsRestoreQuietly() {
-        for (k in listOf("look.palette", "look.font", "look.iconStyle", "look.corners", "look.glass", "look.nav.barStyle", "look.nav.tabs", "look.mini.look", "look.mini.gap", "appearance.look", "appearance.performanceMode"))
+        for (k in listOf("look.palette", "look.font", "look.iconStyle", "look.corners", "look.glass", "look.nav.barStyle", "look.nav.tabs", "look.mini.look", "look.mini.gap", "appearance.look", "appearance.performanceMode", "home.source", "look.nav.barOpacity"))
             assertTrue(LegacySettingKeys.isLegacy(k), k)
         for (k in LookSettings.all.map { it.key }) assertFalse(LegacySettingKeys.isLegacy(k), "$k is still a live setting")
     }

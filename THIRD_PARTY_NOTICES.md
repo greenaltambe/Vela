@@ -47,9 +47,9 @@ The Vela icon and the app's own line/filled icon set (`VelaIcons`) are original 
 | androidx.arch.core:core-common | 2.2.0 | The Apache Software License, Version 2.0 |
 | androidx.arch.core:core-runtime | 2.2.0 | The Apache Software License, Version 2.0 |
 | androidx.autofill:autofill | 1.0.0 | The Apache Software License, Version 2.0 |
-| androidx.collection:collection | 1.5.0 | The Apache Software License, Version 2.0 |
-| androidx.collection:collection-jvm | 1.5.0 | The Apache Software License, Version 2.0 |
-| androidx.collection:collection-ktx | 1.5.0 | The Apache Software License, Version 2.0 |
+| androidx.collection:collection | 1.7.0 | The Apache Software License, Version 2.0 |
+| androidx.collection:collection-jvm | 1.7.0 | The Apache Software License, Version 2.0 |
+| androidx.collection:collection-ktx | 1.7.0 | The Apache Software License, Version 2.0 |
 | androidx.compose.animation:animation | 1.12.1 | The Apache Software License, Version 2.0 |
 | androidx.compose.animation:animation-android | 1.12.1 | The Apache Software License, Version 2.0 |
 | androidx.compose.animation:animation-core | 1.12.1 | The Apache Software License, Version 2.0 |
@@ -98,8 +98,8 @@ The Vela icon and the app's own line/filled icon set (`VelaIcons`) are original 
 | androidx.compose.ui:ui-util-android | 1.12.1 | The Apache Software License, Version 2.0 |
 | androidx.concurrent:concurrent-futures | 1.2.0 | The Apache Software License, Version 2.0 |
 | androidx.concurrent:concurrent-futures-ktx | 1.2.0 | The Apache Software License, Version 2.0 |
-| androidx.core:core | 1.18.0 | The Apache Software License, Version 2.0 |
-| androidx.core:core-ktx | 1.18.0 | The Apache Software License, Version 2.0 |
+| androidx.core:core | 1.19.1 | The Apache Software License, Version 2.0 |
+| androidx.core:core-ktx | 1.19.1 | The Apache Software License, Version 2.0 |
 | androidx.core:core-viewtree | 1.0.0 | The Apache Software License, Version 2.0 |
 | androidx.cursoradapter:cursoradapter | 1.0.0 | The Apache Software License, Version 2.0 |
 | androidx.customview:customview | 1.0.0 | The Apache Software License, Version 2.0 |
@@ -177,8 +177,9 @@ The Vela icon and the app's own line/filled icon set (`VelaIcons`) are original 
 | androidx.sqlite:sqlite-framework | 2.7.1 | The Apache Software License, Version 2.0 |
 | androidx.sqlite:sqlite-framework-android | 2.7.1 | The Apache Software License, Version 2.0 |
 | androidx.startup:startup-runtime | 1.2.0 | The Apache Software License, Version 2.0 |
-| androidx.tracing:tracing | 1.2.0 | The Apache Software License, Version 2.0 |
-| androidx.tracing:tracing-ktx | 1.2.0 | The Apache Software License, Version 2.0 |
+| androidx.tracing:tracing | 2.0.5 | The Apache Software License, Version 2.0 |
+| androidx.tracing:tracing-android | 2.0.5 | The Apache Software License, Version 2.0 |
+| androidx.tracing:tracing-ktx | 2.0.5 | The Apache Software License, Version 2.0 |
 | androidx.vectordrawable:vectordrawable | 1.1.0 | The Apache Software License, Version 2.0 |
 | androidx.vectordrawable:vectordrawable-animated | 1.1.0 | The Apache Software License, Version 2.0 |
 | androidx.versionedparcelable:versionedparcelable | 1.1.1 | The Apache Software License, Version 2.0 |
@@ -212,6 +213,15 @@ The Vela icon and the app's own line/filled icon set (`VelaIcons`) are original 
 | com.squareup.okio:okio | 3.18.1 | The Apache Software License, Version 2.0 |
 | com.squareup.okio:okio-jvm | 3.18.1 | The Apache Software License, Version 2.0 |
 | commons-io:commons-io | 2.5 | Apache License, Version 2.0 |
+| dev.chrisbanes.haze:haze | 2.1.0 | The Apache Software License, Version 2.0 |
+| dev.chrisbanes.haze:haze-android | 2.1.0 | The Apache Software License, Version 2.0 |
+| dev.chrisbanes.haze:haze-blur | 2.1.0 | The Apache Software License, Version 2.0 |
+| dev.chrisbanes.haze:haze-blur-android | 2.1.0 | The Apache Software License, Version 2.0 |
+| dev.chrisbanes.haze:haze-blur-jvm | 2.1.0 | The Apache Software License, Version 2.0 |
+| dev.chrisbanes.haze:haze-jvm | 2.1.0 | The Apache Software License, Version 2.0 |
+| dev.chrisbanes.haze:haze-utils | 2.1.0 | The Apache Software License, Version 2.0 |
+| dev.chrisbanes.haze:haze-utils-android | 2.1.0 | The Apache Software License, Version 2.0 |
+| dev.chrisbanes.haze:haze-utils-jvm | 2.1.0 | The Apache Software License, Version 2.0 |
 | io.coil-kt.coil3:coil | 3.2.0 | The Apache License, Version 2.0 |
 | io.coil-kt.coil3:coil-android | 3.2.0 | The Apache License, Version 2.0 |
 | io.coil-kt.coil3:coil-compose | 3.2.0 | The Apache License, Version 2.0 |
@@ -256,71 +266,71 @@ The Vela icon and the app's own line/filled icon set (`VelaIcons`) are original 
 | org.jetbrains.androidx.savedstate:savedstate | 1.3.6 | The Apache Software License, Version 2.0 |
 | org.jetbrains.androidx.savedstate:savedstate-compose | 1.3.6 | The Apache Software License, Version 2.0 |
 | org.jetbrains.androidx.savedstate:savedstate-compose-desktop | 1.3.6 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.animation:animation | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.animation:animation-android | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.animation:animation-core | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.animation:animation-core-android | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.animation:animation-core-desktop | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.animation:animation-desktop | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.components:components-resources | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.components:components-resources-android | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.components:components-resources-desktop | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.desktop:desktop | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.desktop:desktop-jvm | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.desktop:desktop-jvm-linux-x64 | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.foundation:foundation | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.foundation:foundation-android | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.foundation:foundation-desktop | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.foundation:foundation-layout | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.foundation:foundation-layout-android | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.foundation:foundation-layout-desktop | 1.12.1 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.animation:animation | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.animation:animation-android | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.animation:animation-core | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.animation:animation-core-android | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.animation:animation-core-desktop | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.animation:animation-desktop | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.components:components-resources | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.components:components-resources-android | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.components:components-resources-desktop | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.desktop:desktop | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.desktop:desktop-jvm | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.desktop:desktop-jvm-linux-x64 | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.foundation:foundation | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.foundation:foundation-android | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.foundation:foundation-desktop | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.foundation:foundation-layout | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.foundation:foundation-layout-android | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.foundation:foundation-layout-desktop | 1.12.2 | The Apache Software License, Version 2.0 |
 | org.jetbrains.compose.material3:material3 | 1.12.0-alpha03 | The Apache Software License, Version 2.0 |
 | org.jetbrains.compose.material3:material3-android | 1.12.0-alpha03 | The Apache Software License, Version 2.0 |
 | org.jetbrains.compose.material3:material3-desktop | 1.12.0-alpha03 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.material:material | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.material:material-desktop | 1.12.1 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.material:material | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.material:material-desktop | 1.12.2 | The Apache Software License, Version 2.0 |
 | org.jetbrains.compose.material:material-icons-core | 1.7.3 | The Apache Software License, Version 2.0 |
 | org.jetbrains.compose.material:material-icons-core-desktop | 1.7.3 | The Apache Software License, Version 2.0 |
 | org.jetbrains.compose.material:material-icons-extended | 1.7.3 | The Apache Software License, Version 2.0 |
 | org.jetbrains.compose.material:material-icons-extended-desktop | 1.7.3 | The Apache Software License, Version 2.0 |
 | org.jetbrains.compose.material:material-ripple | 1.12.0-beta01 | The Apache Software License, Version 2.0 |
 | org.jetbrains.compose.material:material-ripple-android | 1.12.0-beta01 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.material:material-ripple-desktop | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.runtime:runtime | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.runtime:runtime-android | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.runtime:runtime-desktop | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.runtime:runtime-saveable | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.runtime:runtime-saveable-android | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.runtime:runtime-saveable-desktop | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.ui:ui | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.ui:ui-android | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.ui:ui-backhandler | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.ui:ui-backhandler-desktop | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.ui:ui-desktop | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.ui:ui-geometry | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.ui:ui-geometry-android | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.ui:ui-geometry-desktop | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.ui:ui-graphics | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.ui:ui-graphics-android | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.ui:ui-graphics-desktop | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.ui:ui-text | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.ui:ui-text-android | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.ui:ui-text-desktop | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.ui:ui-tooling | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.ui:ui-tooling-android | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.ui:ui-tooling-data | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.ui:ui-tooling-data-android | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.ui:ui-tooling-preview | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.ui:ui-tooling-preview-android | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.ui:ui-tooling-preview-desktop | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.ui:ui-unit | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.ui:ui-unit-android | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.ui:ui-unit-desktop | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.ui:ui-util | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.ui:ui-util-android | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.compose.ui:ui-util-desktop | 1.12.1 | The Apache Software License, Version 2.0 |
-| org.jetbrains.kotlin:kotlin-stdlib | 2.4.20 | Apache-2.0 |
-| org.jetbrains.kotlin:kotlin-stdlib-common | 2.4.20 | Apache-2.0 |
+| org.jetbrains.compose.material:material-ripple-desktop | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.runtime:runtime | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.runtime:runtime-android | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.runtime:runtime-desktop | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.runtime:runtime-saveable | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.runtime:runtime-saveable-android | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.runtime:runtime-saveable-desktop | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.ui:ui | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.ui:ui-android | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.ui:ui-backhandler | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.ui:ui-backhandler-desktop | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.ui:ui-desktop | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.ui:ui-geometry | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.ui:ui-geometry-android | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.ui:ui-geometry-desktop | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.ui:ui-graphics | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.ui:ui-graphics-android | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.ui:ui-graphics-desktop | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.ui:ui-text | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.ui:ui-text-android | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.ui:ui-text-desktop | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.ui:ui-tooling | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.ui:ui-tooling-android | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.ui:ui-tooling-data | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.ui:ui-tooling-data-android | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.ui:ui-tooling-preview | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.ui:ui-tooling-preview-android | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.ui:ui-tooling-preview-desktop | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.ui:ui-unit | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.ui:ui-unit-android | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.ui:ui-unit-desktop | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.ui:ui-util | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.ui:ui-util-android | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.compose.ui:ui-util-desktop | 1.12.2 | The Apache Software License, Version 2.0 |
+| org.jetbrains.kotlin:kotlin-stdlib | 2.4.21 | Apache-2.0 |
+| org.jetbrains.kotlin:kotlin-stdlib-common | 2.4.21 | Apache-2.0 |
 | org.jetbrains.kotlin:kotlin-stdlib-jdk7 | 1.8.22 | The Apache License, Version 2.0 |
 | org.jetbrains.kotlin:kotlin-stdlib-jdk8 | 1.8.22 | The Apache License, Version 2.0 |
 | org.jetbrains.kotlinx:atomicfu | 0.28.0 | Apache-2.0 |
@@ -338,9 +348,9 @@ The Vela icon and the app's own line/filled icon set (`VelaIcons`) are original 
 | org.jetbrains.kotlinx:kotlinx-serialization-json | 1.12.0 | Apache-2.0 |
 | org.jetbrains.kotlinx:kotlinx-serialization-json-jvm | 1.12.0 | Apache-2.0 |
 | org.jetbrains.runtime:jbr-api | 1.9.0 | The Apache License, Version 2.0 |
-| org.jetbrains.skiko:skiko | 0.150.1 | The Apache License, Version 2.0 |
-| org.jetbrains.skiko:skiko-awt | 0.150.1 | The Apache License, Version 2.0 |
-| org.jetbrains.skiko:skiko-awt-runtime-linux-x64 | 0.150.1 | The Apache License, Version 2.0 |
+| org.jetbrains.skiko:skiko | 0.150.2 | The Apache License, Version 2.0 |
+| org.jetbrains.skiko:skiko-awt | 0.150.2 | The Apache License, Version 2.0 |
+| org.jetbrains.skiko:skiko-awt-runtime-linux-x64 | 0.150.2 | The Apache License, Version 2.0 |
 | org.jetbrains:annotations | 23.0.0 | The Apache Software License, Version 2.0 |
 | org.jsoup:jsoup | 1.22.2 | The MIT License |
 | org.jspecify:jspecify | 1.0.0 | The Apache License, Version 2.0 |

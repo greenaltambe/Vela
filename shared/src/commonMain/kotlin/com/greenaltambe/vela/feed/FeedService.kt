@@ -100,7 +100,7 @@ class FeedService(
                 }
                 if (loud.isNotEmpty()) onNewUploads(loud)
             }
-            val merged = mergeFeed(cached, fresh)
+            val merged = withDurations(mergeFeed(cached, fresh))
             cache.replaceAll(merged)
             _entries.value = merged
             _failures.value = failures
@@ -111,7 +111,28 @@ class FeedService(
         }
     }
 
+    /** The RSS feed carries no durations: look up the newest entries that lack one (a few at a time), so the cards can show it. */
+    private suspend fun withDurations(entries: List<FeedEntry>): List<FeedEntry> {
+        val missing = entries.filter { it.video.durationSeconds == null && !it.video.isLive }.take(MAX_DURATION_LOOKUPS).map { it.video.id }
+        if (missing.isEmpty()) return entries
+        val found = HashMap<String, Long>()
+        coroutineScope {
+            val gate = Semaphore(concurrency)
+            missing.map { id ->
+                async {
+                    gate.withPermit {
+                        val info = (extractor.videoInfo(id) as? ExtractorResult.Success)?.value
+                        if (info != null && info.durationSeconds > 0) synchronized(found) { found[id] = info.durationSeconds }
+                    }
+                }
+            }.awaitAll()
+        }
+        if (found.isEmpty()) return entries
+        return entries.map { e -> found[e.video.id]?.let { e.copy(video = e.video.copy(durationSeconds = it)) } ?: e }
+    }
+
     companion object {
+        const val MAX_DURATION_LOOKUPS = 30
         const val MAX_NEW_PER_REFRESH = 20
         /** An upload older than this is not announced as new. */
         val NEW_UPLOAD_MAX_AGE = kotlin.time.Duration.parse("3d")

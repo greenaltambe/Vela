@@ -30,6 +30,30 @@ object InnertubeParsers {
     fun continuationToken(json: JsonElement): String? =
         json.findAll("continuationCommand").firstNotNullOfOrNull { it["token"].string }
 
+    /**
+     * The token that loads the next page of a feed: the one in the list's own continuation item. Not [continuationToken], which returns the first
+     * continuation command anywhere and on Home that can be a chip's token (the chip bar comes before the list).
+     */
+    fun feedContinuation(json: JsonElement): String? =
+        json.findAll("continuationItemRenderer").firstNotNullOfOrNull { it["continuationEndpoint"]["continuationCommand"]["token"].string }
+
+    /** The chips of the Home chip bar, in YouTube's order; empty when the response has none (signed out, or a continuation page). */
+    fun homeChips(json: JsonElement): List<com.greenaltambe.vela.auth.HomeChip> {
+        val bar = json.findAll("feedFilterChipBarRenderer").firstOrNull() ?: return emptyList()
+        return bar.findAll("chipCloudChipRenderer").mapNotNull { c ->
+            val label = c["text"].text()?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val token = c["navigationEndpoint"]["continuationCommand"]["token"].string
+            val unique = c["uniqueId"].string.orEmpty()
+            val kind = when {
+                unique.endsWith("CUSTOM_FEED_CREATE_FEED") -> com.greenaltambe.vela.auth.HomeChipKind.CREATE_CUSTOM_FEED
+                Regex("CUSTOM_FEED_\\d+$").containsMatchIn(unique) -> com.greenaltambe.vela.auth.HomeChipKind.CUSTOM_FEED
+                token == null && (c["isSelected"] as? kotlinx.serialization.json.JsonPrimitive)?.content == "true" -> com.greenaltambe.vela.auth.HomeChipKind.ALL
+                else -> com.greenaltambe.vela.auth.HomeChipKind.TOPIC
+            }
+            com.greenaltambe.vela.auth.HomeChip(label, token, (c["isSelected"] as? kotlinx.serialization.json.JsonPrimitive)?.content == "true", kind)
+        }
+    }
+
     /** True when a browse response is the "sign in" prompt instead of content. */
     fun isSignedOutPage(json: JsonElement): Boolean = json.findAll("signInEndpoint").isNotEmpty() && json.findAll("activeAccountHeaderRenderer").isEmpty()
 
@@ -106,6 +130,10 @@ object InnertubeParsers {
             val durationText = l.findAll("thumbnailBadgeViewModel").firstOrNull().at("text").string
                 ?: l.findAll("thumbnailOverlayTimeStatusRenderer").firstOrNull().at("text").text()
             val duration = clock(durationText)
+            // A live stream's thumbnail carries a LIVE badge (and no duration).
+            val live = l.findAll("thumbnailBadgeViewModel").any { b ->
+                b["badgeStyle"].string?.contains("LIVE") == true || b["text"].string.equals("LIVE", ignoreCase = true)
+            }
 
             var channel = ""
             var viewCount: Long? = null
@@ -138,6 +166,7 @@ object InnertubeParsers {
                 channelId = meta.findAll("browseEndpoint").firstNotNullOfOrNull { it["browseId"].string?.takeIf { b -> b.startsWith("UC") } } ?: "",
                 channelName = channel,
                 isMembersOnly = isMembersOnly(l),
+                isLive = live,
                 thumbnailUrl = thumb?.let { if (it.startsWith("//")) "https:$it" else it },
                 durationSeconds = duration,
                 viewCount = viewCount,

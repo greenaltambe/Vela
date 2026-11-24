@@ -239,10 +239,33 @@ const val ADD_CHUNK = 50
 /** An account playlist as the library lists it. [id] "WL" is Watch Later, "LL" Liked videos. */
 data class AccountPlaylist(val id: String, val title: String, val videoCount: Int?)
 
+/** What a Home chip is: the unfiltered feed, one of YouTube's topic/filter chips, a custom feed the user made, or the "create a custom feed" entry. */
+enum class HomeChipKind { ALL, TOPIC, CUSTOM_FEED, CREATE_CUSTOM_FEED }
+
+/**
+ * One chip of the signed-in Home. [token] is the chip's continuation (null for the selected "All" chip, which is the feed itself). The label can reflect
+ * the watch history, so it is personal data: it never goes into logs, reports or fixtures.
+ */
+data class HomeChip(val label: String, val token: String?, val selected: Boolean, val kind: HomeChipKind)
+
+/**
+ * One page of the signed-in Home. [continuation] loads the next page of the same feed (null at its end). [chips] is filled only on the first page of the
+ * unfiltered feed ("All"); a chip's own pages and later pages carry none, so the caller keeps the chips it got first.
+ */
+data class HomePage(val videos: List<com.greenaltambe.vela.extractor.VideoSummary>, val continuation: String?, val chips: List<HomeChip> = emptyList())
+
 /** Reads from the signed-in account (governor-owned BROWSE calls). Each returns null when nobody is signed in or the call failed, so callers fall back to local data. */
 interface AccountReads {
     /** The account's Home feed (FEwhat_to_watch). Empty list is a real answer (a new account has no recommendations). */
     suspend fun recommended(): List<com.greenaltambe.vela.extractor.VideoSummary>?
+
+    /**
+     * A page of the account's Home: the unfiltered feed's first page (no arguments), a chip's first page ([chip] = [HomeChip.token]), or the next page of
+     * either ([continuation] = [HomePage.continuation]; [chip] is then ignored). Null when nobody is signed in or the call failed.
+     * The default has the first page of the unfiltered feed only, which is what [recommended] returns.
+     */
+    suspend fun home(chip: String? = null, continuation: String? = null): HomePage? =
+        if (chip != null || continuation != null) null else recommended()?.let { HomePage(it, null) }
     suspend fun playlists(): List<AccountPlaylist>?
     suspend fun playlistVideos(playlistId: String): List<com.greenaltambe.vela.extractor.VideoSummary>?
     /**

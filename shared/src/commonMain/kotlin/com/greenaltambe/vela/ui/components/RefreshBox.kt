@@ -41,7 +41,7 @@ fun RefreshBox(isRefreshing: Boolean, onRefresh: () -> Unit, modifier: Modifier 
         // Material's expressive pull-to-refresh: the loading indicator morphs as you pull and keeps going while it refreshes.
         PullToRefreshBox(
             isRefreshing = isRefreshing, onRefresh = onRefresh, modifier = modifier, state = state,
-            indicator = { androidx.compose.material3.pulltorefresh.PullToRefreshDefaults.LoadingIndicator(state = state, isRefreshing = isRefreshing, modifier = Modifier.align(Alignment.TopCenter)) },
+            indicator = { androidx.compose.material3.pulltorefresh.PullToRefreshDefaults.LoadingIndicator(state = state, isRefreshing = isRefreshing, modifier = Modifier.align(Alignment.TopCenter).padding(top = com.greenaltambe.vela.ui.nav.LocalTopBarInset.current)) },
             content = content,
         )
         return

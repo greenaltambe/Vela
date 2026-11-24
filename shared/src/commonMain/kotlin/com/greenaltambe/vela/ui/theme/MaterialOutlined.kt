@@ -9,6 +9,16 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.ArrowDownward
 import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material.icons.outlined.Memory
+import androidx.compose.material.icons.outlined.MusicNote
+import androidx.compose.material.icons.outlined.Movie
+import androidx.compose.material.icons.outlined.Newspaper
+import androidx.compose.material.icons.outlined.Podcasts
+import androidx.compose.material.icons.outlined.Restaurant
+import androidx.compose.material.icons.outlined.School
+import androidx.compose.material.icons.outlined.Sensors
+import androidx.compose.material.icons.outlined.SportsEsports
+import androidx.compose.material.icons.outlined.SportsSoccer
 import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.SkipNext
 import androidx.compose.material.icons.outlined.SkipPrevious
@@ -130,6 +140,17 @@ internal object MaterialOutlined {
             "explore" to Icons.Outlined.Explore,
             "skipNext" to Icons.Outlined.SkipNext,
             "skipPrevious" to Icons.Outlined.SkipPrevious,
+            // Explore's topic pills.
+            "topicGaming" to Icons.Outlined.SportsEsports,
+            "topicPodcasts" to Icons.Outlined.Podcasts,
+            "topicMusic" to Icons.Outlined.MusicNote,
+            "topicNews" to Icons.Outlined.Newspaper,
+            "topicSports" to Icons.Outlined.SportsSoccer,
+            "topicMovies" to Icons.Outlined.Movie,
+            "topicLearning" to Icons.Outlined.School,
+            "topicCooking" to Icons.Outlined.Restaurant,
+            "topicTech" to Icons.Outlined.Memory,
+            "topicLive" to Icons.Outlined.Sensors,
         )
     }
 }

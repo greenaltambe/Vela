@@ -29,6 +29,7 @@ class StubExtractor(private val error: ExtractorError? = null) : Extractor {
         respond { CommentsPage(emptyList()) }
 
     override suspend fun trending(continuation: String?) = respond { Page<VideoSummary>(emptyList()) }
+    override suspend fun kiosk(kioskId: String, continuation: String?) = respond { Page<VideoSummary>(emptyList()) }
 
     override suspend fun related(videoId: String) = respond { emptyList<VideoSummary>() }
 

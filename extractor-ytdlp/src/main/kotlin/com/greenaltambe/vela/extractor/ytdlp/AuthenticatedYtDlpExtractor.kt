@@ -90,6 +90,7 @@ class AuthenticatedYtDlpExtractor(
     override suspend fun comments(videoId: String, sort: CommentSort, continuation: String?) = withAccount { it.comments(videoId, sort, continuation) }
     override suspend fun replies(videoId: String, commentId: String, continuation: String?) = withAccount { it.replies(videoId, commentId, continuation) }
     override suspend fun trending(continuation: String?) = withAccount { it.trending(continuation) }
+    override suspend fun kiosk(kioskId: String, continuation: String?) = withAccount { it.kiosk(kioskId, continuation) }
     override suspend fun related(videoId: String) = withAccount { it.related(videoId) }
     override suspend fun channelShorts(channelId: String, continuation: String?) = withAccount { it.channelShorts(channelId, continuation) }
     override suspend fun channelLive(channelId: String, continuation: String?) = withAccount { it.channelLive(channelId, continuation) }

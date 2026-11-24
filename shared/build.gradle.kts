@@ -79,6 +79,8 @@ kotlin {
             implementation(libs.sqldelight.runtime)
             implementation(libs.coil.compose)
             implementation(libs.compose.materialIconsExtended)
+            implementation(libs.haze)
+            implementation(libs.haze.blur)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

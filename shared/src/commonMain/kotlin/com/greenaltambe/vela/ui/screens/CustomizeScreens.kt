@@ -58,6 +58,9 @@ import com.greenaltambe.vela.core.settings.*
 import com.greenaltambe.vela.ui.components.drawProgress
 import com.greenaltambe.vela.ui.look.LocalUndoToasts
 import com.greenaltambe.vela.ui.look.UndoToasts
+import com.greenaltambe.vela.ui.components.icon
+import androidx.compose.ui.semantics.contentDescription
+import com.greenaltambe.vela.ui.nav.NavConfig
 import com.greenaltambe.vela.ui.nav.Navigator
 import com.greenaltambe.vela.ui.nav.Route
 import com.greenaltambe.vela.ui.settings.SettingItem
@@ -71,11 +74,12 @@ import com.greenaltambe.vela.ui.theme.Spacing
 
 /** Which Customize page shows which setting. The hub shows the theme and the rail; the progress bar and Home have their own pages. */
 object CustomizePages {
-    val titles = mapOf("progress" to "Progress bar", "home" to "Home")
+    val titles = mapOf("navigation" to "Navigation bar", "home" to "Home", "progress" to "Progress bar")
 
     fun pageFor(s: Setting<*>): String = when {
         s.key == "look.progressStyle" -> "progress"
         s.key.startsWith("look.home.") -> "home"
+        s.key == "look.nav.showExplore" || s.key == "look.nav.showLabels" || s.key == "look.nav.translucent" || s.key == "look.nav.animateIcons" -> "navigation"
         else -> "hub"
     }
 
@@ -125,6 +129,7 @@ fun CustomizeScreen(services: AppServices, navigator: Navigator, modifier: Modif
 
 private fun customizeSummary(id: String, s: SettingsResolver): String = when (id) {
     "progress" -> LookSettings.progressStyle.choices.first { it.raw == s.rawValue(LookSettings.progressStyle) }.label
+    "navigation" -> NavConfig.of(s).let { n -> "${n.tabs.size} tabs · names ${if (n.showLabels) "shown" else "hidden"}${if (n.translucentBar) " · translucent" else ""}" }
     else -> "${HomeShelves.parse(s.resolve(LookSettings.homeShelves)).size} shelves · ${LookSettings.homeDensity.choices.first { it.raw == s.rawValue(LookSettings.homeDensity) }.label.substringBefore(" (")}"
 }
 
@@ -140,8 +145,55 @@ fun CustomizePageScreen(services: AppServices, navigator: Navigator, page: Strin
         when (page) {
             "progress" -> progressItems(s, toasts)
             "home" -> homeItems(services, revision, toasts)
+            "navigation" -> navigationItems(services, navigator, revision, toasts)
         }
     }
+}
+
+/**
+ * Navigation bar: the tabs in their order (the three that are always there say so; Shorts has its own
+ * setting and opens it; Explore has a switch here), and the names under the icons. Everything changes the real bar at once, with an Undo.
+ */
+private fun LazyListScope.navigationItems(services: AppServices, navigator: Navigator, revision: Int, toasts: UndoToasts) {
+    val s = services.settings
+    val nav = NavConfig.of(s)
+    val rows = NavTabs.default
+    settingsSection("tabs", "Tabs", rows, { it.name }) { tab, shape ->
+        val entry = com.greenaltambe.vela.ui.components.navEntries(listOf(tab)).single()
+        val container = MaterialTheme.colorScheme.surfaceContainer
+        val transparent = ListItemDefaults.colors(containerColor = Color.Transparent)
+        Box(Modifier.fillMaxWidth().clip(shape).background(container).testTag("customize.nav.row.${tab.name}")) {
+            when (tab) {
+                NavTab.EXPLORE -> {
+                    val on = remember(revision) { s.resolve(LookSettings.showExplore) }
+                    ListItem(
+                        headlineContent = { Text(entry.label) },
+                        supportingContent = { Text("Topics and live streams. Off: it stays reachable from the Browse Explore buttons.", maxLines = 3, overflow = TextOverflow.Ellipsis) },
+                        leadingContent = { Icon(entry.icon(on), null) },
+                        trailingContent = { Switch(on, null) }, colors = transparent,
+                        modifier = Modifier.toggleable(value = on, role = Role.Switch, onValueChange = { v -> s.setWithUndo(LookSettings.showExplore, v.toString(), toasts) { r -> if (r == "true") "shown" else "hidden" } }).testTag("customize.nav.explore"),
+                    )
+                }
+                NavTab.SHORTS -> {
+                    val shown = remember(revision) { s.shortsEnabled() }
+                    ListItem(
+                        headlineContent = { Text(entry.label) },
+                        supportingContent = { Text(if (shown) "Shown. Change it in the Shorts settings." else "Hidden. Change it in the Shorts settings.", maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                        leadingContent = { Icon(entry.icon(false), null) },
+                        trailingContent = { Icon(AppIcons.chevronRight, null) }, colors = transparent,
+                        modifier = Modifier.clickable { navigator.push(Route.SettingsPage("shorts")) }.testTag("customize.nav.shorts"),
+                    )
+                }
+                else -> ListItem(
+                    headlineContent = { Text(entry.label) },
+                    supportingContent = { Text("Always shown", maxLines = 1) },
+                    leadingContent = { Icon(entry.icon(false), null) }, colors = transparent,
+                )
+            }
+        }
+    }
+    settingsSection("look", "Look", listOf(LookSettings.translucentNavBar, LookSettings.animateNavIcons), { it.key }) { st, shape -> SettingItem(s, st, revision, shape) }
+    settingsSection("names", "Names", listOf(LookSettings.showNavLabels), { it.key }) { st, shape -> SettingItem(s, st, revision, shape) }
 }
 
 /** The seek-bar styles as a radio list: the chosen one animates its preview (40 % played, drawn by the scrubber's own code), the others are still. */

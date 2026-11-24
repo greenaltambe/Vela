@@ -111,6 +111,10 @@ android {
         releaseKey?.let { k -> create("release") { storeFile = k.file; storePassword = k.storePassword; keyAlias = k.keyAlias; keyPassword = k.keyPassword } }
     }
     buildTypes {
+        // Its own application id, so a debug build installs next to the release app instead of replacing it (and keeps its own data and sign-in).
+        debug {
+            applicationIdSuffix = ".debug"
+        }
         release {
             // R8 stays off on purpose: NewPipeExtractor (reflection-heavy parsing), the embedded Python/yt-dlp and the JNI libraries
             // would need keep rules that are easy to get wrong and hard to test without a device; the APK size cost is accepted for the beta.
@@ -128,6 +132,7 @@ android {
         create("measure") {
             initWith(getByName("release"))
             signingConfig = signingConfigs.getByName("debug")
+            applicationIdSuffix = ".debug"   // the debug app's id, which is what it replaces
             matchingFallbacks += listOf("release")
             isDebuggable = false
         }

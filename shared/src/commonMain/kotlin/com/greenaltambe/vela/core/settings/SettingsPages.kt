@@ -28,7 +28,7 @@ object SettingsPages {
         SettingsPage("customize", "Customize Vela", SettingsGroup.MAKE_IT_YOURS, 0, SettingsLink.CUSTOMIZE) { LookKeys.isLookKey(it.key) },
         SettingsPage("playback", "Playback & quality", SettingsGroup.WATCHING, 1) { (it.key.startsWith("playback.") && it.key !in safetyKeys) || it.key == "device.miniPlayerStyle" },
         SettingsPage("extras", "SponsorBlock & extras", SettingsGroup.WATCHING, 2, owns = prefix("sponsorblock.", "ryd.", "dearrow.", "modules.")),
-        SettingsPage("home", "Home", SettingsGroup.YOUR_FEED, 3, owns = keys("home.source", "content.region")),
+        SettingsPage("home", "Home", SettingsGroup.YOUR_FEED, 3, owns = keys("home.youtubeChips", "content.region")),
         SettingsPage("feed", "Subscriptions & feed filters", SettingsGroup.YOUR_FEED, 4, owns = prefix("feed.hide", "feed.watched", "feed.min", "feed.block", "feed.allow", "feed.keywords")),
         SettingsPage("playlists", "Playlists & YouTube", SettingsGroup.YOUR_FEED, 18, owns = prefix("library.")),
         SettingsPage("blocklist", "Blocked channels & words", SettingsGroup.YOUR_FEED, 16, SettingsLink.BLOCKLIST),
@@ -109,7 +109,7 @@ object SettingsSummaries {
         "customize" -> "${s.label(LookSettings.theme)} · ${s.label(LookSettings.progressStyle)} progress bar"
         "playback" -> "${s.label(Settings.maxQualityUnmetered)} on Wi-Fi · ${num(s.v(Settings.defaultPlaybackSpeed))}x${if (s.v(Settings.audioOnly)) " · audio only" else ""}"
         "extras" -> "SponsorBlock ${onOff(s.v(Settings.sponsorBlockEnabled))} · RYD ${onOff(s.v(Settings.returnYouTubeDislikeEnabled))} · DeArrow ${onOff(s.v(Settings.deArrowEnabled))}"
-        "home" -> "${s.label(Settings.homeSource)} · ${s.label(Settings.contentRegion)}"
+        "home" -> "YouTube chips ${onOff(s.v(Settings.homeYoutubeChips))} · ${s.label(Settings.contentRegion)}"
         "feed" -> buildList {
             add(if (s.v(Settings.hideWatched)) "hide watched" else "show watched")
             if (s.v(Settings.hideMembersOnly)) add("hide members-only")

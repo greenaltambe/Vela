@@ -5,6 +5,23 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [0.6.1-beta.5]
+
+### Added
+- Explore is a tab (Home, Shorts, Subs, Explore, Library). Its pills have icons: Gaming, Podcasts, Music, News, Sports, Movies, Learning, Cooking, Tech and Live (last). Gaming, Podcasts and Live show YouTube's own lists; the rest are searches.
+- Home shows YouTube's own chips for your feed (All, your custom feeds, topics, Live, Recently uploaded, Watched, New to you, ...), each with its own endless list. A Filter button (Unwatched, Under 10 min) narrows whichever list is open. Settings > Home can turn YouTube's chips off.
+- Customize > Navigation bar: a switch for Explore in the bar, a link to the Shorts setting, names under the icons on or off, animated tab icons (the tapped icon pops and settles), and "Translucent bars": the page scrolls under the top bar, Home's chips, the mini player and the bottom bar, blurred (Android 12+ and desktop; older Android gets a tint).
+- Signed out, Home shows the shelves that work without an account and a sign-in card.
+
+### Changed
+- Signed in, Home is your account's feed only and scrolls without end; Trending is no longer added to it. The "Home shows" setting is gone.
+- Ctrl+1..9 follow the visible tabs, so with Explore on Ctrl+4 is Explore and Ctrl+5 Library (turn Explore off to get the old numbers).
+- Vela now includes the Haze library (Apache-2.0) for the blur, and Compose Multiplatform is 1.12.2.
+
+### Fixed
+- Videos from your subscriptions (Home's "New from your subscriptions" and the Subs page) show their length.
+- "Trending" only ever showed live streams, because YouTube no longer has a Trending page; that list is gone and Live now shows real live streams with their LIVE badge.
+
 ## [0.6.1-beta.4]
 
 ### Added
@@ -219,7 +236,8 @@ First public beta. Android is the primary platform, Linux is supported, Windows 
 ### Packaging
 - Android APK (arm64-v8a), Linux .deb, .rpm and portable tarball, Windows .msi and portable zip (experimental).
 
-[Unreleased]: https://github.com/greenaltambe/Vela/compare/v0.6.1-beta.3...HEAD
+[Unreleased]: https://github.com/greenaltambe/Vela/compare/v0.6.1-beta.5...HEAD
+[0.6.1-beta.5]: https://github.com/greenaltambe/Vela/compare/v0.6.1-beta.4...v0.6.1-beta.5
 [0.6.1-beta.4]: https://github.com/greenaltambe/Vela/compare/v0.6.1-beta.3...v0.6.1-beta.4
 [0.6.1-beta.3]: https://github.com/greenaltambe/Vela/compare/v0.6.1-beta.2...v0.6.1-beta.3
 [0.6.1-beta.2]: https://github.com/greenaltambe/Vela/compare/v0.6.0-beta.2...v0.6.1-beta.2

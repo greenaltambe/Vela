@@ -103,6 +103,7 @@ object FakeData {
 
 class FakeExtractor : Extractor by StubExtractor() {
     override suspend fun trending(continuation: String?) = ExtractorResult.Success(Page(FakeData.videos, "next"))
+    override suspend fun kiosk(kioskId: String, continuation: String?) = ExtractorResult.Success(Page(FakeData.videos, null))
     override suspend fun search(query: String, continuation: String?) = ExtractorResult.Success(Page(FakeData.videos.shuffled(java.util.Random(query.hashCode().toLong())), "next"))
     override suspend fun suggestions(query: String) = ExtractorResult.Success(listOf("$query music", "$query live"))
     override suspend fun related(videoId: String) = ExtractorResult.Success(FakeData.videos.take(6))

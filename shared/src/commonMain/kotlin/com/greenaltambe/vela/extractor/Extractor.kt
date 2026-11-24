@@ -43,7 +43,17 @@ interface Extractor {
     // chain treats as a failure and moves on from.
 
     /** What YouTube currently trends, for Home. */
+    /**
+     * The source's default kiosk. NOTE: YouTube removed its Trending page, and NewPipe's default kiosk is now "live", so this lists live streams
+     * (measured 2026-11-24); use [kiosk] with an explicit id for anything else.
+     */
     suspend fun trending(continuation: String? = null): ExtractorResult<Page<VideoSummary>> = notSupported()
+
+    /**
+     * One of the source's named lists. Ids that worked when measured: "live" (live streams, paged), "trending_gaming" (about 50, one page),
+     * "trending_podcasts_episodes" (about 100, one page). "trending_music" and "trending_movies_and_shows" answered HTTP 403.
+     */
+    suspend fun kiosk(kioskId: String, continuation: String? = null): ExtractorResult<Page<VideoSummary>> = notSupported()
 
     /** Videos YouTube suggests next to [videoId]. */
     suspend fun related(videoId: String): ExtractorResult<List<VideoSummary>> = notSupported()

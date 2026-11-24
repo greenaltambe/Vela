@@ -21,10 +21,11 @@ class ShortcutsUiTest {
     @Test fun ctrlNumberKeysOpenTheNthNavigationItemAndCtrlHOpensHistory() = runDesktopComposeUiTest(1280, 800) {
         val f = buildFixture(withDownloads = false)
         setContent { AppUnderTest(f) }; waitForIdle()
-        // default order: Home, Shorts, Subscriptions, Library
+        // default order: Home, Shorts, Subscriptions, Explore, Library
         press(Key.Two, ctrl = true); assertEquals(Route.Shorts, f.navigator.current)
         press(Key.Three, ctrl = true); assertEquals(Route.Subscriptions, f.navigator.current)
-        press(Key.Four, ctrl = true); assertEquals(Route.Library, f.navigator.current)
+        press(Key.Four, ctrl = true); assertEquals(Route.Explore, f.navigator.current)
+        press(Key.Five, ctrl = true); assertEquals(Route.Library, f.navigator.current)
         press(Key.One, ctrl = true); assertEquals(Route.Home, f.navigator.current)
         press(Key.Nine, ctrl = true); assertEquals(Route.Home, f.navigator.current, "no ninth item: nothing happens")
         press(Key.H, ctrl = true); assertEquals(Route.History, f.navigator.current)
@@ -34,8 +35,20 @@ class ShortcutsUiTest {
         val f = buildFixture(withDownloads = false)
         f.services.settings.set(Settings.shortsMode, ShortsMode.HIDE)
         setContent { AppUnderTest(f) }; waitForIdle()
+        // Home, Subscriptions, Explore, Library
         press(Key.Two, ctrl = true); assertEquals(Route.Subscriptions, f.navigator.current)
-        press(Key.Three, ctrl = true); assertEquals(Route.Library, f.navigator.current)
+        press(Key.Three, ctrl = true); assertEquals(Route.Explore, f.navigator.current)
+        press(Key.Four, ctrl = true); assertEquals(Route.Library, f.navigator.current)
+    }
+
+    @Test fun hidingExploreRenumbersTheKeysAndTheNumberAfterTheLastDoesNothing() = runDesktopComposeUiTest(1280, 800) {
+        val f = buildFixture(withDownloads = false)
+        f.services.settings.set(com.greenaltambe.vela.core.settings.LookSettings.showExplore, false)
+        setContent { AppUnderTest(f) }; waitForIdle()
+        // Home, Shorts, Subscriptions, Library
+        press(Key.Four, ctrl = true); assertEquals(Route.Library, f.navigator.current)
+        press(Key.Five, ctrl = true); assertEquals(Route.Library, f.navigator.current, "there is no fifth item any more: nothing happens")
+        press(Key.Three, ctrl = true); assertEquals(Route.Subscriptions, f.navigator.current)
     }
 
     @Test fun ctrlMMinimisesTheVideoAndBringsItBack() = runDesktopComposeUiTest(1280, 800) {

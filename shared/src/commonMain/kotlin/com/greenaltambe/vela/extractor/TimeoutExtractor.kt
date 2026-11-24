@@ -27,6 +27,7 @@ class TimeoutExtractor(private val inner: Extractor, private val timeout: Durati
     override suspend fun comments(videoId: String, sort: CommentSort, continuation: String?) = bounded("Loading comments") { inner.comments(videoId, sort, continuation) }
     override suspend fun replies(videoId: String, commentId: String, continuation: String?) = bounded("Loading replies") { inner.replies(videoId, commentId, continuation) }
     override suspend fun trending(continuation: String?) = bounded("Loading trending") { inner.trending(continuation) }
+    override suspend fun kiosk(kioskId: String, continuation: String?) = bounded("Loading the list") { inner.kiosk(kioskId, continuation) }
     override suspend fun related(videoId: String) = bounded("Loading related videos") { inner.related(videoId) }
     override suspend fun channelShorts(channelId: String, continuation: String?) = bounded("Loading shorts") { inner.channelShorts(channelId, continuation) }
     override suspend fun searchChannels(query: String, continuation: String?) = bounded("Search") { inner.searchChannels(query, continuation) }

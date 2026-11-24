@@ -31,6 +31,7 @@ class ScreenStatesTest {
         }
         private suspend fun <T> go(real: suspend () -> ExtractorResult<T>): ExtractorResult<T> { if (mode == Mode.HANG) awaitCancellation(); return fail<T>() ?: real() }
         override suspend fun trending(continuation: String?) = go { ok.trending(continuation) }
+        override suspend fun kiosk(kioskId: String, continuation: String?) = go { ok.kiosk(kioskId, continuation) }
         override suspend fun search(query: String, continuation: String?) = go { ok.search(query, continuation) }
         override suspend fun channel(channelId: String) = go { ok.channel(channelId) }
         override suspend fun channelLanding(channelId: String) = go { ok.channelLanding(channelId) }
@@ -43,7 +44,8 @@ class ScreenStatesTest {
     }
 
     private val screens: List<Pair<String, (Fixture) -> Unit>> = listOf(
-        "home" to { f -> f.navigator.selectTab(Route.Home) },
+        // (Signed-out Home does no network work any more: it has no feed. Explore is the network screen of the tab bar.)
+        "explore" to { f -> f.navigator.selectTab(Route.Explore) },
         "search" to { f -> f.navigator.push(Route.Search("lofi")) },
         "channel" to { f -> f.navigator.push(Route.Channel("UC1", "A channel")) },
         "subscriptions feed" to { f -> f.navigator.selectTab(Route.Subscriptions) },

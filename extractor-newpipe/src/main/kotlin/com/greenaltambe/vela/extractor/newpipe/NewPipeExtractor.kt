@@ -251,6 +251,14 @@ class NewPipeExtractor(downloader: () -> Downloader = { OkHttpDownloader() }, pr
             result.items.toVideoSummaries() to result.nextPage
         }.map { (items, next) -> Page(items, next.toTokenOrNull()) }
 
+    override suspend fun kiosk(kioskId: String, continuation: String?): ExtractorResult<Page<VideoSummary>> =
+        withPage(continuation) { page ->
+            val extractor = youtube.kioskList.getExtractorById(kioskId, null)
+            val result: ListExtractor.InfoItemsPage<out InfoItem> =
+                if (page == null) extractor.also { it.fetchPage() }.initialPage else extractor.getPage(page)
+            result.items.toVideoSummaries() to result.nextPage
+        }.map { (items, next) -> Page(items, next.toTokenOrNull()) }
+
     override suspend fun related(videoId: String): ExtractorResult<List<VideoSummary>> = guarded {
         StreamInfo.getInfo(youtube, videoUrl(videoId)).relatedItems.orEmpty().toVideoSummaries()
     }

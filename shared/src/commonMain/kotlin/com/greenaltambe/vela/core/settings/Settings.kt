@@ -41,7 +41,6 @@ enum class CaptionBackground(val label: String) { OUTLINE("Outline"), SHADE("Sha
 enum class MiniPlayerStyle { AUTOMATIC, BAR, FLOATING }
 
 /** What Home shows. RECOMMENDED only applies while a Google account is signed in; signed out (or when the account's feed fails) it is Trending. */
-enum class HomeSource { RECOMMENDED, TRENDING }
 
 /** The saved appearance to use; both follow nothing but their own palette except [DEFAULT], which follows system light/dark. */
 
@@ -589,12 +588,11 @@ object Settings {
         info = "Shows how long frames take, so slow screens can be measured on the phone and on Linux.",
     )
 
-    val homeSource = Setting(
-        key = "home.source", default = HomeSource.RECOMMENDED, scope = SettingScope.GLOBAL,
-        label = "Home shows (Recommended needs a signed-in account; otherwise Trending)",
-        keywords = listOf("home", "recommended", "trending", "feed"),
-        codec = SettingCodecs.enum(HomeSource.entries), section = SettingSection.FEED,
-        choices = listOf(SettingChoice(HomeSource.RECOMMENDED.name, "Recommended"), SettingChoice(HomeSource.TRENDING.name, "Trending")),
+    val homeYoutubeChips = Setting(
+        key = "home.youtubeChips", default = true, scope = SettingScope.GLOBAL, label = "YouTube's chips on Home",
+        keywords = listOf("home", "chips", "custom feed", "topics", "youtube", "live", "feed"),
+        codec = SettingCodecs.boolean, section = SettingSection.FEED,
+        info = "When signed in, the row above Home shows YouTube's own chips for your feed (All, your custom feeds, topics, Live, ...). Off: Home is just your feed.",
     )
 
     /** Countries YouTube serves its own trending / recommendations for (ISO 3166-1 alpha-2). */
@@ -711,7 +709,7 @@ object Settings {
 
     val all: List<Setting<*>> = listOf(
         historyAccountSync, libraryAccountSync, libraryNewPlaylistSync, accountReportActivity, hideWatched, hideMembersOnly, watchedThresholdPercent, minLengthSeconds, blockKeywords, allowKeywords, keywordsAreRegex,
-        debugFrameStats, homeSource, contentRegion, allowAgeRestricted, allowControversial, slowStreamFailover, notifyBackground, notifySystem, notifyDownloads, accountFallbackMode, accountProfilesExperimental, accountUseForChannels, accountUseForDetails, accountDownloadsMayUse, accountKillSwitch, accountTierOrder, remoteConfigUrl, ytDlpAutoUpdate,
+        debugFrameStats, homeYoutubeChips, contentRegion, allowAgeRestricted, allowControversial, slowStreamFailover, notifyBackground, notifySystem, notifyDownloads, accountFallbackMode, accountProfilesExperimental, accountUseForChannels, accountUseForDetails, accountDownloadsMayUse, accountKillSwitch, accountTierOrder, remoteConfigUrl, ytDlpAutoUpdate,
         accountPlaybackPerHour, accountBrowsePerMinute, accountWritesPerHour, shortsMode, defaultPlaybackSpeed, autoplayNext, seekStepSeconds, holdSpeed, maxQualityUnmetered, maxQualityMetered, preferredCodec, breakReminder, miniPlayerStyle, shortsDailyLimit, volumeBoost, captionSize, captionBackground, captionCreatorStyle, audioOnly, ytDlpPath,
         sponsorBlockEnabled, returnYouTubeDislikeEnabled, deArrowEnabled,
         sponsorBlockMinSegmentSeconds, sponsorBlockNotifications, showContribute, sponsorBlockServer, sponsorBlockUserId, rydInFeed, rydServer,

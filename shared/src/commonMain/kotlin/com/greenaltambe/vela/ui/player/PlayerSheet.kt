@@ -88,6 +88,8 @@ fun PlayerSheet(
     modifier: Modifier = Modifier,
     /** Where the bar has set aside room for the card; the card sits there, so it follows the bar (shrinking, placement, gap). */
     miniSlot: com.greenaltambe.vela.ui.nav.MiniSlot? = null,
+    /** Translucent bars on a phone: the collapsed mini player draws no background; the shell frosts the strip it sits in together with the bottom bar. */
+    frostedBelow: Boolean = false,
 ) {
     val video = sheetState.currentVideo ?: return
     val host = com.greenaltambe.vela.ui.nav.LocalTabPlayer.current?.host ?: services.player ?: return
@@ -173,6 +175,8 @@ fun PlayerSheet(
     val progressNow = { sheetState.progress.coerceIn(0f, 1f) }
     val backgroundExpanded = MaterialTheme.colorScheme.background
     val backgroundCollapsed = MaterialTheme.colorScheme.surfaceContainer
+    // The floating window is a picture, not a bar: only the docked mini player sits on the frosted strip.
+    val translucentMini = frostedBelow && !floating
     // Coarse flag: composition only changes when it flips, not on every frame in between.
     val showCardControls by remember(sheetState) { derivedStateOf { sheetState.progress < 0.6f } }
 
@@ -345,7 +349,7 @@ fun PlayerSheet(
                         shadowElevation = Spacing.sm.toPx() * q
                     }
                 }
-                .drawBehind { drawRect(if (progressNow() > 0.4f) backgroundExpanded else backgroundCollapsed) }
+                .drawBehind { if (progressNow() > 0.4f) drawRect(backgroundExpanded) else if (!translucentMini) drawRect(backgroundCollapsed) }
                 .then(gestureModifier)
                 // Collapsed, the sheet is the mini player: named as such for the tests and for accessibility tooling.
                 .then(if (sheetState.isCollapsed) Modifier.testTag(com.greenaltambe.vela.ui.look.ComponentIds.MINI_PLAYER) else Modifier)

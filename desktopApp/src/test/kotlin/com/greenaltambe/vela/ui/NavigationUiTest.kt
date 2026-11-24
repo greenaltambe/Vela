@@ -15,15 +15,15 @@ class NavigationUiTest {
     @Test fun labelsAreAlwaysVisible() = runDesktopComposeUiTest(400, 800) {
         val f = buildFixture(withDownloads = false)
         setContent { AppUnderTest(f) }; waitForIdle()
-        assertEquals(4, labelCount())
+        assertEquals(5, labelCount())
         repeat(3) { onNodeWithTag("home.list").performTouchInput { swipeUp(durationMillis = 150) } }; waitForIdle()
-        assertEquals(4, labelCount(), "scrolling does not hide labels")
+        assertEquals(5, labelCount(), "scrolling does not hide labels")
     }
 
     @Test fun theBottomBarHasTheFixedTabsAndNoSettings() = runDesktopComposeUiTest(400, 800) {
         val f = buildFixture(withDownloads = false)
         setContent { AppUnderTest(f) }; waitForIdle()
-        for (t in listOf("HOME", "SHORTS", "SUBSCRIPTIONS", "LIBRARY")) onNodeWithTag("nav.tab.$t").assertExists()
+        for (t in listOf("HOME", "SHORTS", "SUBSCRIPTIONS", "EXPLORE", "LIBRARY")) onNodeWithTag("nav.tab.$t").assertExists()
         onNodeWithTag("nav.tab.SETTINGS").assertDoesNotExist()
         onNodeWithTag("nav.tab.SUBSCRIPTIONS").performClick(); waitForIdle()
         assertEquals(Route.Subscriptions, f.navigator.current)

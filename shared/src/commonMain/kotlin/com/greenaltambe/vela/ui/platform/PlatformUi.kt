@@ -58,6 +58,9 @@ val LocalBlankPointer = staticCompositionLocalOf<androidx.compose.ui.input.point
 /** True where the app has its own volume control (desktop); Android leaves volume to the system buttons and shows only mute. */
 val LocalVolumeSlider = staticCompositionLocalOf { false }
 
+/** Whether a blur of what is behind a bar can be drawn: Android 12 and newer, and desktop. Older Android gets a more opaque bar instead. */
+expect fun backdropBlurSupported(): Boolean
+
 /** True while the app is shown in a Picture-in-Picture window, where only the video should be drawn. */
 val LocalInPictureInPicture = staticCompositionLocalOf { false }
 

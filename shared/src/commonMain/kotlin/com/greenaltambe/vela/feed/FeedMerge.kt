@@ -16,7 +16,10 @@ fun mergeFeed(cached: List<FeedEntry>, refreshed: List<FeedEntry>, limit: Int = 
     cached.forEach { byId[it.video.id] = it }
     refreshed.forEach { fresh ->
         val old = byId[fresh.video.id]
-        byId[fresh.video.id] = if (old != null && fresh.publishedAt == null) fresh.copy(publishedAt = old.publishedAt) else fresh
+        // The RSS source knows no duration: keep one a cached copy already learned.
+        var next = if (old != null && fresh.publishedAt == null) fresh.copy(publishedAt = old.publishedAt) else fresh
+        if (old != null && next.video.durationSeconds == null && old.video.durationSeconds != null) next = next.copy(video = next.video.copy(durationSeconds = old.video.durationSeconds))
+        byId[fresh.video.id] = next
     }
     return byId.values
         .sortedWith(compareByDescending<FeedEntry> { it.publishedAt != null }.thenByDescending { it.publishedAt }.thenByDescending { it.fetchedAt })

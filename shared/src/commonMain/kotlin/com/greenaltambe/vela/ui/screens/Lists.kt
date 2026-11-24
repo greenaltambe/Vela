@@ -118,7 +118,15 @@ fun VideoCollection(
     val subscribedAvatars = sharedAvatars ?: rememberAsync(keepWhileLoading = true, first = { emptyMap<String, String?>() }, compute = { services.subscriptions.all().filter { it.avatarUrl != null }.associate { it.channelId to it.avatarUrl } })
     val videos = remember(videos, subscribedAvatars) { if (subscribedAvatars.isEmpty()) videos else videos.map { v -> if (v.channelAvatarUrl == null) subscribedAvatars[v.channelId]?.let { v.copy(channelAvatarUrl = it) } ?: v else v } }
     val extras = sharedExtras ?: rememberCardExtras(services, videos)
-    val padding = Spacing.contentPadding
+    // Under see-through bars the list runs beneath them: its start and end get the bars' heights, so the first and the last card can be scrolled clear of them.
+    val barInset = com.greenaltambe.vela.ui.nav.LocalBarInset.current
+    val topInset = com.greenaltambe.vela.ui.nav.LocalTopBarInset.current
+    val basePadding = Spacing.contentPadding
+    val direction = androidx.compose.ui.platform.LocalLayoutDirection.current
+    val padding = if (barInset > 0.dp || topInset > 0.dp) androidx.compose.foundation.layout.PaddingValues(
+        start = basePadding.calculateLeftPadding(direction), end = basePadding.calculateRightPadding(direction),
+        top = basePadding.calculateTopPadding() + topInset, bottom = basePadding.calculateBottomPadding() + barInset,
+    ) else basePadding
     // Remembered so the per-card click lambdas below keep their identity and an unchanged card can be skipped.
     val open = remember(navigator) { { v: VideoSummary -> navigator.push(Route.Video(v)) } }
     // Some listings (shorts, certain search results) carry no channel id; ask the video itself before opening, never open a channel with a blank id.

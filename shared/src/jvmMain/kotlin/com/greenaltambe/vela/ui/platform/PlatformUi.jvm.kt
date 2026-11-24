@@ -72,3 +72,5 @@ private fun <T> onAwtThread(block: () -> T): T {
     java.awt.EventQueue.invokeAndWait { result = runCatching(block) }
     return result!!.getOrThrow()
 }
+
+actual fun backdropBlurSupported(): Boolean = true

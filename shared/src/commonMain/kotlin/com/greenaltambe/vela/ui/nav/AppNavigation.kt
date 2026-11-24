@@ -37,14 +37,29 @@ import com.greenaltambe.vela.ui.theme.Spacing
 /** The bottom bar on a narrow window: Material's navigation bar, the selected tab's icon filled. The system's bottom inset is its own. */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun AppNavigationBar(entries: List<NavEntry>, selected: NavTab?, onSelect: (NavTab) -> Unit, modifier: Modifier = Modifier) {
-    ShortNavigationBar(modifier.testTag(ComponentIds.BOTTOM_NAV)) {
+fun AppNavigationBar(
+    entries: List<NavEntry>, selected: NavTab?, onSelect: (NavTab) -> Unit, modifier: Modifier = Modifier, showLabels: Boolean = true,
+    /** See-through: the bar paints no background of its own; its parent frosts the area behind it (the mini player and the bar are one surface). */
+    translucent: Boolean = false, animateIcons: Boolean = true,
+) {
+    val cs = androidx.compose.material3.MaterialTheme.colorScheme
+    val container = if (translucent) androidx.compose.ui.graphics.Color.Transparent else androidx.compose.material3.ShortNavigationBarDefaults.containerColor
+    // Over a moving picture the quiet colours of a solid bar are hard to read, and a selection pill in a theme's accent can vanish (Classic's accent is near black), so
+    // there is no pill here: the chosen tab is told by its filled icon and bold name at full strength, the others are the same colour a little dimmer.
+    val dim = cs.onSurface.copy(alpha = 0.74f)
+    val itemColors = if (translucent) androidx.compose.material3.ShortNavigationBarItemDefaults.colors(
+        selectedIconColor = cs.onSurface, selectedTextColor = cs.onSurface, selectedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+        unselectedIconColor = dim, unselectedTextColor = dim,
+    ) else androidx.compose.material3.ShortNavigationBarItemDefaults.colors()
+    ShortNavigationBar(modifier.testTag(ComponentIds.BOTTOM_NAV), containerColor = container) {
         entries.forEach { e ->
             val isSelected = e.tab == selected
             ShortNavigationBarItem(
                 selected = isSelected, onClick = { onSelect(e.tab) },
-                icon = { Icon(e.icon(isSelected), null) },
-                label = { Text(e.label, maxLines = 1, overflow = TextOverflow.Clip, modifier = Modifier.testTag("nav.label")) },
+                // Without names the icon carries the tab's name for screen readers.
+                icon = { AnimatedNavIcon(isSelected, animateIcons, if (showLabels) null else e.label) { on -> e.icon(on) } },
+                label = if (showLabels) ({ Text(e.label, maxLines = 1, overflow = TextOverflow.Clip, fontWeight = if (translucent && isSelected) androidx.compose.ui.text.font.FontWeight.Bold else null, modifier = Modifier.testTag("nav.label")) }) else null,
+                colors = itemColors,
                 modifier = Modifier.testTag("nav.tab.${e.tab.name}"),
             )
         }
@@ -57,7 +72,7 @@ fun AppNavigationBar(entries: List<NavEntry>, selected: NavTab?, onSelect: (NavT
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun AppNavigationRail(entries: List<NavEntry>, selected: NavTab?, collapsed: Boolean, onToggleCollapsed: () -> Unit, onSelect: (NavTab) -> Unit, modifier: Modifier = Modifier) {
+fun AppNavigationRail(entries: List<NavEntry>, selected: NavTab?, collapsed: Boolean, onToggleCollapsed: () -> Unit, onSelect: (NavTab) -> Unit, modifier: Modifier = Modifier, showLabels: Boolean = true, animateIcons: Boolean = true) {
     val state = rememberWideNavigationRailState(if (collapsed) WideNavigationRailValue.Collapsed else WideNavigationRailValue.Expanded)
     LaunchedEffect(collapsed) { if (collapsed) state.collapse() else state.expand() }
     val expanded = !collapsed
@@ -69,8 +84,9 @@ fun AppNavigationRail(entries: List<NavEntry>, selected: NavTab?, collapsed: Boo
             val isSelected = e.tab == selected
             WideNavigationRailItem(
                 selected = isSelected, onClick = { onSelect(e.tab) },
-                icon = { Icon(e.icon(isSelected), null) },
-                label = { Text(e.label, maxLines = 1, overflow = TextOverflow.Clip, modifier = Modifier.testTag("nav.label")) },
+                icon = { AnimatedNavIcon(isSelected, animateIcons, if (showLabels || expanded) null else e.label) { on -> e.icon(on) } },
+                // The expanded rail is the "with names" form: it keeps its names, as the desktop side bar does.
+                label = if (showLabels || expanded) ({ Text(e.label, maxLines = 1, overflow = TextOverflow.Clip, modifier = Modifier.testTag("nav.label")) }) else null,
                 railExpanded = expanded,
                 modifier = Modifier.testTag("rail.tab.${e.tab.name}"),
             )
@@ -92,7 +108,7 @@ fun MiniPlayerSlotSpacer(slot: MiniSlot, modifier: Modifier = Modifier, floating
  * name under each icon. The menu button that folds it is in the top bar. Evenly spaced, starting right under the top bar.
  */
 @Composable
-fun DesktopSideBar(entries: List<NavEntry>, selected: NavTab?, collapsed: Boolean, onSelect: (NavTab) -> Unit, modifier: Modifier = Modifier) {
+fun DesktopSideBar(entries: List<NavEntry>, selected: NavTab?, collapsed: Boolean, onSelect: (NavTab) -> Unit, modifier: Modifier = Modifier, showLabels: Boolean = true, animateIcons: Boolean = true) {
     val cs = androidx.compose.material3.MaterialTheme.colorScheme
     androidx.compose.foundation.layout.Column(
         modifier.testTag(ComponentIds.SIDE_RAIL).fillMaxHeight().width(if (collapsed) 76.dp else 232.dp).padding(horizontal = Spacing.sm, vertical = Spacing.xs),
@@ -105,10 +121,10 @@ fun DesktopSideBar(entries: List<NavEntry>, selected: NavTab?, collapsed: Boolea
             val base = Modifier.fillMaxWidth().clip(shape).background(if (isSelected) cs.secondaryContainer else androidx.compose.ui.graphics.Color.Transparent)
                 .selectable(isSelected, role = androidx.compose.ui.semantics.Role.Tab, onClick = { onSelect(e.tab) }).testTag("rail.tab.${e.tab.name}")
             if (collapsed) androidx.compose.foundation.layout.Column(base.padding(vertical = 10.dp), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally, verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp)) {
-                Icon(e.icon(isSelected), null, tint = tint)
-                Text(e.label, style = androidx.compose.material3.MaterialTheme.typography.labelSmall, color = tint, maxLines = 1, overflow = TextOverflow.Clip, modifier = Modifier.testTag("nav.label"))
+                AnimatedNavIcon(isSelected, animateIcons, if (showLabels) null else e.label, tint) { on -> e.icon(on) }
+                if (showLabels) Text(e.label, style = androidx.compose.material3.MaterialTheme.typography.labelSmall, color = tint, maxLines = 1, overflow = TextOverflow.Clip, modifier = Modifier.testTag("nav.label"))
             } else androidx.compose.foundation.layout.Row(base.height(44.dp).padding(horizontal = 12.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(20.dp)) {
-                Icon(e.icon(isSelected), null, tint = tint)
+                AnimatedNavIcon(isSelected, animateIcons, null, tint) { on -> e.icon(on) }
                 Text(e.label, style = androidx.compose.material3.MaterialTheme.typography.bodyLarge, color = tint, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("nav.label"))
             }
         }
