@@ -16,6 +16,8 @@ data class ExtraColorTokens(
     val onMedia: Color = Color(0xFFFFFFFF),
     val mediaScrim: Color = Color(0x99000000),
     val mediaBackground: Color = Color(0xFF000000),
+    /** The white-hot middle of the Lightning seek bar: its bolt, sparks and head burn from the accent colour towards this. */
+    val lightningCore: Color = Color(0xFFFFFFFF),
 ) {
     companion object {
         val Default = ExtraColorTokens(
@@ -45,6 +47,7 @@ fun mediaAccentFor(scheme: androidx.compose.material3.ColorScheme, fixed: Color?
 object ExtraColors {
     val markers: Map<String, Color> @Composable @ReadOnlyComposable get() = LocalExtraColors.current.markers
     val onMedia: Color @Composable @ReadOnlyComposable get() = LocalExtraColors.current.onMedia
+    val lightningCore: Color @Composable @ReadOnlyComposable get() = LocalExtraColors.current.lightningCore
     val mediaScrim: Color @Composable @ReadOnlyComposable get() = LocalExtraColors.current.mediaScrim
     val mediaBackground: Color @Composable @ReadOnlyComposable get() = LocalExtraColors.current.mediaBackground
     val activeOnMedia: Color @Composable @ReadOnlyComposable get() = mediaAccentFor(MaterialTheme.colorScheme, LocalMediaAccent.current)

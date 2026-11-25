@@ -11,9 +11,12 @@ import androidx.compose.ui.graphics.SolidColor
 /** A colour the played part of the seek bar (and the watched bar on a card) takes instead of the primary, for a scheme whose primary is neutral (Classic: red). Null: the primary. */
 val LocalSeekColor = androidx.compose.runtime.staticCompositionLocalOf<Color?> { null }
 
+/** The played-progress colour of a scheme that needs one of its own ([Palettes.progress]); unlike [LocalSeekColor] the logo and badges do not take it. */
+val LocalProgressColor = androidx.compose.runtime.staticCompositionLocalOf<Color?> { null }
+
 object Accent {
     /** The colour of played / watched progress. */
-    val seek: Color @Composable @ReadOnlyComposable get() = LocalSeekColor.current ?: MaterialTheme.colorScheme.primary
+    val seek: Color @Composable @ReadOnlyComposable get() = LocalSeekColor.current ?: LocalProgressColor.current ?: MaterialTheme.colorScheme.primary
     val seekBrush: Brush @Composable @ReadOnlyComposable get() = SolidColor(seek)
     val seekColors: List<Color> @Composable @ReadOnlyComposable get() = seek.let { listOf(it, it) }
 

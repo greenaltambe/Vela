@@ -4,6 +4,7 @@ package com.greenaltambe.vela.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.size
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -14,7 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import com.greenaltambe.vela.core.settings.ColorPalette
-import com.greenaltambe.vela.core.settings.ThemeMode
+import com.greenaltambe.vela.ui.theme.asAmoled
 import com.greenaltambe.vela.ui.theme.Palettes
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
@@ -215,11 +216,15 @@ private fun LazyListScope.progressItems(s: SettingsResolver, toasts: UndoToasts)
 
 @Composable
 private fun ProgressPreview(style: ProgressStyle, animate: Boolean) {
-    val wake = Accent.colors
+    val wake = Accent.seekColors
     val surface = MaterialTheme.colorScheme.surfaceContainer
-    val track = MaterialTheme.colorScheme.outline
-    val phase = com.greenaltambe.vela.ui.components.rememberWavePhase(animate && (style == ProgressStyle.WAVE || style == ProgressStyle.RIBBON || style == ProgressStyle.EXPRESSIVE))
-    Canvas(Modifier.fillMaxWidth().height(40.dp)) { drawProgress(style, 0.4f, wake, surface, track, track, track, wavePhase = phase.value) }
+    // Lightning's glow is lost on a light page, so its preview sits on a strip as dark as the video it is drawn over in the player.
+    val onDark = style == ProgressStyle.LIGHTNING
+    val track = if (onDark) com.greenaltambe.vela.ui.theme.ExtraColors.onMedia.copy(alpha = 0.3f) else MaterialTheme.colorScheme.outline
+    val backdrop = if (onDark) Modifier.padding(top = Spacing.xs).clip(MaterialTheme.shapes.small).background(com.greenaltambe.vela.ui.theme.ExtraColors.mediaBackground) else Modifier
+    val phase = com.greenaltambe.vela.ui.components.rememberProgressPhase(style, animate)
+    val lightningCore = com.greenaltambe.vela.ui.theme.ExtraColors.lightningCore
+    Canvas(Modifier.fillMaxWidth().then(backdrop).height(if (onDark) 48.dp else 40.dp)) { drawProgress(style, 0.4f, wake, surface, track, track, track, wavePhase = phase.value, lightningCore = lightningCore) }
 }
 
 /** Home: the shelves (switch each and move it up or down), then density and chips, then the way back for hidden videos and channels. */
@@ -264,13 +269,15 @@ private fun LazyListScope.homeItems(services: AppServices, revision: Int, toasts
 @Composable
 private fun ColorSchemePicker(s: SettingsResolver, revision: Int, toasts: UndoToasts) {
     val current = remember(revision) { s.resolve(LookSettings.colorScheme) }
-    val dark = when (remember(revision) { s.resolve(LookSettings.theme) }) { ThemeMode.DARK -> true; ThemeMode.LIGHT -> false; ThemeMode.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme() }
+    // The cards follow the theme that is on screen. Asking the system again here got it wrong on Linux, where Compose answers light whatever the desktop says.
+    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val amoled = remember(revision) { s.resolve(LookSettings.amoled) }
     Column(Modifier.fillMaxWidth().padding(top = Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         Text("Color scheme", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(horizontal = Spacing.md))
         // HScrollRow: on desktop a plain LazyRow cannot be scrolled (the wheel only goes up and down); this one drags, follows the wheel and has arrows.
         com.greenaltambe.vela.ui.components.HScrollRow(contentPadding = PaddingValues(horizontal = Spacing.md), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             items(ColorPalette.entries.toList(), key = { it.name }) { p ->
-                val c = if (dark) Palettes.dark(p) else Palettes.light(p)
+                val c = if (!dark) Palettes.light(p) else if (amoled) Palettes.dark(p).asAmoled() else Palettes.dark(p)
                 val chosen = p == current
                 val label = LookSettings.colorScheme.choices.first { it.raw == p.name }.label
                 Column(

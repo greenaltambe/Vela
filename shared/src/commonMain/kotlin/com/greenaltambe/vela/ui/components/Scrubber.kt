@@ -190,10 +190,12 @@ fun Scrubber(
         label = "thumbGrow"
     )
 
-    val wavePhase = rememberWavePhase(animate && (style == ProgressStyle.WAVE || style == ProgressStyle.RIBBON || style == ProgressStyle.EXPRESSIVE))
+    // Lightning also crackles while a paused video is being scrubbed.
+    val wavePhase = rememberProgressPhase(style, animate || (style == ProgressStyle.LIGHTNING && isDragging))
     val metrics = style.metrics()
     val wake = Accent.seekColors
     val surface = MaterialTheme.colorScheme.surfaceContainerLow
+    val lightningCore = ExtraColors.lightningCore
     val density = LocalDensity.current
     val thumbPx = with(density) { metrics.endInset.toPx() }
     val geometry = ScrubGeometry(widthPx, thumbPx)
@@ -304,6 +306,7 @@ fun Scrubber(
                 wavePhase = wavePhase.value,
                 hoveredFraction = if (!isDragging) hoveredFraction else null,
                 boldScale = boldScale,
+                lightningCore = lightningCore,
             )
         }
 
@@ -398,6 +401,7 @@ fun ProgressStyle.metrics(): ProgressMetrics = when (this) {
     ProgressStyle.RIBBON -> ProgressMetrics(6.dp, 9.dp, 10.dp)
     ProgressStyle.WAVE -> ProgressMetrics(4.dp, 0.dp, 6.dp)
     ProgressStyle.EXPRESSIVE -> ProgressMetrics(4.dp, 0.dp, 8.dp)
+    ProgressStyle.LIGHTNING -> ProgressMetrics(3.dp, 0.dp, 10.dp)
 }
 
 /** The palette gradient sampled at [fraction] (0..1) of its way across. */
@@ -427,6 +431,7 @@ fun DrawScope.drawProgress(
     wavePhase: Float = 0f,
     hoveredFraction: Float? = null,
     boldScale: Float = 1f,
+    lightningCore: Color = com.greenaltambe.vela.ui.theme.ExtraColorTokens.Default.lightningCore,
 ) {
     val m = style.metrics()
     val g = ScrubGeometry(size.width, m.endInset.toPx())
@@ -442,13 +447,15 @@ fun DrawScope.drawProgress(
 
     val hasThumb = m.thumb > 0.dp
     val expressive = style == ProgressStyle.EXPRESSIVE
+    // The bolt replaces both the played fill and the handle; only what is ahead of it is drawn as a flat track.
+    val lightning = style == ProgressStyle.LIGHTNING
     // Material's wavy bar: the played part is a wave, a small gap, then the flat rest of the track; the handle is a vertical pill in the gap.
     val handleGap = if (expressive) 6.dp.toPx() else 0f
     val baseTrackTh = m.track.toPx() * (if (hasThumb) 1f else grow) * boldScale
     val round = androidx.compose.ui.graphics.StrokeCap.Round
     // The pieces of the SponsorBlock markers left of the handle (drawn as the wave's own stroke in the marker colour) and right of it (flat).
     val chapterRanges = (0 until segmentCount).map { i -> (g.xFor(boundaries[i]) + (if (i == 0) 0f else gapPx / 2f))..(g.xFor(boundaries[i + 1]) - (if (i == segmentCount - 1) 0f else gapPx / 2f)) }
-    val spans = markerSpans(markers, g, xNow, handleGap, minFlatWidth = 3.dp.toPx(), segments = if (expressive) chapterRanges else null)
+    val spans = markerSpans(markers, g, xNow, handleGap, minFlatWidth = 3.dp.toPx(), segments = if (expressive || lightning) chapterRanges else null)
     /** The same stroke again in a marker's colour, clipped to its played span, so the coloured piece rises and falls with the wave. */
     fun DrawScope.tintPath(path: androidx.compose.ui.graphics.Path, width: Float, from: Float = Float.NEGATIVE_INFINITY, to: Float = Float.POSITIVE_INFINITY, alpha: Float = 1f) {
         for (s in spans.played) {
@@ -492,7 +499,7 @@ fun DrawScope.drawProgress(
         val startF = boundaries[i]
         val endF = boundaries[i + 1]
 
-        val x0 = maxOf(g.xFor(startF) + (if (i == 0) 0f else gapPx / 2f), if (expressive) xNow + handleGap else Float.NEGATIVE_INFINITY)
+        val x0 = maxOf(g.xFor(startF) + (if (i == 0) 0f else gapPx / 2f), if (expressive || lightning) xNow + handleGap else Float.NEGATIVE_INFINITY)
         val x1 = g.xFor(endF) - (if (i == segmentCount - 1) 0f else gapPx / 2f)
         val segW = (x1 - x0).coerceAtLeast(0f)
         if (segW <= 0f) continue
@@ -514,9 +521,9 @@ fun DrawScope.drawProgress(
         }
     }
 
-    // 2. SponsorBlock markers. Expressive: only the flat part right of the handle gap, with the track's rounded ends (the played part is the wave
+    // 2. SponsorBlock markers. Expressive and Lightning: only the flat part right of the handle gap, with the track's rounded ends (the played part is the wave
     // itself, tinted below). The other styles: across the entire track (clearly visible, never eaten by round corners).
-    if (expressive) {
+    if (expressive || lightning) {
         for (s in spans.unplayed) drawRoundRect(lighter(s.color), Offset(s.x0, cy - baseTrackTh / 2), Size(s.x1 - s.x0, baseTrackTh), CornerRadius(baseTrackTh / 2, baseTrackTh / 2))
     } else markers.forEach { mk ->
         val x0 = g.xFor(mk.start)
@@ -551,7 +558,7 @@ fun DrawScope.drawProgress(
             }
             drawPath(path, brush, style = Stroke(width = baseTrackTh, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
             tintPath(path, baseTrackTh, from = x0, to = x1)
-        } else if (!expressive && xNow > x0) {
+        } else if (!expressive && !lightning && xNow > x0) {
             val isHoveredSeg = hoveredFraction != null && hoveredFraction >= startF && hoveredFraction <= endF
             val segTh = if (isHoveredSeg) maxOf(baseTrackTh * 1.8f, baseTrackTh + 4.dp.toPx()) else baseTrackTh
             val round = CornerRadius(segTh / 2, segTh / 2)
@@ -595,13 +602,21 @@ fun DrawScope.drawProgress(
         drawLine(sample(wake, shown), Offset(xNow, cy - handleH / 2), Offset(xNow, cy + handleH / 2), strokeWidth = 4.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
     }
 
+    if (lightning) drawLightning(g, cy, xNow, wake, sample(wake, shown), wavePhase, grow, boldScale, spans.played, boundaries.drop(1).dropLast(1).map { g.xFor(it) }, lightningCore)
+
     if (hasThumb) {
         val r = m.thumb.toPx() * grow * boldScale
         drawCircle(sample(wake, shown), r, Offset(xNow, cy))
     }
 }
 
-/** The travelling phase of the Wave and Ribbon styles (radians). */
+/** What [drawProgress] takes as `wavePhase` for [style]: the wave's phase, Lightning's clock in seconds, or nothing for the styles that never move. */
+@Composable
+fun rememberProgressPhase(style: ProgressStyle, animate: Boolean): androidx.compose.runtime.State<Float> =
+    if (style == ProgressStyle.LIGHTNING) rememberLightningClock(animate)
+    else rememberWavePhase(animate && (style == ProgressStyle.WAVE || style == ProgressStyle.RIBBON || style == ProgressStyle.EXPRESSIVE))
+
+/** The travelling phase of the Wave, Ribbon and Wavy styles (radians). */
 @Composable
 fun rememberWavePhase(active: Boolean): androidx.compose.runtime.State<Float> {
     // A State read inside the draw block, so the 60 or 120 frames a second redraw the bar only and never recompose what holds it.

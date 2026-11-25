@@ -26,7 +26,15 @@ object Palettes {
         val dPrimary: Color, val dOnPrimary: Color, val dPrimaryContainer: Color, val dOnPrimaryContainer: Color,
         val dSecondary: Color, val dOnSecondary: Color, val dSecondaryContainer: Color, val dOnSecondaryContainer: Color,
         val dTertiary: Color, val dOnTertiary: Color, val dTertiaryContainer: Color, val dOnTertiaryContainer: Color,
+        /** The tint of the dark theme's surfaces, where the light one would turn them muddy. */
+        val darkTint: Color = tint,
     )
+
+    /**
+     * The played part of the seek bar, for a scheme whose light primary has to be too dark to show well over video (a yellow that carries text on white is
+     * brown). Null: the primary.
+     */
+    fun progress(p: ColorPalette): Color? = if (p == ColorPalette.GOLD) c(0xFFFFC400) else null
 
     private fun c(v: Long) = Color(v)
 
@@ -77,6 +85,17 @@ object Palettes {
             dSecondary = c(0xFFE5BFAE), dOnSecondary = c(0xFF442A1E), dSecondaryContainer = c(0xFF5D4033), dOnSecondaryContainer = c(0xFFFFDBC6),
             dTertiary = c(0xFFD8CA62), dOnTertiary = c(0xFF363100), dTertiaryContainer = c(0xFF504600), dOnTertiaryContainer = c(0xFFF4E67A),
         )
+        // Warm sunflower yellow: the light theme's containers carry the colour (its primary must be a deep gold to be readable), the dark one glows.
+        ColorPalette.GOLD -> Spec(
+            tint = c(0xFFFFC61A),
+            lPrimary = c(0xFF7A5900), lPrimaryContainer = c(0xFFFFDF80), lOnPrimaryContainer = c(0xFF261A00),
+            lSecondary = c(0xFF6E5D2E), lSecondaryContainer = c(0xFFFFE9A3), lOnSecondaryContainer = c(0xFF231B00),
+            lTertiary = c(0xFF8F4C1E), lTertiaryContainer = c(0xFFFFDCC4), lOnTertiaryContainer = c(0xFF301400),
+            dPrimary = c(0xFFFFD43B), dOnPrimary = c(0xFF3D2F00), dPrimaryContainer = c(0xFF6B5000), dOnPrimaryContainer = c(0xFFFFDF80),
+            dSecondary = c(0xFFE0C877), dOnSecondary = c(0xFF3A2F04), dSecondaryContainer = c(0xFF554718), dOnSecondaryContainer = c(0xFFFFE9A3),
+            dTertiary = c(0xFFFFB787), dOnTertiary = c(0xFF502400), dTertiaryContainer = c(0xFF713607), dOnTertiaryContainer = c(0xFFFFDCC4),
+            darkTint = c(0xFFC09A38),
+        )
         ColorPalette.VELA_RED, ColorPalette.CLASSIC -> error("${p.name} has its own scheme object")
     }
 
@@ -103,7 +122,7 @@ object Palettes {
     }
 
     private fun darkScheme(s: Spec): ColorScheme {
-        val t = s.tint
+        val t = s.darkTint
         fun tinted(base: Color, amount: Float) = lerp(base, t, amount)
         val page = tinted(c(0xFF0E0D10), 0.10f)
         return darkColorScheme(

@@ -38,7 +38,7 @@ fun AppTheme(appearance: Appearance, systemDark: Boolean, content: @Composable (
     val colors = appearance.colors(dark)
     // Compose Desktop does not enforce Material's 48 dp minimum for touch (Android does): it is the rule on both.
     CompositionLocalProvider(
-        LocalExtraColors provides appearance.extras, LocalMediaAccent provides (if (appearance.palette == com.greenaltambe.vela.core.settings.ColorPalette.CLASSIC) ClassicColorSchemes.MediaRed else null), LocalProgressStyle provides appearance.progress, LocalSeekColor provides (if (appearance.palette == com.greenaltambe.vela.core.settings.ColorPalette.CLASSIC) ClassicColorSchemes.SeekRed else null), LocalMotion provides appearance.motion, LocalIconSet provides appearance.icons,
+        LocalExtraColors provides appearance.extras, LocalMediaAccent provides (if (appearance.palette == com.greenaltambe.vela.core.settings.ColorPalette.CLASSIC) ClassicColorSchemes.MediaRed else null), LocalProgressStyle provides appearance.progress, LocalSeekColor provides (if (appearance.palette == com.greenaltambe.vela.core.settings.ColorPalette.CLASSIC) ClassicColorSchemes.SeekRed else null), LocalProgressColor provides Palettes.progress(appearance.palette), LocalMotion provides appearance.motion, LocalIconSet provides appearance.icons,
         LocalMinimumInteractiveComponentSize provides Spacing.minTouch,
     ) {
         MaterialExpressiveTheme(colorScheme = colors, motionScheme = MotionScheme.expressive(), shapes = appearance.shapes, typography = appearance.typography) {

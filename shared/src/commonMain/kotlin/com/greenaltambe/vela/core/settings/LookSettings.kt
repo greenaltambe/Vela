@@ -2,9 +2,9 @@ package com.greenaltambe.vela.core.settings
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 /** The colour schemes on offer (Customize > Color scheme). The palettes themselves live in `ui/theme/Palettes.kt`. */
-enum class ColorPalette { VELA_RED, CLASSIC, SAKURA, OCEAN, FOREST, TWILIGHT, SUNSET }
+enum class ColorPalette { VELA_RED, CLASSIC, SAKURA, OCEAN, FOREST, TWILIGHT, SUNSET, GOLD }
 /** How the seek bar is drawn: a hairline or a bold track, each with or without a round marker, a ribbon (bold with a dot, thin silky ribbons lifting off the watched part), or a wave that moves up to the current position. */
-enum class ProgressStyle { EXPRESSIVE, HAIRLINE, HAIRLINE_DOT, BOLD, BOLD_DOT, RIBBON, WAVE }
+enum class ProgressStyle { EXPRESSIVE, HAIRLINE, HAIRLINE_DOT, BOLD, BOLD_DOT, RIBBON, WAVE, LIGHTNING }
 enum class NavTab { HOME, SHORTS, SUBSCRIPTIONS, LIBRARY, SEARCH, DOWNLOADS, EXPLORE }
 
 /** The tabs of the navigation, in order. Shorts only while Shorts are on and Explore only while its switch is on, see [com.greenaltambe.vela.ui.nav.NavConfig]. Home, Subs and Library are always there. */
@@ -30,8 +30,8 @@ object LookSettings {
 
     val colorScheme = pick(
         "look.colorScheme", ColorPalette.VELA_RED, ColorPalette.entries, "Color scheme",
-        mapOf(ColorPalette.VELA_RED to "Vela red", ColorPalette.CLASSIC to "Classic", ColorPalette.SAKURA to "Sakura pink", ColorPalette.OCEAN to "Ocean", ColorPalette.FOREST to "Forest", ColorPalette.TWILIGHT to "Twilight", ColorPalette.SUNSET to "Sunset"),
-        listOf("color", "colour", "scheme", "palette", "accent", "pink", "red", "blue", "green", "purple", "orange", "cute", "theme"),
+        mapOf(ColorPalette.VELA_RED to "Vela red", ColorPalette.CLASSIC to "Classic", ColorPalette.SAKURA to "Sakura pink", ColorPalette.OCEAN to "Ocean", ColorPalette.FOREST to "Forest", ColorPalette.TWILIGHT to "Twilight", ColorPalette.SUNSET to "Sunset", ColorPalette.GOLD to "Gold"),
+        listOf("color", "colour", "scheme", "palette", "accent", "pink", "red", "blue", "green", "purple", "orange", "yellow", "gold", "cute", "theme"),
         "The accent and the tint of the surfaces, in both the light and the dark theme.",
     )
 
@@ -39,8 +39,8 @@ object LookSettings {
 
     val progressStyle = pick(
         "look.progressStyle", ProgressStyle.EXPRESSIVE, ProgressStyle.entries, "Progress bar",
-        mapOf(ProgressStyle.EXPRESSIVE to "Wavy (Material)", ProgressStyle.HAIRLINE to "Hairline", ProgressStyle.HAIRLINE_DOT to "Hairline + dot", ProgressStyle.BOLD to "Bold", ProgressStyle.BOLD_DOT to "Bold + dot", ProgressStyle.RIBBON to "Ribbon", ProgressStyle.WAVE to "Wave (classic)"),
-        listOf("progress", "seek", "bar", "scrubber", "timeline", "spikes", "waves", "hairline", "thumb"),
+        mapOf(ProgressStyle.EXPRESSIVE to "Wavy (Material)", ProgressStyle.HAIRLINE to "Hairline", ProgressStyle.HAIRLINE_DOT to "Hairline + dot", ProgressStyle.BOLD to "Bold", ProgressStyle.BOLD_DOT to "Bold + dot", ProgressStyle.RIBBON to "Ribbon", ProgressStyle.WAVE to "Wave (classic)", ProgressStyle.LIGHTNING to "Lightning"),
+        listOf("progress", "seek", "bar", "scrubber", "timeline", "spikes", "waves", "hairline", "thumb", "lightning", "electric", "sparks"),
         "The player's seek bar. Every style is filled with the app's accent colour.",
     )
     val homeShelves = Setting(
