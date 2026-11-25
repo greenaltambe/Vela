@@ -297,6 +297,11 @@ interface AccountReads {
      * The default treats the answer as complete.
      */
     suspend fun playlistListing(playlistId: String): PlaylistListing? = playlistVideos(playlistId)?.let { PlaylistListing(it, true) }
+    /**
+     * One page of a playlist as the account sees it: private lists too, and whether it is saved to the library. Null when nobody is signed in or the
+     * read failed (the caller reads it without the account). A token from the other source is refused the same way.
+     */
+    suspend fun playlistPage(playlistId: String, continuation: String? = null): com.greenaltambe.vela.extractor.PlaylistContents? = null
     /** The account's watch history (newest first); entries carry no time, only the order YouTube lists them in. */
     suspend fun history(): List<com.greenaltambe.vela.extractor.VideoSummary>? = null
 

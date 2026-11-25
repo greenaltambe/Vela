@@ -15,11 +15,12 @@ object ComponentIds {
     const val COMMENT_ITEM = "component.comment_item"
     const val CHAPTER_ROW = "component.chapter_row"
     const val PLAYLIST_ROW = "component.playlist_row"
+    const val PLAYLIST_HEADER = "component.playlist_header"
     const val HISTORY_ROW = "component.history_row"
     const val SEEK_BAR = "component.seek_bar"
 
     val all = listOf(
         VIDEO_CARD, CHANNEL_ROW, SECTION_HEADER, MINI_PLAYER, BOTTOM_NAV, SIDE_RAIL, COMMENT_ITEM, CHAPTER_ROW,
-        PLAYLIST_ROW, HISTORY_ROW, SEEK_BAR,
+        PLAYLIST_ROW, HISTORY_ROW, SEEK_BAR, PLAYLIST_HEADER,
     )
 }

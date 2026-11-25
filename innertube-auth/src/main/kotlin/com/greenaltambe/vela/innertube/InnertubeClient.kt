@@ -150,12 +150,9 @@ class InnertubeClient(
     fun playlistListing(playlistId: String, maxPages: Int = 60): Pair<List<AccountPlaylistVideo>, Boolean> {
         val out = LinkedHashMap<String, AccountPlaylistVideo>()
         var page = PlaylistPageParser.first(browse("VL$playlistId", LISTING_PATIENCE))
-        if (page.videos.isEmpty()) {
-            val stated = page.statedCount
-            if (stated == 0) return emptyList<AccountPlaylistVideo>() to true   // it says it is empty: whatever else is on the page is not its videos
-            if (stated != null || page.unread > 0 || !page.recognised)
-                throw AuthFailure.Unparseable("the playlist page was not understood: no video read, ${stated ?: "no number"} stated, ${page.unread} unknown entries")
-        }
+        PlaylistPageParser.refusal(page)?.let { throw AuthFailure.Unparseable(it) }
+        // It says it is empty: whatever else is on the page is not its videos.
+        if (page.entries.isEmpty() && page.statedCount == 0) return emptyList<AccountPlaylistVideo>() to true
         var pages = 1
         var unread = 0
         while (true) {

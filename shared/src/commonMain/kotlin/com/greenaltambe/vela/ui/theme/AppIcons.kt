@@ -26,7 +26,7 @@ val LocalIconSet = staticCompositionLocalOf { MaterialIconSet.Default }
 
 /** Every icon slot the app uses. Each icon set must cover all of them (a test checks it). */
 object IconNames {
-    val all: List<String> = listOf("home", "subscriptions", "library", "settings", "search", "back", "close", "more", "play", "pause", "rewind", "forward", "fullscreen", "fullscreenExit", "volume", "mute", "download", "downloaded", "save", "share", "speed", "timer", "quality", "captions", "like", "refresh", "info", "chevronRight", "chevronLeft", "chevronDown", "chevronUp", "check", "add", "delete", "edit", "history", "playlist", "notifications", "account", "palette", "lock", "shield", "folder", "tune", "arrowUp", "arrowDown", "dislike", "link", "cloud", "visibility", "bolt", "explore", "skipNext", "skipPrevious", "watchLater", "comment", "audioTrack", "menu", "notificationsActive", "notificationsOff", "cast", "topicGaming", "topicPodcasts", "topicMusic", "topicNews", "topicSports", "topicMovies", "topicLearning", "topicCooking", "topicTech", "topicLive")
+    val all: List<String> = listOf("home", "subscriptions", "library", "settings", "search", "back", "close", "more", "play", "pause", "rewind", "forward", "fullscreen", "fullscreenExit", "volume", "mute", "download", "downloaded", "save", "share", "speed", "timer", "quality", "captions", "like", "refresh", "info", "chevronRight", "chevronLeft", "chevronDown", "chevronUp", "check", "add", "delete", "edit", "history", "playlist", "shuffle", "notifications", "account", "palette", "lock", "shield", "folder", "tune", "arrowUp", "arrowDown", "dislike", "link", "cloud", "visibility", "bolt", "explore", "skipNext", "skipPrevious", "watchLater", "comment", "audioTrack", "menu", "notificationsActive", "notificationsOff", "cast", "topicGaming", "topicPodcasts", "topicMusic", "topicNews", "topicSports", "topicMovies", "topicLearning", "topicCooking", "topicTech", "topicLive")
     /** The slots that have a filled form: what can be selected or switched on. */
     val withFilledForm: List<String> = listOf("home", "subscriptions", "library", "explore", "bolt", "download", "save", "like", "dislike", "notifications", "watchLater", "comment")
 }
@@ -59,6 +59,7 @@ object AppIcons {
     val downloaded: ImageVector @Composable @ReadOnlyComposable get() = LocalIconSet.current["downloaded"]
     val save: ImageVector @Composable @ReadOnlyComposable get() = LocalIconSet.current["save"]
     val share: ImageVector @Composable @ReadOnlyComposable get() = LocalIconSet.current["share"]
+    val shuffle: ImageVector @Composable @ReadOnlyComposable get() = LocalIconSet.current["shuffle"]
     val speed: ImageVector @Composable @ReadOnlyComposable get() = LocalIconSet.current["speed"]
     val timer: ImageVector @Composable @ReadOnlyComposable get() = LocalIconSet.current["timer"]
     val quality: ImageVector @Composable @ReadOnlyComposable get() = LocalIconSet.current["quality"]

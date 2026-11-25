@@ -5,6 +5,13 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Added
+- A YouTube playlist opens with a header: cover, title, owner, number of videos and views, and the description; Play all, Shuffle, Download all and Share; and a menu with "Add all to a playlist", "Open in browser" and "Refresh". On a wide window the header stands beside the list. Playlists in your library have the same header.
+- Play all queues the later pages of a long playlist as they arrive; Shuffle, Download all and Add all read the whole playlist first and ask before going on with only part of it.
+
+### Changed
+- The sheet that saves several videos at once can make a new playlist.
+
 ### Fixed
 - The icons of the bottom bar and the side rail were drawn black, so they could not be seen in the dark theme.
 - Syncing with YouTube read no videos from Liked videos and from other playlists in YouTube's newer page layout; both layouts are read now, with their further pages. A page Vela cannot read is reported as a failed sync instead of an empty playlist.

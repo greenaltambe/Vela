@@ -216,6 +216,26 @@ data class PlaylistRef(
     val lessonCountText: String? = null,
 )
 
+/** What a YouTube playlist's own page says about it. All but the id and title may be missing, depending on which source answered. */
+data class PlaylistDetails(
+    val id: String,
+    val title: String,
+    val ownerName: String? = null,
+    val ownerChannelId: String? = null,
+    val ownerAvatarUrl: String? = null,
+    val coverUrl: String? = null,
+    val videoCount: Long? = null,
+    val viewCount: Long? = null,
+    val description: String? = null,
+    /** True: the page offers "save to library" (someone else's playlist). False: it does not (the account's own). Null: this source cannot tell. */
+    val canBeSaved: Boolean? = null,
+    /** Whether the signed-in account has it in its library; null when nobody is signed in or it cannot be saved. */
+    val savedOnAccount: Boolean? = null,
+)
+
+/** One page of a YouTube playlist. [details] comes with the first page only; [unreadCount] counts this page's entries that could not be read. */
+data class PlaylistContents(val details: PlaylistDetails?, val videos: List<VideoSummary>, val continuation: String? = null, val unreadCount: Int = 0)
+
 /** [totalCount] is the video's whole comment count when the tier knows it (first page only), else null. */
 data class CommentsPage(
     val comments: List<Comment>,
@@ -242,6 +262,8 @@ data class ExtractorCapabilities(
     val channelTabFilters: Boolean = false,
     /** True if the tier serves YouTube's own feed of Shorts ([Extractor.shortsFeed]). */
     val shortsFeed: Boolean = false,
+    /** True if the tier reads a playlist page in full ([Extractor.playlistPage]: views, whether it can be saved): it is asked first. */
+    val playlistDetails: Boolean = false,
 )
 
 object ChannelTabParams {

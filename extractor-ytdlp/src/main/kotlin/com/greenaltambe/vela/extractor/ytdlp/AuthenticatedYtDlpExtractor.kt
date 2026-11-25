@@ -96,5 +96,6 @@ class AuthenticatedYtDlpExtractor(
     override suspend fun channelLive(channelId: String, continuation: String?) = withAccount { it.channelLive(channelId, continuation) }
     override suspend fun channelPlaylists(channelId: String, continuation: String?) = withAccount { it.channelPlaylists(channelId, continuation) }
     override suspend fun playlistVideos(playlistId: String, continuation: String?) = withAccount { it.playlistVideos(playlistId, continuation) }
+    override suspend fun playlistPage(playlistId: String, continuation: String?) = withAccount { it.playlistPage(playlistId, continuation) }
     override suspend fun recentUploads(channelId: String) = withAccount { it.recentUploads(channelId) }
 }

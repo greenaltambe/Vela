@@ -84,6 +84,62 @@ class PlaylistPageTest {
         assertTrue(videos.isEmpty() && complete)
     }
 
+    private fun details(json: String, signedIn: Boolean) = PlaylistPageParser.contents(lenientJson.parseToJsonElement(json), "PL1", first = true, signedIn = signedIn) { "t:$it" }!!
+
+    private fun fullHeader(button: String) = """{"pageHeaderRenderer":{"content":{"pageHeaderViewModel":{"title":{"dynamicTextViewModel":{"text":{"content":"Name"}}},
+        "metadata":{"contentMetadataViewModel":{"metadataRows":[
+            {"metadataParts":[{"avatarStack":{"avatarStackViewModel":{"avatars":[{"avatarViewModel":{"image":{"sources":[{"url":"https://i/a.jpg"}]}}}],
+                "text":{"content":"by Owner","commandRuns":[{"onTap":{"innertubeCommand":{"browseEndpoint":{"browseId":"UCowner"}}}}]}}}}]},
+            {"metadataParts":[{"text":{"content":"Playlist"}},{"text":{"content":"1 video"}},{"text":{"content":"1,814,014 views"}}]}]}},
+        "actions":{"flexibleActionsViewModel":{"actionsRows":[{"actions":[{"buttonViewModel":{"iconName":"PLAY_ARROW"}}$button]}]}},
+        "description":{"descriptionPreviewViewModel":{"description":{"content":"About it"}}},
+        "heroImage":{"contentPreviewImageViewModel":{"image":{"sources":[{"url":"https://i/small.jpg"},{"url":"https://i/cover.jpg"}]}}}}}}}"""
+    private fun saveButton(toggled: Boolean, signedIn: Boolean): String {
+        val tap = if (signedIn) "likeEndpoint" else "signInEndpoint"
+        return "," + """{"toggleButtonViewModel":{"toggleButtonViewModel":{"isToggled":$toggled,"defaultButtonViewModel":{"buttonViewModel":{"iconName":"PLAYLIST_ADD","onTap":{"$tap":{}}}}}}}"""
+    }
+
+    @Test fun theNewHeaderIsReadWithWhetherThePlaylistIsSaved() {
+        fun read(button: String, signedIn: Boolean) = details(page(listOf(lockup("a"), nextNew("p2")), header = fullHeader(button)), signedIn)
+        val c = read(saveButton(true, true), signedIn = true)
+        val d = c.details!!
+        assertEquals(listOf("Name", "Owner", "UCowner", "https://i/a.jpg", "https://i/cover.jpg", 1L, 1814014L, "About it"),
+            listOf(d.title, d.ownerName, d.ownerChannelId, d.ownerAvatarUrl, d.coverUrl, d.videoCount, d.viewCount, d.description))
+        assertEquals(true to true, d.canBeSaved to d.savedOnAccount)
+        assertEquals("t:p2", c.continuation)
+        assertEquals(listOf("a"), c.videos.map { it.id })
+        assertEquals(true to false, read(saveButton(false, true), true).details!!.let { it.canBeSaved to it.savedOnAccount })
+        assertEquals(true to null, read(saveButton(false, false), false).details!!.let { it.canBeSaved to it.savedOnAccount }, "signed out, saved is unknown")
+        assertEquals(false to null, read("", true).details!!.let { it.canBeSaved to it.savedOnAccount }, "no save button: the account's own")
+    }
+
+    private fun oldFull(like: String?) = """{"playlistHeaderRenderer":{"title":{"simpleText":"Name"},"numVideosText":{"runs":[{"text":"1"},{"text":" video"}]},
+        "viewCountText":{"simpleText":"No views"},"ownerText":{"runs":[{"text":"Owner","navigationEndpoint":{"browseEndpoint":{"browseId":"UCowner"}}}]},
+        "playlistHeaderBanner":{"heroPlaylistThumbnailRenderer":{"thumbnail":{"thumbnails":[{"url":"https://i/cover.jpg"}]}}}
+        ${like?.let { ",\"likeButton\":{\"likeButtonRenderer\":{\"likeStatus\":\"$it\"}}" }.orEmpty()}}}"""
+
+    @Test fun theOldHeaderIsReadWithWhetherThePlaylistIsSaved() {
+        val entry = """{"playlistVideoListRenderer":{"contents":[{"playlistVideoRenderer":{"videoId":"a","title":{"simpleText":"T"},"lengthSeconds":"61",
+            "thumbnail":{"thumbnails":[{"url":"https://i/t.jpg"}]},"videoInfo":{"runs":[{"text":"1.2K views"},{"text":" • "},{"text":"2 years ago"}]}}}]}}"""
+        fun read(like: String?, signedIn: Boolean) = details(page(listOf(entry), header = oldFull(like)), signedIn)
+        val c = read("LIKE", true)
+        val d = c.details!!
+        assertEquals(listOf("Name", "Owner", "UCowner", "https://i/cover.jpg", 1L, 0L), listOf(d.title, d.ownerName, d.ownerChannelId, d.coverUrl, d.videoCount, d.viewCount))
+        assertEquals(true to true, d.canBeSaved to d.savedOnAccount)
+        assertEquals(listOf("https://i/t.jpg", 61L, 1200L, "2 years ago"), c.videos.single().let { listOf(it.thumbnailUrl, it.durationSeconds, it.viewCount, it.publishedText) })
+        assertEquals(true to false, read("INDIFFERENT", true).details!!.let { it.canBeSaved to it.savedOnAccount })
+        assertEquals(true to null, read("INDIFFERENT", false).details!!.let { it.canBeSaved to it.savedOnAccount })
+        assertEquals(false to null, read(null, true).details!!.let { it.canBeSaved to it.savedOnAccount })
+    }
+
+    @Test fun aPageThatCannotBeTrustedIsNotShownAsAPlaylist() {
+        fun read(json: String, first: Boolean) = PlaylistPageParser.contents(lenientJson.parseToJsonElement(json), "PL1", first, false) { it }
+        assertNull(read(page(listOf("""{"somethingNewViewModel":{}}""")), true))
+        assertNull(read("""{"responseContext":{}}""", false))
+        assertNull(read(appended("""{"somethingNewViewModel":{}}"""), false))
+        assertEquals(1, read(appended(lockup("a"), """{"somethingNewViewModel":{}}"""), false)!!.unreadCount)
+    }
+
     @Test fun anythingLeftUnreadMakesTheListIncomplete() {
         fun complete(vararg pages: String, maxPages: Int = 60) = client(*pages).playlistListing("PL1", maxPages).also { assertEquals("a", it.first.first().videoId) }.second
         assertFalse(complete(page(listOf(lockup("a"), """{"somethingNewViewModel":{}}"""))), "an unknown entry")

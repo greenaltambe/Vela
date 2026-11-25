@@ -54,6 +54,7 @@ class FallbackChain(
             channelTabs = tiers.any { it.capabilities.channelTabs },
             channelTabFilters = tiers.any { it.capabilities.channelTabFilters },
             shortsFeed = tiers.any { it.capabilities.shortsFeed },
+            playlistDetails = tiers.any { it.capabilities.playlistDetails },
         )
 
     override suspend fun search(query: String, continuation: String?) =
@@ -88,6 +89,16 @@ class FallbackChain(
         run("channelPlaylists($channelId${page(continuation)})", AccountOp.CHANNELS) { it.channelPlaylists(channelId, continuation) }
     override suspend fun playlistVideos(playlistId: String, continuation: String?) =
         run("playlistVideos($playlistId${page(continuation)})", AccountOp.NEVER) { it.playlistVideos(playlistId, continuation) }
+    /**
+     * The source that reads the whole page is asked first, whatever the tier order; a later page goes back to the source that issued its token.
+     * A page one source cannot read says nothing about that source's health for playing videos, so nothing is remembered from it.
+     */
+    override suspend fun playlistPage(playlistId: String, continuation: String?): ExtractorResult<PlaylistContents> {
+        val native = continuation == null || ContinuationToken.unwrap(ContinuationToken.NATIVE_PLAYLIST, continuation) != null
+        return run("playlistPage($playlistId${page(continuation)})", AccountOp.NEVER, first = if (native) ({ it.playlistDetails }) else null, remember = false) {
+            it.playlistPage(playlistId, continuation)
+        }
+    }
     override suspend fun recentUploads(channelId: String) = run("recentUploads($channelId)", AccountOp.NEVER) { it.recentUploads(channelId) }
     override suspend fun channelLanding(channelId: String) =
         run("channelLanding($channelId)", AccountOp.CHANNELS) { it.channelLanding(channelId) }
@@ -117,12 +128,17 @@ class FallbackChain(
         subject: String,
         op: AccountOp,
         avoid: Set<TierId> = emptySet(),
+        /** Tiers with this capability are tried before the others. */
+        first: ((ExtractorCapabilities) -> Boolean)? = null,
+        /** Whether success and failure here say anything about the tier for later requests. */
+        remember: Boolean = true,
         call: suspend (Extractor) -> ExtractorResult<T>,
     ): ExtractorResult<T> {
         val account = signedInAccount?.invoke()
         if (signedInAccount != null && account != memoryOwner) { memory.clear(); memoryOwner = account }
         val skips = HashMap<TierId, String>()
-        val all = candidateTiers(subject, account, op, skips)
+        val ordered = candidateTiers(subject, account, op, skips)
+        val all = if (first == null) ordered else ordered.sortedByDescending { first(it.extractor.capabilities) }
         // Preferred order for a retry: the others first, the avoided tier last (never dropped).
         val candidates = if (avoid.isEmpty()) all else all.filter { it.id !in avoid } + all.filter { it.id in avoid }
         var signInSeen = false
@@ -167,7 +183,7 @@ class FallbackChain(
                     signInFailures.remove(tier.id)
                     if (subject.startsWith("streams(")) lastStreamsTier = tier.id
                     record(subject, tier.id, AttemptOutcome.SUCCESS, null, servedDetail(tier, account, result.value), took)
-                    if (op != AccountOp.CHANNELS) {
+                    if (op != AccountOp.CHANNELS && remember) {
                         failures.filter { (_, e) -> e.reason.isTierHealthIssue }
                             .forEach { (failed, e) -> memory.remember(failed, e.reason, tier.id) }
                     }
@@ -176,7 +192,7 @@ class FallbackChain(
                 is ExtractorResult.Failure -> {
                     record(subject, tier.id, AttemptOutcome.FAILED, result.error.reason, account?.takeIf { tier.id == TierId.AUTHENTICATED }?.let { "account $it: " }.orEmpty() + result.error.message, took)
                     // "Not supported" says nothing about how the tier is doing.
-                    if (result.error.reason != FailureReason.TOKEN_NOT_MINE && result.error.reason != FailureReason.TOKEN_EXPIRED && result.error.message != NOT_SUPPORTED) {
+                    if (remember && result.error.reason != FailureReason.TOKEN_NOT_MINE && result.error.reason != FailureReason.TOKEN_EXPIRED && result.error.message != NOT_SUPPORTED) {
                         memory.forgetWorked(tier.id)
                     }
                     if (result.error is ExtractorError.TokenNotMine) {

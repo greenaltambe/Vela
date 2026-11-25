@@ -62,6 +62,7 @@ import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Shuffle
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Subscriptions
@@ -104,6 +105,7 @@ internal object MaterialOutlined {
             "downloaded" to Icons.Outlined.DownloadDone,
             "save" to Icons.Outlined.BookmarkBorder,
             "share" to Icons.Outlined.Share,
+            "shuffle" to Icons.Outlined.Shuffle,
             "speed" to Icons.Outlined.Speed,
             "timer" to Icons.Outlined.Timer,
             "quality" to Icons.Outlined.HighQuality,

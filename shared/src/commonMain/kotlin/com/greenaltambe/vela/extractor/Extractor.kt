@@ -81,6 +81,9 @@ interface Extractor {
     /** The videos of a YouTube playlist (not one of the app's own). */
     suspend fun playlistVideos(playlistId: String, continuation: String? = null): ExtractorResult<Page<VideoSummary>> = notSupported()
 
+    /** A playlist's own page, read without an account: its details and first videos, then further pages by [continuation] (the previous page's). */
+    suspend fun playlistPage(playlistId: String, continuation: String? = null): ExtractorResult<PlaylistContents> = notSupported()
+
     /**
      * The channel's newest uploads (about the last 15), newest first, for the subscription feed. Each item carries
      * [VideoSummary.uploadedAt] when the source knows it. Durations are often unknown here (see [VideoSummary.durationSeconds]).

@@ -62,9 +62,12 @@ class AltClientExtractor(
         channelTabs = true,
         channelTabFilters = true,
         shortsFeed = true,
+        playlistDetails = true,
     )
 
     override suspend fun shortsFeed(seed: String?, continuation: String?): ExtractorResult<Page<VideoSummary>> = channelBrowse.shortsFeed(seed, continuation)
+
+    override suspend fun playlistPage(playlistId: String, continuation: String?): ExtractorResult<PlaylistContents> = channelBrowse.playlist(playlistId, continuation)
 
     override suspend fun search(query: String, continuation: String?): ExtractorResult<Page<VideoSummary>> = notSupported()
     override suspend fun channel(channelId: String): ExtractorResult<ChannelPage> =

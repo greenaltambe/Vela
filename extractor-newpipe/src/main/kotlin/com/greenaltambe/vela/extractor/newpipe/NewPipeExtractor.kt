@@ -287,6 +287,29 @@ class NewPipeExtractor(downloader: () -> Downloader = { OkHttpDownloader() }, pr
             result.items.toPlaylistRefs() to result.nextPage
         }.map { (items, next) -> Page(items, next.toTokenOrNull()) }
 
+    /** The fallback for the playlist page: NewPipe tells neither the views nor whether it can be saved, so both stay unset. */
+    override suspend fun playlistPage(playlistId: String, continuation: String?): ExtractorResult<PlaylistContents> =
+        withPage(continuation) { page ->
+            val url = "https://www.youtube.com/playlist?list=$playlistId"
+            if (page == null) {
+                val info = PlaylistInfo.getInfo(youtube, url)
+                val details = PlaylistDetails(
+                    id = playlistId,
+                    title = info.name.orEmpty(),
+                    ownerName = info.uploaderName?.takeIf { it.isNotBlank() },
+                    ownerChannelId = channelIdFromUrl(info.uploaderUrl.orEmpty())?.takeIf { it.startsWith("UC") },
+                    ownerAvatarUrl = info.uploaderAvatars.lastOrNull()?.url,
+                    coverUrl = info.thumbnails.lastOrNull()?.url,
+                    videoCount = info.streamCount.takeIf { it >= 0 },
+                    description = info.description?.content?.takeIf { it.isNotBlank() },
+                )
+                Triple(details, info.relatedItems.toVideoSummaries(), info.nextPage)
+            } else {
+                val more = PlaylistInfo.getMoreItems(youtube, url, page)
+                Triple(null, more.items.toVideoSummaries(), more.nextPage)
+            }
+        }.map { (details, items, next) -> PlaylistContents(details, items, next.toTokenOrNull()) }
+
     override suspend fun playlistVideos(playlistId: String, continuation: String?): ExtractorResult<Page<VideoSummary>> =
         withPage(continuation) { page ->
             val url = "https://www.youtube.com/playlist?list=$playlistId"

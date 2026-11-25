@@ -1,6 +1,6 @@
 # Plan: YouTube playlist page and saving playlists
 
-Status: stage 1 built (report 164); stages 2 to 5 not built. Evidence: report 163.
+Status: stages 1 to 3 built (reports 164, 165, 166); stages 4 and 5 not built. Evidence: reports 163 and 165.
 
 ## 1. Done: account playlist reading was broken for the newer page layout
 
@@ -70,19 +70,20 @@ Whole-list actions:
   `remoteId` stays reserved for your own synced playlists, so no existing write path can reach someone else's list.
 - `isReadOnly` becomes "Liked videos or saved". Every write path and "Save to..." sheet already honours it; delete and "Sync settings" get a saved branch.
 - Backup and device sync carry saved playlists as references (id, title, on account), not as videos.
-- `Extractor.playlistPage` returns header, videos and token: the YouTube client first (full header, your region), NewPipe as fallback.
-  `AccountReads.playlistPage` for private lists, plus the save state.
+- Built: `Extractor.playlistPage` returns header, videos and token: the YouTube client first (full header, your region), NewPipe as fallback (no views, no save
+  state). `AccountReads.playlistPage` for private lists, plus the save state.
 - `AccountActions.savePlaylist` / `unsavePlaylist`.
 - Library sync must classify each account playlist before importing: a page offering the save button is someone else's (saved), otherwise yours (synced).
-  A saved list imported earlier as "synced" is converted and its pending writes dropped.
+  A saved list imported earlier as "synced" is converted and its pending writes dropped. Confirmed (report 165): the account's playlist list includes saved
+  playlists, so today's sync imports them as synced, editable ones.
 
 ## 6. Stages (each tested, each leaving the app working)
 
 1. Reader fix (section 1). Worth releasing on its own. **Done.**
-2. Playlist page data and parser.
-3. Header and layout; Play all, Shuffle, Share, Download. No account writes.
+2. Playlist page data and parser. **Done.**
+3. Header and layout; Play all, Shuffle, Share, Download. No account writes. **Done** (the Save button comes with stage 4).
 4. Saved playlists, device only: sheet, model, Library, backup and sync.
 5. Account save and unsave, and classification in library sync.
 
-Gate for each: `./gradlew allTests test :androidApp:compileDebugKotlin`; read-only live checks for stages 1, 2 and 5. The save and remove writes need a live
-test that the owner allows.
+Gate for each: `./gradlew allTests test :androidApp:compileDebugKotlin`; read-only live checks for stages 1, 2 and 5. The owner allowed a live test of the
+save and remove writes; both worked (report 165).

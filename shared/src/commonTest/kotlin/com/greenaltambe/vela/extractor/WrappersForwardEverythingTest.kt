@@ -30,6 +30,7 @@ class WrappersForwardEverythingTest {
         override suspend fun channelLive(channelId: String, continuation: String?) = hit<Page<VideoSummary>>("channelLive")
         override suspend fun channelPlaylists(channelId: String, continuation: String?) = hit<Page<PlaylistRef>>("channelPlaylists")
         override suspend fun playlistVideos(playlistId: String, continuation: String?) = hit<Page<VideoSummary>>("playlistVideos")
+        override suspend fun playlistPage(playlistId: String, continuation: String?) = hit<PlaylistContents>("playlistPage")
         override suspend fun suggestions(query: String) = hit<List<String>>("suggestions")
         override suspend fun recentUploads(channelId: String) = hit<List<VideoSummary>>("recentUploads")
         override suspend fun channelLanding(channelId: String) = hit<ChannelLanding>("channelLanding")
@@ -43,13 +44,13 @@ class WrappersForwardEverythingTest {
     private val all = setOf(
         "search", "videoInfo", "streams", "streamsPreferringOther", "channel", "channelVideos",
         "channelVideosSorted", "comments", "replies", "trending", "kiosk", "related", "channelShorts",
-        "channelLive", "channelPlaylists", "playlistVideos", "suggestions", "recentUploads",
+        "channelLive", "channelPlaylists", "playlistVideos", "playlistPage", "suggestions", "recentUploads",
         "channelLanding", "channelTab", "channelTabByContinuation", "channelAbout", "channelSearch", "postDetail", "shortsFeed"
     )
 
     private suspend fun callAll(x: Extractor) {
         x.search("q"); x.videoInfo("v"); x.streams("v"); x.streamsPreferringOther("v"); x.channel("c"); x.channelVideos("c"); x.channelVideosSorted("c", ChannelVideoSort.POPULAR); x.comments("v"); x.replies("v", "id")
-        x.trending(); x.kiosk("live"); x.related("v"); x.channelShorts("c"); x.channelLive("c"); x.channelPlaylists("c"); x.playlistVideos("p"); x.suggestions("q"); x.recentUploads("c")
+        x.trending(); x.kiosk("live"); x.related("v"); x.channelShorts("c"); x.channelLive("c"); x.channelPlaylists("c"); x.playlistVideos("p"); x.playlistPage("p"); x.suggestions("q"); x.recentUploads("c")
         x.channelLanding("c"); x.channelTab("c", ChannelTab(ChannelTabKind.VIDEOS, "Videos")); x.channelTabByContinuation("t"); x.channelAbout("c"); x.channelSearch("c", "q"); x.postDetail("p"); x.shortsFeed()
     }
 

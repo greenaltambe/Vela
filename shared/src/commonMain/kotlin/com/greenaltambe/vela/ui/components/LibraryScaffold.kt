@@ -2,6 +2,10 @@
 
 package com.greenaltambe.vela.ui.components
 
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -62,6 +66,8 @@ fun LibraryScaffold(
     selectionActions: @Composable RowScope.() -> Unit = {},
     listTag: String,
     state: LazyListState = rememberLazyListState(),
+    /** A column of its own to the left of the list (a playlist's header on a wide window). */
+    side: (@Composable () -> Unit)? = null,
     content: LazyListScope.() -> Unit,
 ) {
     val behavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -105,12 +111,21 @@ fun LibraryScaffold(
             },
             scrollBehavior = behavior,
         )
-        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+        val list: @Composable (Modifier) -> Unit = { listModifier ->
             LazyColumn(
-                Modifier.widthIn(max = 1040.dp).fillMaxSize().testTag(listTag), state = state,
+                listModifier.testTag(listTag), state = state,
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(start = Spacing.gutter, end = Spacing.gutter, top = Spacing.sm, bottom = 96.dp),
                 verticalArrangement = Arrangement.spacedBy(Spacing.xs), content = content,
             )
+        }
+        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+            if (side == null) list(Modifier.widthIn(max = 1040.dp).fillMaxSize())
+            else Row(Modifier.fillMaxSize()) {
+                Column(
+                    Modifier.width(PLAYLIST_HEADER_WIDTH).fillMaxHeight().verticalScroll(rememberScrollState()).padding(start = Spacing.gutter, top = Spacing.sm, bottom = 96.dp).testTag("playlist.side"),
+                ) { side() }
+                list(Modifier.weight(1f).fillMaxHeight())
+            }
         }
     }
 }

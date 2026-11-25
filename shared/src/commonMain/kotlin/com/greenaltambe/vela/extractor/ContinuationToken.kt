@@ -3,6 +3,8 @@ package com.greenaltambe.vela.extractor
 /** Continuation tokens are stamped with the tier family that issued them: `<tier>:<payload>`. */
 object ContinuationToken {
     const val FOREIGN_MESSAGE = "continuation from a different tier"
+    /** The stamp of a playlist page token from the native YouTube client, so that it is sent back to that source. */
+    const val NATIVE_PLAYLIST = "native-playlist"
 
     fun wrap(tier: String, payload: String) = "$tier:$payload"
 

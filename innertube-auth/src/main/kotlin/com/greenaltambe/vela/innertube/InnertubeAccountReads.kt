@@ -3,6 +3,7 @@ package com.greenaltambe.vela.innertube
 import com.greenaltambe.vela.auth.*
 import com.greenaltambe.vela.extractor.ContinuationToken
 import com.greenaltambe.vela.extractor.Page
+import com.greenaltambe.vela.extractor.PlaylistContents
 import com.greenaltambe.vela.extractor.VideoSummary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -10,6 +11,7 @@ import kotlin.time.Clock
 
 /** Stamps the account's Shorts tokens, so that one is never sent without the account, nor an anonymous one with it. */
 private const val SHORTS_TOKEN = "account-shorts"
+private const val PLAYLIST_TOKEN = "account-playlist"
 
 /** [AccountReads] over youtubei for the active account: BROWSE calls through that account's governor; any failure is a null so the caller falls back. */
 class InnertubeAccountReads(
@@ -23,8 +25,8 @@ class InnertubeAccountReads(
     private val profiles: com.greenaltambe.vela.auth.ProfileStore? = null,
     private val onFailure: (String) -> Unit = {},
     /**
-     * "Region for content", read at every Home request (a blank value means US). Null leaves the bundled client's own. Only Home asks for it:
-     * the history and the playlists are the account's own lists, the same everywhere.
+     * "Region for content", read at every Home and playlist page request (a blank value means US). Null leaves the bundled client's own.
+     * The history and the playlist sync do not ask for it: those are the account's own lists, the same everywhere.
      */
     private val region: (() -> String)? = null,
     /** Told when a Home response was not entirely as expected (see [HomeParseReport.problem]). */
@@ -87,6 +89,17 @@ class InnertubeAccountReads(
         run { playlistListing(playlistId).let { (vids, complete) -> PlaylistListing(vids.map { it.toSummary() }, complete) } }
 
     private fun AccountPlaylistVideo.toSummary() = VideoSummary(videoId, title, channelId, channelName.orEmpty(), durationSeconds = durationSeconds)
+
+    override suspend fun playlistPage(playlistId: String, continuation: String?): PlaylistContents? {
+        val token = if (continuation != null) ContinuationToken.unwrap(PLAYLIST_TOKEN, continuation) ?: return null else null
+        return run(::homeClient) {
+            val patience = kotlin.time.Duration.parse("15s") // a person is waiting
+            val page = if (token == null) browse("VL$playlistId", patience) else continuation(token, patience)
+            if (token == null && InnertubeParsers.isSignedOutPage(page)) throw AuthFailure.LoggedOut("the playlist is the signed-out page")
+            PlaylistPageParser.contents(page, playlistId, first = token == null, signedIn = true) { ContinuationToken.wrap(PLAYLIST_TOKEN, it) }
+                ?: throw AuthFailure.Unparseable("the playlist page was not understood")
+        }
+    }
 
     override suspend fun history(): List<VideoSummary>? = run {
         val page = browse("FEhistory", kotlin.time.Duration.parse("70s"))

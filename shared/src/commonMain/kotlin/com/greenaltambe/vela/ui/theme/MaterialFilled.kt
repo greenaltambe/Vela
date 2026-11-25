@@ -53,6 +53,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Subscriptions
@@ -94,6 +95,7 @@ internal object MaterialFilled {
             "downloaded" to Icons.Filled.DownloadDone,
             "save" to Icons.Filled.Bookmark,
             "share" to Icons.Filled.Share,
+            "shuffle" to Icons.Filled.Shuffle,
             "speed" to Icons.Filled.Speed,
             "timer" to Icons.Filled.Timer,
             "quality" to Icons.Filled.HighQuality,

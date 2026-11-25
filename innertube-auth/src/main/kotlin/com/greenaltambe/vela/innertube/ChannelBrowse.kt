@@ -15,6 +15,7 @@ import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 
 const val NATIVE_TOKEN_PREFIX = "n1:"
+private const val PLAYLIST_SPACING_MS = 500L
 internal fun wrapNativeToken(token: String?): String? = token?.let { if (it.startsWith(NATIVE_TOKEN_PREFIX)) it else "$NATIVE_TOKEN_PREFIX$it" }
 internal fun unwrapNativeToken(token: String): String? {
     if (token.startsWith(NATIVE_TOKEN_PREFIX)) return token.removePrefix(NATIVE_TOKEN_PREFIX)
@@ -277,6 +278,28 @@ class ChannelBrowse(
                 ExtractorResult.Failure(e.error)
             } catch (e: ShortsFeed.Refused) {
                 ExtractorResult.Failure(if (token != null) ExtractorError.TokenExpired(e.message!!) else ExtractorError.Unplayable(e.message!!))
+            }
+        }
+    }
+
+    // A long playlist is read page after page ("Download all"): one request at a time, a moment apart.
+    private val playlistGate = Mutex()
+    private var lastPlaylist = 0L
+
+    /** [com.greenaltambe.vela.extractor.Extractor.playlistPage] without an account. */
+    suspend fun playlist(playlistId: String, continuation: String? = null): ExtractorResult<PlaylistContents> {
+        val token = if (continuation != null) {
+            ContinuationToken.unwrap(ContinuationToken.NATIVE_PLAYLIST, continuation) ?: return ExtractorResult.Failure(ExtractorError.TokenNotMine("Not a native playlist token"))
+        } else null
+        return playlistGate.withLock {
+            val wait = lastPlaylist + PLAYLIST_SPACING_MS - clock.now().toEpochMilliseconds()
+            if (wait > 0) delay(wait.coerceAtMost(PLAYLIST_SPACING_MS))
+            lastPlaylist = clock.now().toEpochMilliseconds()
+            val body = buildJsonObject { if (token == null) put("browseId", "VL$playlistId") else put("continuation", token) }
+            when (val r = executeBrowse(body)) {
+                is ExtractorResult.Failure -> r
+                is ExtractorResult.Success -> PlaylistPageParser.contents(r.value, playlistId, first = token == null, signedIn = false) { ContinuationToken.wrap(ContinuationToken.NATIVE_PLAYLIST, it) }
+                    ?.let { ExtractorResult.Success(it) } ?: ExtractorResult.Failure(ExtractorError.ParseFailure("The playlist page was not understood"))
             }
         }
     }

@@ -84,6 +84,7 @@ class Navigator(start: Route = Route.Home) {
     val shortsFeed = com.greenaltambe.vela.ui.screens.ShortsFeedStore()
     val exploreStore = com.greenaltambe.vela.ui.screens.ExploreStore()
     val channelStore = com.greenaltambe.vela.ui.screens.ChannelStore()
+    val playlistStore = com.greenaltambe.vela.ui.screens.PlaylistStore()
     val searchStore = com.greenaltambe.vela.ui.screens.SearchStore()
 
     /** The shell's keyboard shortcuts. The desktop window hands it the keys nothing in the page took (focus can be nowhere: the player's controls fade away with the control that had it). */
@@ -92,7 +93,7 @@ class Navigator(start: Route = Route.Home) {
     /** Bumped by Ctrl+R on a page that has no refresh of its own: the page is built again and refetches (see [refreshPage]). */
     var pageRefresh by mutableIntStateOf(0)
         private set
-    fun refreshPage() { videoPageCache.clear(); searchStore.clear(); channelStore.clear(); pageRefresh++ }
+    fun refreshPage() { videoPageCache.clear(); searchStore.clear(); channelStore.clear(); playlistStore.clear(); pageRefresh++ }
     var playerSheetState: com.greenaltambe.vela.ui.player.PlayerSheetState? = null
         set(value) {
             field = value
@@ -244,10 +245,27 @@ class Navigator(start: Route = Route.Home) {
         openInSheet(video, startSeconds)
     }
 
-    fun playAll(videos: List<VideoSummary>) {
-        val first = videos.firstOrNull() ?: return
+    /** Which queue this is: it changes when another list is played or the queue is thrown away. */
+    private var queueNumber = 0
+
+    /** Plays [videos] one after another. Returns the number of the queue it made ([extendQueue]), or null when there is nothing to play. */
+    fun playAll(videos: List<VideoSummary>): Int? {
+        val first = videos.firstOrNull() ?: return null
         queue = videos.drop(1)
         replaceWithVideo(first)
+        return ++queueNumber
+    }
+
+    fun isQueue(number: Int): Boolean = number == queueNumber
+
+    /** Puts more of the same list at the end of queue [number]; false when that queue is gone (another list was played, or it was cleared). */
+    fun extendQueue(number: Int, videos: List<VideoSummary>): Boolean {
+        if (!isQueue(number)) return false
+        val here = queue.mapTo(HashSet()) { it.id }
+        nowPlaying?.let { here += it.id }
+        val more = videos.filter { here.add(it.id) }
+        if (more.isNotEmpty()) queue = queue + more
+        return true
     }
 
     /** What [addToQueue] / [playNextUp] did: queued behind the current video, started at once (nothing was playing), or refused (it is the one playing). */
@@ -270,7 +288,7 @@ class Navigator(start: Route = Route.Home) {
 
     fun removeFromQueue(id: String) { queue = queue.filter { it.id != id } }
 
-    fun clearQueue() { queue = emptyList() }
+    fun clearQueue() { queue = emptyList(); queueNumber++ }
 
     /** Puts the queue in a random order ([random] is a parameter so a test can fix it). */
     fun shuffleQueue(random: kotlin.random.Random = kotlin.random.Random) { if (queue.size > 1) queue = queue.shuffled(random) }
@@ -325,6 +343,7 @@ class Navigator(start: Route = Route.Home) {
     fun clearNowPlaying() {
         nowPlaying = null
         queue = emptyList()
+        queueNumber++
         played = emptyList()
     }
 

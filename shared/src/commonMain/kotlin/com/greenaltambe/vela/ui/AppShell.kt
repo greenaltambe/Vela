@@ -15,6 +15,7 @@ import com.greenaltambe.vela.ui.components.navEntries
 import com.greenaltambe.vela.ui.nav.NavConfig
 import com.greenaltambe.vela.ui.nav.openTab
 import com.greenaltambe.vela.core.settings.shortsEnabled
+import com.greenaltambe.vela.ui.screens.playlistFilter
 import com.greenaltambe.vela.ui.screens.ProfileButton
 import com.greenaltambe.vela.ui.screens.ProfileMenu
 import androidx.compose.foundation.layout.Box
@@ -262,6 +263,16 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
     val channelStore = navigator.channelStore
     val searchStore = navigator.searchStore
     val spaceHold = remember { SpaceHold() }
+    // "Play all" on a long playlist goes on queueing its pages whatever page is open; run again after the shell comes back, it carries on.
+    val playlistFill = navigator.playlistStore.fill
+    val fillToasts = com.greenaltambe.vela.ui.look.LocalUndoToasts.current
+    LaunchedEffect(playlistFill) {
+        if (playlistFill == null) return@LaunchedEffect
+        val stopped = playlistFill.run(navigator, services::playlistFilter)
+        // Another "Play all" may have taken its place while the last page was on its way.
+        if (navigator.playlistStore.fill === playlistFill) navigator.playlistStore.fill = null
+        stopped?.let { fillToasts.show(it) }
+    }
     val refreshHandle = remember { com.greenaltambe.vela.ui.components.RefreshHandle() }
     // The search pill and "/": the typing view, with the current query in the field when a results page is open.
     val openSearch = { navigator.push(Route.Search((route as? Route.Search)?.query.orEmpty(), edit = route is Route.Search)) }
@@ -396,6 +407,7 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
             com.greenaltambe.vela.ui.screens.LocalShortsFeed provides shortsFeed,
             com.greenaltambe.vela.ui.screens.LocalSearchStore provides searchStore,
             com.greenaltambe.vela.ui.screens.LocalChannelStore provides channelStore,
+            com.greenaltambe.vela.ui.screens.LocalPlaylistStore provides navigator.playlistStore,
             com.greenaltambe.vela.ui.screens.LocalExploreStore provides exploreStore,
             com.greenaltambe.vela.ui.platform.LocalTextFetcher provides { url -> com.greenaltambe.vela.ui.platform.OfflineSubtitles.get(url) ?: (services.modules.client.get(url, ttl = kotlin.time.Duration.parse("6h")) as? com.greenaltambe.vela.core.http.ApiResult.Ok)?.body },
         ) {

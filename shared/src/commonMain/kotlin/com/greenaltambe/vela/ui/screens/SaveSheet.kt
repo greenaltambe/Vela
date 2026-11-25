@@ -70,8 +70,20 @@ fun SaveManySheet(services: AppServices, videos: List<VideoSummary>, onDismiss: 
     val toasts = com.greenaltambe.vela.ui.look.LocalUndoToasts.current
     val scope = rememberCoroutineScope()
     val lists = remember { services.playlists.all().filter { !it.isReadOnly } }
+    var creating by remember { mutableStateOf(false) }
+    if (creating) NewPlaylistDialog(services, onDismiss = { creating = false }) { name, synced ->
+        creating = false
+        services.playlistService.launch {
+            val made = services.playlistService.create(name, synced)
+            val id = made.id
+            if (id == null || !made.ok) { toasts.show(made.message ?: "Could not create the playlist"); return@launch }
+            val r = services.playlistService.add(id, videos)
+            toasts.show(if (!r.ok) r.message ?: "Could not save to $name" else "Saved ${videos.size} to $name" + (if (r.pending) ". It will reach YouTube later." else ""))
+        }
+        onDismiss()
+    }
     PlayerMenuSheet(if (videos.size == 1) "Save to" else "Save ${videos.size} videos to", onDismiss, subtitle = videos.firstOrNull()?.title?.takeIf { videos.size == 1 }) {
-        if (lists.isEmpty()) Text("No playlists yet. Create one in Library.", Modifier.padding(horizontal = Spacing.gutter), style = MaterialTheme.typography.bodyMedium)
+        if (lists.isEmpty()) Text("No playlists yet.", Modifier.padding(horizontal = Spacing.gutter), style = MaterialTheme.typography.bodyMedium)
         lists.forEachIndexed { i, list ->
             PlayerMenuRow(
                 list.name, selected = false, index = i, leading = if (list.isWatchLater) AppIcons.watchLater else AppIcons.playlist,
@@ -86,5 +98,9 @@ fun SaveManySheet(services: AppServices, videos: List<VideoSummary>, onDismiss: 
                 modifier = Modifier.testTag("history.saveTo"),
             )
         }
+        androidx.compose.material3.FilledTonalButton(
+            onClick = { creating = true }, shapes = androidx.compose.material3.ButtonDefaults.shapes(),
+            modifier = Modifier.padding(horizontal = Spacing.gutter, vertical = Spacing.sm).testTag("history.saveNew"),
+        ) { Text("New playlist", maxLines = 1) }
     }
 }
