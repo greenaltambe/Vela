@@ -65,8 +65,8 @@ class InnertubeWritesTest {
             {"lockupViewModel":{"contentType":"LOCKUP_CONTENT_TYPE_PLAYLIST","contentId":"PL2","metadata":{"lockupMetadataViewModel":{"title":{"content":"Two"}}}}},
             {"lockupViewModel":{"contentType":"LOCKUP_CONTENT_TYPE_VIDEO","contentId":"vid"}},{"gridPlaylistRenderer":{"title":{"simpleText":"no id"}}}]}""")
         assertEquals(listOf("PL1" to 12, "PL2" to null), InnertubeParsers.playlists(page).map { it.id to it.videoCount })
-        val vids = lenientJson.parseToJsonElement("""{"x":[{"playlistVideoRenderer":{"videoId":"v1","title":{"runs":[{"text":"T"}]},"shortBylineText":{"runs":[{"text":"Chan"}]},"lengthSeconds":"61","setVideoId":"S1"}},{"playlistVideoRenderer":{"title":{"simpleText":"no id"}}}]}""")
-        val v = InnertubeParsers.playlistVideos(vids).single()
+        val vids = lenientJson.parseToJsonElement("""{"contents":{"playlistVideoListRenderer":{"contents":[{"playlistVideoRenderer":{"videoId":"v1","title":{"runs":[{"text":"T"}]},"shortBylineText":{"runs":[{"text":"Chan"}]},"lengthSeconds":"61","setVideoId":"S1"}},{"playlistVideoRenderer":{"title":{"simpleText":"no id"}}}]}}}""")
+        val v = PlaylistPageParser.first(vids).videos.single()
         assertEquals(listOf("v1", "T", "Chan", 61L, "S1"), listOf(v.videoId, v.title, v.channelName, v.durationSeconds, v.setVideoId))
     }
 

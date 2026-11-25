@@ -5,6 +5,10 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Fixed
+- The icons of the bottom bar and the side rail were drawn black, so they could not be seen in the dark theme.
+- Syncing with YouTube read no videos from Liked videos and from other playlists in YouTube's newer page layout; both layouts are read now, with their further pages. A page Vela cannot read is reported as a failed sync instead of an empty playlist.
+
 ## [0.6.1-beta.6]
 
 ### Added

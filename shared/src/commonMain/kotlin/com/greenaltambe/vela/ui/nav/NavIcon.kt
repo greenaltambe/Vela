@@ -6,6 +6,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -27,7 +28,12 @@ import kotlinx.coroutines.launch
  * is cut short cleanly if the viewer taps another tab at once.
  */
 @Composable
-fun AnimatedNavIcon(selected: Boolean, animate: Boolean, contentDescription: String?, tint: Color = Color.Unspecified, modifier: Modifier = Modifier, icon: @Composable (Boolean) -> ImageVector) {
+fun AnimatedNavIcon(
+    selected: Boolean, animate: Boolean, contentDescription: String?,
+    /** By default what the item around it says (the bar's selected or unselected colour). Never Unspecified: that draws the icon in its own black. */
+    tint: Color = LocalContentColor.current,
+    modifier: Modifier = Modifier, icon: @Composable (Boolean) -> ImageVector,
+) {
     if (!animate) { Icon(icon(selected), contentDescription, modifier, tint); return }
     val scale = remember { Animatable(if (selected) 1f else REST_SCALE) }
     val lift = remember { Animatable(0f) }

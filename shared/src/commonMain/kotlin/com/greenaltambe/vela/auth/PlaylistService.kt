@@ -456,12 +456,11 @@ class PlaylistService(
             else {
                 val have = rows.associateBy { it.videoId }
                 for (v in listing.videos) {
-                    val row = have[v.id]
-                    when {
-                        row == null -> { repo.add(id, listOf(v), now(), RowState.SYNCED); pulledTotal++ }
-                        row.rowState == RowState.PENDING_ADD || row.rowState == RowState.OVERFLOW -> { repo.setRowState(id, v.id, RowState.SYNCED); ops.cancelAdd(id, v.id) }
-                    }
+                    val row = have[v.id] ?: continue
+                    if (row.rowState == RowState.PENDING_ADD || row.rowState == RowState.OVERFLOW) { repo.setRowState(id, v.id, RowState.SYNCED); ops.cancelAdd(id, v.id) }
                 }
+                // One write for all that is new: Liked videos can bring thousands at once.
+                pulledTotal += repo.add(id, listing.videos.filter { it.id !in have }, now(), RowState.SYNCED)
                 if (listing.complete) for (row in rows) when {
                     row.rowState == RowState.SYNCED && row.videoId !in remoteSet -> repo.remove(id, row.videoId)
                     row.rowState == RowState.PENDING_REMOVE && row.videoId !in remoteSet -> { repo.remove(id, row.videoId); ops.cancelRemove(id, row.videoId) }

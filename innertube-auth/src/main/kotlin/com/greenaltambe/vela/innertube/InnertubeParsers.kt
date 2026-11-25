@@ -8,7 +8,7 @@ data class AccountInfo(val displayName: String, val email: String?, val avatarUr
 /** One profile (the main channel or a brand channel) of the signed-in Google account. [pageId] is what `X-Goog-PageId` carries to act as that channel; null for the main one. ASSUMPTION: read from `datasyncId` as "<pageId>||<userId>"; not verified because the test account has a single profile. */
 data class ProfileInfo(val name: String, val selected: Boolean, val pageId: String?)
 data class AccountPlaylistInfo(val id: String, val title: String, val videoCount: Int?, val thumbnailUrl: String?)
-data class AccountPlaylistVideo(val videoId: String, val title: String, val channelName: String?, val durationSeconds: Long?, val setVideoId: String?)
+data class AccountPlaylistVideo(val videoId: String, val title: String, val channelName: String?, val durationSeconds: Long?, val setVideoId: String?, val channelId: String = "")
 data class SubscribedChannelInfo(val channelId: String, val title: String, val avatarUrl: String?)
 
 /** Path-based extractors over youtubei JSON. Each returns null / empty when the shape is not there. */
@@ -75,13 +75,6 @@ object InnertubeParsers {
         return classic + lockups
     }
 
-    /** Videos in a playlist browse/continuation response. */
-    fun playlistVideos(json: JsonElement): List<AccountPlaylistVideo> =
-        json.findAll("playlistVideoRenderer").mapNotNull { v ->
-            val id = v["videoId"].string ?: return@mapNotNull null
-            AccountPlaylistVideo(id, v["title"].text() ?: return@mapNotNull null, v["shortBylineText"].text(), v["lengthSeconds"].string?.toLongOrNull(), v["setVideoId"].string)
-        }
-
     /** The service's own refusal (`{"error":{"code":..,"message":..}}`), or null. */
     fun apiError(json: JsonElement): String? =
         (json as? kotlinx.serialization.json.JsonObject)?.get("error")?.let { e -> "${e["code"].string ?: ""} ${e["message"].string ?: ""}".trim().ifEmpty { "error" } }
@@ -146,13 +139,17 @@ object InnertubeParsers {
             b["badgeStyle"].string?.contains("LIVE") == true || b["text"].string.equals("LIVE", ignoreCase = true)
         }
 
-        var channel = ""
         var viewCount: Long? = null
         var publishedText: String? = null
         val rows = meta.at("metadata", "contentMetadataViewModel", "metadataRows").array
+        // The part that links to a channel is its name, whatever words the name holds ("... of the Day" is not a date).
+        val channelPart = rows.flatMap { it.at("metadataParts").array }
+            .firstOrNull { p -> p.findAll("browseEndpoint").any { it["browseId"].string?.startsWith("UC") == true } && p.at("text", "content").string != null }
+        var channel = channelPart.at("text", "content").string.orEmpty()
         for (r in rows) {
             val parts = r.at("metadataParts").array
             for (p in parts) {
+                if (p === channelPart) continue
                 val text = p.at("text", "content").string ?: p.at("text").text() ?: continue
                 val lower = text.lowercase()
                 if (lower.contains("view")) {
@@ -168,7 +165,10 @@ object InnertubeParsers {
             }
         }
         if (channel.isBlank()) {
-            channel = meta.at("image", "decoratedAvatarViewModel", "avatar", "avatarViewModel", "accessibility", "accessibilityData", "label").string?.removePrefix("Go to ") ?: ""
+            // Some entries (seen in Liked videos) have no channel row at all; the channel picture's label names it.
+            channel = (meta.at("image", "decoratedAvatarViewModel", "a11yLabel").string
+                ?: meta.at("image", "decoratedAvatarViewModel", "avatar", "avatarViewModel", "accessibility", "accessibilityData", "label").string)
+                ?.removePrefix("Go to channel ")?.removePrefix("Go to ") ?: ""
         }
         return com.greenaltambe.vela.extractor.VideoSummary(
             id = id,

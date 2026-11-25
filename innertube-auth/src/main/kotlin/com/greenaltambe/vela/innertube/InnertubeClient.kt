@@ -142,16 +142,30 @@ class InnertubeClient(
     /** One playlist's videos ("WL", "LL" or a playlist id), following continuations. */
     fun playlistVideos(playlistId: String, maxPages: Int = 10): List<AccountPlaylistVideo> = playlistListing(playlistId, maxPages).first
 
-    /** The videos and whether the list was read to its end (false when [maxPages] ran out first). A playlist holds up to 5000 videos, about 50 pages. */
+    /**
+     * The videos and whether the list was read whole: false when [maxPages] ran out, a further page did not come, or an entry could not be read.
+     * A playlist holds up to 5000 videos, about 50 pages. An answer that shows no videos where there should be some throws: it is a failed read,
+     * never an empty playlist.
+     */
     fun playlistListing(playlistId: String, maxPages: Int = 60): Pair<List<AccountPlaylistVideo>, Boolean> {
         val out = LinkedHashMap<String, AccountPlaylistVideo>()
-        var page = browse("VL$playlistId", LISTING_PATIENCE)
-        repeat(maxPages) {
-            InnertubeParsers.playlistVideos(page).forEach { out.putIfAbsent(it.videoId, it) }
-            val token = InnertubeParsers.continuationToken(page) ?: return out.values.toList() to true
-            page = continuation(token, LISTING_PATIENCE)
+        var page = PlaylistPageParser.first(browse("VL$playlistId", LISTING_PATIENCE))
+        if (page.videos.isEmpty()) {
+            val stated = page.statedCount
+            if (stated == 0) return emptyList<AccountPlaylistVideo>() to true   // it says it is empty: whatever else is on the page is not its videos
+            if (stated != null || page.unread > 0 || !page.recognised)
+                throw AuthFailure.Unparseable("the playlist page was not understood: no video read, ${stated ?: "no number"} stated, ${page.unread} unknown entries")
         }
-        return out.values.toList() to false
+        var pages = 1
+        var unread = 0
+        while (true) {
+            page.videos.forEach { out.putIfAbsent(it.videoId, it) }
+            unread += page.unread
+            val token = page.next ?: return out.values.toList() to (unread == 0)
+            if (pages++ >= maxPages) return out.values.toList() to false
+            page = PlaylistPageParser.more(continuation(token, LISTING_PATIENCE))
+            if (!page.recognised) return out.values.toList() to false
+        }
     }
 }
 

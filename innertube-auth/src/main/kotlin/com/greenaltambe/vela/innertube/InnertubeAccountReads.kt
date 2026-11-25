@@ -81,10 +81,12 @@ class InnertubeAccountReads(
     override suspend fun playlists(): List<AccountPlaylist>? = run { playlists().map { AccountPlaylist(it.id, it.title, it.videoCount) } }
 
     override suspend fun playlistVideos(playlistId: String): List<VideoSummary>? =
-        run { playlistVideos(playlistId).map { VideoSummary(it.videoId, it.title, "", it.channelName.orEmpty(), durationSeconds = it.durationSeconds) } }
+        run { playlistVideos(playlistId).map { it.toSummary() } }
 
     override suspend fun playlistListing(playlistId: String): PlaylistListing? =
-        run { playlistListing(playlistId).let { (vids, complete) -> PlaylistListing(vids.map { VideoSummary(it.videoId, it.title, "", it.channelName.orEmpty(), durationSeconds = it.durationSeconds) }, complete) } }
+        run { playlistListing(playlistId).let { (vids, complete) -> PlaylistListing(vids.map { it.toSummary() }, complete) } }
+
+    private fun AccountPlaylistVideo.toSummary() = VideoSummary(videoId, title, channelId, channelName.orEmpty(), durationSeconds = durationSeconds)
 
     override suspend fun history(): List<VideoSummary>? = run {
         val page = browse("FEhistory", kotlin.time.Duration.parse("70s"))
