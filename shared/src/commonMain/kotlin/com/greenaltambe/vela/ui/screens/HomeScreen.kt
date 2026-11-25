@@ -1,5 +1,13 @@
 package com.greenaltambe.vela.ui.screens
 
+import com.greenaltambe.vela.home.placeHomeBlocks
+import com.greenaltambe.vela.home.visibleGroups
+import com.greenaltambe.vela.home.allowed
+import com.greenaltambe.vela.home.ShownGroup
+import com.greenaltambe.vela.home.HomeBlock
+import com.greenaltambe.vela.home.HomeList
+import com.greenaltambe.vela.core.settings.shortsEnabled
+import com.greenaltambe.vela.auth.FeedGroupKind
 import com.greenaltambe.vela.ui.theme.Spacing
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -62,9 +70,21 @@ import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Trending, through the same feed pipeline as the subscription feed. */
+/**
+ * Home. Everything it holds belongs to one "Region for content": a change starts the page afresh, so nothing asked for the old region (a list,
+ * the chips, a shelf, an answer still on its way) can show under the new one.
+ */
 @Composable
 fun HomeScreen(services: AppServices, navigator: Navigator, modifier: Modifier = Modifier) {
+    val revision by services.settings.revision.collectAsState()
+    val region = remember(revision) { services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.contentRegion) }
+    LocalHomeFeed.current?.forRegion(region)
+    androidx.compose.runtime.key(region) { HomeContent(services, navigator, modifier) }
+}
+
+/** Signed in, the account's feed; signed out, the shelves that need no account. */
+@Composable
+private fun HomeContent(services: AppServices, navigator: Navigator, modifier: Modifier) {
     val store = LocalHomeFeed.current
     val accountId = services.accounts.active.value.id
     store?.forAccount(accountId)
@@ -74,7 +94,7 @@ fun HomeScreen(services: AppServices, navigator: Navigator, modifier: Modifier =
     var chips by remember { mutableStateOf(store?.chips.orEmpty()) }
     var chipLabel by remember { mutableStateOf(startChip) }
     var hiddenChips by remember { mutableStateOf<Set<String>>(store?.emptyChips.orEmpty().toSet()) }
-    var videos by remember { mutableStateOf(if (!cached) videoPagedList() else if (startChip == null) store!!.videos else store!!.chipEntry(startChip).videos) }
+    var feed by remember { mutableStateOf(if (!cached) HomeList() else if (startChip == null) store!!.list else store!!.chipEntry(startChip).list) }
     var state by remember { mutableStateOf<ListState>(if (cached || !(services.reads != null && services.accounts.active.value.isSignedIn)) ListState.Ready else ListState.Loading) }
     var loading by remember { mutableStateOf(false) }
     var pulling by remember { mutableStateOf(false) }       // the pull-to-refresh spinner, only for a pull (not for the first load or paging)
@@ -101,7 +121,7 @@ fun HomeScreen(services: AppServices, navigator: Navigator, modifier: Modifier =
         loading = true
         val myId = ++loadId[0]
         val forChip = chipLabel
-        if (!more && videos.items.isEmpty()) state = ListState.Loading
+        if (!more && feed.isEmpty) state = ListState.Loading
         scope.launch {
             // Signed in (and the setting says so): Home is the account's own feed, page after page, and nothing else. Trending is never added to it.
             if (accountFeedOn()) {
@@ -109,30 +129,39 @@ fun HomeScreen(services: AppServices, navigator: Navigator, modifier: Modifier =
                 val chip = chips.firstOrNull { it.label == forChip && it.kind != com.greenaltambe.vela.auth.HomeChipKind.ALL }
                 // The chip that was open is gone from the chips (they were reloaded): fall back to All.
                 if (forChip != null && chip == null && !more) { chipLabel = null; store?.selectedChip = null }
-                var page = if (chip != null && !more) chipFirstPage(reads, chip) else reads.home(continuation = videos.continuation.takeIf { more })
-                // A page that comes back with no videos but offers another is followed a few times before calling the feed empty.
+                val first = if (chip != null && !more) chipFirstPage(reads, chip) else reads.home(continuation = feed.videos.continuation.takeIf { more })
+                // A page that comes back with no videos but offers another is followed a few times before calling the feed empty; what it did hold
+                // (YouTube's groups) is kept.
+                val pages = listOfNotNull(first).toMutableList()
+                var page = first
                 var follow = 0
-                while (page != null && page.videos.isEmpty() && page.continuation != null && follow++ < 3) page = reads.home(continuation = page.continuation)
+                while (page != null && page.videos.isEmpty() && page.continuation != null && follow++ < 3) { page = reads.home(continuation = page.continuation); page?.let(pages::add) }
                 if (myId != loadId[0]) return@launch   // another chip was chosen while this loaded: its own load owns the screen now
+                val next = pages.fold(if (more) feed else HomeList()) { list, p -> list.append(p) }
+                val groupsOn = services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.homeYoutubeGroups)
+                val somethingToShow = next.videos.items.isNotEmpty() || next.groups.any { it.allowed(groupsOn, services.settings.shortsEnabled()) }
                 when {
-                    page != null && (page.videos.isNotEmpty() || more) -> {
-                        val next = com.greenaltambe.vela.extractor.Page(page.videos, page.continuation)
-                        videos = if (more) videos.append(next) else videos.replace(next)
-                        if (chip == null && !more && page.chips.isNotEmpty()) { chips = page.chips; store?.chips = page.chips }
+                    page != null && (somethingToShow || more) -> {
+                        feed = next
+                        if (chip == null && !more && first!!.chips.isNotEmpty()) { chips = first.chips; store?.chips = first.chips }
                         showing = "Recommended"; note = null; feedFailed = false
                         state = ListState.Ready
                         if (!more) stamp()
                     }
-                    page != null -> {   // answered with nothing
+                    page != null -> {   // answered with nothing that can be shown
                         feedFailed = false
-                        if (chip != null) {
+                        if (chip != null && next.isEmpty) {
                             // A chip with nothing in it is left out of the row for the rest of the session.
                             store?.emptyChips?.add(chip.label); hiddenChips = hiddenChips + chip.label
-                            videos = videoPagedList()
+                            feed = next
                             state = ListState.Empty("Nothing in \"${chip.label}\" for you right now.", "Show all") { showAll[0]?.invoke() }
-                        } else if (videos.items.isEmpty()) state = ListState.Empty("Your account has no recommendations yet.", "Browse Explore") { navigator.selectTab(Route.Explore) }
+                        } else if (chip != null) {
+                            // Only rows that the settings hide: the chip stays, in case they are switched on again.
+                            feed = next
+                            state = ListState.Empty("Everything in \"${chip.label}\" is in rows your settings hide.", "Show all") { showAll[0]?.invoke() }
+                        } else if (feed.isEmpty) state = ListState.Empty("Your account has no recommendations yet.", "Browse Explore") { navigator.selectTab(Route.Explore) }
                     }
-                    videos.items.isEmpty() -> { feedFailed = chip == null; state = ListState.Error(if (chip == null) "Your feed could not be loaded right now." else "\"${chip.label}\" could not be loaded right now.") { load(false) } }
+                    feed.isEmpty -> { feedFailed = chip == null; state = ListState.Error(if (chip == null) "Your feed could not be loaded right now." else "\"${chip.label}\" could not be loaded right now.") { load(false) } }
                     !more -> note = "Could not refresh your feed. Showing what was loaded before."
                     // else: a later page failed; the list stays and its "Load more" button tries again.
                 }
@@ -142,18 +171,18 @@ fun HomeScreen(services: AppServices, navigator: Navigator, modifier: Modifier =
             // Signed out: there is no feed (YouTube has no Trending page any more and shows no videos without an account). The list stays empty;
             // the shelves that work without an account and a sign-in card are what Home shows.
             feedFailed = false; note = null; showing = "None"
-            videos = videoPagedList(); state = ListState.Ready
+            feed = HomeList(); state = ListState.Ready
             loading = false
         }
     }
     /** Opens a chip (null = All): what it held a moment ago if that is fresh, otherwise its first page. The list that was open is kept for coming back to. */
     fun selectChip(label: String?) {
         if (label == chipLabel) return
-        if (videos.items.isNotEmpty()) { if (chipLabel == null) store?.videos = videos else store?.chipEntry(chipLabel!!)?.videos = videos }
+        if (!feed.isEmpty) { if (chipLabel == null) store?.list = feed else store?.chipEntry(chipLabel!!)?.list = feed }
         loadId[0]++; loading = false; pulling = false
         chipLabel = label; store?.selectedChip = label; feedFailed = false
         val fresh = store != null && (if (label == null) store.usable(accountId, services.clock.now()) else store.chipUsable(label, services.clock.now()))
-        videos = if (!fresh) videoPagedList() else if (label == null) store!!.videos else store!!.chipEntry(label).videos
+        feed = if (!fresh) HomeList() else if (label == null) store!!.list else store!!.chipEntry(label).list
         note = if (label == null && fresh) store?.note else null
         state = if (fresh) ListState.Ready else ListState.Loading
         if (!fresh) load(more = false)
@@ -162,20 +191,24 @@ fun HomeScreen(services: AppServices, navigator: Navigator, modifier: Modifier =
     LaunchedEffect(loading) { if (!loading) pulling = false }
     // Remember what is shown for the next visit; a good answer stamps the time.
     androidx.compose.runtime.SideEffect {
-        if (store != null && videos.items.isNotEmpty() && state == ListState.Ready) {
-            if (chipLabel == null) { store.accountId = accountId; store.videos = videos; store.showing = showing; store.note = note }
-            else store.chipEntry(chipLabel!!).videos = videos
+        if (store != null && !feed.isEmpty && state == ListState.Ready) {
+            if (chipLabel == null) { store.accountId = accountId; store.list = feed; store.showing = showing; store.note = note }
+            else store.chipEntry(chipLabel!!).list = feed
         }
     }
     LaunchedEffect(accountId) {
         // Back on Home with a recent feed: show it as it was. Otherwise (first visit, another account, too old, nothing loaded) fetch.
         if (cached && (startChip != null || store!!.accountId == accountId)) return@LaunchedEffect
-        videos = videoPagedList(); load(more = false)
+        feed = HomeList(); load(more = false)
     }
 
     val toasts = LocalUndoToasts.current
     val settingsRevision by services.settings.revision.collectAsState()
-    val shelfOrder = remember(settingsRevision) { HomeShelves.parse(services.settings.resolve(LookSettings.homeShelves)) }
+    val signedOutHome = !accountFeedOn()
+    // Signed in, the feed carries YouTube's own Shorts rows, so the app's Shorts shelf is left for signed out.
+    val shelfOrder = remember(settingsRevision, signedOutHome) { HomeShelves.parse(services.settings.resolve(LookSettings.homeShelves)).filter { signedOutHome || it != HomeShelf.SHORTS } }
+    val groupsOn = remember(settingsRevision) { services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.homeYoutubeGroups) }
+    val shortsOn = remember(settingsRevision) { services.settings.shortsEnabled() }
     val showChips = remember(settingsRevision) { services.settings.resolve(LookSettings.homeChips) }
     val youtubeChips = remember(settingsRevision) { services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.homeYoutubeChips) }
     // Chips switched off while one was open: back to the plain feed.
@@ -223,13 +256,13 @@ fun HomeScreen(services: AppServices, navigator: Navigator, modifier: Modifier =
         toasts.show("${v.channelName.ifBlank { "This channel" }} is hidden from Home.") { services.homePrefs.restoreChannel(v.channelId); dismissed = services.homePrefs.dismissed() }
     }
 
-    val shownBase = rememberFiltered(services, videos.items, DeArrowSurface.FEED)
+    val shownBase = rememberFiltered(services, feed.videos.items, DeArrowSurface.FEED)
     // What the filters and the blocklist left out is said once after a refresh, as a toast that goes away by itself, not as a permanent bar over the list.
     var announceHidden by remember { mutableStateOf(false) }
-    LaunchedEffect(loading, videos.items.size, shownBase.size) {
-        if (!loading && announceHidden && videos.items.isNotEmpty()) {
+    LaunchedEffect(loading, feed.videos.items.size, shownBase.size) {
+        if (!loading && announceHidden && feed.videos.items.isNotEmpty()) {
             announceHidden = false
-            val hidden = videos.items.size - shownBase.size
+            val hidden = feed.videos.items.size - shownBase.size
             if (hidden > 0) toasts.show("$hidden hidden by your filters or blocklist")
         }
     }
@@ -251,23 +284,35 @@ fun HomeScreen(services: AppServices, navigator: Navigator, modifier: Modifier =
     val subscribed = rememberAsync(accountId, keepWhileLoading = true, first = { emptyList<com.greenaltambe.vela.data.SubscribedChannel>() }, compute = { services.subscriptions.all() })
     val subscribedAvatars = remember(subscribed) { subscribed.filter { it.avatarUrl != null }.associate { it.channelId to it.avatarUrl } }
     val channelNames = remember(subscribed) { subscribed.associate { it.channelId to it.name } }
+    val localFilter = filter != HomeFilter.ALL
+    // YouTube's groups go through the same filters as every list, and what was sent away from Home stays away.
+    val groupVideos = remember(feed.groups) { feed.groups.flatMap { it.videos } }
+    val groupBase = rememberFiltered(services, groupVideos, DeArrowSurface.FEED)
+    val shownGroups = remember(feed.groups, groupBase, dismissed, groupsOn, shortsOn, localFilter) {
+        visibleGroups(feed.groups, groupBase.withoutDismissed(dismissed).associateBy { it.id }, groupsOn, shortsOn, localFilter)
+    }
     val readyShelves = shelfOrder.mapNotNull { (shelves[it] as? ShelfUi.Ready)?.data?.videos }
-    val allVideos = remember(shown, readyShelves) { shown + readyShelves.flatten() }
+    val allVideos = remember(shown, readyShelves, shownGroups) { shown + readyShelves.flatten() + shownGroups.flatMap { it.group.videos } }
     val extras = rememberCardExtras(services, allVideos)
 
     // The places of the shelves do not depend on how much has loaded. With a chip active the shelves are out of the way (the chips filter the feed);
     // while the feed's first answer is awaited only Continue watching is up, so the screen has one set of placeholders, not shelves stacked over them.
-    val localFilter = filter != HomeFilter.ALL
     val filtering = localFilter || chipLabel != null
-    val feedPending = videos.items.isEmpty() && state == ListState.Loading
+    val feedPending = feed.isEmpty && state == ListState.Loading
     val slots = remember(shelfOrder, density) { planSlots(shelfOrder, density.step) }
-    val signedOutHome = !accountFeedOn()
-    val shelfInjections = if (filtering) emptyList() else slots.filter { !feedPending || it.shelf == HomeShelf.CONTINUE }.map { slot ->
-        Injection(slot.afterVideos, slot.shelf.name, "shelf-${slot.shelf.name}") {
-            ShelfBlock(
-                slot.shelf, shelves[slot.shelf], shelfTick, { ensureShelf(slot.shelf) }, services, navigator, dismissed, lastOpened, continueWatching, { continueTick++ },
-                subscribedAvatars, channelNames, extras, ::notInterested, ::hideChannel,
-            )
+    val shelfSlots = if (filtering) emptyList() else slots.filter { !feedPending || it.shelf == HomeShelf.CONTINUE }
+    val blocks = placeHomeBlocks(shelfSlots, shownGroups, feed.videos.items.map { it.id }, shown.map { it.id })
+    val shelfInjections = blocks.map { block ->
+        when (block) {
+            is HomeBlock.Shelf -> Injection(block.afterVideos, block.shelf.name, "shelf-${block.shelf.name}") {
+                ShelfBlock(
+                    block.shelf, shelves[block.shelf], shelfTick, { ensureShelf(block.shelf) }, services, navigator, dismissed, lastOpened, continueWatching, { continueTick++ },
+                    subscribedAvatars, channelNames, extras, ::notInterested, ::hideChannel,
+                )
+            }
+            is HomeBlock.Group -> Injection(block.afterVideos, "yt-${block.shown.key}", "youtube-group") {
+                YouTubeGroup(block.shown, services, navigator, subscribedAvatars, extras, ::notInterested, ::hideChannel)
+            }
         }
     }
     // Signed out the list has no videos, so every shelf lands at the top in order. The card comes right after Continue watching (which is something to do, so it
@@ -279,10 +324,10 @@ fun HomeScreen(services: AppServices, navigator: Navigator, modifier: Modifier =
 
     // A chip whose matches are not among what is loaded: an empty list has no last card to ask for more, so ask here, a few pages at most, behind placeholders;
     // then say plainly that nothing matches, with the way back.
-    val canMore = videos.continuation != null
+    val canMore = feed.videos.continuation != null
     var autoPages by remember(filter, chipLabel) { mutableStateOf(0) }
     val nothingYet = localFilter && shown.isEmpty() && state == ListState.Ready
-    LaunchedEffect(nothingYet, loading, videos.items.size, filter) {
+    LaunchedEffect(nothingYet, loading, feed.videos.items.size, filter) {
         if (nothingYet && !loading && canMore && autoPages < MAX_FILTER_PAGES) { autoPages++; load(more = true) }
     }
     val listState = when {
@@ -314,7 +359,7 @@ fun HomeScreen(services: AppServices, navigator: Navigator, modifier: Modifier =
                 Text(it, style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.testTag("home.note"))
             }
         }
-        if (feedFailed && videos.items.isEmpty()) TextButton(onClick = { navigator.selectTab(Route.Explore) }, modifier = Modifier.padding(horizontal = Spacing.sm).testTag("home.explore")) { Text("Browse Explore") }
+        if (feedFailed && feed.isEmpty) TextButton(onClick = { navigator.selectTab(Route.Explore) }, modifier = Modifier.padding(horizontal = Spacing.sm).testTag("home.explore")) { Text("Browse Explore") }
     }
     val list: @Composable (Modifier) -> Unit = { box ->
         com.greenaltambe.vela.ui.components.RefreshBox(isRefreshing = pulling && loading, onRefresh = { pulling = true; announceHidden = true; shelfTick++; load(more = false) }, modifier = box) {
@@ -328,7 +373,7 @@ fun HomeScreen(services: AppServices, navigator: Navigator, modifier: Modifier =
                 sharedExtras = extras,
                 // More is fetched by itself a few cards before the end; while it is on its way a placeholder card shows, and the button is only the way back if that fetch failed.
                 // The account feed pages by its own continuation and ends where YouTube's list ends; Trending is never appended to it.
-                onEndReached = { if (videos.continuation != null && !loading && state == ListState.Ready) load(more = true) },
+                onEndReached = { if (feed.videos.continuation != null && !loading && state == ListState.Ready) load(more = true) },
                 footer = if (canMore && !nothingYet) ({
                     if (loading) com.greenaltambe.vela.ui.components.SkeletonCard(vertical = true, fullBleed = true)
                     else TextButton(onClick = { load(more = true) }) { Text("Load more", maxLines = 1) }
@@ -397,6 +442,27 @@ private fun ShelfContent(
     val marked: (VideoSummary) -> CardExtras = if (shelf == HomeShelf.SUBSCRIPTIONS) { v -> extras(v).let { if (isNewSince(v, lastOpened)) it.copy(badge = "New") else it } } else extras
     VideoCarousel(
         title, shown, subtitle = subtitle, onSeeAll = seeAll, tag = tag, extras = marked,
+        onOpen = { v -> navigator.push(Route.Video(v)) },
+        onChannel = { v -> navigator.push(Route.Channel(v.channelId, v.channelName, if (v.channelId.isBlank()) v.id else "")) },
+        trailing = { v -> VideoMenu(services, v, onNotInterested = { onNotInterested(v) }, onHideChannel = { onHideChannel(v) }) },
+    )
+}
+
+/** One of YouTube's own groups: a row of Shorts as tall cards, anything else as the usual cards. Opening a Short carries the rest of its row along. */
+@Composable
+private fun YouTubeGroup(
+    shown: ShownGroup, services: AppServices, navigator: Navigator, avatars: Map<String, String?>, extras: (VideoSummary) -> CardExtras,
+    onNotInterested: (VideoSummary) -> Unit, onHideChannel: (VideoSummary) -> Unit,
+) {
+    val group = shown.group
+    val videos = remember(group.videos, avatars) { if (avatars.isEmpty()) group.videos else group.videos.map { v -> if (v.channelAvatarUrl == null) avatars[v.channelId]?.let { v.copy(channelAvatarUrl = it) } ?: v else v } }
+    val tag = "home.group.${shown.key}"
+    if (group.kind == FeedGroupKind.SHORTS) {
+        ShortsCarousel(group.title, videos, subtitle = group.subtitle, tag = tag, onOpen = { v -> navigator.push(Route.ShortsPlayer(v, following = videos.dropWhile { it.id != v.id }.drop(1), fromYouTubeRow = true)) })
+        return
+    }
+    VideoCarousel(
+        group.title, videos, subtitle = group.subtitle, tag = tag, extras = extras,
         onOpen = { v -> navigator.push(Route.Video(v)) },
         onChannel = { v -> navigator.push(Route.Channel(v.channelId, v.channelName, if (v.channelId.isBlank()) v.id else "")) },
         trailing = { v -> VideoMenu(services, v, onNotInterested = { onNotInterested(v) }, onHideChannel = { onHideChannel(v) }) },

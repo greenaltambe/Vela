@@ -61,7 +61,10 @@ class AltClientExtractor(
     override val capabilities: ExtractorCapabilities = ExtractorCapabilities(
         channelTabs = true,
         channelTabFilters = true,
+        shortsFeed = true,
     )
+
+    override suspend fun shortsFeed(seed: String?, continuation: String?): ExtractorResult<Page<VideoSummary>> = channelBrowse.shortsFeed(seed, continuation)
 
     override suspend fun search(query: String, continuation: String?): ExtractorResult<Page<VideoSummary>> = notSupported()
     override suspend fun channel(channelId: String): ExtractorResult<ChannelPage> =

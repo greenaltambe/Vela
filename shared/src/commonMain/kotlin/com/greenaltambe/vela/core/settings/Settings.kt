@@ -595,6 +595,13 @@ object Settings {
         info = "When signed in, the row above Home shows YouTube's own chips for your feed (All, your custom feeds, topics, Live, ...). Off: Home is just your feed.",
     )
 
+    val homeYoutubeGroups = Setting(
+        key = "home.youtubeGroups", default = true, scope = SettingScope.GLOBAL, label = "YouTube's groups on Home",
+        keywords = listOf("home", "groups", "shelves", "rows", "sections", "games", "hype", "suggested", "youtube", "feed", "hide"),
+        codec = SettingCodecs.boolean, section = SettingSection.FEED,
+        info = "When signed in, YouTube sets titled rows among your videos, such as a row about a game. Off: they are left out of Home and of every chip. Rows of Shorts follow the Shorts setting instead.",
+    )
+
     /** Countries YouTube serves its own trending / recommendations for (ISO 3166-1 alpha-2). */
     private val regions = listOf(
         "US" to "United States", "GB" to "United Kingdom", "CA" to "Canada", "AU" to "Australia", "NZ" to "New Zealand", "IE" to "Ireland", "IN" to "India", "PK" to "Pakistan", "BD" to "Bangladesh", "LK" to "Sri Lanka",
@@ -610,7 +617,7 @@ object Settings {
         keywords = listOf("region", "country", "location", "trending", "geo", "content"),
         codec = SettingCodecs.string, section = SettingSection.FEED,
         choices = regions.map { (code, name) -> SettingChoice(code, name) },
-        info = "Which country's trending videos and recommendations YouTube shows when you are not signed in. It does not change what a video's owner has blocked in your real location.",
+        info = "The country YouTube is asked about: your Home recommendations when signed in, and trending and search results. It does not change what a video's owner has blocked in your real location.",
     )
 
     val allowAgeRestricted = Setting(
@@ -709,7 +716,7 @@ object Settings {
 
     val all: List<Setting<*>> = listOf(
         historyAccountSync, libraryAccountSync, libraryNewPlaylistSync, accountReportActivity, hideWatched, hideMembersOnly, watchedThresholdPercent, minLengthSeconds, blockKeywords, allowKeywords, keywordsAreRegex,
-        debugFrameStats, homeYoutubeChips, contentRegion, allowAgeRestricted, allowControversial, slowStreamFailover, notifyBackground, notifySystem, notifyDownloads, accountFallbackMode, accountProfilesExperimental, accountUseForChannels, accountUseForDetails, accountDownloadsMayUse, accountKillSwitch, accountTierOrder, remoteConfigUrl, ytDlpAutoUpdate,
+        debugFrameStats, homeYoutubeChips, homeYoutubeGroups, contentRegion, allowAgeRestricted, allowControversial, slowStreamFailover, notifyBackground, notifySystem, notifyDownloads, accountFallbackMode, accountProfilesExperimental, accountUseForChannels, accountUseForDetails, accountDownloadsMayUse, accountKillSwitch, accountTierOrder, remoteConfigUrl, ytDlpAutoUpdate,
         accountPlaybackPerHour, accountBrowsePerMinute, accountWritesPerHour, shortsMode, defaultPlaybackSpeed, autoplayNext, seekStepSeconds, holdSpeed, maxQualityUnmetered, maxQualityMetered, preferredCodec, breakReminder, miniPlayerStyle, shortsDailyLimit, volumeBoost, captionSize, captionBackground, captionCreatorStyle, audioOnly, ytDlpPath,
         sponsorBlockEnabled, returnYouTubeDislikeEnabled, deArrowEnabled,
         sponsorBlockMinSegmentSeconds, sponsorBlockNotifications, showContribute, sponsorBlockServer, sponsorBlockUserId, rydInFeed, rydServer,

@@ -33,9 +33,10 @@ class InnertubeClient(
     private val web: WebClient = WebClient.bundled(),
     private val base: String = "https://www.youtube.com/youtubei/v1",
 ) {
-    fun call(endpoint: String, body: JsonObject = JsonObject(emptyMap()), kind: CallKind = CallKind.BROWSE, patience: kotlin.time.Duration = kotlin.time.Duration.ZERO): JsonElement {
+    /** [fieldMask] asks YouTube for those fields of the answer only. */
+    fun call(endpoint: String, body: JsonObject = JsonObject(emptyMap()), kind: CallKind = CallKind.BROWSE, patience: kotlin.time.Duration = kotlin.time.Duration.ZERO, fieldMask: String? = null): JsonElement {
         val payload = buildJsonObject { put("context", web.context()); body.forEach { (k, v) -> put(k, v) } }
-        val r = session.send(kind, "POST", "$base/$endpoint?prettyPrint=false", payload.toString(), extra = mapOf("Content-Type" to "application/json", "User-Agent" to web.userAgent), patience = patience)
+        val r = session.send(kind, "POST", "$base/$endpoint?prettyPrint=false", payload.toString(), extra = mapOf("Content-Type" to "application/json", "User-Agent" to web.userAgent) + listOfNotNull(fieldMask?.let { "X-Goog-FieldMask" to it }), patience = patience)
         val json = try { lenientJson.parseToJsonElement(r.body) } catch (e: Exception) { throw AuthFailure.Unparseable("not JSON (${r.body.length} chars)") }
         return json
     }

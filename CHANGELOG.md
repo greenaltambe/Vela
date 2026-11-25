@@ -5,6 +5,26 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [0.6.1-beta.6]
+
+### Added
+- Home shows YouTube's own groups (rows about a game, rows of Shorts and the like) as titled rows where YouTube puts them, in All and in every chip. Settings > Home > "YouTube's groups on Home" hides them (synced and backed up); rows of Shorts follow the Shorts setting instead.
+- Customize > Progress bar > Lightning: a seek bar drawn as an electric arc from the playhead.
+- A "Gold" colour scheme.
+- The health screen checks YouTube's Shorts feed.
+- The chosen "Region for content" shows as a small code beside the app's name (on Home; on every page in the desktop bar).
+
+### Changed
+- The Shorts tab shows YouTube's recommended Shorts: your account's when signed in, the general ones when not, and Shorts from channels if neither can be read. A Short tapped in a row on Home plays the rest of the row and carries on from there. Blocked channels, words and keyword rules are applied, and blocked Shorts are passed over.
+- A Short starts without waiting for its channel name, which appears a moment later.
+- Signed in, Vela's own Shorts shelf on Home gives way to YouTube's rows of Shorts.
+
+### Fixed
+- Videos in YouTube's groups are no longer mixed, untitled, into your Home feed.
+- Signed in, Home follows "Region for content"; it always asked for the United States. Changing the region reloads Home and Shorts.
+- Videos in your history that had a title but no channel get their channel.
+- The colour scheme cards showed light colours in a dark theme on Linux.
+
 ## [0.6.1-beta.5]
 
 ### Added
@@ -236,7 +256,8 @@ First public beta. Android is the primary platform, Linux is supported, Windows 
 ### Packaging
 - Android APK (arm64-v8a), Linux .deb, .rpm and portable tarball, Windows .msi and portable zip (experimental).
 
-[Unreleased]: https://github.com/greenaltambe/Vela/compare/v0.6.1-beta.5...HEAD
+[Unreleased]: https://github.com/greenaltambe/Vela/compare/v0.6.1-beta.6...HEAD
+[0.6.1-beta.6]: https://github.com/greenaltambe/Vela/compare/v0.6.1-beta.5...v0.6.1-beta.6
 [0.6.1-beta.5]: https://github.com/greenaltambe/Vela/compare/v0.6.1-beta.4...v0.6.1-beta.5
 [0.6.1-beta.4]: https://github.com/greenaltambe/Vela/compare/v0.6.1-beta.3...v0.6.1-beta.4
 [0.6.1-beta.3]: https://github.com/greenaltambe/Vela/compare/v0.6.1-beta.2...v0.6.1-beta.3

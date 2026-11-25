@@ -101,8 +101,13 @@ private class FakeExtractor(private val clock: FakeClock) : Extractor by StubExt
     var preferOtherCalls = 0
     override suspend fun streamsPreferringOther(videoId: String): ExtractorResult<StreamSet> { preferOtherCalls++; return streams(videoId) }
 
+    /** While set, a lookup waits until it is completed. */
+    var infoGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+    var infoThrows = false
     override suspend fun videoInfo(videoId: String): ExtractorResult<VideoInfo> {
         infoCalls++
+        infoGate?.await()
+        if (infoThrows) error("lookup broke")
         return ExtractorResult.Success(VideoInfo(videoId, "Looked-up title", "", "UCinfo", "Chan", 200))
     }
 }
@@ -174,6 +179,102 @@ class PlaybackSessionTest {
         assertEquals("Looked-up title", s.media.value?.title)
         controller.playing(10_000); runCurrent(); controller.pause(); runCurrent()
         assertEquals("Looked-up title", history.rows.single().title)
+    }
+
+    // ---- a start that does not wait for the lookup (Shorts) ----
+
+    /** A Short as a Home row lists it: a title, no channel. */
+    private val rowShort = VideoSummary("vid", "From the row", "", "", isShort = true)
+    private fun heldLookup() = kotlinx.coroutines.CompletableDeferred<Unit>().also { extractor.infoGate = it }
+
+    @Test fun byDefaultPlaybackStillWaitsForTheLookup() = runTest {
+        val gate = heldLookup()
+        val s = session()
+        s.start("vid", rowShort); runCurrent()
+        assertTrue(controller.loads.isEmpty())
+        gate.complete(Unit); runCurrent()
+        assertEquals(1, controller.loads.size)
+    }
+
+    @Test fun withoutWaitingPlaybackStartsAtOnceAndTheAnswerFillsInLater() = runTest {
+        val gate = heldLookup()
+        val s = session()
+        s.start("vid", rowShort, awaitInfo = false); runCurrent()
+        assertEquals("From the row", controller.loads.single().metadata.title)
+        assertEquals("", s.media.value?.channelId)
+        ready(s)
+        gate.complete(Unit); runCurrent()
+        assertEquals("UCinfo", s.media.value?.channelId)
+        assertEquals("Chan", s.media.value?.channelName)
+        assertEquals(1, controller.loads.size, "nothing is loaded again")
+        assertEquals(1, extractor.infoCalls)
+    }
+
+    @Test fun anAnswerForAShortAlreadySwipedAwayIsDropped() = runTest {
+        val gate = heldLookup()
+        val s = session()
+        s.start("vid", rowShort, awaitInfo = false); runCurrent()
+        s.start("other", VideoSummary("other", "Other", "UCo", "Other channel"), awaitInfo = false); runCurrent()
+        gate.complete(Unit); runCurrent()
+        assertEquals("other", s.media.value?.videoId)
+        assertEquals("UCo", s.media.value?.channelId)
+        assertEquals("Other", s.media.value?.title)
+        assertTrue(history.healed.isEmpty(), "nothing is written for the one that left")
+    }
+
+    @Test fun anAnswerAfterStopIsDropped() = runTest {
+        val gate = heldLookup()
+        val s = session()
+        s.start("vid", rowShort, awaitInfo = false); runCurrent()
+        s.stop(); gate.complete(Unit); runCurrent()
+        assertNull(s.media.value); assertTrue(history.healed.isEmpty())
+    }
+
+    @Test fun theHistoryRowGetsTheChannelWhenItWasWrittenBeforeTheAnswer() = runTest {
+        val gate = heldLookup()
+        val s = session()
+        s.start("vid", rowShort, awaitInfo = false); runCurrent()
+        controller.playing(10_000); runCurrent(); controller.pause(); runCurrent()
+        assertEquals("", history.rows.single().channelId)
+        gate.complete(Unit); runCurrent()
+        assertEquals(listOf("vid:Looked-up title:UCinfo"), history.healed.map { it.replace("From the row", "Looked-up title") })
+    }
+
+    @Test fun theHistoryRowIsCompleteWhenTheAnswerCameFirst() = runTest {
+        val s = session()
+        s.start("vid", rowShort, awaitInfo = false); runCurrent()
+        controller.playing(10_000); runCurrent(); controller.pause(); runCurrent()
+        assertEquals("UCinfo", history.rows.single().channelId)
+    }
+
+    @Test fun aLookupThatFailsLeavesThePlaybackAlone() = runTest {
+        extractor.infoThrows = true
+        val s = session()
+        s.start("vid", rowShort, awaitInfo = false); runCurrent()
+        ready(s); assertEquals("From the row", s.media.value?.title)
+    }
+
+    @Test fun aReResolveWhileTheLookupRunsDoesNotLoseIt() = runTest {
+        val gate = heldLookup()
+        val s = session()
+        s.start("vid", rowShort, awaitInfo = false); runCurrent()
+        controller.playing(5_000); controller.error(PlaybackErrorKind.StreamExpiredOrForbidden, 403); runCurrent()
+        gate.complete(Unit); runCurrent()
+        assertEquals("UCinfo", s.media.value?.channelId)
+    }
+
+    @Test fun theChannelsOwnSpeedAppliesWhenItArrivesLateButNeverOverTheViewersPick() = runTest {
+        settings.set(Settings.defaultPlaybackSpeed, 1.5f, SettingLayer.channel("UCinfo"))
+        var gate = heldLookup()
+        val s = session()
+        s.start("vid", rowShort, awaitInfo = false); runCurrent()
+        assertEquals(1f, controller.speeds.last())
+        gate.complete(Unit); runCurrent()
+        assertEquals(1.5f, controller.speeds.last())
+        gate = heldLookup()
+        s.start("vid", rowShort, awaitInfo = false); runCurrent()
+        s.setSpeed(2f); gate.complete(Unit); runCurrent()
+        assertEquals(2f, controller.speeds.last())
     }
 
     @Test fun aHintWithATitleAndChannelStillSavesTheSecondRequest() = runTest {

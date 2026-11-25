@@ -26,7 +26,7 @@ sealed interface Route {
      * [following]: the Shorts that come after [video] in the list it was opened from (a channel's Shorts tab, a row), played in that order next.
      * [stayOnChannel]: after those, carry on with the rest of the same channel's Shorts before mixing in other channels.
      */
-    data class ShortsPlayer(val video: VideoSummary, val following: List<VideoSummary> = emptyList(), val stayOnChannel: Boolean = false) : Route
+    data class ShortsPlayer(val video: VideoSummary, val following: List<VideoSummary> = emptyList(), val stayOnChannel: Boolean = false, val fromYouTubeRow: Boolean = false) : Route
     /** [viaVideoId]: when the id is not known (a listing that carries none), the channel is found from this video once the page is open, behind a loader. */
     /** A YouTube playlist from a channel's Playlists tab (not one of the app's own, which are [Playlist]). */
     data class ChannelPlaylist(val id: String, val title: String) : Route

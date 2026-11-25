@@ -136,6 +136,17 @@ class ExtractorHealth(
                     }
                     url?.let { u -> fresh += probeOnce(tier.id, "GET(${c.label})", u, headers, availableAt) }
                 }
+                if (tier.extractor.capabilities.shortsFeed && !slow) {
+                    fresh += timed(tier.id, "shortsFeed") {
+                        val start = tier.extractor.shortsFeed()
+                        if (start !is ExtractorResult.Success) return@timed (start as ExtractorResult.Failure).error.message
+                        val token = start.value.continuation ?: return@timed "no sequence"
+                        when (val next = tier.extractor.shortsFeed(continuation = token)) {
+                            is ExtractorResult.Success -> if (next.value.items.isEmpty()) "no Shorts in the sequence" else null
+                            is ExtractorResult.Failure -> next.error.message
+                        }
+                    }
+                }
                 if (tier.extractor.capabilities.channelTabs && !slow) {
                     fresh += timed(tier.id, "channelTabs") {
                         when (val r = tier.extractor.channelLanding(CANARY_CHANNEL_ID)) {

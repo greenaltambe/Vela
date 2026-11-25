@@ -30,7 +30,11 @@ import kotlin.time.Duration.Companion.seconds
 
 /** The viewer's own choices for the video being played; null means "not chosen, follow the settings". */
 /** What the OS media controls show for the current video (MPRIS on Linux). */
-data class MediaInfo(val videoId: String, val title: String, val channelName: String, val artworkUrl: String?)
+data class MediaInfo(
+    val videoId: String, val title: String, val channelName: String, val artworkUrl: String?,
+    /** Empty until known: some listings (Shorts rows) name no channel, and it is looked up. */
+    val channelId: String = "", val channelAvatarUrl: String? = null,
+)
 
 data class PlaybackOverrides(val speed: Float? = null, val maxHeight: Int? = null)
 
@@ -175,10 +179,11 @@ class PlaybackSession(
     private var title = ""
     private var channelNameShown = ""
     private var artworkUrl: String? = null
+    private var channelAvatarUrl: String? = null
     private val _media = MutableStateFlow<MediaInfo?>(null)
     /** Title, channel and artwork of what is loaded, for the OS media controls; null when nothing is. */
     val media: StateFlow<MediaInfo?> = _media
-    private fun publishMedia() { _media.value = videoId?.let { MediaInfo(it, title, channelNameShown, artworkUrl) } }
+    private fun publishMedia() { _media.value = videoId?.let { MediaInfo(it, title, channelNameShown, artworkUrl, channelId, channelAvatarUrl) } }
     private var channelId = ""
     private var streams: StreamSet? = null
     private val _captions = MutableStateFlow<List<com.greenaltambe.vela.extractor.CaptionTrack>>(emptyList())
@@ -254,21 +259,26 @@ class PlaybackSession(
     private var lastStatus = PlaybackStatus.IDLE
 
     private var work: Job? = null
+    /** The title and channel lookup running beside [work] for a start that does not wait for it. Its own job: a re-resolve must not cancel it. */
+    private var lookUp: Job? = null
     private var observers: List<Job> = emptyList()
 
     /**
      * Starts [videoId], replacing whatever played before. [hint] (from the search result being opened) provides the
      * title and channel without another request; without it they are looked up.
+     *
+     * [restored] re-applies the picks saved before the process died (speed, quality cap); a normal start passes none. With [awaitInfo] playback
+     * starts when both the streams and that lookup have answered; without it (Shorts) the streams alone are waited for, and the title and channel
+     * are filled in when they arrive.
      */
-    /** [restored] re-applies the picks saved before the process died (speed, quality cap); a normal start passes none. */
-    fun start(videoId: String, hint: VideoSummary? = null, restored: PlaybackOverrides? = null, autoPlay: Boolean = true) {
+    fun start(videoId: String, hint: VideoSummary? = null, restored: PlaybackOverrides? = null, autoPlay: Boolean = true, awaitInfo: Boolean = true) {
         finishCurrent()
         clearPreviousVideo()
         if (_sleepTimer.value?.mode == SleepTimerMode.EndOfVideo) setSleepTimer(null)
         this.videoId = videoId
         title = hint?.title.orEmpty()
         channelId = hint?.channelId.orEmpty()
-        channelNameShown = hint?.channelName.orEmpty(); artworkUrl = hint?.thumbnailUrl
+        channelNameShown = hint?.channelName.orEmpty(); artworkUrl = hint?.thumbnailUrl; channelAvatarUrl = hint?.channelAvatarUrl
         streams = null; _captions.value = emptyList(); _caption.value = null; _audioTracks.value = emptyList(); audioKeyOverride = null; _audioKey.value = null
         localPlan = null
         maxHeightOverride = null
@@ -287,7 +297,9 @@ class PlaybackSession(
         forAddons { it.onVideo(videoId, channelId, offline = false) } // before the observers, so an add-on knows the video before any state of it arrives
         ensureObservers()
         // A hint with no title (a video opened from a link carries only its id) is no hint: the title and channel are looked up.
-        work = sessionScope.launch { resolveAndLoad(videoId, resume = true, needsInfo = hint == null || hint.title.isBlank() || hint.channelId.isBlank(), autoPlay = autoPlay) }
+        val needsInfo = hint == null || hint.title.isBlank() || hint.channelId.isBlank()
+        work = sessionScope.launch { resolveAndLoad(videoId, resume = true, needsInfo = needsInfo && awaitInfo, autoPlay = autoPlay) }
+        if (needsInfo && !awaitInfo) lookUp = sessionScope.launch { lookUpAlongside(videoId) }
     }
 
     /**
@@ -298,7 +310,7 @@ class PlaybackSession(
         finishCurrent()
         clearPreviousVideo()
         this.videoId = videoId
-        this.title = title; channelNameShown = ""; artworkUrl = null
+        this.title = title; channelNameShown = ""; artworkUrl = null; channelAvatarUrl = null
         this.channelId = channelId
         streams = null; _captions.value = captions; _caption.value = null; _audioTracks.value = emptyList(); audioKeyOverride = null; _audioKey.value = null
         localPlan = plan
@@ -442,10 +454,7 @@ class PlaybackSession(
             val i = if (needsInfo) async { extractor.videoInfo(id) } else null
             s.await() to i?.await()
         }
-        (info as? ExtractorResult.Success)?.value?.let {
-            title = it.title.ifBlank { title }; channelId = it.channelId.ifBlank { channelId }; channelNameShown = it.channelName.ifBlank { channelNameShown }; artworkUrl = it.thumbnailUrl ?: artworkUrl
-            runCatching { history.healMissing(accountId(), id, title, channelId) }
-        }
+        (info as? ExtractorResult.Success)?.value?.let { take(id, it) }
         publishMedia()
         val set = when (result) {
             is ExtractorResult.Success -> result.value
@@ -455,6 +464,26 @@ class PlaybackSession(
         val startMs = if (resume) resumePosition(id) else 0L
         leases.awaitAvailable(set)
         loadPlan(startMs, playWhenReady = autoPlay)
+    }
+
+    /** Fills in what a lookup says about [id], the current video, and into its history row if that was written without it. */
+    private fun take(id: String, info: com.greenaltambe.vela.extractor.VideoInfo) {
+        title = info.title.ifBlank { title }; channelId = info.channelId.ifBlank { channelId }; channelNameShown = info.channelName.ifBlank { channelNameShown }
+        artworkUrl = info.thumbnailUrl ?: artworkUrl; channelAvatarUrl = info.channelAvatarUrl ?: channelAvatarUrl
+        runCatching { history.healMissing(accountId(), id, title, channelId) }
+    }
+
+    /** The lookup of a start that does not wait for it. A failure leaves what the listing said; an answer for a video no longer on is dropped. */
+    private suspend fun lookUpAlongside(id: String) {
+        val result = try { extractor.videoInfo(id) } catch (e: kotlin.coroutines.cancellation.CancellationException) { throw e } catch (e: Exception) { return }
+        val info = (result as? ExtractorResult.Success)?.value ?: return
+        if (videoId != id) return
+        take(id, info)
+        publishMedia()
+        // The channel was not known when the video was loaded: its own speed applies now, unless the viewer has picked one meanwhile.
+        if (_state.value is SessionState.Ready && speedOverride == null && _heldSpeed.value == null) {
+            controller.setSpeed(settings.resolve(Settings.defaultPlaybackSpeed, channelId.ifEmpty { null }, id))
+        }
     }
 
     /** Re-resolves the streams of the current video and resumes at [positionMs]. */
@@ -603,6 +632,7 @@ class PlaybackSession(
     private fun finishCurrent() {
         persist()
         work?.cancel()
+        lookUp?.cancel()
     }
 
     // The periodic writer lives as long as the session; it only acts while something is playing.

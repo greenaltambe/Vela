@@ -33,6 +33,8 @@ data class VideoSummary(
     val watchedPercent: Int? = null,
     /** Only for the channel's paying members (a "Members only" video); the badge shows it and a setting can hide it. */
     val isMembersOnly: Boolean = false,
+    /** For a Short taken from a YouTube listing: the token that asks for the Shorts YouTube would play after it. Null elsewhere. */
+    val shortsSequence: String? = null,
 )
 
 @Serializable
@@ -238,6 +240,8 @@ data class ExtractorCapabilities(
     val channelTabs: Boolean = false,
     /** True if server-side sorts and filter chips are supported for channel tabs. */
     val channelTabFilters: Boolean = false,
+    /** True if the tier serves YouTube's own feed of Shorts ([Extractor.shortsFeed]). */
+    val shortsFeed: Boolean = false,
 )
 
 object ChannelTabParams {

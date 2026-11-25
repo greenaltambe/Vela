@@ -75,6 +75,24 @@ class ExtractorHealthTest {
         assertEquals(74L, NewPipeVersion.ageDays(Instant.parse("2026-10-28T00:00:00Z")))
     }
 
+    @Test fun theShortsFeedIsCheckedOnTheTierThatHasItStartAndSequence() = runTest {
+        var second: ExtractorResult<Page<VideoSummary>> = ExtractorResult.Success(Page(listOf(VideoSummary("s2", "", "", "")), null))
+        val tier = object : Extractor by good() {
+            override val capabilities = ExtractorCapabilities(shortsFeed = true)
+            override suspend fun shortsFeed(seed: String?, continuation: String?) =
+                if (continuation == null) ExtractorResult.Success(Page(listOf(VideoSummary("s1", "", "", "")), "t")) else second
+        }
+        val h = ExtractorHealth(listOf(ExtractorTier(TierId.ALT_CLIENT, tier)), { _, _ -> 206 }, clock = clock)
+        h.run()
+        assertTrue(h.results.value.single { it.check == "shortsFeed" }.ok)
+        second = ExtractorResult.Success(Page(emptyList(), null))
+        h.run()
+        assertEquals("no Shorts in the sequence", h.results.value.last { it.check == "shortsFeed" }.detail)
+        val without = ExtractorHealth(listOf(ExtractorTier(TierId.ANONYMOUS, good())), { _, _ -> 206 }, clock = clock)
+        without.run()
+        assertTrue(without.results.value.none { it.check == "shortsFeed" })
+    }
+
     @Test fun channelTabsAndFilterCanariesRunOnSupportingTiers() = runTest {
         val tierWithTabs = object : Extractor by good() {
             override val capabilities = ExtractorCapabilities(channelTabs = true, channelTabFilters = true)

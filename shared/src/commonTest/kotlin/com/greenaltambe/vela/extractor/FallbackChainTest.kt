@@ -71,6 +71,23 @@ class FallbackChainTest {
     }
 
     @Test
+    fun theShortsFeedComesFromTheTierThatHasItAndATierThatCannotNeverHidesItsError() = runTest {
+        var answer: ExtractorResult<Page<VideoSummary>> = ExtractorResult.Success(Page(listOf(VideoSummary("s", "", "", "")), "t"))
+        val has = object : Extractor by StubExtractor() {
+            override val capabilities = ExtractorCapabilities(shortsFeed = true)
+            override suspend fun shortsFeed(seed: String?, continuation: String?) = answer
+        }
+        val cannot = object : Extractor by StubExtractor() {
+            override suspend fun shortsFeed(seed: String?, continuation: String?): ExtractorResult<Page<VideoSummary>> = notSupported()
+        }
+        val c = FallbackChain(listOf(ExtractorTier(TierId.ANONYMOUS, cannot), ExtractorTier(TierId.ALT_CLIENT, has), ExtractorTier(TierId.YT_DLP, cannot)), { mode }, log, clock)
+        assertTrue(c.capabilities.shortsFeed)
+        assertEquals(listOf("s"), assertIs<ExtractorResult.Success<Page<VideoSummary>>>(c.shortsFeed()).value.items.map { it.id })
+        answer = ExtractorResult.Failure(ExtractorError.TokenExpired("gone"))
+        assertIs<ExtractorError.TokenExpired>(assertIs<ExtractorResult.Failure>(c.shortsFeed(continuation = "t")).error, "not the later tier's 'not supported'")
+    }
+
+    @Test
     fun alwaysModeTriesAccountFirst() = runTest {
         mode = AccountFallbackMode.ALWAYS
         chain(anon = StubExtractor()).streams("v")

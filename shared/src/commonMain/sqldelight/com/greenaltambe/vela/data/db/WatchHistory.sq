@@ -31,7 +31,7 @@ UPDATE WatchHistory SET watchedAt = ?, positionMs = ?, durationMs = ?, watchedMs
 
 -- Rows saved without a title (a video opened from a link has none until it is looked up) get it, and the channel if that was blank too.
 healMissing:
-UPDATE WatchHistory SET title = ?, channelId = CASE WHEN channelId = '' THEN ? ELSE channelId END WHERE accountId = ? AND videoId = ? AND title = '';
+UPDATE WatchHistory SET title = CASE WHEN title = '' THEN ? ELSE title END, channelId = CASE WHEN channelId = '' THEN ? ELSE channelId END WHERE accountId = ? AND videoId = ? AND (title = '' OR channelId = '');
 
 lastInsertRowId:
 SELECT last_insert_rowid();

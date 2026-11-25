@@ -53,6 +53,7 @@ class FallbackChain(
             supportsCommentSort = tiers.any { it.capabilities.supportsCommentSort },
             channelTabs = tiers.any { it.capabilities.channelTabs },
             channelTabFilters = tiers.any { it.capabilities.channelTabFilters },
+            shortsFeed = tiers.any { it.capabilities.shortsFeed },
         )
 
     override suspend fun search(query: String, continuation: String?) =
@@ -79,6 +80,8 @@ class FallbackChain(
         run("channelVideosSorted($channelId, $sort${page(continuation)})", AccountOp.CHANNELS) { it.channelVideosSorted(channelId, sort, continuation) }
     override suspend fun channelShorts(channelId: String, continuation: String?) =
         run("channelShorts($channelId${page(continuation)})", AccountOp.CHANNELS) { it.channelShorts(channelId, continuation) }
+    override suspend fun shortsFeed(seed: String?, continuation: String?) =
+        run("shortsFeed(${if (seed != null) "seeded" else "new"}${page(continuation)})", AccountOp.NEVER) { it.shortsFeed(seed, continuation) }
     override suspend fun channelLive(channelId: String, continuation: String?) =
         run("channelLive($channelId${page(continuation)})", AccountOp.CHANNELS) { it.channelLive(channelId, continuation) }
     override suspend fun channelPlaylists(channelId: String, continuation: String?) =
@@ -172,7 +175,8 @@ class FallbackChain(
                 }
                 is ExtractorResult.Failure -> {
                     record(subject, tier.id, AttemptOutcome.FAILED, result.error.reason, account?.takeIf { tier.id == TierId.AUTHENTICATED }?.let { "account $it: " }.orEmpty() + result.error.message, took)
-                    if (result.error.reason != FailureReason.TOKEN_NOT_MINE && result.error.reason != FailureReason.TOKEN_EXPIRED) {
+                    // "Not supported" says nothing about how the tier is doing.
+                    if (result.error.reason != FailureReason.TOKEN_NOT_MINE && result.error.reason != FailureReason.TOKEN_EXPIRED && result.error.message != NOT_SUPPORTED) {
                         memory.forgetWorked(tier.id)
                     }
                     if (result.error is ExtractorError.TokenNotMine) {
@@ -197,7 +201,8 @@ class FallbackChain(
      */
     private fun composeFailure(failures: List<Pair<TierId, ExtractorError>>, accountSkip: String?): ExtractorError {
         val age = failures.any { (_, e) -> AgeText.matches(e.message) }
-        if (!age && failures.none { (_, e) -> e.reason == FailureReason.SIGN_IN_REQUIRED }) return failures.last().second
+        // The last tier that could actually try: "not supported" from a later one would hide why the request failed.
+        if (!age && failures.none { (_, e) -> e.reason == FailureReason.SIGN_IN_REQUIRED }) return (failures.lastOrNull { (_, e) -> e.message != NOT_SUPPORTED } ?: failures.last()).second
         val ids = tiers.mapTo(HashSet()) { it.id }
         val anonymous = failures.filter { it.first != TierId.AUTHENTICATED }
         val tried = failures.firstOrNull { it.first == TierId.AUTHENTICATED }

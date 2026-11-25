@@ -78,7 +78,14 @@ class PlaybackRuntime private constructor(context: Context) {
     val profileStore by lazy { com.greenaltambe.vela.auth.ProfileStore(SqlDelightSettingsStore(database)) }
     val profiles by lazy { com.greenaltambe.vela.innertube.InnertubeAccountProfiles(accounts, governors, profileStore) }
     val sync by lazy { InnertubeAccountSync(accounts, governors, database, profiles = profileStore) }
-    val reads by lazy { com.greenaltambe.vela.innertube.InnertubeAccountReads(accounts, governors, profiles = profileStore) }
+    val reads by lazy {
+        com.greenaltambe.vela.innertube.InnertubeAccountReads(
+            accounts, governors, profiles = profileStore,
+            onFailure = { note("account feed", TierId.AUTHENTICATED, it, AttemptOutcome.FAILED) },
+            region = { settings.resolve(com.greenaltambe.vela.core.settings.Settings.contentRegion) },
+            onNote = { note("account feed", TierId.AUTHENTICATED, it) },
+        )
+    }
     /** Tells the signed-in account what is watched (Settings > Privacy, off by default). */
     val activity by lazy {
         com.greenaltambe.vela.innertube.InnertubeAccountActivity(

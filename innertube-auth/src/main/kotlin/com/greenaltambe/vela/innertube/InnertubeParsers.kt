@@ -1,6 +1,8 @@
 package com.greenaltambe.vela.innertube
 
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 
 data class AccountInfo(val displayName: String, val email: String?, val avatarUrl: String?, val channelId: String?)
 /** One profile (the main channel or a brand channel) of the signed-in Google account. [pageId] is what `X-Goog-PageId` carries to act as that channel; null for the main one. ASSUMPTION: read from `datasyncId` as "<pageId>||<userId>"; not verified because the test account has a single profile. */
@@ -102,82 +104,137 @@ object InnertubeParsers {
         return s.contains("MEMBERS_ONLY") || s.contains("\"Members only\"") || s.contains("\"Members first\"")
     }
 
-    fun videos(json: JsonElement): List<com.greenaltambe.vela.extractor.VideoSummary> {
-        val classic = json.findAll("videoRenderer").mapNotNull { v ->
-            val id = v["videoId"].string ?: return@mapNotNull null
-            val owner = v["ownerText"] ?: v["longBylineText"] ?: v["shortBylineText"]
-            com.greenaltambe.vela.extractor.VideoSummary(
-                id, v["title"].text() ?: return@mapNotNull null,
-                owner["runs"][0]["navigationEndpoint"]["browseEndpoint"]["browseId"].string ?: "", owner.text() ?: "",
-                v["thumbnail"]["thumbnails"].array.lastOrNull()["url"].string?.let { if (it.startsWith("//")) "https:$it" else it },
-                clock(v["lengthText"].text()), views(v["viewCountText"].text() ?: v["shortViewCountText"].text()),
-                isLive = v["badges"].toString().contains("LIVE"),
-                publishedText = v["publishedTimeText"].text() ?: v.findAll("publishedTimeText").firstOrNull().text(),
-                channelAvatarUrl = v["channelThumbnailSupportedRenderers"]["channelThumbnailWithLinkRenderer"]["thumbnail"]["thumbnails"].array.firstOrNull()["url"].string?.let { if (it.startsWith("//")) "https:$it" else it },
-                watchedPercent = v.findAll("thumbnailOverlayResumePlaybackRenderer").firstOrNull()?.get("percentDurationWatched").percent(),
-                isMembersOnly = isMembersOnly(v),
-            )
+    /**
+     * Every video anywhere in a response, whatever it sits in: right for the account's own lists (history). Home uses [HomeFeedParser], which keeps
+     * YouTube's groups apart from the feed.
+     */
+    fun videos(json: JsonElement): List<com.greenaltambe.vela.extractor.VideoSummary> =
+        (json.findAll("videoRenderer").mapNotNull(::videoRenderer) + json.findAll("lockupViewModel").mapNotNull(::videoLockup)).distinctBy { it.id }
+
+    /** One classic `videoRenderer` (or `gridVideoRenderer`); null without an id or a title. */
+    internal fun videoRenderer(v: JsonElement): com.greenaltambe.vela.extractor.VideoSummary? {
+        val id = v["videoId"].string ?: return null
+        val owner = v["ownerText"] ?: v["longBylineText"] ?: v["shortBylineText"]
+        return com.greenaltambe.vela.extractor.VideoSummary(
+            id, v["title"].text() ?: return null,
+            owner["runs"][0]["navigationEndpoint"]["browseEndpoint"]["browseId"].string ?: "", owner.text() ?: "",
+            v["thumbnail"]["thumbnails"].array.lastOrNull()["url"].string?.let { if (it.startsWith("//")) "https:$it" else it },
+            clock(v["lengthText"].text()), views(v["viewCountText"].text() ?: v["shortViewCountText"].text()),
+            isLive = v["badges"].toString().contains("LIVE"),
+            publishedText = v["publishedTimeText"].text() ?: v.findAll("publishedTimeText").firstOrNull().text(),
+            channelAvatarUrl = v["channelThumbnailSupportedRenderers"]["channelThumbnailWithLinkRenderer"]["thumbnail"]["thumbnails"].array.firstOrNull()["url"].string?.let { if (it.startsWith("//")) "https:$it" else it },
+            watchedPercent = v.findAll("thumbnailOverlayResumePlaybackRenderer").firstOrNull()?.get("percentDurationWatched").percent(),
+            isMembersOnly = isMembersOnly(v),
+        )
+    }
+
+    /** One video lockup; null when it is not a video (a playlist, a mix) or has no id or title. */
+    internal fun videoLockup(l: JsonElement): com.greenaltambe.vela.extractor.VideoSummary? {
+        val cType = l["contentType"].string ?: ""
+        if (!cType.contains("VIDEO")) return null
+        val id = l["contentId"].string ?: return null
+        val meta = l.at("metadata", "lockupMetadataViewModel") ?: l["metadata"] ?: return null
+        val title = meta.at("title", "content").string ?: meta["title"].text() ?: return null
+        val thumb = l.at("contentImage", "thumbnailViewModel", "image", "sources").array.lastOrNull().at("url").string
+        val avatar = meta.at("image", "decoratedAvatarViewModel", "avatar", "avatarViewModel", "image", "sources").array.firstOrNull().at("url").string
+
+        val durationText = l.findAll("thumbnailBadgeViewModel").firstOrNull().at("text").string
+            ?: l.findAll("thumbnailOverlayTimeStatusRenderer").firstOrNull().at("text").text()
+        val duration = clock(durationText)
+        // A live stream's thumbnail carries a LIVE badge (and no duration).
+        val live = l.findAll("thumbnailBadgeViewModel").any { b ->
+            b["badgeStyle"].string?.contains("LIVE") == true || b["text"].string.equals("LIVE", ignoreCase = true)
         }
-        val lockups = json.findAll("lockupViewModel").mapNotNull { l ->
-            val cType = l["contentType"].string ?: ""
-            if (!cType.contains("VIDEO")) return@mapNotNull null
-            val id = l["contentId"].string ?: return@mapNotNull null
-            val meta = l.at("metadata", "lockupMetadataViewModel") ?: l["metadata"] ?: return@mapNotNull null
-            val title = meta.at("title", "content").string ?: meta["title"].text() ?: return@mapNotNull null
-            val thumb = l.at("contentImage", "thumbnailViewModel", "image", "sources").array.lastOrNull().at("url").string
-            val avatar = meta.at("image", "decoratedAvatarViewModel", "avatar", "avatarViewModel", "image", "sources").array.firstOrNull().at("url").string
 
-            val durationText = l.findAll("thumbnailBadgeViewModel").firstOrNull().at("text").string
-                ?: l.findAll("thumbnailOverlayTimeStatusRenderer").firstOrNull().at("text").text()
-            val duration = clock(durationText)
-            // A live stream's thumbnail carries a LIVE badge (and no duration).
-            val live = l.findAll("thumbnailBadgeViewModel").any { b ->
-                b["badgeStyle"].string?.contains("LIVE") == true || b["text"].string.equals("LIVE", ignoreCase = true)
-            }
-
-            var channel = ""
-            var viewCount: Long? = null
-            var publishedText: String? = null
-            val rows = meta.at("metadata", "contentMetadataViewModel", "metadataRows").array
-            for (r in rows) {
-                val parts = r.at("metadataParts").array
-                for (p in parts) {
-                    val text = p.at("text", "content").string ?: p.at("text").text() ?: continue
-                    val lower = text.lowercase()
-                    if (lower.contains("view")) {
-                        viewCount = views(text)
-                    } else if (lower.contains("ago") || lower.contains("stream") || lower.contains("premier") ||
-                        lower.contains("hour") || lower.contains("day") || lower.contains("month") ||
-                        lower.contains("year") || lower.contains("minute") || lower.contains("second") ||
-                        lower.contains("yesterday")) {
-                        publishedText = text
-                    } else if (channel.isBlank()) {
-                        channel = text
-                    }
+        var channel = ""
+        var viewCount: Long? = null
+        var publishedText: String? = null
+        val rows = meta.at("metadata", "contentMetadataViewModel", "metadataRows").array
+        for (r in rows) {
+            val parts = r.at("metadataParts").array
+            for (p in parts) {
+                val text = p.at("text", "content").string ?: p.at("text").text() ?: continue
+                val lower = text.lowercase()
+                if (lower.contains("view")) {
+                    viewCount = views(text)
+                } else if (lower.contains("ago") || lower.contains("stream") || lower.contains("premier") ||
+                    lower.contains("hour") || lower.contains("day") || lower.contains("month") ||
+                    lower.contains("year") || lower.contains("minute") || lower.contains("second") ||
+                    lower.contains("yesterday")) {
+                    publishedText = text
+                } else if (channel.isBlank()) {
+                    channel = text
                 }
             }
-            if (channel.isBlank()) {
-                channel = meta.at("image", "decoratedAvatarViewModel", "avatar", "avatarViewModel", "accessibility", "accessibilityData", "label").string?.removePrefix("Go to ") ?: ""
-            }
-            com.greenaltambe.vela.extractor.VideoSummary(
-                id = id,
-                title = title,
-                // The avatar and the channel-name part carry a browse endpoint ("UC..."); the video's own link is a watchEndpoint, so only UC ids count.
-                channelId = meta.findAll("browseEndpoint").firstNotNullOfOrNull { it["browseId"].string?.takeIf { b -> b.startsWith("UC") } } ?: "",
-                channelName = channel,
-                isMembersOnly = isMembersOnly(l),
-                isLive = live,
-                thumbnailUrl = thumb?.let { if (it.startsWith("//")) "https:$it" else it },
-                durationSeconds = duration,
-                viewCount = viewCount,
-                publishedText = publishedText,
-                channelAvatarUrl = avatar?.let { if (it.startsWith("//")) "https:$it" else it },
-                // UNVERIFIED path: the progress bar overlay's `startPercent` (also seen as `percentDurationWatched`) under the thumbnail overlays.
-                watchedPercent = (l.findAll("thumbnailOverlayProgressBarViewModel").firstOrNull()?.let { it["startPercent"] ?: it.findAll("startPercent").firstOrNull() }).percent()
-                    ?: l.findAll("thumbnailOverlayResumePlaybackRenderer").firstOrNull()?.get("percentDurationWatched").percent(),
-            )
         }
-        return (classic + lockups).distinctBy { it.id }
+        if (channel.isBlank()) {
+            channel = meta.at("image", "decoratedAvatarViewModel", "avatar", "avatarViewModel", "accessibility", "accessibilityData", "label").string?.removePrefix("Go to ") ?: ""
+        }
+        return com.greenaltambe.vela.extractor.VideoSummary(
+            id = id,
+            title = title,
+            // The avatar and the channel-name part carry a browse endpoint ("UC..."); the video's own link is a watchEndpoint, so only UC ids count.
+            channelId = meta.findAll("browseEndpoint").firstNotNullOfOrNull { it["browseId"].string?.takeIf { b -> b.startsWith("UC") } } ?: "",
+            channelName = channel,
+            isMembersOnly = isMembersOnly(l),
+            isLive = live,
+            thumbnailUrl = thumb?.let { if (it.startsWith("//")) "https:$it" else it },
+            durationSeconds = duration,
+            viewCount = viewCount,
+            publishedText = publishedText,
+            channelAvatarUrl = avatar?.let { if (it.startsWith("//")) "https:$it" else it },
+            // UNVERIFIED path: the progress bar overlay's `startPercent` (also seen as `percentDurationWatched`) under the thumbnail overlays.
+            watchedPercent = (l.findAll("thumbnailOverlayProgressBarViewModel").firstOrNull()?.let { it["startPercent"] ?: it.findAll("startPercent").firstOrNull() }).percent()
+                ?: l.findAll("thumbnailOverlayResumePlaybackRenderer").firstOrNull()?.get("percentDurationWatched").percent(),
+        )
+    }
+
+    /** One Shorts item (`shortsLockupViewModel` or the older `reelItemRenderer`). It names no channel. */
+    internal fun shortItem(reel: JsonElement): com.greenaltambe.vela.extractor.VideoSummary? {
+        val id = reel["videoId"].string
+            ?: reel["contentId"].string
+            ?: reel.at("onTap", "innertubeCommand", "reelWatchEndpoint", "videoId").string
+            ?: reel.at("onTap", "innertubeCommand", "commandMetadata", "webCommandMetadata", "url").string
+                ?.substringAfter("/shorts/")?.substringBefore("?")?.substringBefore("&")
+            ?: reel["entityId"].string?.let {
+                if (it.startsWith("shorts-shelf-item-")) it.removePrefix("shorts-shelf-item-")
+                else if (it.startsWith("shorts-lockup-item-")) it.removePrefix("shorts-lockup-item-")
+                else it
+            }
+            ?: reel.findAll("videoId").firstOrNull()?.let { (it as? JsonPrimitive)?.contentOrNull }
+            ?: return null
+
+        val title = reel.at("overlayMetadata", "primaryText", "content").string
+            ?: reel.at("headline", "simpleText").string
+            ?: reel["title"].text()
+            ?: reel.at("metadata", "lockupMetadataViewModel", "title", "content").string
+            ?: reel["accessibilityText"].string?.substringBefore(",")
+            ?: ""
+
+        val thumb = reel.at("thumbnailViewModel", "thumbnailViewModel", "image", "sources").array.lastOrNull().at("url").string
+            ?: reel.at("contentImage", "thumbnailViewModel", "image", "sources").array.lastOrNull().at("url").string
+            ?: reel.findAll("thumbnails").firstOrNull().array.lastOrNull().at("url").string
+            ?: reel.findAll("sources").firstOrNull().array.lastOrNull().at("url").string
+
+        val viewText = reel.at("overlayMetadata", "secondaryText", "content").string
+            ?: reel["viewCountText"].text()
+            ?: reel["accessibilityText"].string?.let { acc ->
+                acc.split(",").getOrNull(1)?.substringBefore("-")?.trim()
+            }
+        val views = parseCount(viewText)
+
+        return com.greenaltambe.vela.extractor.VideoSummary(
+            id = id,
+            title = title,
+            channelId = "",
+            channelName = "",
+            thumbnailUrl = thumb,
+            durationSeconds = null,
+            viewCount = views,
+            publishedText = viewText,
+            isShort = true,
+            shortsSequence = reel.at("onTap", "innertubeCommand", "reelWatchEndpoint", "sequenceParams").string,
+        )
     }
 
     /** A 0..100 number from a JSON number or numeric string; null when absent or not a number. */
@@ -199,4 +256,18 @@ object InnertubeParsers {
         val page = sync?.substringBefore("||")?.takeIf { it.isNotBlank() && sync.substringAfter("||", "").isNotBlank() }
         ProfileInfo(name, (a["isSelected"] as? kotlinx.serialization.json.JsonPrimitive)?.content == "true", page)
     }
+}
+
+/** "1.2M views" and the like as a number; null when there is none. */
+internal fun parseCount(text: String?): Long? {
+    if (text == null) return null
+    val m = Regex("""([\d.,]+)\s*([KMBkmb])?""").find(text) ?: return null
+    val num = m.groupValues[1].replace(",", "").toDoubleOrNull() ?: return null
+    val factor = when (m.groupValues[2].uppercase()) {
+        "K" -> 1_000.0
+        "M" -> 1_000_000.0
+        "B" -> 1_000_000_000.0
+        else -> 1.0
+    }
+    return (num * factor).toLong()
 }

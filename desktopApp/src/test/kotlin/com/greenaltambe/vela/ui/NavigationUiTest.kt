@@ -49,6 +49,30 @@ class NavigationUiTest {
         assertTrue(logo < 100 && profile > 300, "logo=$logo profile=$profile")
     }
 
+    @Test fun theChosenRegionStandsBesideTheNameOnHomeAndFollowsTheSetting() = runDesktopComposeUiTest(400, 800) {
+        val f = buildFixture(withDownloads = false)
+        setContent { AppUnderTest(f) }; waitForIdle()
+        onNodeWithTag("topbar.region", useUnmergedTree = true).assertTextEquals("US")
+        f.services.settings.set(com.greenaltambe.vela.core.settings.Settings.contentRegion, "GB"); waitForIdle()
+        onNodeWithTag("topbar.region", useUnmergedTree = true).assertTextEquals("GB")
+        val region = onNodeWithTag("topbar.region", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val title = onNodeWithText("Vela", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        assertTrue(region.left >= title.right && region.center.y < title.center.y, "raised, after the name: $region against $title")
+        screenshot("region-phone")
+        f.navigator.selectTab(Route.Library); waitForIdle()
+        onNodeWithTag("topbar.region", useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test fun theDesktopBarShowsTheRegionOnEveryPage() = runDesktopComposeUiTest(1280, 800) {
+        val f = buildFixture(withDownloads = false)
+        f.services.settings.set(com.greenaltambe.vela.core.settings.Settings.contentRegion, "IN")
+        setContent { androidx.compose.runtime.CompositionLocalProvider(com.greenaltambe.vela.ui.platform.LocalVolumeSlider provides true) { AppUnderTest(f) } }; waitForIdle()
+        onNodeWithTag("topbar.region", useUnmergedTree = true).assertTextEquals("IN")
+        screenshot("region-desktop")
+        f.navigator.selectTab(Route.Library); waitForIdle()
+        onNodeWithTag("topbar.region", useUnmergedTree = true).assertTextEquals("IN")
+    }
+
     private fun ComposeUiTest.bar() = onNodeWithTag("component.bottom_nav").fetchSemanticsNode().boundsInRoot
     private fun ComposeUiTest.mini() = onNodeWithTag("component.mini_player").fetchSemanticsNode().boundsInRoot
     private fun ComposeUiTest.labelCount() = onAllNodesWithTag("nav.label", useUnmergedTree = true).fetchSemanticsNodes().size

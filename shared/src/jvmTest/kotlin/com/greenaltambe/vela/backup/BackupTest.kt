@@ -43,6 +43,19 @@ class BackupTest {
         assertNull(s.get("sponsorblock.userId", SettingLayer.Global))
     }
 
+    @Test fun theGroupsSwitchIsBackedUpRestoredAndSynced() {
+        val db = createDatabase(JvmDatabaseDriverFactory())
+        SqlDelightSettingsStore(db).put("home.youtubeGroups", SettingLayer.Global, "false")
+        val fresh = createDatabase(JvmDatabaseDriverFactory())
+        BackupService(fresh).restore(BackupService(db).create())
+        assertEquals("false", SqlDelightSettingsStore(fresh).get("home.youtubeGroups", SettingLayer.Global))
+        val synced = com.greenaltambe.vela.sync.SettingsDomain(db).read()
+        assertTrue(synced.any { (key, value) -> key.endsWith("/home.youtubeGroups") && value == "false" }, "sync carries it: ${synced.keys}")
+        val other = createDatabase(JvmDatabaseDriverFactory())
+        com.greenaltambe.vela.sync.SettingsDomain(other).apply(synced)
+        assertEquals("false", SqlDelightSettingsStore(other).get("home.youtubeGroups", SettingLayer.Global))
+    }
+
     @Test fun restoringTwiceOrOverExistingDataMergesAndNeverDeletesOrDuplicates() {
         val text = BackupService(filled()).create()
         val db = createDatabase(JvmDatabaseDriverFactory())

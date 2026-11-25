@@ -47,6 +47,7 @@ class PacedExtractor(
     override suspend fun kiosk(kioskId: String, continuation: String?) = paced { inner.kiosk(kioskId, continuation) }
     override suspend fun related(videoId: String) = paced { inner.related(videoId) }
     override suspend fun channelShorts(channelId: String, continuation: String?) = paced { inner.channelShorts(channelId, continuation) }
+    override suspend fun shortsFeed(seed: String?, continuation: String?) = paced { inner.shortsFeed(seed, continuation) }
     override suspend fun searchChannels(query: String, continuation: String?) = paced { inner.searchChannels(query, continuation) }
     override suspend fun searchPlaylists(query: String, continuation: String?) = paced { inner.searchPlaylists(query, continuation) }
     override suspend fun channelLive(channelId: String, continuation: String?) = paced { inner.channelLive(channelId, continuation) }

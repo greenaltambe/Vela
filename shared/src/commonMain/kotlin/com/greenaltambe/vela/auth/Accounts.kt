@@ -252,7 +252,26 @@ data class HomeChip(val label: String, val token: String?, val selected: Boolean
  * One page of the signed-in Home. [continuation] loads the next page of the same feed (null at its end). [chips] is filled only on the first page of the
  * unfiltered feed ("All"); a chip's own pages and later pages carry none, so the caller keeps the chips it got first.
  */
-data class HomePage(val videos: List<com.greenaltambe.vela.extractor.VideoSummary>, val continuation: String?, val chips: List<HomeChip> = emptyList())
+data class HomePage(
+    val videos: List<com.greenaltambe.vela.extractor.VideoSummary>, val continuation: String?, val chips: List<HomeChip> = emptyList(),
+    /** The rows YouTube set among this page's videos; their videos are not in [videos]. */
+    val groups: List<FeedGroup> = emptyList(),
+)
+
+/** What a group on YouTube's Home is: a row made only of Shorts (the Shorts setting decides about it), or any other row YouTube suggests. */
+enum class FeedGroupKind { SHORTS, SUGGESTED }
+
+/**
+ * A titled row YouTube sets into the Home feed. [afterVideoId] is the feed video of the same page it follows; null means it comes before the page's
+ * first video (so, on a later page, right after the previous page's last one). Its videos are not part of the feed.
+ */
+data class FeedGroup(
+    val kind: FeedGroupKind,
+    val title: String,
+    val subtitle: String?,
+    val videos: List<com.greenaltambe.vela.extractor.VideoSummary>,
+    val afterVideoId: String?,
+)
 
 /** Reads from the signed-in account (governor-owned BROWSE calls). Each returns null when nobody is signed in or the call failed, so callers fall back to local data. */
 interface AccountReads {
@@ -266,6 +285,11 @@ interface AccountReads {
      */
     suspend fun home(chip: String? = null, continuation: String? = null): HomePage? =
         if (chip != null || continuation != null) null else recommended()?.let { HomePage(it, null) }
+    /**
+     * A page of the account's own recommended Shorts, with the same arguments as [com.greenaltambe.vela.extractor.Extractor.shortsFeed]. Null when nobody
+     * is signed in or the read failed (the caller turns to another source). A token from the other source is refused the same way.
+     */
+    suspend fun shorts(seed: String? = null, continuation: String? = null): com.greenaltambe.vela.extractor.Page<com.greenaltambe.vela.extractor.VideoSummary>? = null
     suspend fun playlists(): List<AccountPlaylist>?
     suspend fun playlistVideos(playlistId: String): List<com.greenaltambe.vela.extractor.VideoSummary>?
     /**

@@ -42,6 +42,7 @@ class FaultInjectingExtractor(private val inner: Extractor, private val injector
     }
     override suspend fun videoInfo(videoId: String) = failing<VideoInfo>() ?: inner.videoInfo(videoId)
     override suspend fun search(query: String, continuation: String?) = failing<Page<VideoSummary>>() ?: inner.search(query, continuation)
+    override suspend fun shortsFeed(seed: String?, continuation: String?) = failing<Page<VideoSummary>>() ?: inner.shortsFeed(seed, continuation)
 }
 
 fun List<ExtractorTier>.withFaults(injector: FaultInjector?): List<ExtractorTier> =

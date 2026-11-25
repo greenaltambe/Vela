@@ -369,6 +369,7 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
     ) {
         val revision by services.settings.revision.collectAsState()
         val nav = remember(revision) { NavConfig.of(services.settings) }
+        val regionCode = remember(revision) { services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.contentRegion).trim().ifEmpty { "US" } }
         var profileOpen by remember { mutableStateOf(false) }
         val sizeClass = windowSizeClassFor(maxWidth.value, spacing)
         val rail = sizeClass != WindowSizeClass.COMPACT
@@ -415,6 +416,7 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
                 showSearch = !(uiRoute is Route.Search && (uiRoute.query.isBlank() || uiRoute.edit)), searchText = (uiRoute as? Route.Search)?.query.orEmpty(), onSearch = { openSearch() },
                 unread = notifUnread, onNotifications = { navigator.push(Route.Notifications) },
                 profile = { ProfileButton(services) { profileOpen = true } },
+                region = regionCode,
             )
             Row(Modifier.weight(1f).fillMaxWidth().then(if (chrome) Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)) else Modifier)) {
                 if (chrome && rail && desktopBar) com.greenaltambe.vela.ui.nav.DesktopSideBar(navEntries(nav.tabs), nav.selected(uiRoute), nav.railCollapsed, onSelect = navigator::openTab, showLabels = nav.showLabels)
@@ -448,6 +450,7 @@ private fun AppShellContent(services: AppServices, navigator: Navigator, homeFee
                                 onNotifications = ({ navigator.push(Route.Notifications) }), unread = notifUnread,
                                 profile = { ProfileButton(services) { profileOpen = true } },
                                 translucent = frosted,
+                                region = regionCode.takeIf { uiRoute == Route.Home },
                             )
                         }
                         if (profileOpen) ProfileMenu(services, navigator) { profileOpen = false }
@@ -608,7 +611,7 @@ private fun Destination(services: AppServices, navigator: Navigator, route: Rout
     when (route) {
         Route.Home -> HomeScreen(services, navigator, modifier)
         Route.Shorts -> com.greenaltambe.vela.ui.screens.ShortsScreen(services, navigator, modifier)
-        is Route.ShortsPlayer -> com.greenaltambe.vela.ui.screens.ShortsScreen(services, navigator, modifier, start = route.video, following = route.following, stayOnChannel = route.stayOnChannel)
+        is Route.ShortsPlayer -> com.greenaltambe.vela.ui.screens.ShortsScreen(services, navigator, modifier, start = route.video, following = route.following, stayOnChannel = route.stayOnChannel, fromYouTubeRow = route.fromYouTubeRow)
         Route.Subscriptions -> SubscriptionsScreen(services, navigator, modifier)
         Route.Library -> LibraryScreen(services, navigator, modifier)
         Route.Settings, Route.Customize, is Route.CustomizePage, is Route.SettingsPage, Route.Accounts, Route.Backup, Route.Sync, Route.Health -> com.greenaltambe.vela.ui.screens.SettingsPaneHost(services, navigator, route, modifier)

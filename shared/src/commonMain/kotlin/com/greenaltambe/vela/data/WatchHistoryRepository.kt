@@ -28,7 +28,7 @@ interface WatchHistoryRepository {
     /** Brings a session's row up to date. */
     fun update(id: Long, at: Instant, positionMs: Long, durationMs: Long, watchedMs: Long)
 
-    /** Gives the rows of [videoId] that were saved without a title their [title] (and [channelId] where it was blank). */
+    /** Gives the rows of [videoId] that were saved without a title or a channel the [title] and [channelId] they lack. What a row already says stays. */
     fun healMissing(accountId: String, videoId: String, title: String, channelId: String) {}
 }
 

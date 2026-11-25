@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.printToString
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.runDesktopComposeUiTest
 import com.greenaltambe.vela.auth.*
@@ -94,6 +95,61 @@ class HomeSourceUiTest {
         val signedOut = buildFixture(withDownloads = false, reads = reads)
         setContent { AppUnderTest(signedOut) }; waitForIdle()
         assertEquals(0, reads.calls, "signed out = Trending, no account call")
+    }
+
+    /** The account feed of whatever region is set when it is asked; [hold] keeps a request waiting until it is completed. */
+    private class RegionReads(private val region: () -> String) : AccountReads {
+        val asked = mutableListOf<String>()
+        var hold: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+        override suspend fun home(chip: String?, continuation: String?): HomePage {
+            val now = region(); asked += now
+            hold?.takeIf { now == "US" }?.await()
+            return HomePage(listOf(VideoSummary("v-$now", "A video for $now", "UCr", "Rec Channel")), null)
+        }
+        override suspend fun recommended(): List<VideoSummary>? = null
+        override suspend fun playlists(): List<AccountPlaylist>? = null
+        override suspend fun playlistVideos(playlistId: String): List<VideoSummary>? = null
+    }
+
+    @Test fun changingTheRegionLoadsHomeAgainOnceAndDropsTheOldList() = runDesktopComposeUiTest(800, 1000) {
+        lateinit var f: Fixture
+        val reads = RegionReads { f.services.settings.resolve(Settings.contentRegion) }
+        f = buildFixture(withDownloads = false, reads = reads); signIn(f)
+        setContent { AppUnderTest(f) }; waitForIdle()
+        waitUntil(timeoutMillis = 3_000) { onAllNodesWithText("A video for US").fetchSemanticsNodes().isNotEmpty() }
+        f.services.settings.set(Settings.contentRegion, "IN"); waitForIdle()
+        waitUntil(timeoutMillis = 3_000) { onAllNodesWithText("A video for IN").fetchSemanticsNodes().isNotEmpty() }
+        assertEquals(0, onAllNodesWithText("A video for US").fetchSemanticsNodes().size)
+        assertEquals(listOf("US", "IN"), reads.asked, "one load for each region")
+    }
+
+    @Test fun theNewRegionsListStartsAtTheTop() = runDesktopComposeUiTest(400, 800) {
+        fun page(region: String) = HomePage((1..30).map { VideoSummary("$region-$it", "$region video number $it", "UCr", "Rec Channel") }, null)
+        val reads = Reads(null).also { it.pages = mapOf("" to page("US")) }
+        val home = com.greenaltambe.vela.ui.screens.HomeFeedStore()
+        val f = buildFixture(withDownloads = false, reads = reads); signIn(f)
+        setContent { com.greenaltambe.vela.App(f.services, f.navigator, homeFeed = home) }; waitForIdle()
+        waitUntil(timeoutMillis = 3_000) { onAllNodesWithText("US video number 1").fetchSemanticsNodes().isNotEmpty() }
+        onNodeWithTag("home.list").performScrollToIndex(20); waitForIdle()
+        reads.pages = mapOf("" to page("IN"))
+        f.services.settings.set(Settings.contentRegion, "IN"); waitForIdle()
+        waitUntil(timeoutMillis = 3_000) { home.videos.items.firstOrNull()?.id == "IN-1" }; waitForIdle()
+        assertEquals(0, home.scroll.index, "the old list's position must not carry over")
+        onNodeWithText("IN video number 1").assertExists()
+    }
+
+    @Test fun anAnswerForTheOldRegionThatArrivesLateIsNotShown() = runDesktopComposeUiTest(800, 1000) {
+        lateinit var f: Fixture
+        val reads = RegionReads { f.services.settings.resolve(Settings.contentRegion) }
+        val late = kotlinx.coroutines.CompletableDeferred<Unit>(); reads.hold = late
+        f = buildFixture(withDownloads = false, reads = reads); signIn(f)
+        setContent { AppUnderTest(f) }; waitForIdle()
+        waitUntil(timeoutMillis = 3_000) { reads.asked.isNotEmpty() }
+        f.services.settings.set(Settings.contentRegion, "IN"); waitForIdle()
+        waitUntil(timeoutMillis = 3_000) { onAllNodesWithText("A video for IN").fetchSemanticsNodes().isNotEmpty() }
+        late.complete(Unit); waitForIdle()
+        assertEquals(0, onAllNodesWithText("A video for US").fetchSemanticsNodes().size)
+        onNodeWithText("A video for IN").assertExists()
     }
 
     @Test fun withYouTubesChipsSwitchedOffHomeIsJustTheFeedWithTheFilterButton() = runDesktopComposeUiTest(800, 1000) {

@@ -356,6 +356,8 @@ fun VelaTopBar(
     scrollBehavior: androidx.compose.material3.TopAppBarScrollBehavior? = null,
     /** See-through: the bar paints no background of its own, its parent frosts the area behind it (the bar and what hangs under it are one surface). */
     translucent: Boolean = false,
+    /** The "Region for content" code, shown small after the title: given where the title is the app's name. */
+    region: String? = null,
 ) {
     val back = if (LocalEmbeddedInPane.current) null else onBack
     val colors = if (!translucent) androidx.compose.material3.TopAppBarDefaults.topAppBarColors()
@@ -371,7 +373,7 @@ fun VelaTopBar(
         return
     }
     TopAppBar(
-        title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        title = { TitleWithRegion(title, region) },
         modifier = modifier.testTag("topbar"),
         colors = colors,
         scrollBehavior = scrollBehavior,
@@ -404,6 +406,20 @@ fun VelaTopBar(
     )
 }
 
+
+/** A bar's title with the region code raised beside it, as a website marks the country it is showing. */
+@Composable
+private fun TitleWithRegion(title: String, region: String?, style: androidx.compose.ui.text.TextStyle = androidx.compose.material3.LocalTextStyle.current) {
+    if (region == null) { Text(title, style = style, maxLines = 1, overflow = TextOverflow.Ellipsis); return }
+    val name = com.greenaltambe.vela.core.settings.Settings.contentRegion.choices.firstOrNull { it.raw == region }?.label ?: region
+    Row(verticalAlignment = Alignment.Top) {
+        Text(title, Modifier.weight(1f, fill = false), style = style, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            region, Modifier.padding(start = 3.dp).testTag("topbar.region").semantics { contentDescription = "Region for content: $name" },
+            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, softWrap = false,
+        )
+    }
+}
 
 /** The main button: Material's expressive filled button (medium size, its shape morphs while pressed) with a text label. */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -496,7 +512,7 @@ val DesktopTopBarHeight = 56.dp
 @Composable
 fun DesktopTopBar(
     onToggleSideBar: () -> Unit, onHome: () -> Unit, onBack: (() -> Unit)?, showSearch: Boolean, onSearch: () -> Unit,
-    unread: Boolean, onNotifications: () -> Unit, profile: @Composable () -> Unit, modifier: Modifier = Modifier, searchText: String = "",
+    unread: Boolean, onNotifications: () -> Unit, profile: @Composable () -> Unit, modifier: Modifier = Modifier, searchText: String = "", region: String? = null,
 ) {
     val cs = MaterialTheme.colorScheme
     // Three places in one box (weights left gaps when the pill is capped): the menu and mark at the left edge, the pill in the middle of the bar, the bell and profile at the right edge.
@@ -509,7 +525,7 @@ fun DesktopTopBar(
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
                 com.greenaltambe.vela.ui.look.VelaMark(size = 30.dp)
-                Text("Vela", style = MaterialTheme.typography.titleLarge, maxLines = 1)
+                TitleWithRegion("Vela", region, style = MaterialTheme.typography.titleLarge)
             }
         }
         if (showSearch) TopBarSearchField(onSearch, searchText, Modifier.align(Alignment.Center).fillMaxWidth(0.42f).widthIn(min = 200.dp, max = 560.dp))

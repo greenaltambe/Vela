@@ -10,7 +10,7 @@ enum class HomeShelf(val label: String, val hint: String) {
     BECAUSE("Because you watched", "Related to what you watched lately, with no account"),
     CHANNELS("From channels you watch a lot", "Channels you often watch but do not subscribe to"),
     INTERESTS("Your interests", "Searches for the topics that come up most in your history"),
-    SHORTS("Shorts", "Short videos from your subscriptions"),
+    SHORTS("Shorts", "From your subscriptions, when signed out. Signed in, YouTube's own rows of Shorts show"),
 }
 
 object HomeShelves {

@@ -1,10 +1,15 @@
 package com.greenaltambe.vela.innertube
 
 import com.greenaltambe.vela.auth.*
+import com.greenaltambe.vela.extractor.ContinuationToken
+import com.greenaltambe.vela.extractor.Page
 import com.greenaltambe.vela.extractor.VideoSummary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.time.Clock
+
+/** Stamps the account's Shorts tokens, so that one is never sent without the account, nor an anonymous one with it. */
+private const val SHORTS_TOKEN = "account-shorts"
 
 /** [AccountReads] over youtubei for the active account: BROWSE calls through that account's governor; any failure is a null so the caller falls back. */
 class InnertubeAccountReads(
@@ -17,26 +22,37 @@ class InnertubeAccountReads(
     /** The chosen profile per account (null = never a non-default one). */
     private val profiles: com.greenaltambe.vela.auth.ProfileStore? = null,
     private val onFailure: (String) -> Unit = {},
+    /**
+     * "Region for content", read at every Home request (a blank value means US). Null leaves the bundled client's own. Only Home asks for it:
+     * the history and the playlists are the account's own lists, the same everywhere.
+     */
+    private val region: (() -> String)? = null,
+    /** Told when a Home response was not entirely as expected (see [HomeParseReport.problem]). */
+    private val onNote: (String) -> Unit = {},
 ) : AccountReads {
-    private suspend fun <T> run(block: InnertubeClient.() -> T): T? {
+    private fun homeClient(): WebClient = region?.let { web.copy(gl = it().trim().ifEmpty { "US" }) } ?: web
+
+    private suspend fun <T> run(client: () -> WebClient = { web }, block: InnertubeClient.() -> T): T? {
         val account = accounts.active.value
         if (!account.isSignedIn) return null
         val jar = accounts.cookies(account.id) ?: return null
         return try {
             val session = AuthSession(jar, governors.forAccount(account.id), transport, clock, onCookiesChanged = { accounts.saveCookies(account.id, it) }, pageId = { profiles?.pageId(account.id) })
-            withContext(Dispatchers.IO) { InnertubeClient(session, web, base).block() }
+            withContext(Dispatchers.IO) { InnertubeClient(session, client(), base).block() }
         } catch (e: AuthFailure.LoggedOut) { accounts.setAuthState(account.id, AuthState.NEEDS_RELOGIN); onFailure("signed out"); null
         } catch (e: kotlinx.coroutines.CancellationException) { throw e
         } catch (e: Exception) { onFailure(Redaction.redact(e.message ?: e.javaClass.simpleName)); null }
     }
 
-    override suspend fun recommended(): List<VideoSummary>? = run {
+    override suspend fun recommended(): List<VideoSummary>? = run(::homeClient) {
         val page = browse("FEwhat_to_watch", kotlin.time.Duration.parse("15s")) // interactive: wait a little, then Home falls back to Trending
         if (InnertubeParsers.isSignedOutPage(page)) throw AuthFailure.LoggedOut("home is the signed-out page")
-        InnertubeParsers.videos(page)
+        readHome(page).videos
     }
 
-    override suspend fun home(chip: String?, continuation: String?): HomePage? = run {
+    private fun readHome(page: kotlinx.serialization.json.JsonElement): HomeFeed = HomeFeedParser.parse(page).also { feed -> feed.report.problem()?.let(onNote) }
+
+    override suspend fun home(chip: String?, continuation: String?): HomePage? = run(::homeClient) {
         val interactive = kotlin.time.Duration.parse("15s") // a person is waiting: a little patience, then the caller shows Retry
         val first = chip == null && continuation == null
         val page = when {
@@ -46,7 +62,20 @@ class InnertubeAccountReads(
         }
         if (first && InnertubeParsers.isSignedOutPage(page)) throw AuthFailure.LoggedOut("home is the signed-out page")
         // The chips ride on the first page of the unfiltered feed only.
-        HomePage(InnertubeParsers.videos(page), InnertubeParsers.feedContinuation(page), if (first) InnertubeParsers.homeChips(page) else emptyList())
+        val feed = readHome(page)
+        HomePage(feed.videos, feed.continuation, if (first) InnertubeParsers.homeChips(page) else emptyList(), feed.groups)
+    }
+
+    override suspend fun shorts(seed: String?, continuation: String?): Page<VideoSummary>? {
+        val token = if (continuation != null) ContinuationToken.unwrap(SHORTS_TOKEN, continuation) ?: return null else seed
+        return run(::homeClient) {
+            val page = ShortsFeed.load(token) { endpoint, body, mask ->
+                try { call(endpoint, body, patience = kotlin.time.Duration.parse("15s"), fieldMask = mask) } catch (e: AuthFailure.Http) { if (e.code == 400) null else throw e }
+            }
+            // A sequence that begins with nothing is a failed read, not an empty feed: the caller turns to another source.
+            if (token == null && page.items.isEmpty()) throw AuthFailure.Unparseable("the Shorts feed named no Short")
+            Page(page.items, page.continuation?.let { ContinuationToken.wrap(SHORTS_TOKEN, it) })
+        }
     }
 
     override suspend fun playlists(): List<AccountPlaylist>? = run { playlists().map { AccountPlaylist(it.id, it.title, it.videoCount) } }

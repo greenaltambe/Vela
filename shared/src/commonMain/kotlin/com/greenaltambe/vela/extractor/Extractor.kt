@@ -61,6 +61,13 @@ interface Extractor {
     /** The channel's Shorts tab. */
     suspend fun channelShorts(channelId: String, continuation: String? = null): ExtractorResult<Page<VideoSummary>> = notSupported()
 
+    /**
+     * YouTube's own feed of Shorts, as it serves a visitor who is not signed in (the account's comes from AccountReads.shorts). With neither argument a
+     * new sequence begins: one Short, and the token for what follows. [seed] goes on from a Short of a listing ([VideoSummary.shortsSequence]);
+     * [continuation] is the previous page's. The videos carry an id and a picture only.
+     */
+    suspend fun shortsFeed(seed: String? = null, continuation: String? = null): ExtractorResult<Page<VideoSummary>> = notSupported()
+
     /** The channel's Live tab (current and past streams). */
     suspend fun channelLive(channelId: String, continuation: String? = null): ExtractorResult<Page<VideoSummary>> = notSupported()
 

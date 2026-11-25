@@ -1,5 +1,9 @@
 package com.greenaltambe.vela.innertube
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.delay
 import com.greenaltambe.vela.extractor.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -228,20 +232,76 @@ class ChannelBrowse(
         return ExtractorResult.Success(post to comments)
     }
 
-    internal suspend fun executeBrowse(body: JsonObject): ExtractorResult<JsonElement> {
-        val nowMs = clock.now().toEpochMilliseconds()
-        val offsetMinutes = (TimeZone.getDefault().getOffset(nowMs) / 60000)
-        val reg = contentRegion().ifBlank { "US" }
-        val context = buildJsonObject {
+    private fun clientContext(): JsonObject {
+        val offsetMinutes = (TimeZone.getDefault().getOffset(clock.now().toEpochMilliseconds()) / 60000)
+        return buildJsonObject {
             putJsonObject("client") {
                 put("clientName", "WEB")
                 put("clientVersion", clientVersion())
                 put("hl", "en")
-                put("gl", reg)
+                put("gl", contentRegion().ifBlank { "US" })
                 put("utcOffsetMinutes", offsetMinutes)
                 visitorData()?.let { put("visitorData", it) }
             }
         }
+    }
+
+    private fun anonymousHeaders(mask: String? = null): Map<String, String> = buildMap {
+        put("Content-Type", "application/json")
+        put("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0")
+        put("Origin", "https://www.youtube.com")
+        put("Referer", "https://www.youtube.com/")
+        if (mask != null) put("X-Goog-FieldMask", mask)
+    }
+
+    // The Shorts feed is not wrapped by the anonymous pacer, so it paces itself: one request at a time, a moment apart.
+    private val shortsGate = Mutex()
+    private var lastShorts = 0L
+
+    /** [com.greenaltambe.vela.extractor.Extractor.shortsFeed] for a visitor who is not signed in. Its tokens are stamped, so another source's is refused. */
+    suspend fun shortsFeed(seed: String? = null, continuation: String? = null): ExtractorResult<Page<VideoSummary>> {
+        val token = if (continuation != null) {
+            ContinuationToken.unwrap(SHORTS_TOKEN, continuation) ?: return ExtractorResult.Failure(ExtractorError.TokenNotMine("Not an anonymous Shorts token"))
+        } else seed
+        return shortsGate.withLock {
+            val wait = lastShorts + SHORTS_SPACING_MS - clock.now().toEpochMilliseconds()
+            if (wait > 0) delay(wait.coerceAtMost(SHORTS_SPACING_MS))
+            lastShorts = clock.now().toEpochMilliseconds()
+            try {
+                val page = withContext(Dispatchers.IO) { ShortsFeed.load(token, ::askAnonymously) }
+                if (token == null && page.items.isEmpty()) ExtractorResult.Failure(ExtractorError.ParseFailure("The Shorts feed named no Short"))
+                else ExtractorResult.Success(Page(page.items, page.continuation?.let { ContinuationToken.wrap(SHORTS_TOKEN, it) }))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: AnonymousFailure) {
+                ExtractorResult.Failure(e.error)
+            } catch (e: ShortsFeed.Refused) {
+                ExtractorResult.Failure(if (token != null) ExtractorError.TokenExpired(e.message!!) else ExtractorError.Unplayable(e.message!!))
+            }
+        }
+    }
+
+    private class AnonymousFailure(val error: ExtractorError) : Exception(error.message)
+
+    private fun askAnonymously(endpoint: String, body: JsonObject, mask: String?): JsonElement? {
+        val payload = buildJsonObject { put("context", clientContext()); body.forEach { (k, v) -> put(k, v) } }
+        val raw = try {
+            transport.execute("POST", "$base/$endpoint?prettyPrint=false", anonymousHeaders(mask), payload.toString())
+        } catch (e: Exception) {
+            throw AnonymousFailure(ExtractorError.Network(e.message ?: "Network error", e))
+        }
+        when {
+            raw.code == 400 -> return null
+            raw.code == 429 -> throw AnonymousFailure(ExtractorError.RateLimited("HTTP 429"))
+            raw.code == 403 -> throw AnonymousFailure(ExtractorError.Blocked("HTTP 403"))
+            raw.code in 500..599 -> throw AnonymousFailure(ExtractorError.TierUnavailable("HTTP ${raw.code}"))
+            raw.code !in 200..299 -> throw AnonymousFailure(ExtractorError.Unplayable("HTTP ${raw.code}"))
+        }
+        return try { lenientJson.parseToJsonElement(raw.body) } catch (e: Exception) { throw AnonymousFailure(ExtractorError.ParseFailure("Not JSON response", e)) }
+    }
+
+    internal suspend fun executeBrowse(body: JsonObject): ExtractorResult<JsonElement> {
+        val context = clientContext()
         val payload = buildJsonObject {
             put("context", context)
             body.forEach { (k, v) -> put(k, v) }
@@ -249,12 +309,7 @@ class ChannelBrowse(
 
         val raw = try {
             withContext(Dispatchers.IO) {
-                transport.execute("POST", "$base/browse?prettyPrint=false", mapOf(
-                    "Content-Type" to "application/json",
-                    "User-Agent" to "Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0",
-                    "Origin" to "https://www.youtube.com",
-                    "Referer" to "https://www.youtube.com/",
-                ), payload.toString())
+                transport.execute("POST", "$base/browse?prettyPrint=false", anonymousHeaders(), payload.toString())
             }
         } catch (e: Exception) {
             return ExtractorResult.Failure(ExtractorError.Network(e.message ?: "Network error", e))
@@ -699,51 +754,7 @@ class ChannelBrowse(
         return VideoSummary(id, title, "", channelName, thumb, duration, views, publishedText = published, channelAvatarUrl = avatar, isMembersOnly = InnertubeParsers.isMembersOnly(l))
     }
 
-    internal fun parseShort(reel: JsonElement): VideoSummary? {
-        val id = reel["videoId"].string
-            ?: reel["contentId"].string
-            ?: reel.at("onTap", "innertubeCommand", "reelWatchEndpoint", "videoId").string
-            ?: reel.at("onTap", "innertubeCommand", "commandMetadata", "webCommandMetadata", "url").string
-                ?.substringAfter("/shorts/")?.substringBefore("?")?.substringBefore("&")
-            ?: reel["entityId"].string?.let {
-                if (it.startsWith("shorts-shelf-item-")) it.removePrefix("shorts-shelf-item-")
-                else if (it.startsWith("shorts-lockup-item-")) it.removePrefix("shorts-lockup-item-")
-                else it
-            }
-            ?: reel.findAll("videoId").firstOrNull()?.let { (it as? JsonPrimitive)?.contentOrNull }
-            ?: return null
-
-        val title = reel.at("overlayMetadata", "primaryText", "content").string
-            ?: reel.at("headline", "simpleText").string
-            ?: reel["title"].text()
-            ?: reel.at("metadata", "lockupMetadataViewModel", "title", "content").string
-            ?: reel["accessibilityText"].string?.substringBefore(",")
-            ?: ""
-
-        val thumb = reel.at("thumbnailViewModel", "thumbnailViewModel", "image", "sources").array.lastOrNull().at("url").string
-            ?: reel.at("contentImage", "thumbnailViewModel", "image", "sources").array.lastOrNull().at("url").string
-            ?: reel.findAll("thumbnails").firstOrNull().array.lastOrNull().at("url").string
-            ?: reel.findAll("sources").firstOrNull().array.lastOrNull().at("url").string
-
-        val viewText = reel.at("overlayMetadata", "secondaryText", "content").string
-            ?: reel["viewCountText"].text()
-            ?: reel["accessibilityText"].string?.let { acc ->
-                acc.split(",").getOrNull(1)?.substringBefore("-")?.trim()
-            }
-        val views = parseCount(viewText)
-
-        return VideoSummary(
-            id = id,
-            title = title,
-            channelId = "",
-            channelName = "",
-            thumbnailUrl = thumb,
-            durationSeconds = null,
-            viewCount = views,
-            publishedText = viewText,
-            isShort = true
-        )
-    }
+    internal fun parseShort(reel: JsonElement): VideoSummary? = InnertubeParsers.shortItem(reel)
 
     /**
      * One show of the Shows tab (`gridShowRenderer`, checked live on @MoreSidemen): a series whose episodes are a playlist. Its `browseId` is
@@ -954,19 +965,6 @@ class ChannelBrowse(
         return url
     }
 
-    private fun parseCount(text: String?): Long? {
-        if (text == null) return null
-        val m = Regex("""([\d.,]+)\s*([KMBkmb])?""").find(text) ?: return null
-        val num = m.groupValues[1].replace(",", "").toDoubleOrNull() ?: return null
-        val factor = when (m.groupValues[2].uppercase()) {
-            "K" -> 1_000.0
-            "M" -> 1_000_000.0
-            "B" -> 1_000_000_000.0
-            else -> 1.0
-        }
-        return (num * factor).toLong()
-    }
-
     private fun parseDuration(text: String?): Long? {
         if (text == null) return null
         val parts = text.split(':').mapNotNull { it.trim().toLongOrNull() }
@@ -975,6 +973,8 @@ class ChannelBrowse(
     }
 
     companion object {
+        private const val SHORTS_TOKEN = "alt-shorts"
+        private const val SHORTS_SPACING_MS = 500L
         const val VIDEOS_PARAMS = "EgZ2aWRlb3PyBgQKAjoA"
         const val SHORTS_PARAMS = "EgZzaG9ydHPyBgUKA5oBAA=="
         const val STREAMS_PARAMS = "EgdzdHJlYW1z8gYECgJ6AA=="

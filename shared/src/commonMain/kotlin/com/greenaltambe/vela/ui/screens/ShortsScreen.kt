@@ -2,6 +2,14 @@
 
 package com.greenaltambe.vela.ui.screens
 
+import com.greenaltambe.vela.extractor.chain.AttemptOutcome
+import com.greenaltambe.vela.extractor.chain.TierAttempt
+import com.greenaltambe.vela.extractor.chain.TierId
+import com.greenaltambe.vela.shorts.hiddenShorts
+import com.greenaltambe.vela.shorts.ShortsRead
+import com.greenaltambe.vela.shorts.ShortsOrigin
+import com.greenaltambe.vela.shorts.ShortsFeed
+import com.greenaltambe.vela.core.settings.shortsEnabled
 import androidx.compose.material3.toShape
 import com.greenaltambe.vela.ui.components.LoadingSpinner
 import com.greenaltambe.vela.ui.theme.AppIcons
@@ -79,10 +87,13 @@ import kotlinx.coroutines.launch
 
 /** What the Shorts page last showed (the list and which one was on), kept for as long as the shell lives so coming back does not reload it. */
 class ShortsFeedStore {
-    var accountId: String? = null
+    /** The account and the region [shorts] were fetched for: another of either starts afresh. */
+    var madeFor: String? = null
     var shorts: PagedList<VideoSummary> = videoPagedList()
     var page: Int = 0
-    internal var source: ShortsSource? = null
+    /** What playing a Short found out about it (a listing may name no channel, or no title), by video id. */
+    val lookedUp = androidx.compose.runtime.mutableStateMapOf<String, com.greenaltambe.vela.player.MediaInfo>()
+    var feed: ShortsFeed? = null
 }
 
 /** A channel Shorts can be taken from: its id, name and picture. */
@@ -153,21 +164,58 @@ internal class ShortsSource(
     }
 }
 
+/** This listing entry with what it lacks taken from [info]; what it already says stays. */
+internal fun VideoSummary.filledFrom(info: com.greenaltambe.vela.player.MediaInfo): VideoSummary = copy(
+    title = title.ifBlank { info.title }, channelId = channelId.ifBlank { info.channelId }, channelName = channelName.ifBlank { info.channelName },
+    channelAvatarUrl = channelAvatarUrl ?: info.channelAvatarUrl,
+)
+
 val LocalShortsFeed = staticCompositionLocalOf<ShortsFeedStore?> { null }
 
 /**
  * An endless feed of Shorts, one full-screen video per page: swipe up for the next, down for the previous. Only the page in view plays
  * (the player has one picture, which is drawn on that page); the others show their thumbnail. Tap pauses or plays; a finished short starts
- * again. The feed is built from channels' Shorts tabs (see [ShortsSource]) and loaded further as you near the end. Opened with a [start] Short
- * (from a card elsewhere) it begins on that one, then carries on with Shorts from its channel and the rest. Like and dislike work as on the video
+ * again. The Shorts tab shows YouTube's own feed: the account's, else the one anyone gets, else the channels' Shorts tabs (see [ShortsFeed]); it is
+ * loaded further as you near the end. Opened with a [start] Short from one of YouTube's rows on Home ([fromYouTubeRow]) it begins on that one,
+ * plays the rest of the row and goes on as YouTube would. Opened from anywhere else it carries on with Shorts from its channel and others
+ * ([ShortsSource]). Like and dislike work as on the video
  * page (the counts are Return YouTube Dislike's), and Comments opens the comments in a panel under a shrunk picture: they never cover the video.
  */
+@Composable
+fun ShortsScreen(
+    services: AppServices, navigator: Navigator, modifier: Modifier = Modifier, start: VideoSummary? = null, following: List<VideoSummary> = emptyList(), stayOnChannel: Boolean = false,
+    fromYouTubeRow: Boolean = false,
+) {
+    val revision by services.settings.revision.collectAsState()
+    val region = remember(revision) { services.settings.resolve(com.greenaltambe.vela.core.settings.Settings.contentRegion) }
+    val madeFor = "${services.accounts.active.value.id}|$region"
+    // Another account or region is another feed: the page starts afresh, and an answer still on its way for the old one is dropped.
+    androidx.compose.runtime.key(madeFor, start?.id) { ShortsPages(services, navigator, modifier, start, following, stayOnChannel, fromYouTubeRow, madeFor) }
+}
+
+/** The feed's sources for one visit: YouTube's own for the Shorts tab and for a Short from a YouTube row, only the channels' Shorts otherwise. */
+private fun AppServices.shortsFeed(youTube: Boolean, seed: String?, queued: Set<String>, mix: suspend () -> List<VideoSummary>): ShortsFeed {
+    val account = reads?.takeIf { accounts.active.value.isSignedIn }
+    val sources = if (!youTube) emptyList() else listOfNotNull(
+        account?.let { reads -> ShortsOrigin.ACCOUNT to ShortsRead { s, c -> reads.shorts(s, c) } },
+        ShortsOrigin.ANONYMOUS to ShortsRead { s, c -> (extractor.shortsFeed(s, c) as? ExtractorResult.Success)?.value },
+    )
+    return ShortsFeed(sources, mix, seed, queued) { from, to, why ->
+        val tier = if (from == ShortsOrigin.ACCOUNT) TierId.AUTHENTICATED else TierId.ALT_CLIENT
+        log.record(TierAttempt("shorts feed", tier, AttemptOutcome.NOTE, null, "${from.label} $why; using ${to.label}", kotlin.time.Duration.ZERO, clock.now()))
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ShortsScreen(services: AppServices, navigator: Navigator, modifier: Modifier = Modifier, start: VideoSummary? = null, following: List<VideoSummary> = emptyList(), stayOnChannel: Boolean = false) {
+private fun ShortsPages(
+    services: AppServices, navigator: Navigator, modifier: Modifier, start: VideoSummary?, following: List<VideoSummary>, stayOnChannel: Boolean,
+    fromYouTubeRow: Boolean, madeFor: String,
+) {
     val store = LocalShortsFeed.current.takeIf { start == null }
-    val accountId = services.accounts.active.value.id
-    val reuse = store != null && store.accountId == accountId && store.shorts.items.isNotEmpty()
+    val reuse = store != null && store.madeFor == madeFor && store.shorts.items.isNotEmpty()
+    val settingsRevision by services.settings.revision.collectAsState()
+    val shortsOn = remember(settingsRevision) { services.settings.shortsEnabled() }
     var list by remember { mutableStateOf(if (reuse) store!!.shorts else if (start != null) videoPagedList().append(com.greenaltambe.vela.extractor.Page(listOf(start) + following, "more")) else videoPagedList()) }
     var loading by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf<String?>(null) }
@@ -177,22 +225,27 @@ fun ShortsScreen(services: AppServices, navigator: Navigator, modifier: Modifier
     androidx.compose.runtime.LaunchedEffect(tabPlayer) { tabPlayer?.ensure() }
     val host = tabPlayer?.host ?: services.player
     val home = LocalHomeFeed.current
-    val source = remember(accountId, start?.id) {
-        store?.source?.takeIf { reuse } ?: ShortsSource(
+    val youTube = (start == null || fromYouTubeRow) && !stayOnChannel
+    fun newFeed(): ShortsFeed {
+        val queued = (listOfNotNull(start) + following).map { it.id }.toSet()
+        val source = ShortsSource(
             services, start?.takeIf { it.channelId.isNotBlank() }?.let { ShortsChannel(it.channelId, it.channelName, it.channelAvatarUrl) },
-            stayOnFirst = stayOnChannel, alreadyQueued = (listOfNotNull(start) + following).map { it.id }.toSet(),
+            stayOnFirst = stayOnChannel, alreadyQueued = queued,
         ) {
             services.subscriptions.all().map { ShortsChannel(it.channelId, it.name, it.avatarUrl) } +
                 home?.videos?.items.orEmpty().map { ShortsChannel(it.channelId, it.channelName, it.channelAvatarUrl) }
-        }.also { store?.source = it }
+        }
+        return services.shortsFeed(youTube, start?.shortsSequence.takeIf { fromYouTubeRow }, queued) { source.next() }
     }
+    var feed by remember { mutableStateOf(store?.feed?.takeIf { reuse } ?: newFeed().also { store?.feed = it }) }
 
     fun load(more: Boolean) {
-        if (loading) return
+        if (loading || !shortsOn) return
         loading = true
         scope.launch {
-            val batch = source.next()
-            if (batch.isEmpty() && list.items.isEmpty()) failed = "No channel to take Shorts from yet. Subscribe to some, or open Home first."
+            // Whatever goes wrong in a source, the page must be able to ask again.
+            val batch = try { feed.next() } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { emptyList() }
+            if (batch.isEmpty() && list.items.isEmpty()) failed = "None could be fetched. Check the connection and try again."
             else {
                 list = if (more) list.append(com.greenaltambe.vela.extractor.Page(batch, if (batch.isEmpty()) null else "more")) else list.replace(com.greenaltambe.vela.extractor.Page(batch, "more"))
                 failed = null
@@ -200,20 +253,30 @@ fun ShortsScreen(services: AppServices, navigator: Navigator, modifier: Modifier
             loading = false
         }
     }
-    LaunchedEffect(accountId, start?.id) { if (!reuse) load(more = start != null) }
+    LaunchedEffect(shortsOn) { if (!reuse || list.items.isEmpty()) load(more = start != null) }
 
-    val items = list.items
-    if (items.isEmpty()) {
+    // What playback looked up fills the gaps of the listing, for the page, its menus and its description alike.
+    val ownLookedUp = remember { androidx.compose.runtime.mutableStateMapOf<String, com.greenaltambe.vela.player.MediaInfo>() }
+    val lookedUp = store?.lookedUp ?: ownLookedUp
+    val mediaNow by (host?.session?.media ?: remember { kotlinx.coroutines.flow.MutableStateFlow<com.greenaltambe.vela.player.MediaInfo?>(null) }).collectAsState()
+    LaunchedEffect(mediaNow) { mediaNow?.let { if (it.title.isNotBlank() || it.channelId.isNotBlank()) lookedUp[it.videoId] = it } }
+    val found = lookedUp.toMap()
+    val items = remember(list, found) { if (found.isEmpty()) list.items else list.items.map { v -> found[v.id]?.let { v.filledFrom(it) } ?: v } }
+    // Those the viewer's rules leave out, as far as they are known by now: they are passed over, never taken from under the pager.
+    val blockedRevision by services.blocklist.revision.collectAsState()
+    val hidden = remember(items, blockedRevision, settingsRevision) { services.hiddenShorts(items, exempt = start?.id) }
+    if (items.isEmpty() || !shortsOn) {
         Box(modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
             when {
-                failed != null -> EmptyState("Shorts could not load: $failed", actionLabel = "Try again", onAction = { failed = null; load(false) })
+                !shortsOn -> EmptyState("Shorts are hidden in your settings.")
+                failed != null -> EmptyState("Shorts could not load: $failed", actionLabel = "Try again", onAction = { failed = null; feed = newFeed().also { store?.feed = it }; load(false) })
                 else -> LoadingSpinner(Modifier.size(40.dp), color = MaterialTheme.colorScheme.primary)
             }
         }
         return
     }
 
-    val pager = rememberPagerState(initialPage = (store?.page ?: 0).coerceIn(0, items.lastIndex)) { items.size }
+    val pager = rememberPagerState(initialPage = (if (reuse) store!!.page else 0).coerceIn(0, items.lastIndex)) { items.size }
     val player by (host?.controllerState ?: remember { kotlinx.coroutines.flow.MutableStateFlow(com.greenaltambe.vela.player.PlayerState()) }).collectAsState()
     var paused by remember { mutableStateOf(false) }
     val muted by (host?.session?.muted ?: remember { kotlinx.coroutines.flow.MutableStateFlow(false) }).collectAsState()
@@ -238,7 +301,7 @@ fun ShortsScreen(services: AppServices, navigator: Navigator, modifier: Modifier
     // Remember where we were and what we loaded, for the next visit.
     DisposableEffect(Unit) {
         onDispose {
-            if (store != null) { store.accountId = accountId; store.shorts = list; store.page = pager.settledPage }
+            if (store != null) { store.madeFor = madeFor; store.shorts = list; store.page = pager.settledPage }
             host?.session?.stop()                 // nothing else shows this video: do not leave it playing out of sight
         }
     }
@@ -246,14 +309,49 @@ fun ShortsScreen(services: AppServices, navigator: Navigator, modifier: Modifier
     // The list the effect reads is the CURRENT one: it was captured at the first composition before, so a Short opened from a channel (a list of one
     // that then grows) never found the next page's video, never started it, and the previous Short went on playing.
     val itemsNow by androidx.compose.runtime.rememberUpdatedState(items)
+    val hiddenNow by androidx.compose.runtime.rememberUpdatedState(hidden)
     LaunchedEffect(pager, host) {
-        snapshotFlow { pager.settledPage }.distinctUntilChanged().collect { page ->
+        var last = pager.settledPage
+        var direction = 1
+        snapshotFlow {
+            val page = pager.settledPage
+            val id = itemsNow.getOrNull(page)?.id
+            val skip = id != null && id in hiddenNow
+            // For a hidden one the length counts too: at the end of the list it moves on when more arrive.
+            listOf(page, id, skip, if (skip) itemsNow.size else 0)
+        }.distinctUntilChanged().collect { (_, _, skip, _) ->
+            val page = pager.settledPage
+            if (page != last) { direction = if (page < last) -1 else 1; last = page }
             val v = itemsNow.getOrNull(page)
             if (v == null) { host?.session?.stop(); return@collect }   // nothing to play on this page yet: never leave the previous one sounding
+            if (skip == true) {
+                host?.session?.stop()
+                // On in the direction of travel; back from the very first one there is only forward.
+                val to = (page + direction).takeIf { it in itemsNow.indices } ?: (page + 1).takeIf { direction < 0 && it in itemsNow.indices }
+                // In its own job: a finger that catches the pager cancels the scroll, and must not end this watching.
+                if (to != null) scope.launch { pager.animateScrollToPage(to) }
+                return@collect
+            }
             paused = false
-            if (host != null) { host.onBeforePlayback(); host.session.start(v.id, v) }
-            if (page >= itemsNow.size - 3) load(more = true)
+            // A Short does not wait for its title and channel: they are filled in as they arrive.
+            if (host != null) { host.onBeforePlayback(); host.session.start(v.id, v, awaitInfo = false) }
             services.modules.ryd.votes(v.id)
+        }
+    }
+    // More is fetched as the end nears, also when the list is still short after the last fetch.
+    LaunchedEffect(pager) {
+        snapshotFlow { pager.settledPage to itemsNow.size }.distinctUntilChanged().collect { (page, size) -> if (size > 0 && page >= size - 3) load(more = true) }
+    }
+    // The title and channel of the next one are fetched while this one plays: it then starts complete, and the rules know it before it is reached.
+    val askedAhead = remember { HashSet<String>() }
+    LaunchedEffect(pager) {
+        snapshotFlow { itemsNow.getOrNull(pager.settledPage + 1) }.collect { v ->
+            if (v == null || (v.title.isNotBlank() && v.channelId.isNotBlank()) || !askedAhead.add(v.id)) return@collect
+            scope.launch {
+                (services.extractor.videoInfo(v.id) as? ExtractorResult.Success)?.value?.let { info ->
+                    lookedUp[v.id] = com.greenaltambe.vela.player.MediaInfo(v.id, info.title, info.channelName, info.thumbnailUrl, info.channelId, info.channelAvatarUrl)
+                }
+            }
         }
     }
     // Silence the Short being swiped away at once, not only when the next one has settled and started (the next one can take a while to resolve).
@@ -304,6 +402,12 @@ fun ShortsScreen(services: AppServices, navigator: Navigator, modifier: Modifier
         Box(Modifier.fillMaxWidth().weight(1f - 0.58f * open)) {
             VerticalPager(pager, Modifier.fillMaxSize().testTag("shorts.pager"), beyondViewportPageCount = 0) { page ->
                 val v = items[page]
+                if (v.id in hidden) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Hidden by your blocklist or filters", color = ExtraColors.onMedia, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("shorts.hidden"))
+                    }
+                    return@VerticalPager
+                }
                 val current = pager.settledPage == page && pager.currentPage == page
                 val live = current && (sessionState as? SessionState.Ready)?.videoId == v.id
                 val votes = remember(rydRevision, v.id) { services.modules.ryd.cached(v.id) }

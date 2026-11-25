@@ -12,26 +12,41 @@ import kotlin.time.Instant
  */
 class HomeFeedStore {
     var accountId: String? = null
-    var videos: PagedList<VideoSummary> = com.greenaltambe.vela.extractor.videoPagedList()
+    /** The unfiltered list: its videos and YouTube's groups among them. */
+    var list = com.greenaltambe.vela.home.HomeList()
+    val videos: PagedList<VideoSummary> get() = list.videos
     var showing: String = "Trending"
     var note: String? = null
     var loadedAt: Instant? = null
-    val scroll = ScrollMemory()
+    /** Replaced (not reset) when the list it belongs to is thrown away: the old list saves its position as it goes, which must not land on the new one. */
+    var scroll = ScrollMemory()
+        private set
 
     /** The chips of the last unfiltered load, the chosen one (its label; null = All) and the chips that answered with nothing: per account, cleared when it changes. */
     var chips: List<com.greenaltambe.vela.auth.HomeChip> = emptyList()
     var selectedChip: String? = null
     val emptyChips = HashSet<String>()
     private var chipsAccount: String? = null
-    /** One chip's own list and when it came; All keeps [videos] / [loadedAt]. */
-    class ChipEntry(var videos: PagedList<VideoSummary> = com.greenaltambe.vela.extractor.videoPagedList(), var loadedAt: Instant? = null)
+    /** One chip's own list and when it came; All keeps [list] / [loadedAt]. */
+    class ChipEntry(var list: com.greenaltambe.vela.home.HomeList = com.greenaltambe.vela.home.HomeList(), var loadedAt: Instant? = null)
     private val chipEntries = HashMap<String, ChipEntry>()
     fun chipEntry(label: String) = chipEntries.getOrPut(label) { ChipEntry() }
-    fun chipUsable(label: String, now: Instant) = chipEntry(label).let { it.videos.items.isNotEmpty() && it.loadedAt?.let { at -> (now - at).inWholeMilliseconds < MAX_AGE_MS } == true }
+    fun chipUsable(label: String, now: Instant) = chipEntry(label).let { it.list.videos.items.isNotEmpty() && it.loadedAt?.let { at -> (now - at).inWholeMilliseconds < MAX_AGE_MS } == true }
     /** Called by Home on every visit: another account starts with no chips and no chosen one. */
     fun forAccount(account: String) {
         if (chipsAccount == account) return
         chipsAccount = account; chips = emptyList(); selectedChip = null; emptyChips.clear(); chipEntries.clear()
+    }
+    private var region: String? = null
+    /** Called by Home on every visit: what was loaded for another region (feed, chips, shelves, scroll position) is not shown again. */
+    fun forRegion(next: String) {
+        if (region == next) return
+        val changed = region != null
+        region = next
+        if (!changed) return
+        accountId = null; list = com.greenaltambe.vela.home.HomeList(); loadedAt = null; note = null
+        chips = emptyList(); selectedChip = null; emptyChips.clear(); chipEntries.clear(); shelves.clear()
+        scroll = ScrollMemory()
     }
     /** Each shelf's last answer, per account, so reopening Home shows the shelves at once (see [shelf]). */
     private val shelves = HashMap<String, Pair<Instant, com.greenaltambe.vela.home.ShelfData?>>()
