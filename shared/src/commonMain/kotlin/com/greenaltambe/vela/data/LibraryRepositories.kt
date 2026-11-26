@@ -184,13 +184,30 @@ data class PlaylistSummary(
     val remoteId: String? = null,
     val syncState: PlaylistSync = if (remoteId == null) PlaylistSync.LOCAL else PlaylistSync.SYNCED,
     val pendingCount: Int = 0, val overflowCount: Int = 0, val lastSyncedAt: Long? = null, val syncError: String? = null,
+    /** The YouTube playlist this is a saved copy of; null for the viewer's own playlists. */
+    val sourceId: String? = null,
+    val ownerName: String? = null, val ownerChannelId: String? = null, val coverUrl: String? = null,
+    /** When the original of a saved playlist stopped being readable; null while it can be read. */
+    val unavailableSince: Long? = null,
+    /** A saved playlist that is also in the account's YouTube library. */
+    val onAccount: Boolean = false,
 ) {
     /** Linked with YouTube (the old "mirror"). */
     val isMirror: Boolean get() = remoteId != null
     val isSynced: Boolean get() = remoteId != null
-    /** Liked videos belongs to the like button: it can be opened and played, nothing else. */
-    val isReadOnly: Boolean get() = remoteId == "LL"
+    /** Somebody else's playlist, kept here: it follows the original. */
+    val isSaved: Boolean get() = sourceId != null
+    /** The viewer's own, on this device only. */
+    val isLocal: Boolean get() = remoteId == null && sourceId == null
+    /** Liked videos belongs to the like button, a saved playlist to its owner: they can be opened and played, their videos not changed. */
+    val isReadOnly: Boolean get() = remoteId == "LL" || isSaved
 }
+
+/** What is kept about the original of a saved playlist. */
+data class SavedSource(val id: String, val title: String, val ownerName: String? = null, val ownerChannelId: String? = null, val coverUrl: String? = null)
+
+/** A video's picture is the same without the signature YouTube puts after it, and that changes at every read. */
+private fun steadyCover(url: String?): String? = url?.let { if ("ytimg.com/vi/" in it) it.substringBefore('?') else it }
 
 data class PlaylistVideo(
     val videoId: String,
@@ -218,7 +235,8 @@ class PlaylistRepository(private val db: VelaDatabase, private val accountId: St
     fun all(): List<PlaylistSummary> {
         watchLaterId()
         return q.selectForAccount(accountId).executeAsList().map {
-            PlaylistSummary(it.id, it.name, it.systemKey == WATCH_LATER, it.itemCount.toInt(), it.remoteId, state(it.syncState), it.pendingCount.toInt(), it.overflowCount.toInt(), it.lastSyncedAt, it.syncError)
+            PlaylistSummary(it.id, it.name, it.systemKey == WATCH_LATER, it.itemCount.toInt(), it.remoteId, state(it.syncState), it.pendingCount.toInt(), it.overflowCount.toInt(), it.lastSyncedAt, it.syncError,
+                it.sourceId, it.ownerName, it.ownerChannelId, it.coverUrl, it.unavailableSince, it.onAccount != 0L)
         }
     }
 
@@ -253,6 +271,44 @@ class PlaylistRepository(private val db: VelaDatabase, private val accountId: St
     fun create(name: String, at: Instant, systemKey: String? = null): Long = q.transactionWithResult {
         q.insert(accountId, name.trim().ifEmpty { "Untitled" }, systemKey, at.toEpochMilliseconds(), at.toEpochMilliseconds())
         q.lastInsertRowId().executeAsOne()
+    }
+
+    // ---- saved playlists ----
+
+    fun bySource(sourceId: String): PlaylistSummary? = all().firstOrNull { it.sourceId == sourceId }
+
+    /** The saved copy of [source], made empty when there is none yet. */
+    fun createSaved(source: SavedSource, at: Instant): Long = q.transactionWithResult {
+        q.selectBySource(accountId, source.id).executeAsOneOrNull()?.id ?: run {
+            val now = at.toEpochMilliseconds()
+            q.insertSaved(accountId, source.title.trim().ifEmpty { "Playlist" }, now, now, source.id, source.ownerName, source.ownerChannelId, steadyCover(source.coverUrl))
+            q.lastInsertRowId().executeAsOne()
+        }
+    }
+
+    fun updateSaved(id: Long, source: SavedSource, at: Instant) {
+        q.updateSaved(source.title.trim().ifEmpty { "Playlist" }, source.ownerName, source.ownerChannelId, steadyCover(source.coverUrl), at.toEpochMilliseconds(), id)
+    }
+
+    fun setOnAccount(id: Long, on: Boolean) { q.setOnAccount(if (on) 1L else 0L, id) }
+
+    /** Turns [id] into the saved copy of [source]; its videos stay. */
+    fun makeSaved(id: Long, source: SavedSource, at: Instant) {
+        q.makeSaved(source.title.trim().ifEmpty { "Playlist" }, source.id, source.ownerName, source.ownerChannelId, steadyCover(source.coverUrl), at.toEpochMilliseconds(), id)
+    }
+
+    /** The original was read whole just now. */
+    fun markRefreshed(id: Long, at: Instant) { q.setRefreshed(at.toEpochMilliseconds(), id) }
+    fun markAvailable(id: Long) { q.setAvailable(id) }
+    fun markUnavailable(id: Long, at: Instant) { q.setUnavailable(at.toEpochMilliseconds(), id) }
+
+    /** Makes the videos of a saved copy exactly [videos], in their order. */
+    fun replaceItems(id: Long, videos: List<VideoSummary>, at: Instant) = q.transaction {
+        val wanted = videos.distinctBy { it.id }
+        if (q.selectItems(id).executeAsList().map { it.videoId } == wanted.map { it.id }) return@transaction
+        q.clearItems(id)
+        wanted.forEachIndexed { i, v -> q.insertItem(id, v.id, i.toLong(), v.title, v.channelId, v.channelName, v.thumbnailUrl, v.durationSeconds, at.toEpochMilliseconds(), RowState.SYNCED.name) }
+        q.touch(at.toEpochMilliseconds(), id)
     }
 
     /** Built-in playlists keep their name. */
@@ -336,7 +392,7 @@ class PlaylistRepository(private val db: VelaDatabase, private val accountId: St
 }
 
 /** What waits to be written to a synced playlist's YouTube copy. */
-enum class OpKind { ADD, REMOVE, RENAME, DELETE }
+enum class OpKind { ADD, REMOVE, RENAME, DELETE, SAVE, UNSAVE }
 data class PlaylistOpRow(val id: Long, val playlistId: Long, val kind: OpKind, val videoId: String?, val payload: String?, val attempts: Int, val lastError: String?)
 
 /**
@@ -375,6 +431,18 @@ class PlaylistOpRepository(private val db: VelaDatabase, private val accountId: 
     fun enqueueDelete(playlistId: Long, remoteId: String, at: Instant) = q.transaction {
         q.deleteForPlaylist(accountId, playlistId)
         q.insert(accountId, playlistId, OpKind.DELETE.name, null, remoteId, at.toEpochMilliseconds())
+    }
+
+    /** Putting a saved playlist into the account's library. A waiting removal of the same one is moot. */
+    fun enqueueSave(playlistId: Long, sourceId: String, at: Instant) = q.transaction {
+        all().filter { (it.kind == OpKind.UNSAVE || it.kind == OpKind.SAVE) && it.payload == sourceId }.forEach { q.delete(it.id) }
+        q.insert(accountId, playlistId, OpKind.SAVE.name, null, sourceId, at.toEpochMilliseconds())
+    }
+
+    /** Taking it out of the account's library; the local row may be gone by the time it is sent, so the playlist rides in the payload. */
+    fun enqueueUnsave(playlistId: Long, sourceId: String, at: Instant) = q.transaction {
+        q.deleteForPlaylist(accountId, playlistId)
+        q.insert(accountId, playlistId, OpKind.UNSAVE.name, null, sourceId, at.toEpochMilliseconds())
     }
 
     /** Drops a waiting ADD of [videoId] (the video left the playlist before it was ever sent). */

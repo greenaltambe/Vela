@@ -11,8 +11,18 @@ CREATE TABLE Playlist (
     syncState TEXT NOT NULL DEFAULT 'LOCAL',
     lastSyncedAt INTEGER,
     syncError TEXT,
+    -- not null = a SAVED playlist: somebody else's YouTube playlist, kept here read-only (never together with remoteId)
+    sourceId TEXT,
+    ownerName TEXT,
+    ownerChannelId TEXT,
+    coverUrl TEXT,
+    -- 1 = a saved playlist that is also in the account's YouTube library
+    onAccount INTEGER NOT NULL DEFAULT 0,
+    -- when the original stopped being readable (deleted or made private); the copy is kept
+    unavailableSince INTEGER,
     UNIQUE (accountId, systemKey)
 );
+CREATE UNIQUE INDEX Playlist_source ON Playlist(accountId, sourceId);
 
 CREATE TABLE PlaylistItem (
     playlistId INTEGER NOT NULL REFERENCES Playlist(id) ON DELETE CASCADE,
@@ -64,6 +74,35 @@ UPDATE Playlist SET syncState = ?, lastSyncedAt = ?, syncError = NULL WHERE id =
 
 renameFromRemote:
 UPDATE Playlist SET name = ?, updatedAt = ? WHERE id = ? AND systemKey IS NULL;
+
+selectBySource:
+SELECT * FROM Playlist WHERE accountId = ? AND sourceId = ?;
+
+insertSaved:
+INSERT INTO Playlist(accountId, name, createdAt, updatedAt, sourceId, ownerName, ownerChannelId, coverUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+-- A fact the latest read did not say keeps what was known.
+updateSaved:
+UPDATE Playlist SET name = :name, ownerName = COALESCE(:ownerName, ownerName), ownerChannelId = COALESCE(:ownerChannelId, ownerChannelId), coverUrl = COALESCE(:coverUrl, coverUrl), updatedAt = :updatedAt
+WHERE id = :id AND sourceId IS NOT NULL;
+
+setRefreshed:
+UPDATE Playlist SET lastSyncedAt = ?, unavailableSince = NULL WHERE id = ? AND sourceId IS NOT NULL;
+
+setAvailable:
+UPDATE Playlist SET unavailableSince = NULL WHERE id = ? AND sourceId IS NOT NULL;
+
+setUnavailable:
+UPDATE Playlist SET unavailableSince = COALESCE(unavailableSince, :since) WHERE id = :id AND sourceId IS NOT NULL;
+
+setOnAccount:
+UPDATE Playlist SET onAccount = ? WHERE id = ? AND sourceId IS NOT NULL;
+
+-- A list that was taken for the viewer's own turns out to be somebody else's: it becomes a saved one, and nothing is written to it again.
+makeSaved:
+UPDATE Playlist SET name = :name, remoteId = NULL, syncState = 'LOCAL', syncError = NULL, lastSyncedAt = NULL, sourceId = :sourceId, ownerName = :ownerName,
+ownerChannelId = :ownerChannelId, coverUrl = :coverUrl, updatedAt = :updatedAt
+WHERE id = :id AND systemKey IS NULL;
 
 selectByRemote:
 SELECT * FROM Playlist WHERE accountId = ? AND remoteId = ?;

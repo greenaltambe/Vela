@@ -12,6 +12,8 @@ import com.greenaltambe.vela.extractor.PlaylistDetails
 import com.greenaltambe.vela.extractor.VideoSummary
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 /** Why a further page did not come: [expired] means the listing cannot be gone on with and has to be read again from the start. */
 data class PageProblem(val message: String, val expired: Boolean)
@@ -26,8 +28,12 @@ class RemotePlaylist(val id: String, private val extractor: Extractor, private v
     var videos by mutableStateOf<List<VideoSummary>>(emptyList()); private set
     /** True once the first page has come. */
     var loaded by mutableStateOf(false); private set
+    /** When the first page that is shown was read. */
+    var readAt: Instant? = null; private set
     /** Why the first page could not be read. */
     var error by mutableStateOf<String?>(null); private set
+    /** The last read failed because the playlist is not there to be read (deleted or private), not for want of a connection. */
+    var gone by mutableStateOf(false); private set
     var moreProblem by mutableStateOf<PageProblem?>(null); private set
     var loading by mutableStateOf(false); private set
     /** Entries that were on the pages read but could not be understood. */
@@ -48,6 +54,7 @@ class RemotePlaylist(val id: String, private val extractor: Extractor, private v
 
     private suspend fun first() = busy {
         error = null
+        gone = false
         var result = extractor.playlistPage(id)
         var account = false
         if (result is ExtractorResult.Failure) reads?.playlistPage(id)?.let { result = ExtractorResult.Success(it); account = true }
@@ -60,9 +67,13 @@ class RemotePlaylist(val id: String, private val extractor: Extractor, private v
                 next = r.value.continuation
                 moreProblem = null
                 loaded = true
+                readAt = Clock.System.now()
             }
             // A failed refresh keeps what was read before.
-            is ExtractorResult.Failure -> if (loaded) moreProblem = PageProblem("Could not refresh: ${r.error.message}", expired = true) else error = r.error.message
+            is ExtractorResult.Failure -> {
+                gone = r.error.reason == FailureReason.UNPLAYABLE
+                if (loaded) moreProblem = PageProblem("Could not refresh: ${r.error.message}", expired = true) else error = r.error.message
+            }
         }
     }
 

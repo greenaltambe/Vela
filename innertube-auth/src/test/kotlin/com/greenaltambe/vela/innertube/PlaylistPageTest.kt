@@ -140,6 +140,11 @@ class PlaylistPageTest {
         assertEquals(1, read(appended(lockup("a"), """{"somethingNewViewModel":{}}"""), false)!!.unreadCount)
     }
 
+    @Test fun aSignedOutAnswerIsNoAnswerAboutTheAccount() {
+        val signedOut = page(listOf(lockup("a")), header = fullHeader(saveButton(false, false)))
+        assertFailsWith<AuthFailure.LoggedOut> { client(signedOut).readPlaylist("PL1") }
+    }
+
     @Test fun anythingLeftUnreadMakesTheListIncomplete() {
         fun complete(vararg pages: String, maxPages: Int = 60) = client(*pages).playlistListing("PL1", maxPages).also { assertEquals("a", it.first.first().videoId) }.second
         assertFalse(complete(page(listOf(lockup("a"), """{"somethingNewViewModel":{}}"""))), "an unknown entry")

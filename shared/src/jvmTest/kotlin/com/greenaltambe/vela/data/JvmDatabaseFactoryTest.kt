@@ -43,8 +43,33 @@ class JvmDatabaseFactoryTest {
         assertEquals(1, JvmDatabaseDriverFactory(file).create().scalar("PRAGMA foreign_keys"))
     }
 
+    /** Takes a current database back to what version 12 looked like: no saved playlists. */
+    private fun SqlDriver.dropVersion13Changes() {
+        execute(null, "DROP INDEX Playlist_source", 0)
+        listOf("sourceId", "ownerName", "ownerChannelId", "coverUrl", "onAccount", "unavailableSince").forEach { execute(null, "ALTER TABLE Playlist DROP COLUMN $it", 0) }
+    }
+
+    @Test
+    fun versionTwelvePlaylistsStayAsTheyAreAndSavedOnesCanBeAdded() {
+        val v12 = JvmDatabaseDriverFactory(file).create()
+        v12.dropVersion13Changes()
+        v12.execute(null, "PRAGMA user_version = 12", 0)
+        v12.execute(null, "INSERT INTO Playlist(accountId, name, createdAt, updatedAt, remoteId, syncState) VALUES ('a1','Synced',1,1,'PLx','SYNCED')", 0)
+        v12.execute(null, "INSERT INTO Playlist(accountId, name, createdAt, updatedAt) VALUES ('a1','Local',2,2)", 0)
+        v12.close()
+
+        val lists = PlaylistRepository(createDatabase(JvmDatabaseDriverFactory(file)), "a1")
+        assertEquals(listOf("Synced" to false, "Local" to true), lists.all().filter { !it.isWatchLater }.map { it.name to it.isLocal })
+        assertTrue(lists.all().none { it.isSaved })
+        val saved = lists.createSaved(SavedSource("PLs", "Theirs"), kotlin.time.Instant.fromEpochSeconds(3))
+        assertEquals(saved, lists.createSaved(SavedSource("PLs", "Theirs again"), kotlin.time.Instant.fromEpochSeconds(4)), "one copy of an original")
+        assertEquals("PLs", lists.get(saved)!!.sourceId)
+        assertEquals(VelaDatabase.Schema.version, JvmDatabaseDriverFactory(file).create().scalar("PRAGMA user_version"))
+    }
+
     /** Takes a current database back to what version 11 looked like: no playlist sync columns and no outbox. */
     private fun SqlDriver.dropVersion12Changes() {
+        dropVersion13Changes()
         execute(null, "DROP TABLE PlaylistOp", 0)
         listOf("remoteId", "syncState", "lastSyncedAt", "syncError").forEach { execute(null, "ALTER TABLE Playlist DROP COLUMN $it", 0) }
         execute(null, "ALTER TABLE PlaylistItem DROP COLUMN rowState", 0)

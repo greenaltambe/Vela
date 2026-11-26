@@ -32,6 +32,14 @@ class InnertubeWritesTest {
         assertEquals(10, audits.size); assertTrue(audits.all { it.kind == CallKind.WRITE.name || it.kind.contains("WRITE", true) }, audits.map { it.kind }.toString())
     }
 
+    @Test fun savingAPlaylistToTheLibraryAndRemovingItAreTheLikeCallsWithThePlaylistAsTarget() {
+        val c = client(GovernorLimits(minSpacingMs = 0, writesPerHour = 100))
+        c.savePlaylist("PL1"); c.unsavePlaylist("PL1")
+        assertEquals(listOf("like/like", "like/removelike"), bodies.map { it.first })
+        assertTrue(bodies.all { "\"target\":{\"playlistId\":\"PL1\"}" in it.second }, bodies.toString())
+        assertEquals(2, audits.size, "each is a write of the budget")
+    }
+
     @Test fun addingSeveralVideosIsOneWriteWithOneActionEach() {
         answer = { """{"status":"STATUS_SUCCEEDED"}""" }
         val c = client(GovernorLimits(minSpacingMs = 0, writesPerHour = 100))

@@ -86,7 +86,7 @@ class InnertubeAccountReads(
         run { playlistVideos(playlistId).map { it.toSummary() } }
 
     override suspend fun playlistListing(playlistId: String): PlaylistListing? =
-        run { playlistListing(playlistId).let { (vids, complete) -> PlaylistListing(vids.map { it.toSummary() }, complete) } }
+        run { readPlaylist(playlistId).let { PlaylistListing(it.videos.map { v -> v.toSummary() }, it.complete, PlaylistPageParser.details(it.firstPage, playlistId, signedIn = true)) } }
 
     private fun AccountPlaylistVideo.toSummary() = VideoSummary(videoId, title, channelId, channelName.orEmpty(), durationSeconds = durationSeconds)
 

@@ -1,6 +1,6 @@
 # Plan: YouTube playlist page and saving playlists
 
-Status: stages 1 to 3 built (reports 164, 165, 166); stages 4 and 5 not built. Evidence: reports 163 and 165.
+Status: all five stages built (reports 164 to 168). Evidence: reports 163, 165 and 168.
 
 ## 1. Done: account playlist reading was broken for the newer page layout
 
@@ -82,8 +82,8 @@ Whole-list actions:
 1. Reader fix (section 1). Worth releasing on its own. **Done.**
 2. Playlist page data and parser. **Done.**
 3. Header and layout; Play all, Shuffle, Share, Download. No account writes. **Done** (the Save button comes with stage 4).
-4. Saved playlists, device only: sheet, model, Library, backup and sync.
-5. Account save and unsave, and classification in library sync.
+4. Saved playlists, device only: sheet, model, Library, backup and sync. **Done** (the sheet is a dialog, like New playlist).
+5. Account save and unsave, and classification in library sync. **Done.**
 
 Gate for each: `./gradlew allTests test :androidApp:compileDebugKotlin`; read-only live checks for stages 1, 2 and 5. The owner allowed a live test of the
 save and remove writes; both worked (report 165).

@@ -40,6 +40,7 @@ import com.greenaltambe.vela.ui.components.PLAYLIST_SIDE_BY_SIDE
 import com.greenaltambe.vela.ui.components.PageAction
 import com.greenaltambe.vela.ui.components.PlaylistActions
 import com.greenaltambe.vela.ui.components.PlaylistHeader
+import com.greenaltambe.vela.ui.components.SaveAction
 import com.greenaltambe.vela.ui.look.LocalUndoToasts
 import com.greenaltambe.vela.ui.nav.Navigator
 import com.greenaltambe.vela.ui.nav.Route
@@ -72,6 +73,21 @@ fun ChannelPlaylistScreen(services: AppServices, navigator: Navigator, playlistI
     var whole by remember { mutableStateOf<WholeList?>(null) }
     var downloadFor by remember { mutableStateOf<List<VideoSummary>?>(null) }
     var addFor by remember { mutableStateOf<List<VideoSummary>?>(null) }
+    // This playlist's place in the library, when it has one: a saved copy, or one of the viewer's own that is synced with it.
+    val revision = playlistRevision(services)
+    val mine = remember(revision, playlistId) { services.playlists.bySource(playlistId) ?: services.playlists.byRemote(playlistId) }
+    var saving by remember { mutableStateOf(false) }
+    var removing by remember { mutableStateOf(false) }
+    if (saving) SavePlaylistDialog(services, playlist.details?.title ?: "Playlist", onDismiss = { saving = false }) { onAccount ->
+        saving = false
+        services.playlistService.launch { val r = services.playlistService.save(playlist, onAccount); toasts.show(r.message ?: if (r.ok) "Saved to your library" else "Could not save it") }
+    }
+    if (removing && mine?.isSaved == true) RemoveSavedDialog(services, mine, onDismiss = { removing = false }) { fromAccount ->
+        removing = false
+        services.playlistService.launch { val r = services.playlistService.delete(mine.id, fromAccount); toasts.show(r.message ?: if (r.ok) "Removed from your library" else "Could not remove it") }
+    }
+    // Read to its end on this page: the saved copy takes it over.
+    LaunchedEffect(mine?.id, playlist.complete) { if (mine?.isSaved == true && playlist.complete) services.playlistService.launch { services.playlistService.refreshSaved(mine.id, playlist) } }
     downloadFor?.let { DownloadDialog(services, it, onDismiss = { downloadFor = null }) }
     addFor?.let { SaveManySheet(services, it, onDismiss = { addFor = null }) }
     whole?.let { wanted ->
@@ -100,6 +116,9 @@ fun ChannelPlaylistScreen(services: AppServices, navigator: Navigator, playlistI
         val some = playlist.videos.isNotEmpty()
         // A mix has no end, so nothing that needs all of it is offered.
         val finite = !isMix(playlistId)
+        val ownChannel = services.accounts.active.value.channelId
+        // The viewer's own, by what the page offers or by whose channel it is (read without the account, a page cannot know).
+        val own = d?.canBeSaved == false || (ownChannel != null && d?.ownerChannelId == ownChannel)
         PlaylistHeader(
             coverUrl = d?.coverUrl ?: playlist.videos.firstOrNull()?.let { it.thumbnailUrl ?: "https://i.ytimg.com/vi/${it.id}/hqdefault.jpg" },
             title = d?.title,
@@ -112,12 +131,19 @@ fun ChannelPlaylistScreen(services: AppServices, navigator: Navigator, playlistI
                 playAll = HeaderAction(some) { if (!store.playAll(navigator, playlist, services::playlistFilter)) whole = WholeList.PLAY },
                 shuffle = if (finite) HeaderAction(some) { whole = WholeList.SHUFFLE } else null,
                 download = if (finite && services.downloads != null) HeaderAction(some) { whole = WholeList.DOWNLOAD } else null,
+                save = when {
+                    mine?.isSaved == true -> SaveAction(true) { removing = true }
+                    // The viewer's own (in the library or by the page) and mixes cannot be saved.
+                    mine != null || !finite || own -> null
+                    else -> SaveAction(false) { saving = true }
+                },
                 share = HeaderAction {
                     val link = playlistLink(playlistId)
                     if (share != null) share(d?.title ?: "Playlist", link) else { clipboard.setText(AnnotatedString(link)); toasts.show("Link copied") }
                 },
                 menu = buildList {
                     if (finite && some) add(PageAction("Add all to a playlist", "playlist.addAll") { whole = WholeList.ADD })
+                    if (mine != null) add(PageAction("Open in your library", "playlist.openInLibrary") { navigator.push(Route.Playlist(mine.id)) })
                     add(PageAction("Open in browser", "playlist.openInBrowser") { runCatching { uri.openUri(playlistLink(playlistId)) } })
                     add(PageAction("Refresh", "playlist.refresh") { scope.launch { playlist.reload() } })
                 },

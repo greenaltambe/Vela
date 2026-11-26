@@ -5,8 +5,11 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [0.6.1-beta.7]
+
 ### Added
 - A YouTube playlist opens with a header: cover, title, owner, number of videos and views, and the description; Play all, Shuffle, Download all and Share; and a menu with "Add all to a playlist", "Open in browser" and "Refresh". On a wide window the header stands beside the list. Playlists in your library have the same header.
+- Save somebody else's playlist to your library, on this device or, with "Sync with my YouTube account", in your YouTube library too. It follows the original: the owner's changes arrive when you open it or sync, you cannot edit it, and your copy stays if the original disappears. Removing it can remove it from your YouTube library as well. Playlists you save on youtube.com appear at the next sync, and leave when you remove them there. Saved playlists are in backups and device sync.
 - Play all queues the later pages of a long playlist as they arrive; Shuffle, Download all and Add all read the whole playlist first and ask before going on with only part of it.
 
 ### Changed
@@ -14,6 +17,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Fixed
 - The icons of the bottom bar and the side rail were drawn black, so they could not be seen in the dark theme.
+- Syncing with YouTube brought other people's playlists from your library in as your own, editable ones; they are saved playlists now, and any already brought in are converted at the next sync.
 - Syncing with YouTube read no videos from Liked videos and from other playlists in YouTube's newer page layout; both layouts are read now, with their further pages. A page Vela cannot read is reported as a failed sync instead of an empty playlist.
 
 ## [0.6.1-beta.6]
@@ -267,7 +271,8 @@ First public beta. Android is the primary platform, Linux is supported, Windows 
 ### Packaging
 - Android APK (arm64-v8a), Linux .deb, .rpm and portable tarball, Windows .msi and portable zip (experimental).
 
-[Unreleased]: https://github.com/greenaltambe/Vela/compare/v0.6.1-beta.6...HEAD
+[Unreleased]: https://github.com/greenaltambe/Vela/compare/v0.6.1-beta.7...HEAD
+[0.6.1-beta.7]: https://github.com/greenaltambe/Vela/compare/v0.6.1-beta.6...v0.6.1-beta.7
 [0.6.1-beta.6]: https://github.com/greenaltambe/Vela/compare/v0.6.1-beta.5...v0.6.1-beta.6
 [0.6.1-beta.5]: https://github.com/greenaltambe/Vela/compare/v0.6.1-beta.4...v0.6.1-beta.5
 [0.6.1-beta.4]: https://github.com/greenaltambe/Vela/compare/v0.6.1-beta.3...v0.6.1-beta.4

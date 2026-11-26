@@ -49,6 +49,20 @@ class LivePlaylistReadTest {
         }
     }
 
+    /** What library sync goes by: each list in the account's library says whose it is. Only your own channel's lists offer no "save". */
+    @Test fun everyListInTheLibrarySaysWhoseItIs() {
+        val c = InnertubeClient(AuthSession(LiveCookies.jarOrSkip(), AccountGovernor("live-playlist-owner")))
+        val me = assertNotNull(c.accountInfo().channelId, "the account's channel id")
+        c.playlists().forEachIndexed { i, listed ->
+            val read = c.readPlaylist(listed.id, maxPages = 2)
+            val d = assertNotNull(PlaylistPageParser.details(read.firstPage, listed.id, signedIn = true))
+            val own = d.ownerChannelId == me
+            println("OWNER list #$i (${listed.id.take(2)}): own=$own canBeSaved=${d.canBeSaved} saved=${d.savedOnAccount} videos=${read.videos.size}")
+            assertTrue(d.canBeSaved == !own, "list #$i: own=$own but canBeSaved=${d.canBeSaved}")
+            if (!own) assertTrue(d.savedOnAccount == true, "list #$i is in the library but its page does not say saved")
+        }
+    }
+
     @Test fun bothLayoutsAndFurtherPagesAreRead() {
         val c = InnertubeClient(AuthSession(LiveCookies.jarOrSkip(), AccountGovernor("live-playlist")))
         fun read(name: String, id: String, maxPages: Int = 60): Pair<List<AccountPlaylistVideo>, Boolean> = c.playlistListing(id, maxPages).also { (v, complete) ->

@@ -14,6 +14,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -33,16 +35,19 @@ import com.greenaltambe.vela.ui.components.MediaRow
 import com.greenaltambe.vela.ui.components.PLAYLIST_SIDE_BY_SIDE
 import com.greenaltambe.vela.ui.components.PlaylistActions
 import com.greenaltambe.vela.ui.components.PlaylistHeader
+import com.greenaltambe.vela.ui.components.SaveAction
 import com.greenaltambe.vela.ui.components.PageAction
 import com.greenaltambe.vela.ui.look.LocalUndoToasts
 import com.greenaltambe.vela.ui.nav.Navigator
 import com.greenaltambe.vela.ui.nav.Route
 import com.greenaltambe.vela.ui.theme.AppIcons
 import com.greenaltambe.vela.ui.theme.Spacing
+import kotlinx.coroutines.launch
 
 /**
  * One playlist of the library: the library page frame, the playlist header (beside the list on a wide window), then the videos as [MediaRow]s. Long
- * press selects (Remove, Download act on all selected); a row's menu moves it or removes it; every removal shows Undo.
+ * press selects (Remove, Download act on all selected); a row's menu moves it or removes it; every removal shows Undo. A saved playlist (somebody
+ * else's) can only be played, copied, shared and removed; opening it brings its copy up to date.
  */
 @Composable
 fun PlaylistScreen(services: AppServices, navigator: Navigator, playlistId: Long, modifier: Modifier = Modifier) {
@@ -56,6 +61,13 @@ fun PlaylistScreen(services: AppServices, navigator: Navigator, playlistId: Long
     val items = remember(revision) { services.playlists.items(playlistId) }
     val synced = summary?.isSynced == true
     val readOnly = summary?.isReadOnly == true
+    val saved = summary?.takeIf { it.isSaved }
+    val reading = playlistId in services.playlistService.refreshing.collectAsState().value
+    var removingSaved by remember { mutableStateOf(false) }
+    var addFor by remember { mutableStateOf<List<VideoSummary>?>(null) }
+    val uri = androidx.compose.ui.platform.LocalUriHandler.current
+    LaunchedEffect(playlistId, saved != null) { if (saved != null) services.playlistService.launch { services.playlistService.refreshSavedIfStale(playlistId) } }
+    addFor?.let { SaveManySheet(services, it, onDismiss = { addFor = null }) }
     var overflowOpen by remember { mutableStateOf(false) }
     var syncOpen by remember { mutableStateOf(false) }
     val notOnYouTube = remember(items) { items.filter { it.rowState == com.greenaltambe.vela.data.RowState.OVERFLOW }.map { it.videoId }.toSet() }
@@ -76,16 +88,27 @@ fun PlaylistScreen(services: AppServices, navigator: Navigator, playlistId: Long
     overflowOpen.takeIf { it }?.let { summary?.let { s -> OverflowDialog(services, s, onDismiss = { overflowOpen = false }) { r -> overflowOpen = false; toasts.show(r.message ?: "Done"); localRevision++ } } }
     if (syncOpen && summary != null) SyncSettingsDialog(services, summary, onDismiss = { syncOpen = false }) { on ->
         syncOpen = false
-        services.playlistService.launch { val r = services.playlistService.setSynced(playlistId, on); toasts.show(r.message ?: if (r.ok) (if (on) "Syncing with YouTube" else "Stopped syncing") else "Could not change it"); localRevision++ }
+        val done = if (saved != null) (if (on) "Saved to your YouTube library" else "Kept on this device") else if (on) "Syncing with YouTube" else "Stopped syncing"
+        services.playlistService.launch { val r = services.playlistService.setSynced(playlistId, on); toasts.show(r.message ?: if (r.ok) done else "Could not change it"); localRevision++ }
     }
 
     val share = com.greenaltambe.vela.ui.platform.LocalShare.current
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
-    // Only a playlist of your own on YouTube has a link; Watch later and Liked videos are nobody else's to open.
-    val shareable = summary?.remoteId?.takeIf { it != "WL" && it != "LL" }
+    if (removingSaved && saved != null) RemoveSavedDialog(services, saved, onDismiss = { removingSaved = false }) { fromAccount ->
+        removingSaved = false
+        scope.launch {
+            val r = services.playlistService.delete(playlistId, fromAccount)
+            toasts.show(r.message ?: if (r.ok) "Removed from your library" else "Could not remove it")
+            if (r.ok) navigator.back()
+        }
+    }
+    // The original of a saved playlist, or your own playlist on YouTube, has a link; Watch later and Liked videos are nobody else's to open.
+    val shareable = saved?.sourceId ?: summary?.remoteId?.takeIf { it != "WL" && it != "LL" }
     val header: @Composable () -> Unit = {
         PlaylistHeader(
-            coverUrl = videos.firstOrNull()?.let { "https://i.ytimg.com/vi/${it.id}/hqdefault.jpg" },
+            coverUrl = saved?.coverUrl ?: videos.firstOrNull()?.let { "https://i.ytimg.com/vi/${it.id}/hqdefault.jpg" },
+            owner = saved?.ownerName,
+            onOwner = saved?.ownerChannelId?.let { id -> { navigator.push(Route.Channel(id, saved.ownerName.orEmpty())) } },
             actions = PlaylistActions(
                 playAll = HeaderAction(videos.isNotEmpty()) { navigator.playAll(videos) },
                 shuffle = HeaderAction(videos.size > 1) { navigator.playAll(videos.shuffled()) },
@@ -94,9 +117,17 @@ fun PlaylistScreen(services: AppServices, navigator: Navigator, playlistId: Long
                     HeaderAction {
                         val link = com.greenaltambe.vela.library.playlistLink(remote)
                         if (share != null) share(summary?.name ?: "Playlist", link)
-                        else { clipboard.setText(androidx.compose.ui.text.AnnotatedString(link)); toasts.show("Link copied. A private playlist opens only for you.") }
+                        else { clipboard.setText(androidx.compose.ui.text.AnnotatedString(link)); toasts.show(if (saved != null) "Link copied" else "Link copied. A private playlist opens only for you.") }
                     }
                 },
+                save = saved?.let { SaveAction(true) { removingSaved = true } },
+                menu = saved?.sourceId?.let { source ->
+                    buildList {
+                        if (videos.isNotEmpty()) add(PageAction("Add all to a playlist", "playlist.addAll") { addFor = videos })
+                        add(PageAction("Open in browser", "playlist.openInBrowser") { runCatching { uri.openUri(com.greenaltambe.vela.library.playlistLink(source)) } })
+                        add(PageAction("Refresh", "playlist.refresh") { services.playlistService.launch { val r = services.playlistService.refreshSaved(playlistId); toasts.show(r.message ?: "Up to date") } })
+                    }
+                }.orEmpty(),
             ),
             modifier = Modifier.padding(bottom = Spacing.sm),
         )
@@ -104,10 +135,10 @@ fun PlaylistScreen(services: AppServices, navigator: Navigator, playlistId: Long
     BoxWithConstraints(modifier.fillMaxSize()) {
         val beside = maxWidth >= PLAYLIST_SIDE_BY_SIDE
         LibraryScaffold(
-            summary?.name ?: "Playlist", Modifier, subtitle = "${videos.size} video${if (videos.size == 1) "" else "s"}" + (summary?.takeIf { it.isSynced }?.let { " · " + playlistSupporting(it).substringBefore(" · ") } ?: ""), onBack = { navigator.back() }, listTag = "playlist.list",
+            summary?.name ?: "Playlist", Modifier, subtitle = "${videos.size} video${if (videos.size == 1) "" else "s"}" + (summary?.takeIf { it.isSynced || it.isSaved }?.let { " · " + playlistSupporting(it).substringBefore(" · ") } ?: ""), onBack = { navigator.back() }, listTag = "playlist.list",
             menu = buildList {
                 if (services.downloads != null && videos.isNotEmpty()) add(PageAction("Download all", "playlist.downloadAll") { downloadFor = videos })
-                if (summary != null && !readOnly) add(PageAction("Sync settings", "playlist.syncSettings") { syncOpen = true })
+                if (summary != null && (!readOnly || summary.isSaved)) add(PageAction("Sync settings", "playlist.syncSettings") { syncOpen = true })
                 if (synced) add(PageAction(if (summary?.syncState == com.greenaltambe.vela.data.PlaylistSync.ERROR) "Retry sync" else "Sync now", "playlist.syncNow") {
                     services.playlistService.launch { val r = if (summary?.syncState == com.greenaltambe.vela.data.PlaylistSync.ERROR) services.playlistService.retry(playlistId) else services.playlistService.syncPlaylist(playlistId); toasts.show(r.message ?: if (r.ok) "Synced" else "Could not sync"); localRevision++ }
                 })
@@ -142,7 +173,12 @@ fun PlaylistScreen(services: AppServices, navigator: Navigator, playlistId: Long
                     }
                 }
             }
-            if (videos.isEmpty()) item(key = "empty") { EmptyState("This playlist is empty. Add videos from the ⋮ menu on any video.") }
+            if (saved?.unavailableSince != null) item(key = "unavailable") {
+            Text("This playlist is no longer available on YouTube. This is the copy kept here.", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.sm).testTag("playlist.unavailable"))
+        }
+        if (videos.isEmpty()) item(key = "empty") {
+            EmptyState(if (saved == null) "This playlist is empty. Add videos from the ⋮ menu on any video." else if (reading) "Reading the playlist…" else "No videos here yet. Choose Refresh to read it from YouTube.")
+        }
             itemsIndexed(videos, key = { _, v -> "p-${v.id}" }, contentType = { _, _ -> "video" }) { index, v ->
                 var menu by remember { mutableStateOf(false) }
                 val position = all.indexOfFirst { it.id == v.id }
@@ -157,9 +193,9 @@ fun PlaylistScreen(services: AppServices, navigator: Navigator, playlistId: Long
                             IconButton(onClick = { menu = true }, modifier = Modifier.testTag("playlist.itemMenu")) { Icon(AppIcons.more, "Options") }
                             DropdownMenu(menu, { menu = false }) {
                                 ShareMenuItem(v, onDone = { menu = false })
-                                if (!synced && position > 1) DropdownMenuItem(text = { Text("Move to top") }, leadingIcon = { Icon(AppIcons.arrowUp, null) }, onClick = { menu = false; services.playlists.move(playlistId, position, 0); localRevision++ })
-                                if (!synced && position > 0) DropdownMenuItem(text = { Text("Move up") }, leadingIcon = { Icon(AppIcons.arrowUp, null) }, onClick = { menu = false; services.playlists.move(playlistId, position, position - 1); localRevision++ })
-                                if (!synced && position < all.lastIndex) DropdownMenuItem(text = { Text("Move down") }, leadingIcon = { Icon(AppIcons.arrowDown, null) }, onClick = { menu = false; services.playlists.move(playlistId, position, position + 1); localRevision++ })
+                                if (summary?.isLocal == true && position > 1) DropdownMenuItem(text = { Text("Move to top") }, leadingIcon = { Icon(AppIcons.arrowUp, null) }, onClick = { menu = false; services.playlists.move(playlistId, position, 0); localRevision++ })
+                                if (summary?.isLocal == true && position > 0) DropdownMenuItem(text = { Text("Move up") }, leadingIcon = { Icon(AppIcons.arrowUp, null) }, onClick = { menu = false; services.playlists.move(playlistId, position, position - 1); localRevision++ })
+                                if (summary?.isLocal == true && position < all.lastIndex) DropdownMenuItem(text = { Text("Move down") }, leadingIcon = { Icon(AppIcons.arrowDown, null) }, onClick = { menu = false; services.playlists.move(playlistId, position, position + 1); localRevision++ })
                                 if (!readOnly) DropdownMenuItem(text = { Text("Remove from playlist") }, leadingIcon = { Icon(AppIcons.delete, null) }, onClick = { menu = false; remove(listOf(v.id)) }, modifier = Modifier.testTag("playlist.remove"))
                             }
                         }

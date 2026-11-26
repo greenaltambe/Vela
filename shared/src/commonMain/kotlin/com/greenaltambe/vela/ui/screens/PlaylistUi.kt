@@ -45,6 +45,7 @@ fun playlistRevision(services: AppServices): Int = services.playlistService.revi
 fun playlistSupporting(p: PlaylistSummary): String {
     val count = "${p.itemCount} video${if (p.itemCount == 1) "" else "s"}"
     val state = when {
+        p.isSaved -> if (p.unavailableSince != null) "Saved, no longer on YouTube" else if (p.onAccount) "Saved, on YouTube" else "Saved"
         !p.isSynced -> "On this device"
         p.syncState == PlaylistSync.ERROR -> "Sync failed, tap to retry"
         p.syncState == PlaylistSync.LINKING -> "Syncing, ${p.pendingCount} left"
@@ -58,8 +59,9 @@ fun playlistSupporting(p: PlaylistSummary): String {
 /** The cloud mark of a synced playlist (nothing for a local one). */
 @Composable
 fun SyncBadge(p: PlaylistSummary, modifier: Modifier = Modifier) {
-    if (!p.isSynced) return
+    if (!p.isSynced && !p.onAccount) return
     val desc = when {
+        p.onAccount -> "In your YouTube library"
         p.syncState == PlaylistSync.ERROR -> "Sync failed"
         p.syncState == PlaylistSync.LINKING -> "Syncing with YouTube"
         p.pendingCount > 0 -> "Changes waiting to reach YouTube"
@@ -71,7 +73,7 @@ fun SyncBadge(p: PlaylistSummary, modifier: Modifier = Modifier) {
 
 /** The "Sync with my YouTube account" box, the same wording everywhere. Hidden for the local profile; disabled with the reason when sign-in is needed. */
 @Composable
-fun SyncCheckbox(services: AppServices, checked: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+fun SyncCheckbox(services: AppServices, checked: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = Modifier, note: String = "Created as a private playlist on your account.") {
     if (services.accounts.active.value.kind != AccountKind.GOOGLE) return
     val reason = services.playlistService.unavailableReason()
     Column(modifier) {
@@ -79,7 +81,7 @@ fun SyncCheckbox(services: AppServices, checked: Boolean, onChange: (Boolean) ->
             Checkbox(checked && reason == null, { onChange(it) }, enabled = reason == null, modifier = Modifier.testTag("playlist.syncCheckbox"))
             Text("Sync with my YouTube account", style = MaterialTheme.typography.bodyMedium)
         }
-        Text(reason ?: "Created as a private playlist on your account.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 48.dp))
+        Text(reason ?: note, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 48.dp))
     }
 }
 
@@ -99,21 +101,73 @@ fun NewPlaylistDialog(services: AppServices, onDismiss: () -> Unit, onCreate: (n
 /** An existing playlist's sync settings: the same box. Turning it off never deletes anything on YouTube. */
 @Composable
 fun SyncSettingsDialog(services: AppServices, p: PlaylistSummary, onDismiss: () -> Unit, onApply: (Boolean) -> Unit) {
-    var synced by remember { mutableStateOf(p.isSynced) }
+    // For a saved playlist the box says whether it is in the account's YouTube library too.
+    val now = if (p.isSaved) p.onAccount else p.isSynced
+    var synced by remember { mutableStateOf(now) }
     AlertDialog(
         onDismissRequest = onDismiss, title = { Text("Sync settings", maxLines = 1) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 Text("\"${p.name}\"", style = MaterialTheme.typography.titleSmall, maxLines = 2)
-                SyncCheckbox(services, synced, { synced = it })
+                SyncCheckbox(services, synced, { synced = it }, note = if (p.isSaved) "Also appears in your YouTube library." else "Created as a private playlist on your account.")
                 Text(
-                    if (synced) (if (p.isSynced) "Changes you make here are sent to YouTube, and changes there come here." else "A private YouTube playlist is made and the videos here are added to it.")
+                    if (p.isSaved) (if (synced) "Saved to your YouTube library. Removing it there removes it here at the next sync." else "It stays saved here. Your YouTube library is left as it is.")
+                    else if (synced) (if (p.isSynced) "Changes you make here are sent to YouTube, and changes there come here." else "A private YouTube playlist is made and the videos here are added to it.")
                     else "The videos stay here. The YouTube playlist is left as it is; it is never deleted by turning this off.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         },
-        confirmButton = { TextButton(onClick = { onApply(synced) }, enabled = synced != p.isSynced, modifier = Modifier.testTag("playlist.syncApply")) { Text("Apply") } },
+        confirmButton = { TextButton(onClick = { onApply(synced) }, enabled = synced != now, modifier = Modifier.testTag("playlist.syncApply")) { Text("Apply") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+/** Saving somebody else's playlist: what is saved and what that means. */
+@Composable
+fun SavePlaylistDialog(services: AppServices, title: String, onDismiss: () -> Unit, onSave: (onAccount: Boolean) -> Unit) {
+    // The box starts where the one for a new playlist starts.
+    var onAccount by remember { mutableStateOf(services.settings.resolve(Settings.libraryNewPlaylistSync) && services.playlistService.syncAvailable) }
+    AlertDialog(
+        onDismissRequest = onDismiss, title = { Text("Save to library") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                Text("\"$title\"", style = MaterialTheme.typography.titleSmall, maxLines = 2)
+                Text(
+                    "Added to your Library. It stays the owner's: their changes show up, and you cannot edit it.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                SyncCheckbox(services, onAccount, { onAccount = it }, note = "Also appears in your YouTube library.")
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSave(onAccount && services.playlistService.syncAvailable) }, modifier = Modifier.testTag("playlist.saveConfirm")) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+/** Taking a saved playlist out of the library. */
+@Composable
+fun RemoveSavedDialog(services: AppServices, p: PlaylistSummary, onDismiss: () -> Unit, onRemove: (fromAccount: Boolean) -> Unit) {
+    val reason = if (p.onAccount) services.playlistService.unavailableReason() else null
+    var fromAccount by remember { mutableStateOf(p.onAccount && reason == null) }
+    AlertDialog(
+        onDismissRequest = onDismiss, title = { Text("Remove from your library?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                Text(
+                    "\"${p.name}\" leaves your Library. " + (if (p.unavailableSince != null) "It is no longer on YouTube, so it cannot be saved again. " else "The playlist itself is not changed. ") + "Downloaded videos stay.",
+                    modifier = Modifier.testTag("playlist.removeText"),
+                )
+                if (p.onAccount) {
+                    Row(Modifier.fillMaxWidth().clickable(enabled = reason == null) { fromAccount = !fromAccount }, verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(fromAccount, { fromAccount = it }, enabled = reason == null, modifier = Modifier.testTag("playlist.removeFromAccount"))
+                        Text("Also remove it from my YouTube account", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    if (reason != null) Text(reason, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onRemove(fromAccount) }, modifier = Modifier.testTag("playlist.removeConfirm")) { Text("Remove") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }

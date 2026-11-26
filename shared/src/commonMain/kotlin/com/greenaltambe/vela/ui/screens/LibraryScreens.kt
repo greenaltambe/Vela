@@ -141,9 +141,11 @@ fun LibraryScreen(services: AppServices, navigator: Navigator, modifier: Modifie
     } }
     syncing?.let { p -> SyncSettingsDialog(services, p, onDismiss = { syncing = null }) { on ->
         syncing = null
-        scope.launch { report(services.playlistService.setSynced(p.id, on), if (on) "Syncing with YouTube" else "Stopped syncing") }
+        val done = if (p.isSaved) (if (on) "Saved to your YouTube library" else "Kept on this device") else if (on) "Syncing with YouTube" else "Stopped syncing"
+        scope.launch { report(services.playlistService.setSynced(p.id, on), done) }
     } }
-    deleting?.let { p ->
+    deleting?.takeIf { it.isSaved }?.let { p -> RemoveSavedDialog(services, p, onDismiss = { deleting = null }) { fromAccount -> deleting = null; scope.launch { report(services.playlistService.delete(p.id, fromAccount)) } } }
+    deleting?.takeIf { !it.isSaved }?.let { p ->
         AlertDialog(
             onDismissRequest = { deleting = null },
             title = { Text("Delete \"${p.name}\"?", maxLines = 2) },
@@ -198,14 +200,19 @@ private fun PlaylistCard(p: PlaylistSummary, coverVideoId: String?, editable: Bo
                     Icon(if (p.isWatchLater) AppIcons.watchLater else AppIcons.playlist, null, Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onPrimary)
                 }
             }
-            if (editable) {
+            if (editable || p.isSaved) {
                 var menu by remember { mutableStateOf(false) }
                 Box(Modifier.align(Alignment.TopEnd).padding(Spacing.xs)) {
                     IconButton(onClick = { menu = true }, modifier = Modifier.clip(CircleShape).background(surface.copy(alpha = 0.85f))) { Icon(AppIcons.more, "Playlist options", tint = MaterialTheme.colorScheme.onSurface) }
                     DropdownMenu(menu, { menu = false }) {
-                        if (!p.isWatchLater) DropdownMenuItem(text = { Text("Rename") }, onClick = { menu = false; onRename() })
-                        DropdownMenuItem(text = { Text("Sync settings") }, onClick = { menu = false; onSync() }, modifier = Modifier.testTag("playlist.syncSettings"))
-                        if (!p.isWatchLater) DropdownMenuItem(text = { Text("Delete") }, onClick = { menu = false; onDelete() })
+                        if (p.isSaved) {
+                            DropdownMenuItem(text = { Text("Sync settings") }, onClick = { menu = false; onSync() }, modifier = Modifier.testTag("playlist.syncSettings"))
+                            DropdownMenuItem(text = { Text("Remove from library") }, onClick = { menu = false; onDelete() }, modifier = Modifier.testTag("playlist.removeSaved"))
+                        } else {
+                            if (!p.isWatchLater) DropdownMenuItem(text = { Text("Rename") }, onClick = { menu = false; onRename() })
+                            DropdownMenuItem(text = { Text("Sync settings") }, onClick = { menu = false; onSync() }, modifier = Modifier.testTag("playlist.syncSettings"))
+                            if (!p.isWatchLater) DropdownMenuItem(text = { Text("Delete") }, onClick = { menu = false; onDelete() })
+                        }
                     }
                 }
             }

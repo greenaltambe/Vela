@@ -95,9 +95,17 @@ class FallbackChain(
      */
     override suspend fun playlistPage(playlistId: String, continuation: String?): ExtractorResult<PlaylistContents> {
         val native = continuation == null || ContinuationToken.unwrap(ContinuationToken.NATIVE_PLAYLIST, continuation) != null
-        return run("playlistPage($playlistId${page(continuation)})", AccountOp.NEVER, first = if (native) ({ it.playlistDetails }) else null, remember = false) {
-            it.playlistPage(playlistId, continuation)
+        var absent: ExtractorError? = null
+        val result = run("playlistPage($playlistId${page(continuation)})", AccountOp.NEVER, first = if (native) ({ it.playlistDetails }) else null, remember = false) { source ->
+            source.playlistPage(playlistId, continuation).also { r ->
+                val error = (r as? ExtractorResult.Failure)?.error
+                if (source.capabilities.playlistDetails && error is ExtractorError.Unplayable && error.message != NOT_SUPPORTED) absent = error
+            }
         }
+        // "The playlist does not exist" is the full reader's to say: another source may only report that it could not make sense of the answer.
+        val failure = (result as? ExtractorResult.Failure)?.error
+        val said = absent
+        return if (said != null && (failure?.reason == FailureReason.PARSE_FAILURE || failure?.reason == FailureReason.UNPLAYABLE)) ExtractorResult.Failure(said) else result
     }
     override suspend fun recentUploads(channelId: String) = run("recentUploads($channelId)", AccountOp.NEVER) { it.recentUploads(channelId) }
     override suspend fun channelLanding(channelId: String) =

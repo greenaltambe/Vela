@@ -1,0 +1,9 @@
+-- 12 -> 13: saved playlists. A saved one is somebody else's YouTube playlist (sourceId): a read-only copy kept here that follows the original.
+-- remoteId stays reserved for the viewer's own synced playlists, so no account write can reach a saved list.
+ALTER TABLE Playlist ADD COLUMN sourceId TEXT;
+ALTER TABLE Playlist ADD COLUMN ownerName TEXT;
+ALTER TABLE Playlist ADD COLUMN ownerChannelId TEXT;
+ALTER TABLE Playlist ADD COLUMN coverUrl TEXT;
+ALTER TABLE Playlist ADD COLUMN onAccount INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE Playlist ADD COLUMN unavailableSince INTEGER;
+CREATE UNIQUE INDEX Playlist_source ON Playlist(accountId, sourceId);

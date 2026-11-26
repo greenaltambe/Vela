@@ -103,7 +103,7 @@ class PlaylistsDomain(private val db: VelaDatabase, private val now: () -> Insta
 
     override fun read(): Map<String, String> = buildMap {
         val r = repo
-        for (p in r.all().filter { !it.isMirror }) {
+        for (p in r.all().filter { it.isLocal }) {
             val lk = listKey(p)
             put("$prefix$lk", p.name)
             for (v in r.items(p.id)) put("$prefix$lk/i/${esc(v.videoId)}", join(v.title, v.channelId, v.channelName, v.thumbnailUrl, v.durationSeconds))
@@ -114,7 +114,7 @@ class PlaylistsDomain(private val db: VelaDatabase, private val now: () -> Insta
         val r = repo
         for ((k, v) in changes.entries.sortedBy { it.key }) {
             val parts = k.removePrefix(prefix).split("/i/")
-            var list = r.all().firstOrNull { !it.isMirror && listKey(it) == parts[0] }
+            var list = r.all().firstOrNull { it.isLocal && listKey(it) == parts[0] }
             // A Watch later that is synced with the account comes from the account, not from another device (and "@watchlater" is never a list's name).
             if (list == null && parts[0] == WL) continue
             if (parts.size == 1) {
@@ -134,6 +134,29 @@ class PlaylistsDomain(private val db: VelaDatabase, private val now: () -> Insta
     }
 
     private companion object { const val WL = "@watchlater" }
+}
+
+/** Saved playlists (somebody else's): which ones they are. Their videos are not carried; each device reads them from the original. */
+class SavedPlaylistsDomain(private val db: VelaDatabase, private val now: () -> Instant, private val accountId: String = LOCAL_ACCOUNT) : SyncDomain {
+    override val prefix = scopePrefix(accountId) + "saved/"
+    private val repo get() = PlaylistRepository(db, accountId)
+
+    override fun read(): Map<String, String> = repo.all().mapNotNull { p -> p.sourceId?.let { "$prefix${esc(it)}" to join(p.name, p.ownerName, p.ownerChannelId, if (p.onAccount) "1" else "0") } }.toMap()
+
+    override fun apply(changes: Map<String, String?>) {
+        val r = repo
+        for ((k, v) in changes) {
+            val source = unesc(k.removePrefix(prefix))
+            val here = r.bySource(source)
+            if (v == null) { if (here != null) r.delete(here.id); continue }
+            val f = fields(v)
+            val about = SavedSource(source, f[0], f.getOrNull(1)?.ifBlank { null }, f.getOrNull(2)?.ifBlank { null })
+            // Also added where the same list is synced as the viewer's own: leaving it out would read as removed here, and remove it everywhere.
+            val id = here?.id?.also { r.updateSaved(it, about, now()) } ?: r.createSaved(about, now())
+            // The local profile has no YouTube library to be in.
+            if (accountId != LOCAL_ACCOUNT) r.setOnAccount(id, f.getOrNull(3) == "1")
+        }
+    }
 }
 
 /** One record per video: the latest watch. Its time is when the video was watched, so an old edit found late cannot beat a newer watch elsewhere. */

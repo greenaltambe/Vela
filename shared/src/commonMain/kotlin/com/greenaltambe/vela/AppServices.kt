@@ -124,7 +124,7 @@ class AppServices(
         com.greenaltambe.vela.feed.WatchedLookup.progress(history.watchedPercents(), if (accounts.active.value.isSignedIn) accountWatched.percents() else emptyMap())
     val playlists get() = PlaylistRepository(db, activeId)
     /** The one place playlists are changed (add, remove, rename, delete, sync with YouTube, overflow); every screen goes through it. */
-    val playlistService by lazy { com.greenaltambe.vela.auth.PlaylistService(database, accounts, actions, reads, clock, settings) }
+    val playlistService by lazy { com.greenaltambe.vela.auth.PlaylistService(database, accounts, actions, reads, clock, settings, extractor = this.extractor) }
     /** What Home remembers (dismissed videos and channels, last visit) for the active account. */
     val homePrefs get() = com.greenaltambe.vela.home.HomePrefs(homeStore, activeId)
     /** Channels and title words the viewer blocked everywhere (shared by all accounts). */

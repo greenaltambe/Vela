@@ -129,4 +129,6 @@ class InnertubeAccountActions(
     override suspend fun createPlaylist(title: String): Pair<ActionResult, String?> = run { createPlaylist(title) }
     override suspend fun renamePlaylist(playlistId: String, title: String) = deferrable { renamePlaylist(playlistId, title) }
     override suspend fun deletePlaylist(playlistId: String) = deferrable { deletePlaylist(playlistId) }
+    override suspend fun savePlaylist(playlistId: String) = deferrable { savePlaylist(playlistId) }
+    override suspend fun unsavePlaylist(playlistId: String) = deferrable { unsavePlaylist(playlistId) }
 }

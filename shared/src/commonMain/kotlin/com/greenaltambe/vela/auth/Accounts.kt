@@ -231,6 +231,9 @@ interface AccountActions {
     suspend fun createPlaylist(title: String): Pair<ActionResult, String?>
     suspend fun renamePlaylist(playlistId: String, title: String): ActionResult
     suspend fun deletePlaylist(playlistId: String): ActionResult
+    /** Puts somebody else's playlist into the account's YouTube library (YouTube's "Save to library"). [ActionResult.Queued] works as for playlist edits. */
+    suspend fun savePlaylist(playlistId: String): ActionResult = ActionResult.Failed("Saving to YouTube is not available here.")
+    suspend fun unsavePlaylist(playlistId: String): ActionResult = ActionResult.Failed("Saving to YouTube is not available here.")
 }
 
 /** Videos per write when many are added at once. */
@@ -313,8 +316,11 @@ interface AccountReads {
         if (continuation != null) HistoryPage(emptyList(), null) else history()?.let { HistoryPage(it, null) }
 }
 
-/** One account playlist as read: [complete] is false when the listing stopped early (page limit). */
-class PlaylistListing(val videos: List<com.greenaltambe.vela.extractor.VideoSummary>, val complete: Boolean)
+/**
+ * One account playlist as read: [complete] is false when the listing stopped early (page limit). [details] says what its page says about it (whose it is,
+ * whether it is saved), when the source reads that.
+ */
+class PlaylistListing(val videos: List<com.greenaltambe.vela.extractor.VideoSummary>, val complete: Boolean, val details: com.greenaltambe.vela.extractor.PlaylistDetails? = null)
 
 /** A page of the account's watch history, newest first; [continuation] is null at the end. */
 class HistoryPage(val videos: List<com.greenaltambe.vela.extractor.VideoSummary>, val continuation: String?)

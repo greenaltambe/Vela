@@ -19,6 +19,8 @@ const val BACKUP_SCHEMA_VERSION = 2
 @Serializable data class BackupPlaylist(val name: String, val watchLater: Boolean = false, val videos: List<BackupVideo> = emptyList())
 @Serializable data class BackupHistory(val videoId: String, val channelId: String, val title: String, val watchedAt: Long, val positionMs: Long, val durationMs: Long, val watchedMs: Long)
 @Serializable data class BackupSearch(val query: String, val at: Long = 0)
+/** A saved playlist (somebody else's): which one, not its videos, which are read from the original again. */
+@Serializable data class BackupSaved(val sourceId: String, val title: String, val ownerName: String? = null, val ownerChannelId: String? = null, val coverUrl: String? = null, val onAccount: Boolean = false)
 
 /**
  * One JSON file with everything personal that is not a credential and not a file: settings (including per-channel and per-video overrides),
@@ -38,6 +40,7 @@ data class BackupFile(
     val searchHistory: List<BackupSearch> = emptyList(),
     /** Which account the subscriptions, playlists and history belong to (null = the local profile; older files have none). */
     val account: String? = null,
+    val savedPlaylists: List<BackupSaved> = emptyList(),
 )
 
 /** What a restore would change, before anything is written. */
@@ -68,7 +71,7 @@ class BackupService(private val db: VelaDatabase, private val clock: Clock = Clo
         val playlists = PlaylistRepository(db, accountId).let { repo ->
             fun video(it: com.greenaltambe.vela.data.PlaylistVideo) = BackupVideo(it.videoId, it.title, it.channelId, it.channelName, it.thumbnailUrl, it.durationSeconds)
             // Local playlists in full. A synced playlist comes back from the account, so only what never reached it (waiting or "not on YouTube") is saved, as a local playlist.
-            repo.all().filter { !it.isMirror }.map { p -> BackupPlaylist(p.name, p.isWatchLater, repo.items(p.id).map(::video)) } +
+            repo.all().filter { it.isLocal }.map { p -> BackupPlaylist(p.name, p.isWatchLater, repo.items(p.id).map(::video)) } +
                 repo.all().filter { it.isMirror && !it.isReadOnly }.mapNotNull { p ->
                     val unsent = repo.items(p.id).filter { it.rowState == com.greenaltambe.vela.data.RowState.PENDING_ADD || it.rowState == com.greenaltambe.vela.data.RowState.OVERFLOW }
                     if (unsent.isEmpty()) null else BackupPlaylist(p.name + " (not yet on YouTube)", false, unsent.map(::video))
@@ -76,8 +79,9 @@ class BackupService(private val db: VelaDatabase, private val clock: Clock = Clo
         }
         val history = if (includeHistory) HistoryLibrary(db, accountId).recent(100_000).map { BackupHistory(it.videoId, it.channelId, it.title, it.watchedAt.toEpochMilliseconds(), it.positionMs, it.durationMs, it.watchedMs) } else emptyList()
         val searches = if (includeSearchHistory) SearchHistoryRepository(db, accountId).recent(1000).map { BackupSearch(it) } else emptyList()
+        val saved = PlaylistRepository(db, accountId).all().mapNotNull { p -> p.sourceId?.let { BackupSaved(it, p.name, p.ownerName, p.ownerChannelId, p.coverUrl, p.onAccount) } }
         val settings = store.entries().filter { backedUp(it.key) }.map { BackupSetting(it.key, it.scope, it.id, it.value) }
-        return json.encodeToString(BackupFile.serializer(), BackupFile(createdAt = clock.now().toEpochMilliseconds(), settings = settings, subscriptions = subs, playlists = playlists, history = history, searchHistory = searches, account = accountId.takeIf { it != LOCAL_ACCOUNT }))
+        return json.encodeToString(BackupFile.serializer(), BackupFile(createdAt = clock.now().toEpochMilliseconds(), settings = settings, subscriptions = subs, playlists = playlists, history = history, searchHistory = searches, account = accountId.takeIf { it != LOCAL_ACCOUNT }, savedPlaylists = saved))
     }
 
     /** Parses and upgrades; throws [BackupException] for anything that is not a Vela backup this version can read. */
@@ -137,12 +141,21 @@ class BackupService(private val db: VelaDatabase, private val clock: Clock = Clo
         val newLists = mutableListOf<String>(); val merged = linkedMapOf<String, Int>()
         val now = clock.now()
         for (b in file.playlists) {
-            val existing = if (b.watchLater) lists.all().firstOrNull { it.isWatchLater } else lists.all().firstOrNull { !it.isMirror && !it.isWatchLater && it.name.equals(b.name, true) }
+            val existing = if (b.watchLater) lists.all().firstOrNull { it.isWatchLater } else lists.all().firstOrNull { it.isLocal && !it.isWatchLater && it.name.equals(b.name, true) }
             val videos = b.videos.map { VideoSummary(it.videoId, it.title, it.channelId, it.channelName, it.thumbnailUrl, it.durationSeconds) }
             if (existing == null) { newLists += b.name; if (apply) lists.add(lists.create(b.name, now), videos, now) }
             else {
                 val missing = videos.filter { !lists.contains(existing.id, it.id) }
                 if (missing.isNotEmpty()) { merged[b.name] = missing.size; if (apply) lists.add(existing.id, missing, now) }
+            }
+        }
+        // saved playlists: by the original they follow; one already synced as the viewer's own is left as it is
+        for (b in file.savedPlaylists) {
+            if (lists.bySource(b.sourceId) != null || lists.byRemote(b.sourceId) != null) continue
+            newLists += b.title
+            if (apply) {
+                val id = lists.createSaved(com.greenaltambe.vela.data.SavedSource(b.sourceId, b.title, b.ownerName, b.ownerChannelId, b.coverUrl), now)
+                if (b.onAccount && accountId != LOCAL_ACCOUNT) lists.setOnAccount(id, true)
             }
         }
         // history: a row is the same when video and time match

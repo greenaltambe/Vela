@@ -287,7 +287,7 @@ class SyncService(
         val ids = listOf(com.greenaltambe.vela.data.LOCAL_ACCOUNT) + (accounts?.all?.value.orEmpty().filter { it.kind == com.greenaltambe.vela.auth.AccountKind.GOOGLE }.map { it.id })
         for (id in ids) {
             if (SyncKind.SUBSCRIPTIONS in cfg.kinds) { add(SubscriptionsDomain(db, now, id)); add(GroupsDomain(id) { SubscriptionGroups(store, id) }) }
-            if (SyncKind.PLAYLISTS in cfg.kinds) add(PlaylistsDomain(db, now, id))
+            if (SyncKind.PLAYLISTS in cfg.kinds) { add(PlaylistsDomain(db, now, id)); add(SavedPlaylistsDomain(db, now, id)) }
             if (SyncKind.HISTORY in cfg.kinds) { add(HistoryDomain(db, now, id)); add(SearchHistoryDomain(db, now, id)) }
         }
         if (SyncKind.BLOCKLIST in cfg.kinds) add(BlocklistDomain(blocklist))

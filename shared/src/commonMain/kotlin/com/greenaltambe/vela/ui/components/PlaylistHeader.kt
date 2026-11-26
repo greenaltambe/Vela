@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
@@ -47,9 +48,13 @@ val PLAYLIST_HEADER_WIDTH = 360.dp
 /** One button of a playlist header. */
 class HeaderAction(val enabled: Boolean = true, val onClick: () -> Unit)
 
+/** The Save button of somebody else's playlist: [saved] says whether it is in the library now. */
+class SaveAction(val saved: Boolean, val onClick: () -> Unit)
+
 /** What the header can do with the whole playlist; a null action is not offered at all. */
 class PlaylistActions(
     val playAll: HeaderAction,
+    val save: SaveAction? = null,
     val shuffle: HeaderAction? = null,
     val download: HeaderAction? = null,
     val share: HeaderAction? = null,
@@ -92,6 +97,10 @@ fun PlaylistHeader(
             if (facts != null) Text(facts, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("playlist.facts"))
             PrimaryButton("Play all", onClick = actions.playAll.onClick, enabled = actions.playAll.enabled, modifier = Modifier.fillMaxWidth().testTag("playlist.playAll"))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
+                actions.save?.let { save ->
+                    if (save.saved) FilledIconButton(onClick = save.onClick, shapes = IconButtonDefaults.shapes(), modifier = Modifier.testTag("playlist.saved")) { Icon(AppIcons.saveFilled, "Saved to your library. Remove") }
+                    else HeaderButton(HeaderAction(onClick = save.onClick), AppIcons.save, "Save to library", "playlist.save")
+                }
                 actions.shuffle?.let { HeaderButton(it, AppIcons.shuffle, "Shuffle", "playlist.shuffle") }
                 actions.download?.let { HeaderButton(it, AppIcons.download, "Download all", "playlist.downloadAllButton") }
                 actions.share?.let { HeaderButton(it, AppIcons.share, "Share playlist", "playlist.share") }

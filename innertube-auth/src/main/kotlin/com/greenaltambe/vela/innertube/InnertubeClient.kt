@@ -114,6 +114,10 @@ class InnertubeClient(
         return r["playlistId"].string ?: throw AuthFailure.Unparseable("create playlist answered no playlist id")
     }
 
+    /** YouTube's "Save to library" on somebody else's playlist, and its removal (measured 2026-11-25: the like endpoints with a playlist as target). */
+    fun savePlaylist(playlistId: String) { write("like/like", buildJsonObject { putJsonObject("target") { put("playlistId", playlistId) } }) }
+    fun unsavePlaylist(playlistId: String) { write("like/removelike", buildJsonObject { putJsonObject("target") { put("playlistId", playlistId) } }) }
+
     fun deletePlaylist(playlistId: String) { write("playlist/delete", buildJsonObject { put("playlistId", playlistId) }) }
 
     // ---- reads ----
@@ -147,24 +151,34 @@ class InnertubeClient(
      * A playlist holds up to 5000 videos, about 50 pages. An answer that shows no videos where there should be some throws: it is a failed read,
      * never an empty playlist.
      */
-    fun playlistListing(playlistId: String, maxPages: Int = 60): Pair<List<AccountPlaylistVideo>, Boolean> {
+    fun playlistListing(playlistId: String, maxPages: Int = 60): Pair<List<AccountPlaylistVideo>, Boolean> =
+        readPlaylist(playlistId, maxPages).let { it.videos to it.complete }
+
+    /** [playlistListing] with the first page as it came, which says whose the playlist is. */
+    fun readPlaylist(playlistId: String, maxPages: Int = 60): PlaylistReading {
         val out = LinkedHashMap<String, AccountPlaylistVideo>()
-        var page = PlaylistPageParser.first(browse("VL$playlistId", LISTING_PATIENCE))
+        val answer = browse("VL$playlistId", LISTING_PATIENCE)
+        // A signed-out page would show everybody's playlist as unsaved: it is no answer about the account.
+        if (InnertubeParsers.isSignedOutPage(answer)) throw AuthFailure.LoggedOut("the playlist is the signed-out page")
+        var page = PlaylistPageParser.first(answer)
         PlaylistPageParser.refusal(page)?.let { throw AuthFailure.Unparseable(it) }
         // It says it is empty: whatever else is on the page is not its videos.
-        if (page.entries.isEmpty() && page.statedCount == 0) return emptyList<AccountPlaylistVideo>() to true
+        if (page.entries.isEmpty() && page.statedCount == 0) return PlaylistReading(emptyList(), true, answer)
         var pages = 1
         var unread = 0
         while (true) {
             page.videos.forEach { out.putIfAbsent(it.videoId, it) }
             unread += page.unread
-            val token = page.next ?: return out.values.toList() to (unread == 0)
-            if (pages++ >= maxPages) return out.values.toList() to false
+            val token = page.next ?: return PlaylistReading(out.values.toList(), unread == 0, answer)
+            if (pages++ >= maxPages) return PlaylistReading(out.values.toList(), false, answer)
             page = PlaylistPageParser.more(continuation(token, LISTING_PATIENCE))
-            if (!page.recognised) return out.values.toList() to false
+            if (!page.recognised) return PlaylistReading(out.values.toList(), false, answer)
         }
     }
 }
+
+/** One playlist read to its end ([complete]), and the first page it came on. */
+class PlaylistReading(val videos: List<AccountPlaylistVideo>, val complete: Boolean, val firstPage: JsonElement)
 
 /** A sync/listing may wait this long for the browse budget (6 calls a minute by default) rather than fail halfway. */
 private val LISTING_PATIENCE = kotlin.time.Duration.parse("70s")

@@ -4,6 +4,8 @@ package com.greenaltambe.vela.ui
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.graphics.asSkiaBitmap
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
@@ -38,6 +40,15 @@ class PlaylistPageUiTest {
             waitForIdle()
             body(f)
         }
+
+    /** [screenshot] of the topmost layer: with a dialog open there are two roots. */
+    private fun androidx.compose.ui.test.DesktopComposeUiTest.dialogShot(name: String) {
+        val dir = System.getProperty("vela.screens.dir") ?: return
+        val roots = onAllNodes(androidx.compose.ui.test.isRoot())
+        val image = roots[roots.fetchSemanticsNodes().lastIndex].captureToImage()
+        val data = org.jetbrains.skia.Image.makeFromBitmap(image.asSkiaBitmap()).encodeToData(org.jetbrains.skia.EncodedImageFormat.PNG) ?: return
+        java.io.File(dir, "$name.png").writeBytes(data.bytes)
+    }
 
     private fun androidx.compose.ui.test.DesktopComposeUiTest.present(tag: String) = onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
 
@@ -101,6 +112,109 @@ class PlaylistPageUiTest {
     @Test fun aMixOffersNothingThatNeedsAllOfIt() = open(1280, id = "RDabc") { _ ->
         onNodeWithTag("playlist.playAll").assertIsDisplayed()
         assertTrue(!present("playlist.shuffle") && !present("playlist.downloadAllButton"))
+    }
+
+    @Test fun saveKeepsItInTheLibraryAndTheSameButtonTakesItOut() = open(1280) { f ->
+        onNodeWithTag("playlist.save").performClick(); waitForIdle()
+        onNodeWithTag("playlist.saveConfirm").performClick()
+        waitUntil(timeoutMillis = 5_000) { present("playlist.saved") && f.services.playlists.bySource("PL1")?.itemCount == 44 }
+        onNodeWithTag("playlist.saved").performClick(); waitForIdle()
+        onNodeWithTag("playlist.removeConfirm").performClick()
+        waitUntil(timeoutMillis = 5_000) { present("playlist.save") }
+        assertEquals(null, f.services.playlists.bySource("PL1"))
+    }
+
+    @Test fun signedInTheBoxSaysWhetherItGoesToYouTubeAndRemovingAsksTheSame() = runDesktopComposeUiTest(1280, 900) {
+        val writes = mutableListOf<String>()
+        val actions = object : com.greenaltambe.vela.auth.AccountActions {
+            private val ok = com.greenaltambe.vela.auth.ActionResult.Ok
+            override suspend fun subscribe(channelId: String) = ok
+            override suspend fun unsubscribe(channelId: String) = ok
+            override suspend fun rate(videoId: String, rating: com.greenaltambe.vela.auth.VideoRating) = ok
+            override suspend fun addToPlaylist(playlistId: String, videoId: String) = ok
+            override suspend fun removeFromPlaylist(playlistId: String, videoId: String) = ok
+            override suspend fun createPlaylist(title: String) = ok to null
+            override suspend fun renamePlaylist(playlistId: String, title: String) = ok
+            override suspend fun deletePlaylist(playlistId: String) = ok
+            override suspend fun savePlaylist(playlistId: String) = ok.also { writes += "save $playlistId" }
+            override suspend fun unsavePlaylist(playlistId: String) = ok.also { writes += "unsave $playlistId" }
+        }
+        val reads = object : com.greenaltambe.vela.auth.AccountReads {
+            override suspend fun recommended(): List<VideoSummary>? = null
+            override suspend fun playlists() = emptyList<com.greenaltambe.vela.auth.AccountPlaylist>()
+            override suspend fun playlistVideos(playlistId: String) = emptyList<VideoSummary>()
+        }
+        val f = buildFixture(extractorOverride = Playlists(FakeExtractor(), pages()), actions = actions, reads = reads)
+        val jar = com.greenaltambe.vela.auth.CookieJar(listOf(com.greenaltambe.vela.auth.Cookie("SAPISID", "p", ".youtube.com")))
+        f.services.accounts.addGoogle(com.greenaltambe.vela.auth.GoogleIdentity("P", "p@example.com", null, "UCme"), jar)
+        f.navigator.push(Route.ChannelPlaylist("PL1", "The Rust Lang Book"))
+        setContent { AppUnderTest(f) }
+        waitUntil(timeoutMillis = 5_000) { present("playlist.save") }
+        onNodeWithTag("playlist.save").performClick(); waitForIdle()
+        onNodeWithTag("playlist.syncCheckbox").performClick(); waitForIdle()
+        dialogShot("playlist-save-dialog")
+        onNodeWithTag("playlist.saveConfirm").performClick()
+        waitUntil(timeoutMillis = 5_000) { present("playlist.saved") && f.services.playlists.bySource("PL1")?.onAccount == true }
+        assertEquals(listOf("save PL1"), writes)
+        onNodeWithTag("playlist.saved").performClick(); waitForIdle()
+        onNodeWithTag("playlist.removeFromAccount").assertIsDisplayed()
+        dialogShot("playlist-remove-dialog")
+        onNodeWithTag("playlist.removeConfirm").performClick()
+        waitUntil(timeoutMillis = 5_000) { present("playlist.save") }
+        assertEquals(listOf("save PL1", "unsave PL1"), writes)
+    }
+
+    @Test fun yourOwnChannelsPlaylistOffersNoSaveEvenWhenReadWithoutTheAccount() = runDesktopComposeUiTest(1280, 900) {
+        val f = buildFixture(extractorOverride = Playlists(FakeExtractor(), pages()))
+        val jar = com.greenaltambe.vela.auth.CookieJar(listOf(com.greenaltambe.vela.auth.Cookie("SAPISID", "p", ".youtube.com")))
+        f.services.accounts.addGoogle(com.greenaltambe.vela.auth.GoogleIdentity("P", "p@example.com", null, "UCowner"), jar)
+        f.navigator.push(Route.ChannelPlaylist("PL1", "x"))
+        setContent { AppUnderTest(f) }
+        waitUntil(timeoutMillis = 5_000) { present("playlist.playAll") }; waitForIdle()
+        assertTrue(!present("playlist.save"))
+    }
+
+    @Test fun aPlaylistThatCannotBeSavedHasNoSaveButton() {
+        val own = pages().also { it[null] = it[null]!!.copy(details = details.copy(canBeSaved = false)) }
+        open(1280, own) { _ -> assertTrue(!present("playlist.save") && !present("playlist.saved")) }
+        open(1280, id = "RDmix") { _ -> assertTrue(!present("playlist.save")) }
+    }
+
+    @Test fun aSavedPlaylistInTheLibraryCanBePlayedCopiedAndRemovedButNotChanged() = runDesktopComposeUiTest(1280, 900) {
+        val f = buildFixture(extractorOverride = Playlists(FakeExtractor(), pages()))
+        val lists = f.services.playlists
+        val id = lists.createSaved(com.greenaltambe.vela.data.SavedSource("PL1", "The Rust Lang Book", "Let's Get Rusty", "UCowner"), kotlin.time.Clock.System.now())
+        f.navigator.selectTab(Route.Library)
+        setContent { AppUnderTest(f) }; waitForIdle()
+        runOnUiThread { f.navigator.push(Route.Playlist(id)) }
+        // Opening it reads the original.
+        waitUntil(timeoutMillis = 5_000) { lists.get(id)!!.itemCount == 44 }
+        waitUntil(timeoutMillis = 5_000) { present("playlist.row") }
+        for (tag in listOf("playlist.saved", "playlist.share", "playlist.playAll", "playlist.owner")) onNodeWithTag(tag).assertIsDisplayed()
+        screenshot("playlist-saved")
+        onAllNodesWithTag("playlist.itemMenu").onFirst().performClick(); waitForIdle()
+        assertTrue(!present("playlist.remove"))
+        onNodeWithText("Move down").assertDoesNotExist()
+        // Leaving the page and coming back closes the row's menu.
+        runOnUiThread { f.navigator.back() }; waitForIdle()
+        runOnUiThread { f.navigator.push(Route.Playlist(id)) }; waitForIdle()
+        onNodeWithTag("library.menu").performClick(); waitForIdle()
+        assertTrue(present("playlist.syncSettings") && !present("playlist.syncNow"), "its box can be changed; there is nothing to send")
+        onNodeWithTag("playlist.downloadAll").assertIsDisplayed()
+    }
+
+    @Test fun anOriginalThatIsGoneIsSaidAndTheCopyCanStillBeRemoved() = runDesktopComposeUiTest(400, 900) {
+        val f = buildFixture(extractorOverride = Playlists(FakeExtractor(), mutableMapOf()))
+        val lists = f.services.playlists
+        val id = lists.createSaved(com.greenaltambe.vela.data.SavedSource("PL1", "Gone list"), kotlin.time.Clock.System.now())
+        lists.replaceItems(id, many(1, 3), kotlin.time.Clock.System.now()); lists.markUnavailable(id, kotlin.time.Clock.System.now())
+        f.navigator.push(Route.Playlist(id))
+        setContent { AppUnderTest(f) }; waitForIdle()
+        onNodeWithTag("playlist.unavailable").assertIsDisplayed()
+        onNodeWithTag("playlist.saved").performClick(); waitForIdle()
+        onNodeWithTag("playlist.removeText").assertTextContains("cannot be saved again", substring = true)
+        onNodeWithTag("playlist.removeConfirm").performClick()
+        waitUntil(timeoutMillis = 5_000) { lists.get(id) == null }
     }
 
     @Test fun onlyAPlaylistOfYourOwnOnYouTubeCanBeShared() = runDesktopComposeUiTest(1280, 900) {

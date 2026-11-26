@@ -12,7 +12,7 @@ class PlaylistCallsGuardTest {
     private val uiDir = listOf("src/commonMain/kotlin/com/greenaltambe/vela/ui", "shared/src/commonMain/kotlin/com/greenaltambe/vela/ui").map(::File).first { it.isDirectory }
 
     @Test fun noScreenWritesPlaylistsOrTheirAccountCopyDirectly() {
-        val direct = Regex("""playlists\.(add|remove|create|rename|delete|setRemote|linked)\(|actions[!?]*\.(addToPlaylist|removeFromPlaylist|addManyToPlaylist|createPlaylist|renamePlaylist|deletePlaylist)\(""")
+        val direct = Regex("""playlists\.(add|remove|create|rename|delete|setRemote|linked)\(|actions[!?]*\.(addToPlaylist|removeFromPlaylist|addManyToPlaylist|createPlaylist|renamePlaylist|deletePlaylist|savePlaylist|unsavePlaylist)\(""")
         val offenders = uiDir.walkTopDown().filter { it.extension == "kt" }.flatMap { f ->
             f.readLines().mapIndexedNotNull { i, line -> if (direct.containsMatchIn(line) && !line.trimStart().startsWith("//") && !line.trimStart().startsWith("*")) "${f.name}:${i + 1}: ${line.trim().take(100)}" else null }
         }.toList()
