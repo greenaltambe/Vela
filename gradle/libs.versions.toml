@@ -19,7 +19,7 @@ kotlinx-serialization = "1.12.0"
 media3 = "1.11.1"
 robolectric = "4.17"
 # The Android jar Robolectric runs @Config(sdk = [34]) tests on. Gradle fetches it (see androidApp/build.gradle.kts); keep it the one Robolectric 4.17 names for SDK 34.
-robolectric-android-all = "14-robolectric-10818077-i7"
+robolectric-android-all = "17-robolectric-16653203-i7"
 newpipe-extractor = "v0.26.5"
 # Release date of the NewPipeExtractor above (scripts/bump-newpipe.sh keeps it in step); drives the staleness warning.
 newpipe-released = "2026-08-15"
